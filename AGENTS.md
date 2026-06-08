@@ -6,8 +6,9 @@ This is a LaTeX-based weekly church bulletin project. The templates in `template
 
 1. Create bulletin content from `templates/bulletin/` into `content/<date>/`
 2. Load assets from `assets/`
-3. Compile with XeLaTeX
-4. Output PDF to `pdf/<date>.pdf`
+3. Read `assets/church/information.md` and generate `private-data.tex` in the content directory with `\renewcommand` overrides for `\CouncilRows` and `\PastorCell`
+4. Compile with XeLaTeX
+5. Output PDF to `pdf/<date>.pdf`
     - Date format: "MM DD YYYY"
 
 ## Project Structure

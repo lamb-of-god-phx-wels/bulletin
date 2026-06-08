@@ -12,3 +12,6 @@
 *.blg
 content/
 pdf/
+example_bulletins/
+*private-data.tex
+assets/church/information.md

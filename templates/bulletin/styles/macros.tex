@@ -6,6 +6,7 @@
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.35em}
 \linespread{1.03}
+\renewcommand{\bfdefault}{b}
 
 \clubpenalty=10000
 \widowpenalty=10000
@@ -69,6 +70,8 @@
   \noindent{\bfseries #1}\par
   \vspace{0.2em}%
 }
+
+\newcommand{\guestblock}[2]{\textbf{\MakeUppercase{#1}}\par\noindent#2\par}
 
 \newcommand{\speakerline}[2]{%
   \noindent

@@ -10,6 +10,7 @@
 *.fdb_latexmk
 *.bbl
 *.blg
+*.pdf
 content/
 pdf/
 example_bulletins/

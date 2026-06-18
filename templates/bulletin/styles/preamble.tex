@@ -6,7 +6,7 @@
   left=0.4in,
   right=0.4in,
   heightrounded,
-  footskip=18pt
+  footskip=14pt
 ]{geometry}
 
 \usepackage{fontspec}
@@ -24,7 +24,7 @@
 
 \hypersetup{colorlinks=true, linkcolor=black, urlcolor=black}
 
-\setmainfont[Ligatures=TeX,AutoFakeBold]{Calibri}
+\setmainfont[Ligatures=TeX,AutoFakeBold,AutoFakeSlant]{Calibri}
 
 \newfontfamily\headingfont{Eras Demi ITC}
 \newfontfamily\symbolfont{Wingdings}
@@ -34,7 +34,7 @@
 \fancyfoot[C]{\fontsize{12}{14}\selectfont\thepage}
 \renewcommand{\headrulewidth}{0pt}
 
-\titleformat{\section}{\centering\large\headingfont}{}{0pt}{}
+\titleformat{\section}{\centering\large\bfseries}{}{0pt}{}
 \titlespacing*{\section}{0pt}{0.9em}{0.35em}
 
 \input{styles/macros.tex}

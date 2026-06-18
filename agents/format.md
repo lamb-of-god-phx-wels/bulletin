@@ -1,4 +1,4 @@
-#
+# Format
 
 ## Page Set-up
 
@@ -42,171 +42,80 @@ assets/
 When new assets are added, keep them organized according to the structure given
 above.
 
-
 ## Sections
 
-- Cover
-- Information/Welcome
+- [Cover](/agents/sections/cover.md)
+- [Welcome](/agents/sections/welcome.md)
 - Service
-    - The Gathering
+    - [The Gathering](/agents/sections/the_gathering.md)
     - The Word
     - The Prayers
 - Announcements
+- If there are less than 2 lines of body in a section, insert a page braak
+  before the section, unless the body itself is less than two lines (or no
+  body).
 
+## Subsections
 
-### Cover
+Everything inside of a major section is considered a subsection. Subsections
+follow the following format:
 
-- Exactly one complete page (first page)
-- Contains the following information:
-    - Church-designated Sunday (e.g., "Second Sunday After Pentecost")
-        - This is pulled from https://builder.christianworship.com, though
-          naming is modified like the example ("Pentecost 2" -> "Second Sunday
-          After Pentecost", or "First Sunday after Pentecost - Holy Trinity" ->
-          "Trinity Sunday")
-        - Top of the page
-        - Left-justified
-        - Full width border line above and below
-            - 0.5" space between border lines
-            - Text centered between these
-    - Date (e.g., "June 7, 2026")
-        - Same line as the Sunday name
-        - Right-justified
-    - Sermon series logo
-        - Centered horizontally
-    - Sermon title
-        - All caps
-        - Centered horizontally
-        - Together with the sermon series/image, vertically 
-        - About 0.5"-1" below series logo
-    - Church logo
-        - This is "img/ChurchLogo.png"
-        - Aligned to bottom of the page (adhering to margins)
-        - Right-justified
-        - 2.25" wide
-        - Accompanied by a double-line border
-            - 3.875" wide
-            - Aligned to bottom margin
-            - Left-justified        
-- Fonts
-    - Church-designated Sunday, Date, and Sermon Title
-        - Eras Demi ITC
-        - 16 (14 if it doesn't fit)
+```
+**<SUBSECTION TITLE>**[: *<Subtitle>*]
+[*<Small note>*]
 
-
-### Information/Welcome
-
-- Exactly one complete page
-- At the top there is a section containing:
-    - Church photo, left aligned
-    - Two rows of text, left aligned to the right of the photo, flush against the photo (no gap)
-    - Each row can only take one line.
-    - Source: information.md
-    - Photo width: 1.75in (height proportional)
-    - First row (church name):
-        - Full church name
-        - Eras Demi ITC
-        - 17 pt (or to fit, 20pt line spacing)
-        - White background
-        - Black foreground
-        - Left-padded 0.08in inside box
-    - Second row (slogan):
-        - Church Slogan
-        - Eras Demi ITC
-        - 12 pt (or to fit, 16pt line spacing, always smaller than name)
-        - Grey background (#A4A4A4)
-        - White foreground
-        - Left-padded 0.08in inside box
-    - Both rows stacked flush (no gap), each filling exactly 50% of photo height
-    - Example:
-        ```
-        ________________________________________________________________________________
-        |            |                                                                 |
-        | Photo      | Lamb of God Lutheran Church                                     |
-        |            |_________________________________________________________________|
-        |            |                                                                 |
-        |            | Reaching Up. Reaching Out. Reaching Across.                     |
-        |____________|_________________________________________________________________|
-        ```
-- Pastor/church information (no header)
-    - Source: information.md
-    - Two columns
-    - Text within each column is centered
-    - Calibri
-    - 12 pt
-    - First column:
-        - `<pastor's name>`
-        - Church Phone: `<church phone>`
-        - Cell Phone: `<pastor's cell phone>`
-    - Second column:
-        - `<pastor's email>`
-        - `<website>`
-        - `<address>`
-- Horizontal rule
-    - 0.75 pt
-    - 0.15" space above, 0.08" space below
-- Council information (no header)
-    - Source: information.md
-    - Table as follows:
-    - | COUNCIL MEMBER | EMAIL | PHONE |
-      |:---------------|:------|:------|
-      | Name           | email | phone |
-      | Name           | email | phone |
-      | ...            | ...   | ...   |
-    - Calibri
-    - 12 pt
-    - Column headers underlined, all caps
-    - Generous row spacing (1.6x line height)
-    - Column headers underlined only (no bold)
-- Horizontal rule
-    - 0.75 pt
-    - 0.1" space above, 0.08" space below
-- Guest information
-    - Source: information.md
-    - Calibri
-    - 12 pt
-    - Left-justified
-    - Titles
-        - All caps
+[<Content>]
+```
+- Calibri
+- 11 pt
+- Left-justified
+- Title
+    - `SUBSECTION TITLE`
         - Bold
-    - No additional space between title and content
-    - 1em blank line between groups
-- Horizontal rule
-    - 0.5 pt
-    - 0.1" space above, 0.08" space below
-- Links
-    - Source: information.md
-    - Centered
-    - Calibri
-    - 10 pt
-    - Content:
-        - WEBSITE: `<website>`
-        - CALENDAR: `<calendar>`
-        - FACEBOOK: `<facebook>`
-        - INSTAGRAM: `<instagram>`
+        - All caps
+    - `Subtitle` (optional)
+        - Italics
+        - Title case
+        - Separate line from title
+        - No space after title
+    - `Content` (optional)
+        - Regular case
+        - Regular font style (unless otherwise noted)
 
-### Service
+## Special Subsections
 
-- Title of the sermon
-    - Title case (no all-caps)
-    - Eras Demi ITC
-    - 14 pt (17 pt leading)
-    - Centered
-    - Aligned to top margin
-    - Border on top and bottom
-        - 0.75 pt thickness
-        - Flush to top margin (via \topskip=0pt)
-        - Title vertically centered between borders, tight spacing
+The difference for a special subsection is that the title:
+- Eras Demi ITC
+- 11 pt
+- No sub-title
+- No small note
+- Bookended by Maltese cross icons (✠) using the \litcross macro.
 
-### The Gathering
-    - Section header w/ Maltese crosses
-    - All sub-text uses:
-        - Calibri
-        - 12 pt
-        - Left-justified
-    - Sub-sections are:
-        - Bold
-        - All-caps
-        - Left-justified
-    - 
+Special subsections do not require a page break.
 
-        
+## Scripture
+
+- Scripture references are treated as quotes with increased indentation.
+- Each verse is preceded by a superscript verse number.
+
+## Responsive Readings
+
+Responsive readings follow the format:
+
+```
+M: <text that the minister reads>
+**C: <text that the congregation reads>
+```
+
+When a bible verse is referenced, that reference is right-justified and placed
+on the same line as the last line of text if that text is <= half the page
+width, otherwise it is placed on the next line. Bible references are italicized.
+
+## Songs
+
+See [Songs](/agents/sections/songs.md)
+
+
+
+
+

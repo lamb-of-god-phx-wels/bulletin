@@ -2,13 +2,13 @@
 
 % --- Header: Church photo + name/slogan ---
 
-\setbox0=\hbox{\includegraphics[width=1.75in]{\ChurchPhotoPath}}%
+\setbox0=\hbox{\includegraphics[height=1in]{\ChurchPhotoPath}}%
 \noindent
 \parbox[c][\ht0][c]{\wd0}{\usebox0}%
 \parbox[c][\ht0][c]{\dimexpr\textwidth-\wd0\relax}{%
   \offinterlineskip
   \setlength{\fboxsep}{0pt}%
-  \hbox{\colorbox{white}{\parbox[c][0.5\ht0][c]{\linewidth}{\raggedright\leftskip=0.08in\headingfont\fontsize{17}{21}\selectfont\ChurchName}}}%
+  \hbox{\colorbox{white}{\parbox[c][0.5\ht0][c]{\linewidth}{\raggedright\leftskip=0.08in\headingfont\fontsize{18}{22}\selectfont\ChurchName}}}%
   \hbox{\colorbox[HTML]{A4A4A4}{\parbox[c][0.5\ht0][c]{\linewidth}{\raggedright\leftskip=0.08in\headingfont\fontsize{12}{16}\selectfont\textcolor{white}{\ChurchSlogan}}}}%
 }
 
@@ -40,7 +40,7 @@
 % --- Council information ---
 
 \noindent
-{\renewcommand{\arraystretch}{1.6}%
+{\renewcommand{\arraystretch}{1.35}%
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
   \underline{COUNCIL MEMBER} & \underline{EMAIL} & \underline{PHONE} \\
   \CouncilRows

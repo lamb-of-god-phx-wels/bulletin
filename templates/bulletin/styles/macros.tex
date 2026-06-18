@@ -54,15 +54,17 @@
 \newcommand{\divider}[1]{%
   \vspace{1.0em}%
   \begin{center}
-    {\headingfont\large\bfseries \textsc{#1}}
+    {\large\bfseries \textsc{#1}}
   \end{center}
   \vspace{0.45em}%
 }
 
-\newcommand{\bulletinheading}[1]{%
-  \needspace{4\baselineskip}
+\newcommand{\bulletinheading}[2][]{%
+  \needspace{4\baselineskip}%
   \vspace{0.8em}%
-  \noindent{\headingfont\bfseries\MakeUppercase{#1}}\par
+  \noindent{\bfseries\MakeUppercase{#2}}%
+  \ifx\relax#1\relax\else\\\textit{#1}\fi
+  \par
   \vspace{0.25em}%
 }
 
@@ -87,12 +89,13 @@
 \newcommand{\reader}[1]{\speakerline{R}{#1}}
 \newcommand{\pastor}[1]{\speakerline{P}{#1}}
 
+\newcommand{\responsiveminister}[1]{\noindent M: #1\par}
+\newcommand{\responsivecongregation}[1]{\noindent\textbf{C: #1}\par}
+
 \newenvironment{liturgy}{%
   \vspace{0.35em}
-  \small
   \setlength{\parskip}{0.38em}
 }{%
-  \normalsize
   \vspace{0.45em}
 }
 
@@ -111,7 +114,7 @@
 \newcommand{\hymn}[2]{%
   \needspace{5\baselineskip}
   \vspace{0.8em}
-  \noindent{\headingfont\bfseries\MakeUppercase{#1}:} #2\par
+  \noindent{\bfseries\MakeUppercase{#1}:} \textit{#2}\par
   \vspace{0.35em}
 }
 
@@ -128,56 +131,56 @@
   \normalsize
 }
 
+\newcounter{hymnverse}
+
 \newenvironment{hymnverses}{%
-  \begin{center}
-  \small
-  \begin{minipage}{0.82\textwidth}
-  \begin{enumerate}[
-    leftmargin=1.55em,
-    label=\arabic*.,
-    itemsep=0.55em,
-    parsep=0pt,
-    topsep=0.2em
-  ]
+  \normalsize
+  \vspace{0.35em}%
+  \setcounter{hymnverse}{0}%
 }{%
-  \end{enumerate}
-  \end{minipage}
-  \end{center}
+  \vspace{0.35em}%
   \normalsize
 }
 
-\newcommand{\verseitem}[1]{\item #1}
+\newcommand{\verseitem}[1]{%
+  \stepcounter{hymnverse}%
+  \par\noindent
+  \hspace*{0.5in}%
+  \makebox[0.25in][l]{\thehymnverse.}%
+  \begin{minipage}[t]{\dimexpr\linewidth-0.75in\relax}
+    #1
+  \end{minipage}%
+  \par\vspace{1.5em}%
+}
 
 \newcommand{\refrain}[1]{%
   \vspace{0.25em}
-  \noindent\hspace{1.55em}\textit{Refrain:} #1\par
+  \noindent\hspace{1.55em}Refrain: #1\par
   \vspace{0.25em}
 }
 
 \newcommand{\reading}[3]{%
   \needspace{5\baselineskip}
   \vspace{0.8em}
-  \noindent{\headingfont\bfseries\MakeUppercase{#1}:} #2\par
+  \noindent{\bfseries\MakeUppercase{#1}:} #2\par
   \vspace{0.2em}
-  {\small\itshape #3}\par
+  {\itshape #3}\par
   \vspace{0.35em}
 }
 
 \newenvironment{scripture}{%
-  \small
   \begin{quote}
   \setlength{\parskip}{0.35em}
 }{%
   \end{quote}
-  \normalsize
 }
 
 \newcommand{\sermon}[2]{%
   \needspace{5\baselineskip}
   \vspace{0.8em}
-  \noindent{\headingfont\bfseries SERMON:} #1\par
+  \noindent{\bfseries SERMON:} #1\par
   \vspace{0.2em}
-  {\small\itshape #2}\par
+  {\itshape #2}\par
   \vspace{0.35em}
 }
 
@@ -192,16 +195,13 @@
 }
 
 \newenvironment{corporatetext}{%
-  \small
   \setlength{\parskip}{0.45em}
-}{%
-  \normalsize
-}
+}{}
 
 \newcommand{\announcement}[2]{%
   \needspace{4\baselineskip}
   \vspace{0.8em}
-  \noindent{\headingfont\bfseries\MakeUppercase{#1}}\par
+  \noindent{\bfseries\MakeUppercase{#1}}\par
   \vspace{0.2em}
   #2\par
 }
@@ -218,6 +218,8 @@
 }
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\newcommand{\verseref}[2]{\textsuperscript{#1}~#2}
 
 \newcommand{\givingqr}{%
   \begin{center}

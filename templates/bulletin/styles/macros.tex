@@ -65,7 +65,7 @@
   \noindent{\bfseries\MakeUppercase{#2}}%
   \ifx\relax#1\relax\else\\\textit{#1}\fi
   \par
-  \vspace{0.25em}%
+  \vspace{0.15em}%
 }
 
 \newcommand{\subheading}[1]{%
@@ -78,23 +78,22 @@
 \newcommand{\guestblock}[2]{\textbf{\MakeUppercase{#1}}\par\noindent#2\par}
 
 \newcommand{\speakerline}[2]{%
-  \noindent
-  \hangindent=1.55em
-  \hangafter=1
-  \textbf{#1:} #2\par
+  \noindent{\leftskip=1.55em\llap{\textbf{#1: }}#2\par}
 }
 
-\newcommand{\minister}[1]{\speakerline{M}{#1}}
-\newcommand{\congregation}[1]{\speakerline{C}{#1}}
+\newcommand{\minister}[1]{\noindent{\leftskip=1.55em\llap{M: }#1\par}}
+\newcommand{\ministercont}[1]{\noindent{\leftskip=1.55em #1\par}}
+\newcommand{\congregation}[1]{\noindent{\leftskip=1.55em\llap{\textbf{C: }}\textbf{#1}\par}}
+\newcommand{\congregationcont}[1]{\noindent{\leftskip=1.55em\textbf{#1}\par}}
 \newcommand{\reader}[1]{\speakerline{R}{#1}}
 \newcommand{\pastor}[1]{\speakerline{P}{#1}}
 
-\newcommand{\responsiveminister}[1]{\noindent M: #1\par}
-\newcommand{\responsivecongregation}[1]{\noindent\textbf{C: #1}\par}
+\newcommand{\responsiveminister}[1]{\noindent{\leftskip=1.55em\llap{M: }#1\par}\vspace{0.8em}}
+\newcommand{\responsivecongregation}[1]{\noindent{\leftskip=1.55em\llap{\textbf{C: }}\textbf{#1}\par}\vspace{0.8em}}
 
 \newenvironment{liturgy}{%
   \vspace{0.35em}
-  \setlength{\parskip}{0.38em}
+  \setlength{\parskip}{0.8em}
 }{%
   \vspace{0.45em}
 }
@@ -108,7 +107,8 @@
 }
 
 \newcommand{\instruction}[1]{%
-  \noindent{\small\itshape #1}\par
+  \vspace{-\parskip}\noindent\hfill{\small\itshape #1}\par
+  \vspace{-\parskip}%
 }
 
 \newcommand{\hymn}[2]{%

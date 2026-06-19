@@ -39,7 +39,7 @@
     - Two columns
     - Text within each column is centered
     - Calibri
-    - 12 pt
+    - 11 pt
     - First column:
         - `<pastor's name>`
         - Church Phone: `<church phone>`
@@ -60,9 +60,10 @@
       | Name           | email | phone |
       | ...            | ...   | ...   |
     - Calibri
-    - 12 pt
+    - 11 pt
+    - Emails are plain text — do not wrap in \texttt{} or any font command
     - Column headers underlined, all caps
-    - Generous row spacing (1.6x line height)
+    - Generous row spacing (1.5x line height)
     - Column headers underlined only (no bold)
 - Horizontal rule
     - 0.75 pt
@@ -70,7 +71,7 @@
 - Guest information
     - Source: information.md
     - Calibri
-    - 12 pt
+    - 11 pt
     - Left-justified
     - Titles
         - All caps

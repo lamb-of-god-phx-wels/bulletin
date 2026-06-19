@@ -15,8 +15,14 @@
 
 ## Introductions
 
-There are a set of static introductions under /assets/service_intros. These 
-are used as-is. They may contain multiple sub-sections.
+There are a set of static introductions under
+`templates/bulletin/assets/service_intros/`. These are used as-is. They may
+contain multiple sub-sections.
+
+When a user requests a particular intro (e.g., "use intro pages 8-9"), try to
+match it to one of the existing
+`templates/bulletin/assets/service_intros/intro*.md` files (e.g.,
+`intro89.md`). Use this as the outline for the "Introduction" sections.
 
 ## Format
 

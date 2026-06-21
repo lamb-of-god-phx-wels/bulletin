@@ -17,6 +17,9 @@ Songs follow the format when only lyrics are given:
     
     3.  <...>
 ```
+- Use the `\song{Designation}{Title}` macro for the title line. This applies
+  to ALL song-like items: Opening Hymn, Song of Praise, Psalm, Closing Hymn,
+  etc. Do NOT use `\bulletinheading{}` for them.
 - When a "CW" or "CWS" number is given, it goes in parentheses after the title.
 - The verse number is exactly 0.5" from the left margin
 - The lyric text is exactly 0.75" from the left margin

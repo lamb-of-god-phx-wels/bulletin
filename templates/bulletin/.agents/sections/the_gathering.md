@@ -8,8 +8,8 @@
 - Opening Hymn/Song (if present)
 - Introduction (see Introductions section)
 - Remaining sub-sections (order determined per bulletin, given in prompt)
-    - Song of Praise
-    - Psalm
+    - Song of Praise — use `\song{}` macro (see `.agents/songs.md`)
+    - Psalm — use `\song{}` macro (see `.agents/songs.md`)
     - Prayer of the Day
     - etc.
 

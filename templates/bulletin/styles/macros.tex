@@ -111,12 +111,13 @@
   \vspace{-\parskip}%
 }
 
-\newcommand{\hymn}[2]{%
+\newcommand{\song}[2]{%
   \needspace{5\baselineskip}
   \vspace{0.8em}
   \noindent{\bfseries\MakeUppercase{#1}:} \textit{#2}\par
   \vspace{0.35em}
 }
+\let\hymn\song
 
 \newenvironment{hymnlines}{%
   \vspace{0.35em}
@@ -178,7 +179,7 @@
 \newcommand{\sermon}[2]{%
   \needspace{5\baselineskip}
   \vspace{0.8em}
-  \noindent{\bfseries SERMON:} #1\par
+  \noindent{\bfseries SERMON:} \textit{#1}\par
   \vspace{0.2em}
   {\itshape #2}\par
   \vspace{0.35em}

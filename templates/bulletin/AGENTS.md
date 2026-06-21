@@ -66,7 +66,7 @@ pdfbook2 bulletin.pdf
 \congregation{And also with you.}
 \end{liturgy}
 
-\hymn{Opening Hymn}{Hymn Title (CW 123)}
+\song{Opening Hymn}{Hymn Title (CW 123)}
 \begin{hymnverses}
 \verseitem{Verse text...}
 \end{hymnverses}

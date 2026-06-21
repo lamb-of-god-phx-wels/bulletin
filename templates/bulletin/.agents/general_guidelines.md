@@ -38,10 +38,27 @@ assets/
 When new assets are added, keep them organized according to the structure given
 above.
 
+## Inline Formatting
+
+When entering or editing text content, read `.agents/general_formatting.md`
+for inline formatting rules (quotes, hyphens, etc.).
+
+
 ## Bulletin Outline
 
 When deciding how to lay out the bulletin or adding/modifying sections or
 subsections, read `.agents/outline.md`
+
+
+## Subsections
+
+All subsection titles (including song designations, readings, and the sermon)
+follow the same pattern: the label is bold and uppercase, and any subtitle
+that follows is italicized.
+
+When adding a sermon, use the `\sermon{Title}{Scripture}` macro. The sermon
+title (first argument) is italicized — the macro handles this automatically.
+Do not wrap it in any additional font commands.
 
 
 ## Scripture Readings

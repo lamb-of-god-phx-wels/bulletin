@@ -1,3 +1,8 @@
+---
+name: scripture-formatting
+description: REQUIRED when including Bible passages in the bulletin. Fetches NIV 2011 text from Bible Gateway, preserves HTML <p> paragraph breaks, formats as LaTeX \verseref{} calls with proper Unicode quote characters (\char"201C / \char"201D with {} guard).
+---
+
 # Scripture Formatting Skill
 
 Fetch NIV 2011 passages from Bible Gateway, determine paragraph breaks from

@@ -103,6 +103,9 @@ decisions made for that bulletin. Refer to this for context for existing
 documents that were not created in the current session. If the user asks you to
 start over, remove the `history.md`.
 
+**Append-only:** For subsequent updates, append new entries to `history.md`
+using shell `>>` redirection — do not re-read and rewrite the whole file.
+
 
 ### Template Updates
 

@@ -4,7 +4,7 @@ param(
 )
 
 # Fetch a scripture passage from Bible Gateway (NIV 2011) and output
-# paragraph-separated text with verse numbers inline.
+# clean text with paragraph breaks — no cross-references, footnotes, or HTML.
 # Usage: powershell -File skills/fetch-scripture.ps1 "Genesis 1:1-5"
 
 $encoded = [uri]::EscapeUriString($Passage)
@@ -17,27 +17,34 @@ try {
     exit 1
 }
 
-# Extract passage-text div
-$passageText = $html.Content
-$start = $passageText.IndexOf('<div class="passage-text">')
-$end = $passageText.IndexOf('<div class="passage-attributes">')
-if ($start -eq -1 -or $end -eq -1) {
-    Write-Error "Could not find passage text in response"
+$content = $html.Content
+
+# Find std-text div (contains actual scripture paragraphs, no nav/copyright)
+$pattern = '<div[^>]*class="[^"]*std-text[^"]*"[^>]*>(.*?)</div>\s*</div>\s*</div>\s*</div>'
+$match = [regex]::Match($content, $pattern, 'Singleline')
+if (!$match.Success) {
+    Write-Error "Could not find scripture text in response"
     exit 1
 }
-$passageText = $passageText.Substring($start, $end - $start)
 
-# Extract text from each <p> tag, preserving paragraph breaks
-$paragraphs = [regex]::Matches($passageText, '<p[^>]*>(.*?)</p>', 'Singleline')
+$html = $match.Groups[1].Value
+
+# Extract each <p> tag
+$paragraphs = [regex]::Matches($html, '<p[^>]*>(.*?)</p>', 'Singleline')
 
 $output = @()
 foreach ($p in $paragraphs) {
     $text = $p.Groups[1].Value
-    # Replace <br> with newline
-    $text = $text -replace '<br\s*/?>', "`n"
-    # Strip all remaining HTML tags
+    $text = $text -replace '<br\s*/?>', ' '
     $text = $text -replace '<[^>]+>', ''
-    # Trim whitespace
+    $text = $text -replace '&nbsp;', ''
+    $text = $text -replace '&rsquo;', "'"
+    $text = $text -replace '&lsquo;', "'"
+    $text = $text -replace '&rdquo;', '"'
+    $text = $text -replace '&ldquo;', '"'
+    $text = $text -replace '\[[a-z]\]', ''      # footnote markers [a], [b]...
+    $text = $text -replace '\([A-Z]+\)', ''      # cross-reference markers (A), (AB)...
+    $text = $text -replace '\s+', ' '            # collapse whitespace
     $text = $text.Trim()
     if ($text -ne '') {
         $output += $text

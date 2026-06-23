@@ -121,6 +121,51 @@ the `.md` files, request the user to approve an update the the relevant `.md`
 files.
 
 
+## Data Security (PII)
+
+Personally Identifiable Information (names, phones, emails, addresses) lives in
+`assets/church/information.md`. This data is used ONLY by the
+`generate-private-data.sh` script — **never read this file directly**.
+
+### Enforced protections
+
+The files below are **denied** in `opencode.json` — any `read`, `grep`,
+`edit`, or `bash` (command referencing the file) attempt will be blocked:
+
+| File | Contains |
+|---|---|
+| `assets/church/information.md` | Raw PII (names, phones, emails) |
+| `**/private-data.tex` | Macros expanding to PII |
+| `**/bulletin.log` | Compilation log with PII |
+| `**/bulletin.pdf` | Compiled bulletin |
+| `pdf/**` | All output PDFs |
+
+The `scripts/build.sh` script compiles and automatically filters PII patterns
+(emails, phone numbers) from terminal output.
+
+**CRITICAL: Never run ad-hoc shell commands that extract data from PII files
+(e.g., `awk`, `grep`, `cat` on `information.md` or `private-data.tex`). The
+bash tool output is sent to the LLM. Use only the build script which
+handles PII locally and filters output.**
+
+### Data flow
+
+```
+information.md ──→ generate-private-data.sh ──→ private-data.tex ──→ xelatex ──→ PDF
+     │                        │                       │                │          │
+     │  (read by script       │  (local only,         │  (never read   │  (PII     │  (never
+     │   only, never by LLM)  │   no output to LLM)   │   by LLM)      │   fil-    │   read
+     │                        │                       │                │   tered)  │   by LLM)
+```
+
+### If data changes
+
+If the user needs to update church info (new council member, new pastor phone),
+DO NOT edit `information.md` or `private-data.tex` directly. Tell the user to
+edit `assets/church/information.md` themselves, then re-run the build script
+to regenerate `private-data.tex`.
+
+
 ## Build
 
 - When a user asks to build a bulletin...
@@ -132,15 +177,13 @@ files.
       by the user.
 - Create bulletin content from `templates/bulletin/` into `content/<date>/`
 - Load assets from `/assets/`
-- Run `scripts/generate-private-data.sh "content/<date>"` (Linux/macOS) or
-  `scripts/generate-private-data.bat "content/<date>"` (Windows) to generate
-  `private-data.tex` in the content directory. This script reads
-  `assets/church/information.md` locally (never sending sensitive church data
-  to the LLM) and produces `\renewcommand` overrides for `\CouncilRows` and
-  `\PastorCell`.
-  - If `assets/church/information.md` does not exist, prompt the user for that
-    file, or prompt them for the individual fields if they prefer that.
-- Compile with XeLaTeX
+- Run `bash scripts/build.sh "content/<date>"` (Linux/macOS) or
+  `scripts/build.bat "content/<date>"` (Windows). This single command:
+  1. Generates `private-data.tex` locally (PII never touches the LLM)
+  2. Compiles with XeLaTeX (PII filtered from terminal output)
+  3. Copies the PDF to `pdf/<date>.pdf`
+- If the build fails, check compilation exit code only — do NOT read
+  `bulletin.log` or `private-data.tex` (PII risk).
     - Place generated content in `/content/<MM DD YYYY>/`
       - CRITICAL: Use spaces between parts, e.g. `06 07 2026`, NOT hyphens like `06-07-2026`
 - Compile to PDF to `/pdf/<MM DD YYYY>.pdf`

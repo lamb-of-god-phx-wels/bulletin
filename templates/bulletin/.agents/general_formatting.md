@@ -10,6 +10,9 @@ apostrophe (``` ` ``` / ```'```).
 - For long dashes, use Unicode em dash (```—```, U+2014) or en dash (```–```,
   U+2013) instead of LaTeX ```---``` or ```--```. If the source uses em/en dashes,
   preserve them as the Unicode character.
+- ⚠️ Search your output for stray `---` or `--` BEFORE compiling — LaTeX will
+  process them as ligatures, but they must be Unicode characters. Check every
+  verse range (e.g., `Exodus 3:1—15` uses en dash `–`, not `--`).
 
 ## ⚠️ CRITICAL: `\char` gobbles the terminating space
 

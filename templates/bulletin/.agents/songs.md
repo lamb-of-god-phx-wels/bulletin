@@ -36,6 +36,9 @@ Songs follow the format when only lyrics are given:
   a single line (no extra space between them) to save vertical space.
   Use good judgment: lines under ~30 characters should generally be merged.
   Never merge if it makes the line awkwardly long or hard to read.
+- ⚠️ After first compilation, check the PDF for overflow. If a hymn encroaches
+  on the bottom border, page number, or runs past the bottom margin, you MUST
+  merge short lines retroactively. Do NOT assume the first draft is fine.
 
 If instead of lyrics, full sheet music is given (as image(s)), the image takes
 the place of the lyrics and is centered horizontally.

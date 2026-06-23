@@ -80,6 +80,8 @@ bulletin, they should provide the following input:
     of the bulletin contents. Fit this into the template as best you can. If
     something does not seem to fit well into the template, inquire of the user
     for clarification.
+  - CRITICAL: Whatever outline/instructions are given must persist throughout
+    the session, including through compaction events.
 
 Once this information is available, create a new directory for the bulletin in
 the `/content` directory, or update the existing one. Then build the document
@@ -126,13 +128,12 @@ files.
       by the user.
 - Create bulletin content from `templates/bulletin/` into `content/<date>/`
 - Load assets from `/assets/`
-- Read `/assets/church/information.md` and generate `private-data.tex` in the
-   content directory with `\renewcommand` overrides for `\CouncilRows` and
-   `\PastorCell`
-   - Council member emails are plain text — do NOT wrap in \texttt{} or any
-     other font command; they inherit the document font (Calibri) from the
-     tabularx environment.
-  - If `a/ssets/church/information.md` does not exist, prompt the user for that
+- Run `scripts/generate-private-data.sh "content/<date>"` to generate
+  `private-data.tex` in the content directory. This script reads
+  `assets/church/information.md` locally (never sending sensitive church data
+  to the LLM) and produces `\renewcommand` overrides for `\CouncilRows` and
+  `\PastorCell`.
+  - If `assets/church/information.md` does not exist, prompt the user for that
     file, or prompt them for the individual fields if they prefer that.
 - Compile with XeLaTeX
     - Place generated content in `/content/<MM DD YYYY>/`

@@ -1,0 +1,17 @@
+#let back-page() = [
+  #align(center)[#text(size: 14pt, weight: "bold")[REQUESTS FOR PRAYER AND CARE]]
+
+  Your prayer request will be treated with great discretion and shared with a limited group of prayer warriors who will consider it a gift to cover you in prayer. This is also a way to reach the Caring Committee if you need other assistance.
+
+  #v(1fr)
+
+  #text(size: 9pt)[
+    Opening Hymn, Text: Author; Tune: TUNE NAME, Public Domain
+
+    Closing Hymn, Text: Author; Tune: TUNE NAME, Public Domain
+
+    Scripture taken from THE HOLY BIBLE, NEW INTERNATIONAL VERSION®, NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by permission. All rights reserved worldwide.
+
+    OneLicense.net A-730121 & CCLI #1941416
+  ]
+]

@@ -1,0 +1,4 @@
+#let private = (
+  pastorcell: "",
+  council: (),
+)

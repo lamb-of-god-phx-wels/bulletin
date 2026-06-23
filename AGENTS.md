@@ -20,6 +20,7 @@ To aid in your task, templates are utilized. These are located in the
 - `/pdf/` - Compiled PDFs
 - `/assets/` - Church logos, sermon series logos, fonts
 - `/doc/` - Documentation and screenshots
+- `/skills/` - Reusable skills (e.g., scripture formatting)
 
 
 ## Assets
@@ -128,7 +129,8 @@ files.
       by the user.
 - Create bulletin content from `templates/bulletin/` into `content/<date>/`
 - Load assets from `/assets/`
-- Run `scripts/generate-private-data.sh "content/<date>"` to generate
+- Run `scripts/generate-private-data.sh "content/<date>"` (Linux/macOS) or
+  `scripts/generate-private-data.bat "content/<date>"` (Windows) to generate
   `private-data.tex` in the content directory. This script reads
   `assets/church/information.md` locally (never sending sensitive church data
   to the LLM) and produces `\renewcommand` overrides for `\CouncilRows` and

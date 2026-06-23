@@ -21,9 +21,8 @@ M: If we say we have no sin, we deceive ourselves, and the truth is not in us.
 But if we confess our sins, God who is faithful and just will forgive our sins
 and cleanse us from all unrighteousness. 1 John 1:8-9
 
-Holy God, holy and mighty, holy and immortal, have mercy on us.
-
-For self-centered living, and for failing to walk with humility and gentleness:
+Holy God, holy and mighty, holy and immortal, have mercy on us. For
+self-centered living, and for failing to walk with humility and gentleness:
 
 C: Holy God, holy and mighty, holy and immortal, have mercy on us.
 

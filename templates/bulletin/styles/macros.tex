@@ -17,6 +17,10 @@
   {\Large\symbolfont\XeTeXglyph63}%
 }
 
+\newcommand{\textcross}{%
+  {\symbolfont\XeTeXglyph60}%
+}
+
 \newcommand{\coverpage}{%
   \thispagestyle{empty}
   {\centering
@@ -78,18 +82,18 @@
 \newcommand{\guestblock}[2]{\textbf{\MakeUppercase{#1}}\par\noindent#2\par}
 
 \newcommand{\speakerline}[2]{%
-  \noindent{\leftskip=1.55em\llap{\textbf{#1: }}#2\par}
+  \noindent\makebox[1.55em][l]{\textbf{#1: }}\hangindent=1.55em#2\par
 }
 
-\newcommand{\minister}[1]{\noindent{\leftskip=1.55em\llap{M: }#1\par}}
+\newcommand{\minister}[1]{\noindent\makebox[1.55em][l]{M: }\hangindent=1.55em#1\par}
 \newcommand{\ministercont}[1]{\noindent{\leftskip=1.55em #1\par}}
-\newcommand{\congregation}[1]{\noindent{\leftskip=1.55em\llap{\textbf{C: }}\textbf{#1}\par}}
+\newcommand{\congregation}[1]{\noindent\makebox[1.55em][l]{\textbf{C: }}\hangindent=1.55em\textbf{#1}\par}
 \newcommand{\congregationcont}[1]{\noindent{\leftskip=1.55em\textbf{#1}\par}}
 \newcommand{\reader}[1]{\speakerline{R}{#1}}
 \newcommand{\pastor}[1]{\speakerline{P}{#1}}
 
-\newcommand{\responsiveminister}[1]{\noindent{\leftskip=1.55em\llap{M: }#1\par}\vspace{0.8em}}
-\newcommand{\responsivecongregation}[1]{\noindent{\leftskip=1.55em\llap{\textbf{C: }}\textbf{#1}\par}\vspace{0.8em}}
+\newcommand{\responsiveminister}[1]{\noindent\makebox[1.55em][l]{M: }\hangindent=1.55em#1\par\vspace{0.8em}}
+\newcommand{\responsivecongregation}[1]{\noindent\makebox[1.55em][l]{\textbf{C: }}\hangindent=1.55em\textbf{#1}\par\vspace{0.8em}}
 
 \newenvironment{liturgy}{%
   \vspace{0.35em}

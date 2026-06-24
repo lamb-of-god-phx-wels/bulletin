@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lamb of God Bulletin Builder</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Typst PDF editor prototype</p>
+        <h1>Bulletin Builder</h1>
+      </div>
+      <div class="actions">
+        <input id="dateInput" aria-label="Bulletin date folder" placeholder="06 07 2026">
+        <button id="loadButton" type="button">Load</button>
+        <button id="saveButton" type="button">Save</button>
+        <button id="buildButton" type="button" class="primary">Build PDF</button>
+        <label class="liveToggle"><input id="livePreviewToggle" type="checkbox" checked> Live preview</label>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="editor" aria-label="Bulletin editor">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-panel="metadata" type="button">Setup</button>
+          <button class="tab" data-panel="gathering" type="button">Gathering</button>
+          <button class="tab" data-panel="word" type="button">Word</button>
+          <button class="tab" data-panel="prayers" type="button">Prayers</button>
+          <button class="tab" data-panel="announcements" type="button">Announcements</button>
+          <button class="tab" data-panel="backPage" type="button">Back Page</button>
+        </div>
+
+        <form id="editorForm">
+          <section class="panel active" id="panel-metadata">
+            <h2>Weekly Setup</h2>
+            <div class="grid2">
+              <label>Display Date<input name="metadata.bulletinDate"></label>
+              <label>Church Season<input name="metadata.churchSeason"></label>
+              <label>Sermon Series<input name="metadata.sermonSeries"></label>
+              <label>Theme<input name="metadata.theme"></label>
+              <label>Giving URL<input name="metadata.givingUrl"></label>
+              <label>Series Logo Path<input name="metadata.seriesLogo"></label>
+            </div>
+          </section>
+
+          <section class="panel" id="panel-gathering">
+            <h2>The Gathering</h2>
+            <label>Opening Hymn Title<input name="gathering.openingHymn.title"></label>
+            <label>Opening Hymn Verses<textarea name="gathering.openingHymn.verses" data-list="paragraphs"></textarea></label>
+            <label>Prayer of the Day<textarea name="gathering.prayerOfTheDay"></textarea></label>
+            <label>Confession of Sins<textarea name="gathering.confession"></textarea></label>
+          </section>
+
+          <section class="panel" id="panel-word">
+            <h2>The Word</h2>
+            <div id="readings"></div>
+            <button id="addReadingButton" type="button">Add Reading</button>
+          </section>
+
+          <section class="panel" id="panel-prayers">
+            <h2>The Prayers</h2>
+            <label>Prayer of the Church Blank Space<input name="prayers.prayerOfChurchSpace"></label>
+            <label>Closing Hymn Title<input name="prayers.closingHymn.title"></label>
+            <label>Closing Hymn Verses<textarea name="prayers.closingHymn.verses" data-list="paragraphs"></textarea></label>
+          </section>
+
+          <section class="panel" id="panel-announcements">
+            <h2>Announcements</h2>
+            <div id="announcements"></div>
+            <button id="addAnnouncementButton" type="button">Add Announcement</button>
+          </section>
+
+          <section class="panel" id="panel-backPage">
+            <h2>Back Page</h2>
+            <label>Prayer Request Text<textarea name="backPage.prayerText"></textarea></label>
+            <label>Copyright Text<textarea name="backPage.copyright"></textarea></label>
+          </section>
+        </form>
+      </section>
+
+      <aside class="preview" aria-label="PDF preview">
+        <div class="previewHeader">
+          <div>
+            <h2>PDF Preview</h2>
+            <p id="statusText">Load or build a bulletin to preview it here.</p>
+          </div>
+          <a id="openPdfLink" href="#" target="_blank" rel="noreferrer">Open PDF</a>
+        </div>
+        <iframe id="pdfFrame" title="Compiled bulletin PDF"></iframe>
+        <pre id="buildOutput" aria-live="polite"></pre>
+      </aside>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

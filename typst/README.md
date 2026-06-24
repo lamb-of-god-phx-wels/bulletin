@@ -23,6 +23,19 @@ The script creates `typst/content/06 07 2026/` from the template if needed,
 generates `private-data.typ` locally, and compiles to
 `typst/pdf/06 07 2026.pdf`.
 
+## GUI Prototype
+
+A local browser-based editor is available under `typst/app/`:
+
+```bash
+cd typst/app
+npm start
+```
+
+Then open `http://localhost:5177`. The app edits
+`typst/content/<MM DD YYYY>/bulletin.json`, regenerates Typst source, runs the
+build script, and previews the resulting PDF.
+
 ## Requirements
 
 - Typst CLI installed and available as `typst`

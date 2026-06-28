@@ -159,6 +159,12 @@ button:hover { transform: translateY(-1px); }
 .palette span { font-weight: 800; }
 .palette small { color: var(--muted); }
 
+.mutedText {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .assetBox {
   display: grid;
   gap: 0.55rem;
@@ -198,10 +204,12 @@ label input, label textarea, label select {
 
 .stagePanel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(13rem, 32%);
+  grid-template-columns: minmax(0, 1fr) minmax(24rem, 42%);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .stageHeader {
+  grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -216,6 +224,8 @@ label input, label textarea, label select {
 }
 
 .stageScroll {
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 2rem;
   background: linear-gradient(45deg, #d2c7b9 25%, transparent 25%), linear-gradient(-45deg, #d2c7b9 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d2c7b9 75%), linear-gradient(-45deg, transparent 75%, #d2c7b9 75%);
@@ -294,8 +304,9 @@ label input, label textarea, label select {
 }
 
 .pdfDrawer {
+  min-width: 0;
   min-height: 0;
-  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
   background: #201b18;
   color: #f8efd9;
 }
@@ -309,7 +320,7 @@ label input, label textarea, label select {
 
 .pdfGrid {
   display: grid;
-  grid-template-columns: 1fr 22rem;
+  grid-template-rows: minmax(0, 1fr) minmax(8rem, 28%);
   height: calc(100% - 2.4rem);
   min-height: 12rem;
 }
@@ -325,7 +336,7 @@ pre {
   margin: 0;
   padding: 0.8rem;
   overflow: auto;
-  border-left: 1px solid #4e4135;
+  border-top: 1px solid #4e4135;
   color: #f8efd9;
   white-space: pre-wrap;
   font-size: 0.78rem;
@@ -340,7 +351,11 @@ pre {
   .toolbarControls { justify-content: flex-start; }
   .workspace { grid-template-columns: 1fr; height: auto; }
   .panel { min-height: 22rem; }
-  .stagePanel { min-height: 62rem; }
+  .stagePanel {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) minmax(13rem, 32%);
+    min-height: 62rem;
+  }
+  .pdfDrawer { border-left: 0; border-top: 1px solid var(--line); }
   .pdfGrid { grid-template-columns: 1fr; }
-  pre { border-left: 0; border-top: 1px solid #4e4135; }
 }

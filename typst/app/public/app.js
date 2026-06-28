@@ -5,11 +5,14 @@ const saveDelay = 350;
 const state = {
   project: null,
   assets: [],
+  schemas: [],
+  elementSchemas: [],
   selectedId: null,
   saveTimer: null,
   buildTimer: null,
   buildRunning: false,
   buildQueued: false,
+  isDragging: false,
 };
 
 const els = {
@@ -20,6 +23,7 @@ const els = {
   saveButton: document.querySelector("#saveButton"),
   buildButton: document.querySelector("#buildButton"),
   liveToggle: document.querySelector("#liveToggle"),
+  palette: document.querySelector("#palette"),
   assetSelect: document.querySelector("#assetSelect"),
   applyAssetButton: document.querySelector("#applyAssetButton"),
   inspector: document.querySelector("#inspector"),
@@ -41,13 +45,6 @@ els.applyAssetButton.addEventListener("click", applySelectedAsset);
 els.deleteButton.addEventListener("click", deleteSelected);
 els.duplicateButton.addEventListener("click", duplicateSelected);
 
-document.querySelectorAll("[data-add]").forEach((button) => {
-  button.addEventListener("click", () => addElement(button.dataset.add));
-  button.addEventListener("dragstart", (event) => {
-    event.dataTransfer.setData("application/x-builder-element", button.dataset.add);
-  });
-});
-
 els.pageCanvas.addEventListener("dragover", (event) => event.preventDefault());
 els.pageCanvas.addEventListener("drop", (event) => {
   event.preventDefault();
@@ -64,8 +61,38 @@ els.pageCanvas.addEventListener("pointerdown", (event) => {
 init();
 
 async function init() {
+  await safeAction(loadSchemas);
   await safeAction(loadAssets);
   await safeAction(loadProjectList);
+}
+
+async function loadSchemas() {
+  const result = await api("/api/schemas");
+  state.schemas = result.schemas;
+  state.elementSchemas = result.schemas
+    .map((entry) => ({ ...entry, type: entry.schema?.properties?.type?.const }))
+    .filter((entry) => entry.type)
+    .sort((a, b) => schemaOrder(a.type) - schemaOrder(b.type));
+  renderPalette();
+}
+
+function renderPalette() {
+  els.palette.innerHTML = "";
+  for (const entry of state.elementSchemas) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.draggable = true;
+    button.dataset.add = entry.type;
+    button.innerHTML = `<span>${escapeHtml(paletteTitle(entry))}</span><small>${escapeHtml(paletteDescription(entry))}</small>`;
+    button.addEventListener("click", () => addElement(entry.type));
+    button.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("application/x-builder-element", entry.type);
+    });
+    els.palette.append(button);
+  }
+  if (state.elementSchemas.length === 0) {
+    els.palette.innerHTML = '<p class="mutedText">No element schemas found.</p>';
+  }
 }
 
 async function loadProjectList() {
@@ -149,16 +176,16 @@ function renderElement(element) {
   node.className = `canvasElement type-${element.type}`;
   node.classList.toggle("selected", element.id === state.selectedId);
   node.dataset.id = element.id;
-  node.style.left = `${element.x}px`;
-  node.style.top = `${element.y}px`;
-  node.style.width = `${element.width}px`;
-  node.style.height = `${element.height}px`;
-  node.style.padding = `${element.padding}px`;
+  node.style.left = cssLength(element.x);
+  node.style.top = cssLength(element.y);
+  node.style.width = cssLength(element.width);
+  node.style.height = cssLength(element.height);
+  node.style.padding = cssLength(element.padding);
   node.style.color = element.style.color;
   node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
-  node.style.border = `${element.style.borderWidth}px solid ${element.style.borderColor}`;
+  node.style.border = `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
   node.style.fontFamily = `${element.style.font}, Calibri, sans-serif`;
-  node.style.fontSize = `${element.style.fontSize}px`;
+  node.style.fontSize = cssLength(element.style.fontSize);
   node.style.fontWeight = element.style.fontWeight === "regular" ? "400" : element.style.fontWeight;
   node.style.fontStyle = element.style.fontStyle;
   node.style.textAlign = element.style.align;
@@ -167,6 +194,7 @@ function renderElement(element) {
   else if (element.type === "grid") node.append(renderGridElement(element));
   else if (element.type === "stack") node.append(renderStackElement(element));
   else if (element.type === "music") node.append(renderMusicElement(element));
+  else if (element.type === "date") node.textContent = renderDateText(element);
   else node.textContent = element.data.text || "";
 
   node.addEventListener("pointerdown", (event) => beginDrag(event, element.id));
@@ -185,7 +213,7 @@ function renderGridElement(element) {
   const grid = document.createElement("div");
   grid.className = "gridElement";
   grid.style.gridTemplateColumns = `repeat(${element.data.columns || 2}, 1fr)`;
-  grid.style.gap = `${element.data.cellPadding || 6}px`;
+  grid.style.gap = cssLength(element.data.cellPadding || 6);
   const total = Math.max(1, (element.data.rows || 2) * (element.data.columns || 2));
   for (let index = 0; index < total; index++) {
     const cell = document.createElement("div");
@@ -199,7 +227,7 @@ function renderStackElement(element) {
   const stack = document.createElement("div");
   stack.className = "stackElement";
   stack.style.flexDirection = element.data.direction === "horizontal" ? "row" : "column";
-  stack.style.gap = `${element.data.gap || 8}px`;
+  stack.style.gap = cssLength(element.data.gap || 8);
   for (const item of element.data.items || []) {
     const child = document.createElement("div");
     child.textContent = item;
@@ -229,74 +257,77 @@ function renderInspector() {
   els.inspector.innerHTML = `
     <label>Name<input data-path="name" value="${attr(element.name)}"></label>
     <div class="fieldGrid">
-      <label>X<input type="number" data-path="x" value="${element.x}"></label>
-      <label>Y<input type="number" data-path="y" value="${element.y}"></label>
-      <label>Width<input type="number" data-path="width" value="${element.width}"></label>
-      <label>Height<input type="number" data-path="height" value="${element.height}"></label>
-      <label>Padding<input type="number" data-path="padding" value="${element.padding}"></label>
-      <label>Margin<input type="number" data-path="margin" value="${element.margin}"></label>
+      <label>X<input data-path="x" data-value-type="length" value="${attr(element.x)}"></label>
+      <label>Y<input data-path="y" data-value-type="length" value="${attr(element.y)}"></label>
+      <label>Width<input data-path="width" data-value-type="length" value="${attr(element.width)}"></label>
+      <label>Height<input data-path="height" data-value-type="length" value="${attr(element.height)}"></label>
+      <label>Padding<input data-path="padding" data-value-type="length" value="${attr(element.padding)}"></label>
+      <label>Margin<input data-path="margin" data-value-type="length" value="${attr(element.margin)}"></label>
     </div>
     <h3>Style</h3>
     <label>Font<input data-path="style.font" value="${attr(element.style.font)}"></label>
     <div class="fieldGrid">
-      <label>Font Size<input type="number" data-path="style.fontSize" value="${element.style.fontSize}"></label>
+      <label>Font Size<input data-path="style.fontSize" data-value-type="length" value="${attr(element.style.fontSize)}"></label>
       <label>Weight<select data-path="style.fontWeight">${options(["regular", "bold"], element.style.fontWeight)}</select></label>
       <label>Style<select data-path="style.fontStyle">${options(["normal", "italic"], element.style.fontStyle)}</select></label>
       <label>Align<select data-path="style.align">${options(["left", "center", "right"], element.style.align)}</select></label>
       <label>Color<input type="color" data-path="style.color" value="${attr(colorValue(element.style.color))}"></label>
       <label>Background<input data-path="style.background" value="${attr(element.style.background)}"></label>
       <label>Border Color<input type="color" data-path="style.borderColor" value="${attr(colorValue(element.style.borderColor))}"></label>
-      <label>Border Width<input type="number" data-path="style.borderWidth" value="${element.style.borderWidth}"></label>
+      <label>Border Width<input data-path="style.borderWidth" data-value-type="length" value="${attr(element.style.borderWidth)}"></label>
     </div>
     <h3>Data</h3>
     ${typeFields(element)}
   `;
 
   els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
-    input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.type));
+    input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
   });
 }
 
 function typeFields(element) {
-  if (element.type === "image") {
-    return `
-      <label>Asset Path<input data-path="data.path" value="${attr(element.data.path || "")}"></label>
-      <label>Fit<select data-path="data.fit">${options(["contain", "cover"], element.data.fit || "contain")}</select></label>
-    `;
-  }
-  if (element.type === "grid") {
-    return `
-      <div class="fieldGrid">
-        <label>Rows<input type="number" data-path="data.rows" value="${element.data.rows || 2}"></label>
-        <label>Columns<input type="number" data-path="data.columns" value="${element.data.columns || 2}"></label>
-        <label>Cell Padding<input type="number" data-path="data.cellPadding" value="${element.data.cellPadding || 6}"></label>
-      </div>
-      <label>Cells<textarea data-path="data.cells">${textarea((element.data.cells || []).join("\n"))}</textarea></label>
-    `;
-  }
-  if (element.type === "stack") {
-    return `
-      <div class="fieldGrid">
-        <label>Direction<select data-path="data.direction">${options(["vertical", "horizontal"], element.data.direction || "vertical")}</select></label>
-        <label>Gap<input type="number" data-path="data.gap" value="${element.data.gap || 8}"></label>
-      </div>
-      <label>Items<textarea data-path="data.items">${textarea((element.data.items || []).join("\n"))}</textarea></label>
-    `;
-  }
-  if (element.type === "music") {
-    return `
-      <label>Title<input data-path="data.title" value="${attr(element.data.title || "")}"></label>
-      <label>Notes<textarea data-path="data.notes">${textarea(element.data.notes || "")}</textarea></label>
-    `;
-  }
+  const dataSchema = schemaForType(element.type)?.properties?.data;
+  if (dataSchema?.properties) return schemaDataFields(element, dataSchema);
   return `<label>Text<textarea data-path="data.text">${textarea(element.data.text || "")}</textarea></label>`;
+}
+
+function schemaDataFields(element, dataSchema) {
+  return Object.entries(dataSchema.properties)
+    .map(([key, schema]) => schemaDataField(element, key, schema, dataSchema.required?.includes(key)))
+    .join("");
+}
+
+function schemaDataField(element, key, schema, required) {
+  const path = `data.${key}`;
+  const label = `${labelForKey(key)}${required ? " *" : ""}`;
+  const value = element.data?.[key] ?? "";
+  if (Array.isArray(schema.enum)) {
+    return `<label>${escapeHtml(label)}<select data-path="${attr(path)}">${options(schema.enum, value)}</select></label>`;
+  }
+  if (schema.type === "integer" || schema.type === "number") {
+    return `<label>${escapeHtml(label)}<input type="number" data-path="${attr(path)}" data-value-type="${schema.type}" value="${attr(value)}"></label>`;
+  }
+  if (schema.type === "array") {
+    return `<label>${escapeHtml(label)}<textarea data-path="${attr(path)}" data-value-type="array">${textarea(Array.isArray(value) ? value.join("\n") : value)}</textarea></label>`;
+  }
+  if (schema.format === "date") {
+    return `<label>${escapeHtml(label)}<input type="date" data-path="${attr(path)}" value="${attr(value)}"></label>`;
+  }
+  if (schema.type === "boolean") {
+    return `<label>${escapeHtml(label)}<select data-path="${attr(path)}" data-value-type="boolean">${options(["false", "true"], String(Boolean(value)))}</select></label>`;
+  }
+  const multiline = key === "text" || key === "notes" || key === "caption" || schema.type === "object";
+  if (multiline) return `<label>${escapeHtml(label)}<textarea data-path="${attr(path)}">${textarea(value)}</textarea></label>`;
+  return `<label>${escapeHtml(label)}<input data-path="${attr(path)}" value="${attr(value)}"></label>`;
 }
 
 function updateSelected(path, value, inputType) {
   const element = selectedElement();
   if (!element) return;
-  let nextValue = inputType === "number" ? Number(value) : value;
-  if (path === "data.cells" || path === "data.items") nextValue = value.split("\n").map((line) => line.trim()).filter(Boolean);
+  let nextValue = inputType === "number" || inputType === "integer" ? Number(value) : value;
+  if (inputType === "boolean") nextValue = value === "true";
+  if (inputType === "array") nextValue = value.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (inputType === "length") nextValue = parseLengthInput(value);
   setDeep(element, path, nextValue);
   renderCanvas();
   scheduleSaveAndMaybeBuild();
@@ -311,51 +342,142 @@ function addElement(type, x = 80, y = 80) {
 }
 
 function createElement(type, x, y) {
+  const schema = schemaForType(type);
+  const defaults = defaultElementValues(type, schema);
   const base = {
     id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     type,
-    name: titleCase(type),
+    name: paletteTitle({ type, schema }),
     x: Math.max(0, Math.round(x)),
     y: Math.max(0, Math.round(y)),
-    width: type === "music" ? 300 : type === "image" ? 180 : 220,
-    height: type === "music" ? 120 : type === "image" ? 110 : 90,
+    width: defaults.width,
+    height: defaults.height,
     margin: 0,
     padding: 8,
-    style: {
-      font: "Calibri",
-      fontSize: 11,
-      fontWeight: "regular",
-      fontStyle: "normal",
-      color: "#251d18",
-      background: type === "text" ? "#ffffff" : "transparent",
-      borderColor: "#d8cdbd",
-      borderWidth: type === "image" ? 0 : 1,
-      align: "left",
-    },
+    style: defaults.style,
     schema: [],
-    data: {},
+    data: defaults.data,
   };
-  if (type === "image") base.data = { path: state.assets[0]?.path || "assets/church/logo.png", fit: "contain" };
-  else if (type === "grid") base.data = { rows: 2, columns: 2, cellPadding: 6, cells: ["Cell 1", "Cell 2", "Cell 3", "Cell 4"] };
-  else if (type === "stack") base.data = { direction: "vertical", gap: 8, items: ["First item", "Second item"] };
-  else if (type === "music") base.data = { title: "Music / Lead Sheet", notes: "Import support TBD" };
-  else base.data = { text: "Text element" };
   return base;
+}
+
+function schemaForType(type) {
+  return state.elementSchemas.find((entry) => entry.type === type)?.schema || null;
+}
+
+function schemaOrder(type) {
+  return { text: 10, image: 20, grid: 30, stack: 40, date: 50, music: 60 }[type] ?? 100;
+}
+
+function paletteTitle(entry) {
+  if (entry.type === "text") return "Textbox";
+  return String(entry.schema?.title || titleCase(entry.type)).replace(/ Element$/, "");
+}
+
+function paletteDescription(entry) {
+  const description = entry.schema?.description || "";
+  if (entry.type === "text") return "Styled text with schema data";
+  if (entry.type === "grid") return "Rows, columns, and child layout";
+  if (entry.type === "stack") return "Vertical or horizontal flow";
+  if (entry.type === "date") return "Formatted date display";
+  if (entry.type === "music") return "Lead sheet placeholder";
+  return description.split(".")[0] || "Schema-backed element";
+}
+
+function defaultElementValues(type, schema) {
+  const dimensions = defaultDimensions(type);
+  return {
+    ...dimensions,
+    style: defaultStyle(type),
+    data: defaultData(type, schema),
+  };
+}
+
+function defaultDimensions(type) {
+  if (type === "image") return { width: 180, height: 110 };
+  if (type === "grid") return { width: 260, height: 140 };
+  if (type === "stack") return { width: 260, height: 160 };
+  if (type === "music") return { width: 300, height: 120 };
+  if (type === "date") return { width: 220, height: 42 };
+  return { width: 220, height: 90 };
+}
+
+function defaultStyle(type) {
+  return {
+    font: "Calibri",
+    fontSize: 11,
+    fontWeight: "regular",
+    fontStyle: "normal",
+    color: "#251d18",
+    background: "transparent",
+    borderColor: "#d8cdbd",
+    borderWidth: type === "image" ? 0 : 1,
+    align: "left",
+  };
+}
+
+function defaultData(type, schema) {
+  const data = fallbackData(type);
+  const properties = schema?.properties?.data?.properties || {};
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (data[key] === undefined) data[key] = defaultValueForProperty(type, key, propertySchema);
+  }
+  return data;
+}
+
+function fallbackData(type) {
+  if (type === "image") return { path: state.assets[0]?.path || "assets/church/logo.png", fit: "contain" };
+  if (type === "grid") return { rows: 2, columns: 2, cellPadding: 6, cells: ["Cell 1", "Cell 2", "Cell 3", "Cell 4"] };
+  if (type === "stack") return { direction: "vertical", gap: 8, items: ["First item", "Second item"] };
+  if (type === "date") return { value: todayIsoDate(), format: "MMMM d, yyyy", locale: "en-US", prefix: "", suffix: "" };
+  if (type === "music") return { title: "Music / Lead Sheet", notes: "Import support TBD" };
+  return { text: "Text element" };
+}
+
+function defaultValueForProperty(type, key, schema) {
+  if (schema.default !== undefined) return structuredClone(schema.default);
+  if (schema.type === "array") return [];
+  if (schema.type === "integer" || schema.type === "number") return 0;
+  if (schema.type === "boolean") return false;
+  if (schema.format === "date") return todayIsoDate();
+  if (key === "path" && type === "image") return state.assets[0]?.path || "assets/church/logo.png";
+  return "";
+}
+
+function renderDateText(element) {
+  const data = element.data || {};
+  const formatted = formatDate(data.value, data.format, data.locale);
+  return `${data.prefix || ""}${formatted}${data.suffix || ""}`;
+}
+
+function formatDate(value, format = "MMMM d, yyyy", locale = "en-US") {
+  const date = value ? new Date(`${value}T00:00:00`) : new Date();
+  if (Number.isNaN(date.getTime())) return String(value || "");
+  if (format === "MM/dd/yyyy") return new Intl.DateTimeFormat(locale, { month: "2-digit", day: "2-digit", year: "numeric" }).format(date);
+  if (format === "EEEE, MMMM d, yyyy") return new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(date);
+  if (format === "MMM d, yyyy") return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", year: "numeric" }).format(date);
 }
 
 function beginDrag(event, id) {
   event.preventDefault();
   event.stopPropagation();
+  state.isDragging = true;
   selectElement(id);
   const element = selectedElement();
   const start = { x: event.clientX, y: event.clientY, elX: element.x, elY: element.y };
   const onMove = (moveEvent) => {
     const page = state.project.page || canvasSize;
-    element.x = clamp(start.elX + moveEvent.clientX - start.x, 0, page.width - element.width);
-    element.y = clamp(start.elY + moveEvent.clientY - start.y, 0, page.height - element.height);
+    const width = pixelLength(element.width, page.width);
+    const height = pixelLength(element.height, page.height);
+    const x = pixelLength(start.elX, page.width) + moveEvent.clientX - start.x;
+    const y = pixelLength(start.elY, page.height) + moveEvent.clientY - start.y;
+    element.x = clamp(x, 0, page.width - width);
+    element.y = clamp(y, 0, page.height - height);
     renderCanvas();
   };
   const onUp = () => {
+    state.isDragging = false;
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     renderInspector();
@@ -414,6 +536,10 @@ function scheduleSaveAndMaybeBuild() {
 
 async function saveNow(message = "Saved.") {
   if (!state.project) return;
+  if (state.isDragging) {
+    state.saveTimer = window.setTimeout(() => safeAction(() => saveNow(message)), saveDelay);
+    return;
+  }
   state.project.name = els.projectName.value.trim() || state.project.name;
   const result = await api("/api/project", {
     method: "PUT",
@@ -425,38 +551,58 @@ async function saveNow(message = "Saved.") {
   setStatus(message);
 }
 
+async function saveProjectSnapshot(project) {
+  return await api("/api/project", {
+    method: "PUT",
+    body: JSON.stringify(project),
+  });
+}
+
 async function buildNow({ manual = false, live = false } = {}) {
   if (!state.project) return;
+  if (live && state.isDragging) {
+    state.buildQueued = true;
+    return;
+  }
   if (live && state.buildRunning) {
     state.buildQueued = true;
     return;
   }
+  if (live) state.buildQueued = false;
   if (manual) window.clearTimeout(state.buildTimer);
   state.buildRunning = true;
+  const buildProject = projectSnapshot();
   try {
-    await saveNow(live ? "Autosaved for live build." : "Saved for build.");
-    setStatus(live ? "Live PDF build running..." : "Building PDF...");
+    if (live) await saveProjectSnapshot(buildProject);
+    else await saveNow("Saved for build.");
+    setStatus(live ? "Live PDF build running in the background..." : "Building PDF...");
     els.buildOutput.textContent = live ? "Live build started..." : "Build started...";
-    const result = await api(`/api/project/build?kind=${encodeURIComponent(state.project.kind)}&name=${encodeURIComponent(state.project.name)}`, { method: "POST" }, false);
+    const result = await api(`/api/project/build?kind=${encodeURIComponent(buildProject.kind)}&name=${encodeURIComponent(buildProject.name)}`, { method: "POST" }, false);
     els.buildOutput.textContent = result.output || "Build finished.";
     if (result.ok) {
       setStatus(live ? "Live PDF updated." : "PDF built.");
-      setPdfPreview(true);
+      setPdfPreview(true, buildProject.name);
     } else {
       setStatus(`Build failed with status ${result.status}.`, true);
     }
   } finally {
     state.buildRunning = false;
-    if (state.buildQueued && els.liveToggle.checked) {
+    if (state.buildQueued && els.liveToggle.checked && !state.isDragging) {
       state.buildQueued = false;
       scheduleSaveAndMaybeBuild();
     }
   }
 }
 
-function setPdfPreview(refresh) {
+function projectSnapshot() {
+  const snapshot = structuredClone(state.project);
+  snapshot.name = els.projectName.value.trim() || snapshot.name;
+  return snapshot;
+}
+
+function setPdfPreview(refresh, name = state.project?.name) {
   if (!state.project) return;
-  const url = `/pdf?name=${encodeURIComponent(state.project.name)}${refresh ? `&t=${Date.now()}` : ""}`;
+  const url = `/pdf?name=${encodeURIComponent(name)}${refresh ? `&t=${Date.now()}` : ""}`;
   els.pdfFrame.src = url;
 }
 
@@ -494,6 +640,31 @@ function canvasPoint(event) {
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
+function cssLength(value) {
+  if (typeof value === "number") return `${value}px`;
+  const text = String(value ?? "0").trim();
+  if (text === "auto") return text;
+  if (/^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%)$/.test(text)) return text;
+  if (/^-?[0-9]+(\.[0-9]+)?fr$/.test(text)) return "auto";
+  const number = Number(text);
+  return Number.isFinite(number) ? `${number}px` : "0px";
+}
+
+function parseLengthInput(value) {
+  const text = String(value ?? "").trim();
+  if (text === "auto" || /^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(text)) return text;
+  const number = Number(text);
+  return Number.isFinite(number) ? number : text;
+}
+
+function pixelLength(value, base) {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "0").trim();
+  if (text.endsWith("%")) return (Number.parseFloat(text) / 100) * base;
+  const number = Number.parseFloat(text);
+  return Number.isFinite(number) ? number : 0;
+}
+
 async function api(path, options = {}, throwOnAppError = true) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -524,8 +695,20 @@ function upcomingSundayName() {
   return `${String(date.getMonth() + 1).padStart(2, "0")} ${String(date.getDate()).padStart(2, "0")} ${date.getFullYear()}`;
 }
 
+function todayIsoDate() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function titleCase(value) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function labelForKey(value) {
+  return String(value)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function options(values, selected) {

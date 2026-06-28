@@ -18,7 +18,7 @@ ${elements.map(renderElement).join("\n\n")}
 
 function renderElement(element) {
   const body = renderElementBody(element);
-  return `#place(dx: ${px(element.x)}pt, dy: ${px(element.y)}pt)[
+  return `#place(dx: ${typstLength(element.x)}, dy: ${typstLength(element.y)})[
   #box(${boxArgs(element)})[
 ${indent(body, 4)}
   ]
@@ -30,6 +30,7 @@ function renderElementBody(element) {
   if (element.type === "grid") return renderGrid(element);
   if (element.type === "stack") return renderStack(element);
   if (element.type === "music") return renderMusic(element);
+  if (element.type === "date") return renderText(element, renderDateText(element));
   return renderText(element, element.data?.text || "");
 }
 
@@ -59,7 +60,7 @@ function renderGrid(element) {
   return `#grid(
   columns: (${columnSpec}),
   rows: ${rows},
-  gutter: ${px(element.data?.cellPadding || 6)}pt,
+  gutter: ${typstLength(element.data?.cellPadding || 6)},
   ${children.join(",\n  ")},
 )`;
 }
@@ -67,12 +68,12 @@ function renderGrid(element) {
 function renderStack(element) {
   const items = Array.isArray(element.data?.items) ? element.data.items : [];
   const dir = element.data?.direction === "horizontal" ? "horizontal" : "vertical";
-  const gap = px(element.data?.gap || 8);
+  const gap = typstLength(element.data?.gap || 8);
   const children = items.map((item) => `[#text(${textArgs(element.style || {})})[${markup(item)}]]`).join(",\n  ");
   if (dir === "horizontal") {
-    return `#grid(columns: (${items.map(() => "1fr").join(", ") || "1fr"}), gutter: ${gap}pt, ${children})`;
+    return `#grid(columns: (${items.map(() => "1fr").join(", ") || "1fr"}), gutter: ${gap}, ${children})`;
   }
-  return `#stack(dir: ttb, spacing: ${gap}pt,
+  return `#stack(dir: ttb, spacing: ${gap},
   ${children}
 )`;
 }
@@ -85,22 +86,36 @@ function renderMusic(element) {
 ]`;
 }
 
+function renderDateText(element) {
+  const data = element.data || {};
+  return `${data.prefix || ""}${formatDate(data.value, data.format, data.locale)}${data.suffix || ""}`;
+}
+
+function formatDate(value, format = "MMMM d, yyyy", locale = "en-US") {
+  const date = value ? new Date(`${value}T00:00:00`) : new Date();
+  if (Number.isNaN(date.getTime())) return String(value || "");
+  if (format === "MM/dd/yyyy") return new Intl.DateTimeFormat(locale, { month: "2-digit", day: "2-digit", year: "numeric" }).format(date);
+  if (format === "EEEE, MMMM d, yyyy") return new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(date);
+  if (format === "MMM d, yyyy") return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", year: "numeric" }).format(date);
+}
+
 function boxArgs(element) {
   const style = element.style || {};
   const args = [
-    `width: ${px(element.width)}pt`,
-    `height: ${px(element.height)}pt`,
-    `inset: ${px(element.padding)}pt`,
+    `width: ${typstLength(element.width, { allowAuto: true })}`,
+    `height: ${typstLength(element.height, { allowAuto: true })}`,
+    `inset: ${typstLength(element.padding)}`,
   ];
   if (style.background && style.background !== "transparent") args.push(`fill: ${color(style.background)}`);
-  if (Number(style.borderWidth || 0) > 0) args.push(`stroke: ${px(style.borderWidth)}pt + ${color(style.borderColor || "#d8cdbd")}`);
+  if (numericLength(style.borderWidth) > 0) args.push(`stroke: ${typstLength(style.borderWidth)} + ${color(style.borderColor || "#d8cdbd")}`);
   return args.join(", ");
 }
 
 function textArgs(style) {
   const args = [
     `font: "${typstString(style.font || "Calibri")}"`,
-    `size: ${px(style.fontSize || 11)}pt`,
+    `size: ${typstLength(style.fontSize || 11)}`,
     `fill: ${color(style.color || "#251d18")}`,
   ];
   if (style.fontWeight && style.fontWeight !== "regular") args.push(`weight: "${typstString(style.fontWeight)}"`);
@@ -126,6 +141,21 @@ function align(value) {
 function px(value) {
   const number = Number(value);
   return Number.isFinite(number) ? round(number * ptPerPx) : 0;
+}
+
+function typstLength(value, { allowAuto = false } = {}) {
+  if (typeof value === "number") return `${px(value)}pt`;
+  const text = String(value ?? "0").trim();
+  if (allowAuto && text === "auto") return "auto";
+  if (/^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(text)) return text;
+  const number = Number(text);
+  return Number.isFinite(number) ? `${px(number)}pt` : "0pt";
+}
+
+function numericLength(value) {
+  if (typeof value === "number") return value;
+  const number = Number.parseFloat(String(value ?? "0"));
+  return Number.isFinite(number) ? number : 0;
 }
 
 function round(value) {

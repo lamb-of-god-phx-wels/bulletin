@@ -8,6 +8,7 @@ import {
   httpError,
   listAssets,
   listProjects,
+  listSchemas,
   loadProject,
   pdfRoot,
   projectTypstPath,
@@ -54,6 +55,10 @@ createServer(async (req, res) => {
 
     if (url.pathname === "/api/assets" && req.method === "GET") {
       return sendJson(res, { ok: true, assets: await listAssets() });
+    }
+
+    if (url.pathname === "/api/schemas" && req.method === "GET") {
+      return sendJson(res, { ok: true, schemas: await listSchemas() });
     }
 
     if (url.pathname === "/asset" && req.method === "GET") {

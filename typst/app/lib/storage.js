@@ -10,6 +10,7 @@ export const typstDir = path.resolve(appDir, "..");
 export const repoRoot = path.resolve(typstDir, "..");
 export const contentRoot = path.join(typstDir, "content");
 export const pdfRoot = path.join(typstDir, "pdf");
+export const schemaRoot = path.join(typstDir, "schema");
 export const templateRoot = path.join(appDir, "templates");
 export const publicRoot = path.join(appDir, "public");
 
@@ -80,6 +81,18 @@ export async function listAssets() {
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+export async function listSchemas() {
+  await mkdir(schemaRoot, { recursive: true });
+  const entries = await readdir(schemaRoot);
+  const schemas = [];
+  for (const entry of entries.sort()) {
+    if (!entry.endsWith(".schema.json")) continue;
+    const schema = JSON.parse(await readFile(path.join(schemaRoot, entry), "utf8"));
+    schemas.push({ file: entry, schema });
+  }
+  return schemas;
+}
+
 export function resolveAssetPath(assetPath) {
   const normalized = normalizeAssetPath(assetPath);
   const resolved = path.resolve(repoRoot, normalized);
@@ -130,30 +143,34 @@ function normalizeProject(project, kind, name) {
 }
 
 function normalizeElement(element) {
-  return {
+  const normalized = {
     id: element.id || `el_${Date.now().toString(36)}`,
     type: element.type || "text",
     name: element.name || element.type || "Element",
-    x: numberOr(element.x, 40),
-    y: numberOr(element.y, 40),
-    width: numberOr(element.width, 200),
-    height: numberOr(element.height, 90),
-    margin: numberOr(element.margin, 0),
-    padding: numberOr(element.padding, 8),
+    x: lengthOr(element.x, 40),
+    y: lengthOr(element.y, 40),
+    width: lengthOr(element.width, 200),
+    height: lengthOr(element.height, 90),
+    margin: lengthOr(element.margin, 0),
+    padding: lengthOr(element.padding, 8),
     style: {
       font: element.style?.font || "Calibri",
-      fontSize: numberOr(element.style?.fontSize, 11),
+      fontSize: lengthOr(element.style?.fontSize, 11),
       fontWeight: element.style?.fontWeight || "regular",
       fontStyle: element.style?.fontStyle || "normal",
       color: element.style?.color || "#251d18",
       background: element.style?.background || "transparent",
       borderColor: element.style?.borderColor || "#d8cdbd",
-      borderWidth: numberOr(element.style?.borderWidth, 0),
+      borderWidth: lengthOr(element.style?.borderWidth, 0),
       align: element.style?.align || "left",
     },
     schema: Array.isArray(element.schema) ? element.schema : [],
     data: element.data && typeof element.data === "object" ? element.data : {},
   };
+  if (element.bindings && typeof element.bindings === "object") normalized.bindings = element.bindings;
+  if (Array.isArray(element.children)) normalized.children = element.children;
+  if (element.elementSchemaId) normalized.elementSchemaId = element.elementSchemaId;
+  return normalized;
 }
 
 async function walkAssets(dir, results) {
@@ -179,4 +196,12 @@ async function walkAssets(dir, results) {
 function numberOr(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function lengthOr(value, fallback) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "auto" || /^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(trimmed)) return trimmed;
+  }
+  return numberOr(value, fallback);
 }

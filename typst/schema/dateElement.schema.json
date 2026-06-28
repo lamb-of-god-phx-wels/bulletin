@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tag:typst-bulletin,2026:schema/dateElement.schema.json",
+  "title": "Date Element",
+  "description": "A date display element. Rendering support is expected to format data.value using data.format.",
+  "type": "object",
+  "required": ["id", "type", "name", "x", "y", "width", "height", "margin", "padding", "style", "schema", "data"],
+  "properties": {
+    "id": { "$ref": "#/$defs/identifier" },
+    "type": { "const": "date" },
+    "name": { "type": "string", "minLength": 1 },
+    "x": { "$ref": "#/$defs/position" },
+    "y": { "$ref": "#/$defs/position" },
+    "width": { "$ref": "#/$defs/size" },
+    "height": { "$ref": "#/$defs/size" },
+    "margin": { "$ref": "#/$defs/spacing" },
+    "padding": { "$ref": "#/$defs/spacing" },
+    "style": { "$ref": "#/$defs/textStyle" },
+    "schema": { "type": "array", "items": { "$ref": "#/$defs/dataField" }, "default": [] },
+    "data": {
+      "type": "object",
+      "required": ["value", "format"],
+      "properties": {
+        "value": { "type": "string", "format": "date" },
+        "format": { "type": "string", "default": "MMMM d, yyyy" },
+        "locale": { "type": "string", "default": "en-US" },
+        "prefix": { "type": "string" },
+        "suffix": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "bindings": {
+      "type": "object",
+      "properties": {
+        "value": { "$ref": "#/$defs/binding", "x-compatibleFieldTypes": ["date", "text"] },
+        "format": { "$ref": "#/$defs/binding", "x-compatibleFieldTypes": ["text", "choice"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "position": { "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }] },
+    "size": { "oneOf": [{ "type": "number", "minimum": 0 }, { "const": "auto" }, { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$" }] },
+    "spacing": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }] },
+    "textStyle": {
+      "type": "object",
+      "properties": {
+        "font": { "type": "string", "default": "Calibri" },
+        "fontSize": { "$ref": "#/$defs/size" },
+        "fontWeight": { "enum": ["regular", "medium", "semibold", "bold"] },
+        "fontStyle": { "enum": ["normal", "italic"] },
+        "color": { "type": "string", "default": "#251d18" },
+        "background": { "type": "string", "default": "transparent" },
+        "borderColor": { "type": "string" },
+        "borderWidth": { "$ref": "#/$defs/spacing" },
+        "align": { "enum": ["left", "center", "right", "justify"] },
+        "verticalAlign": { "enum": ["top", "center", "bottom"] }
+      },
+      "additionalProperties": false
+    },
+    "dataField": {
+      "type": "object",
+      "required": ["id", "name", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["text", "richText", "image", "music", "number", "boolean", "date", "choice", "list"] },
+        "required": { "type": "boolean", "default": false },
+        "defaultValue": true
+      },
+      "additionalProperties": false
+    },
+    "binding": {
+      "type": "object",
+      "required": ["fieldId"],
+      "properties": {
+        "fieldId": { "$ref": "#/$defs/identifier" },
+        "fallback": true,
+        "format": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,290 +1,506 @@
-let bulletin = null;
-let activePanel = "metadata";
-let liveTimer = null;
-let liveBuildRunning = false;
-let liveBuildQueued = false;
+const canvasSize = { width: 672, height: 816 };
+const liveBuildDelay = 1200;
+const saveDelay = 350;
 
-const liveDelayMs = 1400;
+const state = {
+  project: null,
+  assets: [],
+  selectedId: null,
+  saveTimer: null,
+  buildTimer: null,
+  buildRunning: false,
+  buildQueued: false,
+};
 
-const form = document.querySelector("#editorForm");
-const dateInput = document.querySelector("#dateInput");
-const statusText = document.querySelector("#statusText");
-const buildOutput = document.querySelector("#buildOutput");
-const pdfFrame = document.querySelector("#pdfFrame");
-const openPdfLink = document.querySelector("#openPdfLink");
-const livePreviewToggle = document.querySelector("#livePreviewToggle");
+const els = {
+  kindSelect: document.querySelector("#kindSelect"),
+  projectSelect: document.querySelector("#projectSelect"),
+  projectName: document.querySelector("#projectName"),
+  newButton: document.querySelector("#newButton"),
+  saveButton: document.querySelector("#saveButton"),
+  buildButton: document.querySelector("#buildButton"),
+  liveToggle: document.querySelector("#liveToggle"),
+  assetSelect: document.querySelector("#assetSelect"),
+  applyAssetButton: document.querySelector("#applyAssetButton"),
+  inspector: document.querySelector("#inspector"),
+  selectionHint: document.querySelector("#selectionHint"),
+  pageCanvas: document.querySelector("#pageCanvas"),
+  statusText: document.querySelector("#statusText"),
+  pdfFrame: document.querySelector("#pdfFrame"),
+  buildOutput: document.querySelector("#buildOutput"),
+  deleteButton: document.querySelector("#deleteButton"),
+  duplicateButton: document.querySelector("#duplicateButton"),
+};
 
-document.querySelector("#loadButton").addEventListener("click", () => safeAction(() => loadBulletin(dateInput.value.trim())));
-document.querySelector("#saveButton").addEventListener("click", () => safeAction(() => saveCurrent()));
-document.querySelector("#buildButton").addEventListener("click", () => safeAction(() => buildCurrent({ manual: true })));
-document.querySelector("#addReadingButton").addEventListener("click", addReading);
-document.querySelector("#addAnnouncementButton").addEventListener("click", addAnnouncement);
-livePreviewToggle.addEventListener("change", () => {
-  if (livePreviewToggle.checked) {
-    scheduleLiveBuild("Live preview enabled. Rebuilding after edits settle...");
-  } else {
-    clearLiveTimer();
-    setStatus("Live preview paused. Use Build PDF when ready.");
-  }
+els.kindSelect.addEventListener("change", () => safeAction(loadProjectList));
+els.projectSelect.addEventListener("change", () => safeAction(() => loadProject(els.kindSelect.value, els.projectSelect.value)));
+els.newButton.addEventListener("click", () => safeAction(createProject));
+els.saveButton.addEventListener("click", () => safeAction(() => saveNow("Saved.")));
+els.buildButton.addEventListener("click", () => safeAction(() => buildNow({ manual: true })));
+els.applyAssetButton.addEventListener("click", applySelectedAsset);
+els.deleteButton.addEventListener("click", deleteSelected);
+els.duplicateButton.addEventListener("click", duplicateSelected);
+
+document.querySelectorAll("[data-add]").forEach((button) => {
+  button.addEventListener("click", () => addElement(button.dataset.add));
+  button.addEventListener("dragstart", (event) => {
+    event.dataTransfer.setData("application/x-builder-element", button.dataset.add);
+  });
 });
 
-document.querySelectorAll(".tab").forEach((tab) => {
-  tab.addEventListener("click", () => showPanel(tab.dataset.panel));
+els.pageCanvas.addEventListener("dragover", (event) => event.preventDefault());
+els.pageCanvas.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const type = event.dataTransfer.getData("application/x-builder-element");
+  if (!type) return;
+  const point = canvasPoint(event);
+  addElement(type, point.x, point.y);
 });
 
-form.addEventListener("input", () => {
-  if (!bulletin) return;
-  collectForm();
-  scheduleLiveBuild();
+els.pageCanvas.addEventListener("pointerdown", (event) => {
+  if (event.target === els.pageCanvas) selectElement(null);
 });
 
 init();
 
 async function init() {
-  const date = defaultDateFolder();
-  dateInput.value = date;
-  await loadBulletin(date);
+  await safeAction(loadAssets);
+  await safeAction(loadProjectList);
 }
 
-async function loadBulletin(date) {
-  if (!date) return setStatus("Enter a date folder first.", true);
-  setStatus("Loading bulletin...");
-  const result = await api(`/api/bulletin?date=${encodeURIComponent(date)}`);
-  bulletin = result.bulletin;
-  dateInput.value = bulletin.date;
-  renderForm();
-  setPreview();
-  setStatus("Bulletin loaded. Edits will rebuild the preview after a short pause.");
+async function loadProjectList() {
+  const kind = els.kindSelect.value;
+  const result = await api(`/api/projects?kind=${encodeURIComponent(kind)}`);
+  els.projectSelect.innerHTML = "";
+  for (const project of result.projects) {
+    const option = document.createElement("option");
+    option.value = project.name;
+    option.textContent = `${project.name} (${project.elementCount})`;
+    els.projectSelect.append(option);
+  }
+  if (result.projects.length > 0) {
+    await loadProject(kind, result.projects[0].name);
+  } else {
+    const fallbackName = kind === "bulletin" ? upcomingSundayName() : "Starter Template";
+    await createProject(fallbackName);
+  }
 }
 
-async function saveCurrent({ silent = false } = {}) {
-  if (!bulletin) return;
-  collectForm();
-  if (!silent) setStatus("Saving and rendering Typst...");
-  const result = await api("/api/bulletin", {
+async function loadProject(kind, name) {
+  if (!name) return;
+  setStatus("Loading project...");
+  const result = await api(`/api/project?kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(name)}`);
+  state.project = result.project;
+  state.selectedId = state.project.elements[0]?.id || null;
+  els.projectName.value = state.project.name;
+  syncProjectSelect();
+  renderAll();
+  setStatus("Project loaded. Drag elements or edit properties; changes autosave.");
+  setPdfPreview(false);
+}
+
+async function createProject(nameFromCaller) {
+  const kind = els.kindSelect.value;
+  const proposed = typeof nameFromCaller === "string" ? nameFromCaller : window.prompt("Project name", kind === "bulletin" ? upcomingSundayName() : "New Template");
+  if (!proposed) return;
+  const result = await api("/api/projects", {
     method: "POST",
-    body: JSON.stringify(bulletin),
+    body: JSON.stringify({ kind, name: proposed }),
   });
-  bulletin = result.bulletin;
-  if (!silent) setStatus("Saved. Typst source was regenerated.");
+  state.project = result.project;
+  state.selectedId = state.project.elements[0]?.id || null;
+  els.projectName.value = state.project.name;
+  await refreshProjectOptions(state.project.name);
+  renderAll();
+  setStatus("Project created.");
 }
 
-async function buildCurrent({ manual = false, live = false } = {}) {
-  if (!bulletin) return;
-  if (live && liveBuildRunning) {
-    liveBuildQueued = true;
+async function loadAssets() {
+  const result = await api("/api/assets");
+  state.assets = result.assets;
+  els.assetSelect.innerHTML = "";
+  for (const asset of state.assets) {
+    const option = document.createElement("option");
+    option.value = asset.path;
+    option.textContent = asset.path;
+    els.assetSelect.append(option);
+  }
+}
+
+function renderAll() {
+  renderCanvas();
+  renderInspector();
+}
+
+function renderCanvas() {
+  if (!state.project) return;
+  const page = state.project.page || canvasSize;
+  els.pageCanvas.style.width = `${page.width}px`;
+  els.pageCanvas.style.height = `${page.height}px`;
+  els.pageCanvas.style.background = page.background || "#fffaf1";
+  els.pageCanvas.innerHTML = "";
+  for (const element of state.project.elements) {
+    els.pageCanvas.append(renderElement(element));
+  }
+}
+
+function renderElement(element) {
+  const node = document.createElement("div");
+  node.className = `canvasElement type-${element.type}`;
+  node.classList.toggle("selected", element.id === state.selectedId);
+  node.dataset.id = element.id;
+  node.style.left = `${element.x}px`;
+  node.style.top = `${element.y}px`;
+  node.style.width = `${element.width}px`;
+  node.style.height = `${element.height}px`;
+  node.style.padding = `${element.padding}px`;
+  node.style.color = element.style.color;
+  node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
+  node.style.border = `${element.style.borderWidth}px solid ${element.style.borderColor}`;
+  node.style.fontFamily = `${element.style.font}, Calibri, sans-serif`;
+  node.style.fontSize = `${element.style.fontSize}px`;
+  node.style.fontWeight = element.style.fontWeight === "regular" ? "400" : element.style.fontWeight;
+  node.style.fontStyle = element.style.fontStyle;
+  node.style.textAlign = element.style.align;
+
+  if (element.type === "image") node.append(renderImageElement(element));
+  else if (element.type === "grid") node.append(renderGridElement(element));
+  else if (element.type === "stack") node.append(renderStackElement(element));
+  else if (element.type === "music") node.append(renderMusicElement(element));
+  else node.textContent = element.data.text || "";
+
+  node.addEventListener("pointerdown", (event) => beginDrag(event, element.id));
+  return node;
+}
+
+function renderImageElement(element) {
+  const img = document.createElement("img");
+  img.alt = element.name;
+  img.src = `/asset?path=${encodeURIComponent(element.data.path || "assets/church/logo.png")}`;
+  img.style.objectFit = element.data.fit || "contain";
+  return img;
+}
+
+function renderGridElement(element) {
+  const grid = document.createElement("div");
+  grid.className = "gridElement";
+  grid.style.gridTemplateColumns = `repeat(${element.data.columns || 2}, 1fr)`;
+  grid.style.gap = `${element.data.cellPadding || 6}px`;
+  const total = Math.max(1, (element.data.rows || 2) * (element.data.columns || 2));
+  for (let index = 0; index < total; index++) {
+    const cell = document.createElement("div");
+    cell.textContent = element.data.cells?.[index] || "";
+    grid.append(cell);
+  }
+  return grid;
+}
+
+function renderStackElement(element) {
+  const stack = document.createElement("div");
+  stack.className = "stackElement";
+  stack.style.flexDirection = element.data.direction === "horizontal" ? "row" : "column";
+  stack.style.gap = `${element.data.gap || 8}px`;
+  for (const item of element.data.items || []) {
+    const child = document.createElement("div");
+    child.textContent = item;
+    stack.append(child);
+  }
+  return stack;
+}
+
+function renderMusicElement(element) {
+  const box = document.createElement("div");
+  box.className = "musicElement";
+  box.innerHTML = `<strong>${escapeHtml(element.data.title || "Music / Lead Sheet")}</strong><span>${escapeHtml(element.data.notes || "Import support TBD")}</span>`;
+  return box;
+}
+
+function renderInspector() {
+  const element = selectedElement();
+  if (!element) {
+    els.selectionHint.textContent = "Select an element to edit its properties.";
+    els.inspector.className = "inspectorEmpty";
+    els.inspector.textContent = "No element selected.";
     return;
   }
 
-  if (manual) clearLiveTimer();
-  if (live) liveBuildRunning = true;
+  els.selectionHint.textContent = `${element.type} element selected.`;
+  els.inspector.className = "inspector";
+  els.inspector.innerHTML = `
+    <label>Name<input data-path="name" value="${attr(element.name)}"></label>
+    <div class="fieldGrid">
+      <label>X<input type="number" data-path="x" value="${element.x}"></label>
+      <label>Y<input type="number" data-path="y" value="${element.y}"></label>
+      <label>Width<input type="number" data-path="width" value="${element.width}"></label>
+      <label>Height<input type="number" data-path="height" value="${element.height}"></label>
+      <label>Padding<input type="number" data-path="padding" value="${element.padding}"></label>
+      <label>Margin<input type="number" data-path="margin" value="${element.margin}"></label>
+    </div>
+    <h3>Style</h3>
+    <label>Font<input data-path="style.font" value="${attr(element.style.font)}"></label>
+    <div class="fieldGrid">
+      <label>Font Size<input type="number" data-path="style.fontSize" value="${element.style.fontSize}"></label>
+      <label>Weight<select data-path="style.fontWeight">${options(["regular", "bold"], element.style.fontWeight)}</select></label>
+      <label>Style<select data-path="style.fontStyle">${options(["normal", "italic"], element.style.fontStyle)}</select></label>
+      <label>Align<select data-path="style.align">${options(["left", "center", "right"], element.style.align)}</select></label>
+      <label>Color<input type="color" data-path="style.color" value="${attr(colorValue(element.style.color))}"></label>
+      <label>Background<input data-path="style.background" value="${attr(element.style.background)}"></label>
+      <label>Border Color<input type="color" data-path="style.borderColor" value="${attr(colorValue(element.style.borderColor))}"></label>
+      <label>Border Width<input type="number" data-path="style.borderWidth" value="${element.style.borderWidth}"></label>
+    </div>
+    <h3>Data</h3>
+    ${typeFields(element)}
+  `;
 
+  els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
+    input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.type));
+  });
+}
+
+function typeFields(element) {
+  if (element.type === "image") {
+    return `
+      <label>Asset Path<input data-path="data.path" value="${attr(element.data.path || "")}"></label>
+      <label>Fit<select data-path="data.fit">${options(["contain", "cover"], element.data.fit || "contain")}</select></label>
+    `;
+  }
+  if (element.type === "grid") {
+    return `
+      <div class="fieldGrid">
+        <label>Rows<input type="number" data-path="data.rows" value="${element.data.rows || 2}"></label>
+        <label>Columns<input type="number" data-path="data.columns" value="${element.data.columns || 2}"></label>
+        <label>Cell Padding<input type="number" data-path="data.cellPadding" value="${element.data.cellPadding || 6}"></label>
+      </div>
+      <label>Cells<textarea data-path="data.cells">${textarea((element.data.cells || []).join("\n"))}</textarea></label>
+    `;
+  }
+  if (element.type === "stack") {
+    return `
+      <div class="fieldGrid">
+        <label>Direction<select data-path="data.direction">${options(["vertical", "horizontal"], element.data.direction || "vertical")}</select></label>
+        <label>Gap<input type="number" data-path="data.gap" value="${element.data.gap || 8}"></label>
+      </div>
+      <label>Items<textarea data-path="data.items">${textarea((element.data.items || []).join("\n"))}</textarea></label>
+    `;
+  }
+  if (element.type === "music") {
+    return `
+      <label>Title<input data-path="data.title" value="${attr(element.data.title || "")}"></label>
+      <label>Notes<textarea data-path="data.notes">${textarea(element.data.notes || "")}</textarea></label>
+    `;
+  }
+  return `<label>Text<textarea data-path="data.text">${textarea(element.data.text || "")}</textarea></label>`;
+}
+
+function updateSelected(path, value, inputType) {
+  const element = selectedElement();
+  if (!element) return;
+  let nextValue = inputType === "number" ? Number(value) : value;
+  if (path === "data.cells" || path === "data.items") nextValue = value.split("\n").map((line) => line.trim()).filter(Boolean);
+  setDeep(element, path, nextValue);
+  renderCanvas();
+  scheduleSaveAndMaybeBuild();
+}
+
+function addElement(type, x = 80, y = 80) {
+  if (!state.project) return;
+  const element = createElement(type, x, y);
+  state.project.elements.push(element);
+  selectElement(element.id);
+  scheduleSaveAndMaybeBuild();
+}
+
+function createElement(type, x, y) {
+  const base = {
+    id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    name: titleCase(type),
+    x: Math.max(0, Math.round(x)),
+    y: Math.max(0, Math.round(y)),
+    width: type === "music" ? 300 : type === "image" ? 180 : 220,
+    height: type === "music" ? 120 : type === "image" ? 110 : 90,
+    margin: 0,
+    padding: 8,
+    style: {
+      font: "Calibri",
+      fontSize: 11,
+      fontWeight: "regular",
+      fontStyle: "normal",
+      color: "#251d18",
+      background: type === "text" ? "#ffffff" : "transparent",
+      borderColor: "#d8cdbd",
+      borderWidth: type === "image" ? 0 : 1,
+      align: "left",
+    },
+    schema: [],
+    data: {},
+  };
+  if (type === "image") base.data = { path: state.assets[0]?.path || "assets/church/logo.png", fit: "contain" };
+  else if (type === "grid") base.data = { rows: 2, columns: 2, cellPadding: 6, cells: ["Cell 1", "Cell 2", "Cell 3", "Cell 4"] };
+  else if (type === "stack") base.data = { direction: "vertical", gap: 8, items: ["First item", "Second item"] };
+  else if (type === "music") base.data = { title: "Music / Lead Sheet", notes: "Import support TBD" };
+  else base.data = { text: "Text element" };
+  return base;
+}
+
+function beginDrag(event, id) {
+  event.preventDefault();
+  event.stopPropagation();
+  selectElement(id);
+  const element = selectedElement();
+  const start = { x: event.clientX, y: event.clientY, elX: element.x, elY: element.y };
+  const onMove = (moveEvent) => {
+    const page = state.project.page || canvasSize;
+    element.x = clamp(start.elX + moveEvent.clientX - start.x, 0, page.width - element.width);
+    element.y = clamp(start.elY + moveEvent.clientY - start.y, 0, page.height - element.height);
+    renderCanvas();
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    renderInspector();
+    scheduleSaveAndMaybeBuild();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+function selectElement(id) {
+  state.selectedId = id;
+  renderAll();
+}
+
+function deleteSelected() {
+  if (!state.project || !state.selectedId) return;
+  state.project.elements = state.project.elements.filter((element) => element.id !== state.selectedId);
+  state.selectedId = state.project.elements[0]?.id || null;
+  renderAll();
+  scheduleSaveAndMaybeBuild();
+}
+
+function duplicateSelected() {
+  const element = selectedElement();
+  if (!element) return;
+  const clone = structuredClone(element);
+  clone.id = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  clone.name = `${clone.name} Copy`;
+  clone.x += 18;
+  clone.y += 18;
+  state.project.elements.push(clone);
+  selectElement(clone.id);
+  scheduleSaveAndMaybeBuild();
+}
+
+function applySelectedAsset() {
+  const element = selectedElement();
+  if (!element || element.type !== "image") return setStatus("Select an image element first.", true);
+  element.data.path = els.assetSelect.value;
+  renderAll();
+  scheduleSaveAndMaybeBuild();
+}
+
+function scheduleSaveAndMaybeBuild() {
+  if (!state.project) return;
+  window.clearTimeout(state.saveTimer);
+  state.saveTimer = window.setTimeout(() => safeAction(() => saveNow("Autosaved.")), saveDelay);
+  if (els.liveToggle.checked) {
+    window.clearTimeout(state.buildTimer);
+    setStatus("Editing... live PDF will rebuild shortly.");
+    state.buildTimer = window.setTimeout(() => safeAction(() => buildNow({ live: true })), liveBuildDelay);
+  } else {
+    setStatus("Editing... autosave pending.");
+  }
+}
+
+async function saveNow(message = "Saved.") {
+  if (!state.project) return;
+  state.project.name = els.projectName.value.trim() || state.project.name;
+  const result = await api("/api/project", {
+    method: "PUT",
+    body: JSON.stringify(state.project),
+  });
+  state.project = result.project;
+  els.projectName.value = state.project.name;
+  syncProjectSelect();
+  setStatus(message);
+}
+
+async function buildNow({ manual = false, live = false } = {}) {
+  if (!state.project) return;
+  if (live && state.buildRunning) {
+    state.buildQueued = true;
+    return;
+  }
+  if (manual) window.clearTimeout(state.buildTimer);
+  state.buildRunning = true;
   try {
-    await saveCurrent({ silent: live });
-    setStatus(live ? "Live preview building PDF..." : "Building PDF...");
-    buildOutput.textContent = live ? "Live build started..." : "Building...";
-    const response = await fetch(`/api/build?date=${encodeURIComponent(bulletin.date)}`, { method: "POST" });
-    const result = await response.json();
-    buildOutput.textContent = result.output || "Build finished.";
+    await saveNow(live ? "Autosaved for live build." : "Saved for build.");
+    setStatus(live ? "Live PDF build running..." : "Building PDF...");
+    els.buildOutput.textContent = live ? "Live build started..." : "Build started...";
+    const result = await api(`/api/project/build?kind=${encodeURIComponent(state.project.kind)}&name=${encodeURIComponent(state.project.name)}`, { method: "POST" }, false);
+    els.buildOutput.textContent = result.output || "Build finished.";
     if (result.ok) {
-      setStatus(live ? "Live preview updated." : "PDF built successfully.");
-      setPreview(true);
+      setStatus(live ? "Live PDF updated." : "PDF built.");
+      setPdfPreview(true);
     } else {
       setStatus(`Build failed with status ${result.status}.`, true);
     }
   } finally {
-    if (live) {
-      liveBuildRunning = false;
-      if (liveBuildQueued && livePreviewToggle.checked) {
-        liveBuildQueued = false;
-        scheduleLiveBuild("More edits detected. Rebuilding again after a short pause...");
-      }
+    state.buildRunning = false;
+    if (state.buildQueued && els.liveToggle.checked) {
+      state.buildQueued = false;
+      scheduleSaveAndMaybeBuild();
     }
   }
 }
 
-function renderForm() {
-  setField("metadata.bulletinDate", bulletin.metadata.bulletinDate);
-  setField("metadata.churchSeason", bulletin.metadata.churchSeason);
-  setField("metadata.sermonSeries", bulletin.metadata.sermonSeries);
-  setField("metadata.theme", bulletin.metadata.theme);
-  setField("metadata.givingUrl", bulletin.metadata.givingUrl);
-  setField("metadata.seriesLogo", bulletin.metadata.seriesLogo);
-  setField("gathering.openingHymn.title", bulletin.gathering.openingHymn.title);
-  setField("gathering.openingHymn.verses", bulletin.gathering.openingHymn.verses.join("\n\n"));
-  setField("gathering.prayerOfTheDay", bulletin.gathering.prayerOfTheDay);
-  setField("gathering.confession", bulletin.gathering.confession);
-  setField("prayers.prayerOfChurchSpace", bulletin.prayers.prayerOfChurchSpace);
-  setField("prayers.closingHymn.title", bulletin.prayers.closingHymn.title);
-  setField("prayers.closingHymn.verses", bulletin.prayers.closingHymn.verses.join("\n\n"));
-  setField("backPage.prayerText", bulletin.backPage.prayerText);
-  setField("backPage.copyright", bulletin.backPage.copyright);
-  renderReadings();
-  renderAnnouncements();
+function setPdfPreview(refresh) {
+  if (!state.project) return;
+  const url = `/pdf?name=${encodeURIComponent(state.project.name)}${refresh ? `&t=${Date.now()}` : ""}`;
+  els.pdfFrame.src = url;
 }
 
-function collectForm() {
-  bulletin.date = dateInput.value.trim();
-  bulletin.metadata.bulletinDate = getField("metadata.bulletinDate");
-  bulletin.metadata.churchSeason = getField("metadata.churchSeason");
-  bulletin.metadata.sermonSeries = getField("metadata.sermonSeries");
-  bulletin.metadata.theme = getField("metadata.theme");
-  bulletin.metadata.givingUrl = getField("metadata.givingUrl");
-  bulletin.metadata.seriesLogo = getField("metadata.seriesLogo");
-  bulletin.gathering.openingHymn.title = getField("gathering.openingHymn.title");
-  bulletin.gathering.openingHymn.verses = splitParagraphs(getField("gathering.openingHymn.verses"));
-  bulletin.gathering.prayerOfTheDay = getField("gathering.prayerOfTheDay");
-  bulletin.gathering.confession = getField("gathering.confession");
-  bulletin.prayers.prayerOfChurchSpace = getField("prayers.prayerOfChurchSpace");
-  bulletin.prayers.closingHymn.title = getField("prayers.closingHymn.title");
-  bulletin.prayers.closingHymn.verses = splitParagraphs(getField("prayers.closingHymn.verses"));
-  bulletin.backPage.prayerText = getField("backPage.prayerText");
-  bulletin.backPage.copyright = getField("backPage.copyright");
-
-  bulletin.word.readings = [...document.querySelectorAll("[data-reading]")].map((card) => ({
-    label: card.querySelector("[data-field='label']").value,
-    reference: card.querySelector("[data-field='reference']").value,
-    summary: card.querySelector("[data-field='summary']").value,
-    text: card.querySelector("[data-field='text']").value,
-  }));
-
-  bulletin.announcements = [...document.querySelectorAll("[data-announcement]")].map((card) => ({
-    title: card.querySelector("[data-field='title']").value,
-    body: card.querySelector("[data-field='body']").value,
-    includeGivingQr: card.querySelector("[data-field='includeGivingQr']").checked,
-  }));
+async function refreshProjectOptions(selectedName) {
+  const result = await api(`/api/projects?kind=${encodeURIComponent(els.kindSelect.value)}`);
+  els.projectSelect.innerHTML = "";
+  for (const project of result.projects) {
+    const option = document.createElement("option");
+    option.value = project.name;
+    option.textContent = `${project.name} (${project.elementCount})`;
+    els.projectSelect.append(option);
+  }
+  els.projectSelect.value = selectedName;
 }
 
-function renderReadings() {
-  const root = document.querySelector("#readings");
-  root.innerHTML = "";
-  bulletin.word.readings.forEach((reading, index) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.dataset.reading = String(index);
-    card.innerHTML = `
-      <div class="cardHeader">
-        <h3>Reading ${index + 1}</h3>
-        <button class="smallDanger" type="button">Remove</button>
-      </div>
-      <div class="grid2">
-        <label>Label<input data-field="label"></label>
-        <label>Reference<input data-field="reference"></label>
-      </div>
-      <label>Summary<input data-field="summary"></label>
-      <label>Text<textarea data-field="text"></textarea></label>
-    `;
-    card.querySelector("[data-field='label']").value = reading.label || "";
-    card.querySelector("[data-field='reference']").value = reading.reference || "";
-    card.querySelector("[data-field='summary']").value = reading.summary || "";
-    card.querySelector("[data-field='text']").value = reading.text || "";
-    card.querySelector("button").addEventListener("click", () => {
-      bulletin.word.readings.splice(index, 1);
-      renderReadings();
-      collectForm();
-      scheduleLiveBuild();
-    });
-    root.append(card);
-  });
+function syncProjectSelect() {
+  const exists = [...els.projectSelect.options].some((option) => option.value === state.project.name);
+  if (!exists) refreshProjectOptions(state.project.name);
+  else els.projectSelect.value = state.project.name;
 }
 
-function renderAnnouncements() {
-  const root = document.querySelector("#announcements");
-  root.innerHTML = "";
-  bulletin.announcements.forEach((announcement, index) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.dataset.announcement = String(index);
-    card.innerHTML = `
-      <div class="cardHeader">
-        <h3>Announcement ${index + 1}</h3>
-        <button class="smallDanger" type="button">Remove</button>
-      </div>
-      <label>Title<input data-field="title"></label>
-      <label>Body<textarea data-field="body"></textarea></label>
-      <label class="checkbox"><span><input data-field="includeGivingQr" type="checkbox"> Include giving QR placeholder after this announcement</span></label>
-    `;
-    card.querySelector("[data-field='title']").value = announcement.title || "";
-    card.querySelector("[data-field='body']").value = announcement.body || "";
-    card.querySelector("[data-field='includeGivingQr']").checked = Boolean(announcement.includeGivingQr);
-    card.querySelector("button").addEventListener("click", () => {
-      bulletin.announcements.splice(index, 1);
-      renderAnnouncements();
-      collectForm();
-      scheduleLiveBuild();
-    });
-    root.append(card);
-  });
+function selectedElement() {
+  return state.project?.elements.find((element) => element.id === state.selectedId) || null;
 }
 
-function addReading() {
-  collectForm();
-  bulletin.word.readings.push({ label: "Reading", reference: "Book Chapter:Verse", summary: "", text: "" });
-  renderReadings();
-  scheduleLiveBuild();
+function setDeep(object, path, value) {
+  const parts = path.split(".");
+  let target = object;
+  for (const part of parts.slice(0, -1)) target = target[part] ||= {};
+  target[parts.at(-1)] = value;
 }
 
-function addAnnouncement() {
-  collectForm();
-  bulletin.announcements.push({ title: "New Announcement", body: "", includeGivingQr: false });
-  renderAnnouncements();
-  scheduleLiveBuild();
+function canvasPoint(event) {
+  const rect = els.pageCanvas.getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
-function scheduleLiveBuild(message = "Editing... live preview will rebuild shortly.") {
-  if (!bulletin || !livePreviewToggle.checked) return;
-  clearLiveTimer();
-  setStatus(message);
-  liveTimer = window.setTimeout(() => {
-    liveTimer = null;
-    safeAction(() => buildCurrent({ live: true }));
-  }, liveDelayMs);
-}
-
-function clearLiveTimer() {
-  if (!liveTimer) return;
-  window.clearTimeout(liveTimer);
-  liveTimer = null;
-}
-
-function showPanel(name) {
-  activePanel = name;
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.panel === name));
-  document.querySelectorAll(".panel").forEach((panel) => panel.classList.toggle("active", panel.id === `panel-${name}`));
-}
-
-function setField(name, value) {
-  const field = form.elements[name];
-  if (field) field.value = value || "";
-}
-
-function getField(name) {
-  return form.elements[name]?.value || "";
-}
-
-function splitParagraphs(value) {
-  return value.split(/\n\s*\n/g).map((item) => item.trim()).filter(Boolean);
-}
-
-function setPreview(refresh = false) {
-  if (!bulletin) return;
-  const url = `/pdf?date=${encodeURIComponent(bulletin.date)}${refresh ? `&t=${Date.now()}` : ""}`;
-  pdfFrame.src = url;
-  openPdfLink.href = url;
-}
-
-function setStatus(message, error = false) {
-  statusText.textContent = message;
-  statusText.style.color = error ? "#8b2115" : "";
-}
-
-async function api(path, options = {}) {
+async function api(path, options = {}, throwOnAppError = true) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
   const result = await response.json();
-  if (!response.ok || result.ok === false) throw new Error(result.error || "Request failed");
+  if ((!response.ok || result.ok === false) && throwOnAppError) throw new Error(result.error || "Request failed");
   return result;
 }
 
@@ -296,9 +512,42 @@ async function safeAction(action) {
   }
 }
 
-function defaultDateFolder() {
+function setStatus(message, error = false) {
+  els.statusText.textContent = message;
+  els.statusText.classList.toggle("error", error);
+}
+
+function upcomingSundayName() {
   const date = new Date();
   const day = date.getDay();
   date.setDate(date.getDate() + (day === 0 ? 0 : 7 - day));
   return `${String(date.getMonth() + 1).padStart(2, "0")} ${String(date.getDate()).padStart(2, "0")} ${date.getFullYear()}`;
+}
+
+function titleCase(value) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function options(values, selected) {
+  return values.map((value) => `<option value="${attr(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
+}
+
+function colorValue(value) {
+  return /^#[0-9A-Fa-f]{6}$/.test(value) ? value : "#ffffff";
+}
+
+function attr(value) {
+  return escapeHtml(String(value ?? ""));
+}
+
+function textarea(value) {
+  return escapeHtml(String(value ?? ""));
+}
+
+function escapeHtml(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, Math.round(value)));
 }

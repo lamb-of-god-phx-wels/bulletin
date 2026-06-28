@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "kind": "template",
+  "name": "New Template",
+  "page": {
+    "width": 672,
+    "height": 816,
+    "typstWidth": "7in",
+    "typstHeight": "8.5in",
+    "background": "#fffaf1"
+  },
+  "elements": [
+    {
+      "id": "el_mqrm6vb4_yg56mi",
+      "type": "text",
+      "name": "Season and Date",
+      "x": 38,
+      "y": 28,
+      "width": 596,
+      "height": 42,
+      "margin": 0,
+      "padding": 8,
+      "style": {
+        "font": "Eras Demi ITC",
+        "fontSize": 18,
+        "fontWeight": "bold",
+        "fontStyle": "normal",
+        "color": "#251d18",
+        "background": "transparent",
+        "borderColor": "#d8cdbd",
+        "borderWidth": 0,
+        "align": "left"
+      },
+      "schema": [],
+      "data": {
+        "text": "Second Sunday After Pentecost    June 7, 2026"
+      }
+    },
+    {
+      "id": "el_mqrm6vb4_pyzmcq",
+      "type": "image",
+      "name": "Series Logo",
+      "x": 189,
+      "y": 203,
+      "width": 288,
+      "height": 150,
+      "margin": 0,
+      "padding": 8,
+      "style": {
+        "font": "Calibri",
+        "fontSize": 11,
+        "fontWeight": "regular",
+        "fontStyle": "normal",
+        "color": "#251d18",
+        "background": "transparent",
+        "borderColor": "#613583",
+        "borderWidth": 5,
+        "align": "left"
+      },
+      "schema": [],
+      "data": {
+        "path": "assets/sermon_series/say_it_out_loud/logo.png",
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "el_mqrm6vb4_65yg4e",
+      "type": "text",
+      "name": "Theme",
+      "x": 86,
+      "y": 395,
+      "width": 500,
+      "height": 68,
+      "margin": 0,
+      "padding": 8,
+      "style": {
+        "font": "Eras Demi ITC",
+        "fontSize": 24,
+        "fontWeight": "bold",
+        "fontStyle": "normal",
+        "color": "#251d18",
+        "background": "transparent",
+        "borderColor": "#d8cdbd",
+        "borderWidth": 0,
+        "align": "center"
+      },
+      "schema": [],
+      "data": {
+        "text": "GOD LOVES SINNERS asdfjkdsaf askljfaklsdjf"
+      }
+    },
+    {
+      "id": "el_mqrm6vb4_ler2i8",
+      "type": "image",
+      "name": "Church Logo",
+      "x": 407,
+      "y": 682,
+      "width": 216,
+      "height": 82,
+      "margin": 0,
+      "padding": 8,
+      "style": {
+        "font": "Calibri",
+        "fontSize": 11,
+        "fontWeight": "regular",
+        "fontStyle": "normal",
+        "color": "#251d18",
+        "background": "transparent",
+        "borderColor": "#d8cdbd",
+        "borderWidth": 0,
+        "align": "left"
+      },
+      "schema": [],
+      "data": {
+        "path": "assets/church/logo.png",
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "el_mqrm6vb4_drhswg",
+      "type": "text",
+      "name": "Welcome Text",
+      "x": 42,
+      "y": 86,
+      "width": 260,
+      "height": 78,
+      "margin": 0,
+      "padding": 8,
+      "style": {
+        "font": "Calibri",
+        "fontSize": 11,
+        "fontWeight": "regular",
+        "fontStyle": "normal",
+        "color": "#251d18",
+        "background": "#ffffff",
+        "borderColor": "#d8cdbd",
+        "borderWidth": 1,
+        "align": "left"
+      },
+      "schema": [],
+      "data": {
+        "text": "Add bulletin sections by dragging elements from the palette. Use the inspector for exact placement and styling."
+      }
+    },
+    {
+      "id": "el_mqrm6z63_p68rj9",
+      "type": "text",
+      "name": "Text",
+      "x": 30,
+      "y": 321,
+      "width": 220,
+      "height": 90,
+      "margin": 0,
+      "padding": 8,
+      "style": {
+        "font": "Calibri",
+        "fontSize": 11,
+        "fontWeight": "regular",
+        "fontStyle": "normal",
+        "color": "#251d18",
+        "background": "#ffffff",
+        "borderColor": "#d8cdbd",
+        "borderWidth": 1,
+        "align": "left"
+      },
+      "schema": [],
+      "data": {
+        "text": "Text element"
+      }
+    }
+  ]
+}

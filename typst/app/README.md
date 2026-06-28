@@ -1,7 +1,7 @@
-# Bulletin Builder Prototype
+# Church Bulletin Builder
 
-This is a local, GUI-first prototype for creating and editing Typst bulletins.
-It stores editable data as JSON and generates Typst/PDF output from that data.
+This is a local web app for building Typst-based church bulletins and reusable
+templates with a GUI-first workflow.
 
 ## Run
 
@@ -14,20 +14,34 @@ npm start
 
 Then open `http://localhost:5177`.
 
-## What It Does
+## Current Capabilities
 
-- Creates or loads `typst/content/<date>/bulletin.json`
-- Regenerates `typst/content/<date>/bulletin.typ`
-- Runs `typst/scripts/build.sh <date>`
-- Shows `typst/pdf/<date>.pdf` in the browser preview
-- Autosaves and rebuilds the PDF preview after edits settle for about one second
+- Create disk-backed bulletin and template projects.
+- Store projects as JSON:
+  - Bulletins: `typst/content/<name>/document.json`
+  - Templates: `typst/app/templates/<name>/template.json`
+- Generate Typst source beside each project.
+- Compile PDFs to `typst/pdf/<name>.pdf`.
+- Drag elements from the palette onto a page canvas.
+- Move elements directly on the page.
+- Fine tune `x`, `y`, `width`, `height`, padding, font, colors, and borders.
+- Edit type-specific data for text, image, grid, stack, and music elements.
+- Autosave changes.
+- Rebuild the PDF preview automatically when `Live PDF` is enabled.
 
-Use the `Live preview` toggle in the top bar to pause automatic rebuilds. The
-`Build PDF` button still performs an immediate manual build.
+## Element Types
 
-## Prototype Limits
+- `Textbox` - styled text content.
+- `Image` - image asset from the shared `assets/` folder.
+- `Grid Container` - basic rows, columns, and cell text.
+- `Stack Container` - vertical or horizontal list of text items.
+- `Music` - placeholder for future hymn, psalm, song, and lead-sheet support.
 
-- It is not a full WYSIWYG editor yet.
-- It edits structured bulletin fields, not arbitrary PDF coordinates.
-- The PDF is generated output; `bulletin.json` is the source of truth.
-- The giving QR is still the placeholder from the Typst style file.
+## Notes
+
+- The canvas is WYSIWYG for placement and sizing, while the PDF preview is the
+  final Typst output.
+- Templates and bulletins use the same document model; the app stores them in
+  different folders.
+- The music import tool, nested container editing, resize handles, and AI import
+  workflow are still future work.

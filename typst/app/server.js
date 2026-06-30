@@ -1,8 +1,9 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { renderTypst } from "./lib/render-typst.js";
 import {
   ensureRendered,
   httpError,
@@ -10,6 +11,7 @@ import {
   listProjects,
   listSchemas,
   loadProject,
+  normalizeProject,
   pdfRoot,
   projectTypstPath,
   publicRoot,
@@ -21,8 +23,10 @@ import {
 } from "./lib/storage.js";
 
 const port = Number(process.env.PORT || 5177);
+const previewRoot = path.join(pdfRoot, ".preview");
 
 await mkdir(pdfRoot, { recursive: true });
+await mkdir(previewRoot, { recursive: true });
 
 createServer(async (req, res) => {
   try {
@@ -53,6 +57,10 @@ createServer(async (req, res) => {
       return sendJson(res, await buildProject(requireKind(url), requireName(url)));
     }
 
+    if (url.pathname === "/api/project/live-preview" && req.method === "POST") {
+      return sendJson(res, await buildPreview(await readJson(req)));
+    }
+
     if (url.pathname === "/api/assets" && req.method === "GET") {
       return sendJson(res, { ok: true, assets: await listAssets() });
     }
@@ -67,6 +75,10 @@ createServer(async (req, res) => {
 
     if (url.pathname === "/pdf" && req.method === "GET") {
       return await servePdf(res, requireName(url));
+    }
+
+    if (url.pathname === "/preview-pdf" && req.method === "GET") {
+      return await servePreviewPdf(res, requirePreviewName(url));
     }
 
     return await serveStatic(res, url.pathname);
@@ -94,8 +106,38 @@ async function buildProject(kind, name) {
   return { ok: result.status === 0, status: result.status, output: result.output };
 }
 
+async function buildPreview(project) {
+  const kind = validateKind(project.kind || "bulletin");
+  const name = validateName(project.name || "Untitled");
+  const clean = normalizeProject(project, kind, name);
+  const previewId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const previewName = `${kind}-${name}-${previewId}`;
+  const previewTypstPath = path.join(previewRoot, `${previewName}.typ`);
+  const pdfPath = path.join(previewRoot, `${previewName}.pdf`);
+  await writeFile(previewTypstPath, renderTypst(clean));
+  const result = await run("typst", [
+    "compile",
+    "--root",
+    repoRoot,
+    "--font-path",
+    path.join(repoRoot, "assets/fonts"),
+    previewTypstPath,
+    pdfPath,
+  ], repoRoot);
+  return { ok: result.status === 0, status: result.status, output: result.output, preview: previewName };
+}
+
 async function servePdf(res, name) {
   const pdfPath = path.join(pdfRoot, `${validateName(name)}.pdf`);
+  return await servePdfFile(res, pdfPath);
+}
+
+async function servePreviewPdf(res, name) {
+  const pdfPath = path.join(previewRoot, `${name}.pdf`);
+  return await servePdfFile(res, pdfPath);
+}
+
+async function servePdfFile(res, pdfPath) {
   try {
     await stat(pdfPath);
   } catch {
@@ -138,6 +180,12 @@ function requireKind(url) {
 
 function requireName(url) {
   return validateName(url.searchParams.get("name") || "");
+}
+
+function requirePreviewName(url) {
+  const name = url.searchParams.get("name") || "";
+  if (!/^[A-Za-z0-9 _-]{1,128}$/.test(name) || name.includes("..")) throw httpError(400, "Invalid preview name.");
+  return name;
 }
 
 async function readJson(req) {

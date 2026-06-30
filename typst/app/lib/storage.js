@@ -130,7 +130,7 @@ export function httpError(status, message) {
   return error;
 }
 
-function normalizeProject(project, kind, name) {
+export function normalizeProject(project, kind, name) {
   const base = createDefaultProject({ kind: validateKind(kind || project.kind || "bulletin"), name: validateName(name || project.name || "Untitled") });
   return {
     ...base,

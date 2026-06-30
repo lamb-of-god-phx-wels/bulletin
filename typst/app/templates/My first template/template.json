@@ -1,7 +1,7 @@
 {
   "version": 1,
   "kind": "template",
-  "name": "New Template",
+  "name": "My first template",
   "page": {
     "width": 672,
     "height": 816,

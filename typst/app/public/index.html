@@ -60,6 +60,7 @@
             <p id="statusText">Loading...</p>
           </div>
           <div class="stageTools">
+            <button id="buildOutputToggle" type="button" aria-pressed="false">Show Build Details</button>
             <button id="deleteButton" type="button">Delete Selected</button>
             <button id="duplicateButton" type="button">Duplicate</button>
           </div>
@@ -69,13 +70,13 @@
           <div id="pageCanvas" class="pageCanvas" aria-label="WYSIWYG page canvas"></div>
         </div>
 
-        <details class="pdfDrawer" open>
-          <summary>PDF Preview and Build Output</summary>
+        <section class="pdfDrawer" aria-label="PDF Preview">
+          <h2>PDF Preview</h2>
           <div class="pdfGrid">
             <iframe id="pdfFrame" title="Generated PDF preview"></iframe>
-            <pre id="buildOutput" aria-live="polite"></pre>
+            <pre id="buildOutput" aria-live="polite" hidden></pre>
           </div>
-        </details>
+        </section>
       </section>
     </main>
 

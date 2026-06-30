@@ -32,6 +32,7 @@ const els = {
   statusText: document.querySelector("#statusText"),
   pdfFrame: document.querySelector("#pdfFrame"),
   buildOutput: document.querySelector("#buildOutput"),
+  buildOutputToggle: document.querySelector("#buildOutputToggle"),
   deleteButton: document.querySelector("#deleteButton"),
   duplicateButton: document.querySelector("#duplicateButton"),
 };
@@ -41,6 +42,7 @@ els.projectSelect.addEventListener("change", () => safeAction(() => loadProject(
 els.newButton.addEventListener("click", () => safeAction(createProject));
 els.saveButton.addEventListener("click", () => safeAction(() => saveNow("Saved.")));
 els.buildButton.addEventListener("click", () => safeAction(() => buildNow({ manual: true })));
+els.buildOutputToggle.addEventListener("click", toggleBuildOutput);
 els.applyAssetButton.addEventListener("click", applySelectedAsset);
 els.deleteButton.addEventListener("click", deleteSelected);
 els.duplicateButton.addEventListener("click", duplicateSelected);
@@ -124,6 +126,7 @@ async function loadProject(kind, name) {
   renderAll();
   setStatus("Project loaded. Drag elements or edit properties; changes autosave.");
   setPdfPreview(false);
+  if (els.liveToggle.checked) scheduleLiveBuild("Loading preview... live PDF will rebuild shortly.");
 }
 
 async function createProject(nameFromCaller) {
@@ -526,12 +529,16 @@ function scheduleSaveAndMaybeBuild() {
   window.clearTimeout(state.saveTimer);
   state.saveTimer = window.setTimeout(() => safeAction(() => saveNow("Autosaved.")), saveDelay);
   if (els.liveToggle.checked) {
-    window.clearTimeout(state.buildTimer);
-    setStatus("Editing... live PDF will rebuild shortly.");
-    state.buildTimer = window.setTimeout(() => safeAction(() => buildNow({ live: true })), liveBuildDelay);
+    scheduleLiveBuild("Editing... live PDF will rebuild shortly.");
   } else {
     setStatus("Editing... autosave pending.");
   }
+}
+
+function scheduleLiveBuild(message) {
+  window.clearTimeout(state.buildTimer);
+  setStatus(message);
+  state.buildTimer = window.setTimeout(() => safeAction(() => buildNow({ live: true })), liveBuildDelay);
 }
 
 async function saveNow(message = "Saved.") {
@@ -551,13 +558,6 @@ async function saveNow(message = "Saved.") {
   setStatus(message);
 }
 
-async function saveProjectSnapshot(project) {
-  return await api("/api/project", {
-    method: "PUT",
-    body: JSON.stringify(project),
-  });
-}
-
 async function buildNow({ manual = false, live = false } = {}) {
   if (!state.project) return;
   if (live && state.isDragging) {
@@ -573,15 +573,17 @@ async function buildNow({ manual = false, live = false } = {}) {
   state.buildRunning = true;
   const buildProject = projectSnapshot();
   try {
-    if (live) await saveProjectSnapshot(buildProject);
-    else await saveNow("Saved for build.");
+    if (!live) await saveNow("Saved for build.");
     setStatus(live ? "Live PDF build running in the background..." : "Building PDF...");
     els.buildOutput.textContent = live ? "Live build started..." : "Build started...";
-    const result = await api(`/api/project/build?kind=${encodeURIComponent(buildProject.kind)}&name=${encodeURIComponent(buildProject.name)}`, { method: "POST" }, false);
+    const result = live
+      ? await api("/api/project/live-preview", { method: "POST", body: JSON.stringify(buildProject) }, false)
+      : await api(`/api/project/build?kind=${encodeURIComponent(buildProject.kind)}&name=${encodeURIComponent(buildProject.name)}`, { method: "POST" }, false);
     els.buildOutput.textContent = result.output || "Build finished.";
     if (result.ok) {
       setStatus(live ? "Live PDF updated." : "PDF built.");
-      setPdfPreview(true, buildProject.name);
+      if (live && result.preview) setPreviewPdf(result.preview);
+      else setPdfPreview(true, buildProject.name);
     } else {
       setStatus(`Build failed with status ${result.status}.`, true);
     }
@@ -604,6 +606,18 @@ function setPdfPreview(refresh, name = state.project?.name) {
   if (!state.project) return;
   const url = `/pdf?name=${encodeURIComponent(name)}${refresh ? `&t=${Date.now()}` : ""}`;
   els.pdfFrame.src = url;
+}
+
+function setPreviewPdf(name) {
+  els.pdfFrame.src = `/preview-pdf?name=${encodeURIComponent(name)}&t=${Date.now()}`;
+}
+
+function toggleBuildOutput() {
+  const visible = !els.buildOutput.hidden;
+  els.buildOutput.hidden = visible;
+  els.buildOutput.parentElement.classList.toggle("showBuildOutput", !visible);
+  els.buildOutputToggle.textContent = visible ? "Show Build Details" : "Hide Build Details";
+  els.buildOutputToggle.setAttribute("aria-pressed", String(!visible));
 }
 
 async function refreshProjectOptions(selectedName) {

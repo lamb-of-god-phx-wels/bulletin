@@ -55,6 +55,7 @@
         { "$ref": "imageElement.schema.json" },
         { "$ref": "gridLayoutElement.schema.json" },
         { "$ref": "stackLayoutElement.schema.json" },
+        { "$ref": "canvasElement.schema.json" },
         { "$ref": "dateElement.schema.json" },
         { "$ref": "musicElement.schema.json" },
         { "$ref": "customElement.schema.json" },

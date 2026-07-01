@@ -101,7 +101,6 @@ templates/bulletins and exporting as PDFs.
 ## TODO
 
 * Add "page break" element
-* Add "canvas" element
 * Fix "grid" and "stack" layouts
     * Data is not "text", it's "elements"
 * Default width for elements is 100%

@@ -35,6 +35,9 @@ Then open `http://localhost:5177`.
 - `Image` - image asset from the shared `assets/` folder.
 - `Grid Container` - basic rows, columns, and cell text.
 - `Stack Container` - vertical or horizontal list of text items.
+- `Canvas` - invisible rendered container with dashed editor border for exact
+  x/y placement of child elements; it fills page width by default and grows to
+  fit its children up to one page tall.
 - `Music` - placeholder for future hymn, psalm, song, and lead-sheet support.
 
 ## Notes

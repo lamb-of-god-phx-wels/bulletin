@@ -68,6 +68,7 @@ export function createElement(type, overrides = {}) {
   if (type === "image") return imageElement(overrides);
   if (type === "grid") return gridElement(overrides);
   if (type === "stack") return stackElement(overrides);
+  if (type === "canvas") return canvasElement(overrides);
   if (type === "music") return musicElement(overrides);
   return textElement(overrides);
 }
@@ -136,6 +137,14 @@ function stackElement(overrides = {}) {
       gap: overrides.gap ?? overrides.data?.gap ?? 8,
       items: overrides.items || overrides.data?.items || ["First item", "Second item", "Third item"],
     },
+  };
+}
+
+function canvasElement(overrides = {}) {
+  return {
+    ...baseElement("canvas", { width: "100%", height: "auto", padding: 0, borderWidth: 0, ...overrides }),
+    data: {},
+    children: overrides.children || [],
   };
 }
 

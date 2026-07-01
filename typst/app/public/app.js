@@ -14,6 +14,7 @@ const state = {
   buildQueued: false,
   isDragging: false,
   draggingId: null,
+  draggingType: null,
   dropIndex: null,
 };
 
@@ -87,6 +88,7 @@ function renderPalette() {
     button.addEventListener("dragstart", (event) => {
       state.isDragging = true;
       state.draggingId = null;
+      state.draggingType = "palette";
       event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData("application/x-builder-element", entry.type);
     });
@@ -182,25 +184,21 @@ function renderElement(element) {
   node.classList.toggle("selected", element.id === state.selectedId);
   node.classList.toggle("dragging", element.id === state.draggingId);
   node.dataset.id = element.id;
-  node.style.width = cssLength(element.width);
-  node.style.height = cssLength(element.height);
+  const canvasBox = element.type === "canvas" ? effectiveCanvasSize(element) : null;
+  node.style.width = cssLength(canvasBox?.width ?? element.width);
+  node.style.height = cssLength(canvasBox?.height ?? element.height);
   node.style.margin = cssLength(element.margin);
-  node.style.padding = cssLength(element.padding);
+  node.style.padding = element.type === "canvas" ? "0px" : cssLength(element.padding);
   node.style.color = element.style.color;
   node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
-  node.style.border = `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
+  node.style.border = element.type === "canvas" ? "" : `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
   node.style.fontFamily = `${element.style.font}, Calibri, sans-serif`;
   node.style.fontSize = cssLength(element.style.fontSize);
   node.style.fontWeight = element.style.fontWeight === "regular" ? "400" : element.style.fontWeight;
   node.style.fontStyle = element.style.fontStyle;
   node.style.textAlign = element.style.align;
 
-  if (element.type === "image") node.append(renderImageElement(element));
-  else if (element.type === "grid") node.append(renderGridElement(element));
-  else if (element.type === "stack") node.append(renderStackElement(element));
-  else if (element.type === "music") node.append(renderMusicElement(element));
-  else if (element.type === "date") node.textContent = renderDateText(element);
-  else node.textContent = element.data.text || "";
+  appendElementContent(node, element);
 
   node.draggable = true;
   node.addEventListener("click", (event) => {
@@ -209,6 +207,75 @@ function renderElement(element) {
   });
   node.addEventListener("dragstart", (event) => beginElementDrag(event, element.id));
   node.addEventListener("dragend", finishDrag);
+  return node;
+}
+
+function appendElementContent(node, element) {
+  if (element.type === "canvas") node.append(renderCanvasElement(element));
+  else if (element.type === "image") node.append(renderImageElement(element));
+  else if (element.type === "grid") node.append(renderGridElement(element));
+  else if (element.type === "stack") node.append(renderStackElement(element));
+  else if (element.type === "music") node.append(renderMusicElement(element));
+  else if (element.type === "date") node.textContent = renderDateText(element);
+  else node.textContent = element.data.text || "";
+}
+
+function renderCanvasElement(element) {
+  const surface = document.createElement("div");
+  surface.className = "canvasSurface";
+  surface.dataset.canvasId = element.id;
+  surface.addEventListener("dragover", (event) => handleNestedCanvasDragOver(event, element, surface));
+  surface.addEventListener("dragleave", (event) => handleNestedCanvasDragLeave(event, surface));
+  surface.addEventListener("drop", (event) => handleNestedCanvasDrop(event, element, surface));
+  for (const child of element.children || []) {
+    surface.append(renderCanvasChild(child, element));
+  }
+  if (!element.children?.length) {
+    const empty = document.createElement("div");
+    empty.className = "canvasEmptyHint";
+    empty.textContent = "Drop elements here for exact placement";
+    surface.append(empty);
+  }
+  return surface;
+}
+
+function renderCanvasChild(child, parentCanvas) {
+  const size = effectiveElementSize(child.element, effectiveCanvasSize(parentCanvas).width);
+  const wrapper = document.createElement("div");
+  wrapper.className = "canvasChild";
+  wrapper.classList.toggle("selected", child.id === state.selectedId);
+  wrapper.classList.toggle("dragging", child.id === state.draggingId);
+  wrapper.dataset.id = child.id;
+  wrapper.style.left = cssLength(child.x);
+  wrapper.style.top = cssLength(child.y);
+  wrapper.style.width = cssLength(size.width);
+  wrapper.style.height = cssLength(size.height);
+  wrapper.draggable = true;
+  wrapper.addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectElement(child.id);
+  });
+  wrapper.addEventListener("dragstart", (event) => beginCanvasChildDrag(event, child));
+  wrapper.addEventListener("dragend", finishDrag);
+  wrapper.append(renderCanvasChildElement(child.element, size));
+  return wrapper;
+}
+
+function renderCanvasChildElement(element, size) {
+  const node = document.createElement("div");
+  node.className = `canvasChildElement type-${element.type}`;
+  node.style.width = `${size.width}px`;
+  node.style.height = `${size.height}px`;
+  node.style.padding = element.type === "canvas" ? "0px" : cssLength(element.padding);
+  node.style.color = element.style.color;
+  node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
+  node.style.border = element.type === "canvas" ? "" : `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
+  node.style.fontFamily = `${element.style.font}, Calibri, sans-serif`;
+  node.style.fontSize = cssLength(element.style.fontSize);
+  node.style.fontWeight = element.style.fontWeight === "regular" ? "400" : element.style.fontWeight;
+  node.style.fontStyle = element.style.fontStyle;
+  node.style.textAlign = element.style.align;
+  appendElementContent(node, element);
   return node;
 }
 
@@ -255,16 +322,48 @@ function renderMusicElement(element) {
 }
 
 function renderInspector() {
-  const element = selectedElement();
-  if (!element) {
+  const target = selectedTarget();
+  if (!target) {
     els.selectionHint.textContent = "Select an element to edit its properties.";
     els.inspector.className = "inspectorEmpty";
     els.inspector.textContent = "No element selected.";
     return;
   }
+  const element = target.element;
+
+  if (target.kind === "canvasChild") {
+    els.selectionHint.textContent = `${element.type} element positioned in canvas.`;
+    els.inspector.className = "inspector";
+    els.inspector.innerHTML = `
+      <div class="fieldGrid">
+        <label>X<input data-path="x" data-value-type="length" value="${attr(target.wrapper.x)}"></label>
+        <label>Y<input data-path="y" data-value-type="length" value="${attr(target.wrapper.y)}"></label>
+      </div>
+    `;
+    els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
+      input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
+    });
+    return;
+  }
 
   els.selectionHint.textContent = `${element.type} element selected.`;
   els.inspector.className = "inspector";
+  if (element.type === "canvas") {
+    els.inspector.innerHTML = `
+      <label>Name<input data-path="name" value="${attr(element.name)}"></label>
+      <div class="fieldGrid">
+        <label>Width<input data-path="width" data-value-type="length" value="${attr(element.width)}"></label>
+        <label>Height<input data-path="height" data-value-type="length" value="${attr(element.height)}"></label>
+        <label>Margin<input data-path="margin" data-value-type="length" value="${attr(element.margin)}"></label>
+      </div>
+      <p class="mutedText">Canvas children are positioned by selecting them inside the dashed canvas.</p>
+    `;
+    els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
+      input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
+    });
+    return;
+  }
+
   els.inspector.innerHTML = `
     <label>Name<input data-path="name" value="${attr(element.name)}"></label>
     <div class="fieldGrid">
@@ -331,13 +430,19 @@ function schemaDataField(element, key, schema, required) {
 }
 
 function updateSelected(path, value, inputType) {
-  const element = selectedElement();
-  if (!element) return;
+  const target = selectedTarget();
+  if (!target) return;
   let nextValue = inputType === "number" || inputType === "integer" ? Number(value) : value;
   if (inputType === "boolean") nextValue = value === "true";
   if (inputType === "array") nextValue = value.split("\n").map((line) => line.trim()).filter(Boolean);
   if (inputType === "length") nextValue = parseLengthInput(value);
-  setDeep(element, path, nextValue);
+  if (target.kind === "canvasChild") {
+    setDeep(target.wrapper, path, nextValue);
+    clampCanvasChild(target.parentCanvas, target.wrapper);
+  } else {
+    setDeep(target.element, path, nextValue);
+    if (target.element.type === "canvas") enforceCanvasSize(target.element);
+  }
   renderCanvas();
   scheduleSaveAndMaybeBuild();
 }
@@ -360,11 +465,12 @@ function createElement(type) {
     width: defaults.width,
     height: defaults.height,
     margin: 0,
-    padding: 8,
+    padding: type === "canvas" ? 0 : 8,
     style: defaults.style,
     schema: [],
     data: defaults.data,
   };
+  if (type === "canvas") base.children = [];
   return base;
 }
 
@@ -373,7 +479,7 @@ function schemaForType(type) {
 }
 
 function schemaOrder(type) {
-  return { text: 10, image: 20, grid: 30, stack: 40, date: 50, music: 60 }[type] ?? 100;
+  return { text: 10, image: 20, grid: 30, stack: 40, canvas: 50, date: 60, music: 70 }[type] ?? 100;
 }
 
 function paletteTitle(entry) {
@@ -386,6 +492,7 @@ function paletteDescription(entry) {
   if (entry.type === "text") return "Styled text with schema data";
   if (entry.type === "grid") return "Rows, columns, and child layout";
   if (entry.type === "stack") return "Vertical or horizontal flow";
+  if (entry.type === "canvas") return "Fine placement within a flow block";
   if (entry.type === "date") return "Formatted date display";
   if (entry.type === "music") return "Lead sheet placeholder";
   return description.split(".")[0] || "Schema-backed element";
@@ -404,6 +511,7 @@ function defaultDimensions(type) {
   if (type === "image") return { width: 180, height: 110 };
   if (type === "grid") return { width: 260, height: 140 };
   if (type === "stack") return { width: 260, height: 160 };
+  if (type === "canvas") return { width: "100%", height: "auto" };
   if (type === "music") return { width: 300, height: 120 };
   if (type === "date") return { width: 220, height: 42 };
   return { width: 220, height: 90 };
@@ -418,7 +526,7 @@ function defaultStyle(type) {
     color: "#251d18",
     background: "transparent",
     borderColor: "#d8cdbd",
-    borderWidth: type === "image" ? 0 : 1,
+    borderWidth: type === "image" || type === "canvas" ? 0 : 1,
     align: "left",
   };
 }
@@ -438,6 +546,7 @@ function fallbackData(type) {
   if (type === "stack") return { direction: "vertical", gap: 8, items: ["First item", "Second item"] };
   if (type === "date") return { value: todayIsoDate(), format: "MMMM d, yyyy", locale: "en-US", prefix: "", suffix: "" };
   if (type === "music") return { title: "Music / Lead Sheet", notes: "Import support TBD" };
+  if (type === "canvas") return {};
   return { text: "Text element" };
 }
 
@@ -471,6 +580,7 @@ function beginElementDrag(event, id) {
   const element = state.project?.elements.find((item) => item.id === id);
   state.isDragging = true;
   state.draggingId = id;
+  state.draggingType = "element";
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("application/x-builder-existing", id);
   event.dataTransfer.setData("text/plain", element?.name || id);
@@ -478,7 +588,20 @@ function beginElementDrag(event, id) {
   event.currentTarget.classList.add("dragging");
 }
 
+function beginCanvasChildDrag(event, child) {
+  event.stopPropagation();
+  state.isDragging = true;
+  state.draggingId = child.id;
+  state.draggingType = "canvas-child";
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("application/x-builder-canvas-child", child.id);
+  event.dataTransfer.setData("text/plain", child.element?.name || child.id);
+  selectElement(child.id, { renderCanvas: false });
+  event.currentTarget.classList.add("dragging");
+}
+
 function handleCanvasDragOver(event) {
+  if (state.draggingType === "canvas-child") return;
   event.preventDefault();
   event.dataTransfer.dropEffect = state.draggingId ? "move" : "copy";
   showDropSlot(insertionIndexFromPointer(event.clientY));
@@ -494,12 +617,45 @@ function handleCanvasDrop(event) {
   event.preventDefault();
   const type = event.dataTransfer.getData("application/x-builder-element");
   const id = event.dataTransfer.getData("application/x-builder-existing");
+  if (!type && !id) return;
   const index = state.dropIndex ?? insertionIndexFromPointer(event.clientY);
   clearDropSlot();
   state.isDragging = false;
   state.draggingId = null;
+  state.draggingType = null;
   if (id) moveElement(id, index);
   else if (type) addElement(type, index);
+}
+
+function handleNestedCanvasDragOver(event, canvasElement, surface) {
+  if (!state.isDragging) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = state.draggingType === "palette" ? "copy" : "move";
+  showCanvasDropMarker(surface, canvasElement, event);
+}
+
+function handleNestedCanvasDragLeave(event, surface) {
+  const rect = surface.getBoundingClientRect();
+  const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  if (!inside) clearCanvasDropMarker(surface);
+}
+
+function handleNestedCanvasDrop(event, canvasElement, surface) {
+  event.preventDefault();
+  event.stopPropagation();
+  const type = event.dataTransfer.getData("application/x-builder-element");
+  const elementId = event.dataTransfer.getData("application/x-builder-existing");
+  const childId = event.dataTransfer.getData("application/x-builder-canvas-child");
+  const point = clampedCanvasPoint(event, surface, canvasElement, dragElementFor(type, elementId, childId));
+  clearCanvasDropMarker(surface);
+  state.isDragging = false;
+  state.draggingId = null;
+  state.draggingType = null;
+
+  if (type) addCanvasChild(canvasElement, createElement(type), point.x, point.y);
+  else if (elementId) moveTopLevelElementIntoCanvas(elementId, canvasElement, point.x, point.y);
+  else if (childId) moveCanvasChild(childId, canvasElement, point.x, point.y);
 }
 
 function insertionIndexFromPointer(clientY) {
@@ -546,10 +702,125 @@ function moveElement(id, targetIndex) {
   scheduleSaveAndMaybeBuild();
 }
 
+function showCanvasDropMarker(surface, canvasElement, event) {
+  const type = event.dataTransfer.getData("application/x-builder-element");
+  const elementId = event.dataTransfer.getData("application/x-builder-existing");
+  const childId = event.dataTransfer.getData("application/x-builder-canvas-child");
+  const dragElement = dragElementFor(type, elementId, childId);
+  const point = clampedCanvasPoint(event, surface, canvasElement, dragElement);
+  const size = effectiveElementSize(dragElement, effectiveCanvasSize(canvasElement).width);
+  let marker = surface.querySelector(":scope > .canvasDropMarker");
+  if (!marker) {
+    marker = document.createElement("div");
+    marker.className = "canvasDropMarker";
+    surface.append(marker);
+  }
+  marker.style.left = cssLength(point.x);
+  marker.style.top = cssLength(point.y);
+  marker.style.width = cssLength(size.width);
+  marker.style.height = cssLength(size.height);
+}
+
+function clearCanvasDropMarker(surface) {
+  surface.querySelector(":scope > .canvasDropMarker")?.remove();
+}
+
+function dragElementFor(type, elementId, childId) {
+  if (type) return draftElement(type);
+  if (elementId) return state.project?.elements.find((element) => element.id === elementId) || draftElement("text");
+  if (childId) return canvasChildTarget(childId)?.element || draftElement("text");
+  return draftElement("text");
+}
+
+function draftElement(type) {
+  const defaults = defaultElementValues(type, schemaForType(type));
+  return {
+    id: "draft",
+    type,
+    name: paletteTitle({ type, schema: schemaForType(type) }),
+    width: defaults.width,
+    height: defaults.height,
+    margin: 0,
+    padding: type === "canvas" ? 0 : 8,
+    style: defaults.style,
+    schema: [],
+    data: defaults.data,
+    children: type === "canvas" ? [] : undefined,
+  };
+}
+
+function clampedCanvasPoint(event, surface, canvasElement, element) {
+  const rect = surface.getBoundingClientRect();
+  const size = effectiveElementSize(element, effectiveCanvasSize(canvasElement).width);
+  const pageHeight = state.project?.page?.height || canvasSize.height;
+  return {
+    x: Math.max(0, Math.round(event.clientX - rect.left)),
+    y: clampNumber(Math.round(event.clientY - rect.top), 0, Math.max(0, pageHeight - size.height)),
+  };
+}
+
+function addCanvasChild(canvasElement, element, x, y) {
+  const child = createCanvasChild(element, x, y);
+  canvasElement.children ||= [];
+  canvasElement.children.push(child);
+  clampCanvasChild(canvasElement, child);
+  enforceCanvasSize(canvasElement);
+  selectElement(child.id);
+  scheduleSaveAndMaybeBuild();
+}
+
+function moveTopLevelElementIntoCanvas(id, canvasElement, x, y) {
+  if (id === canvasElement.id) return;
+  const fromIndex = elementIndex(id);
+  if (fromIndex < 0) return;
+  const [element] = state.project.elements.splice(fromIndex, 1);
+  addCanvasChild(canvasElement, element, x, y);
+}
+
+function moveCanvasChild(childId, canvasElement, x, y) {
+  const target = canvasChildTarget(childId);
+  if (!target || containsElementId(target.element, canvasElement.id)) return;
+  target.parentCanvas.children = target.parentCanvas.children.filter((child) => child.id !== childId);
+  target.wrapper.x = x;
+  target.wrapper.y = y;
+  canvasElement.children ||= [];
+  canvasElement.children.push(target.wrapper);
+  clampCanvasChild(canvasElement, target.wrapper);
+  enforceCanvasSize(target.parentCanvas);
+  enforceCanvasSize(canvasElement);
+  selectElement(target.wrapper.id);
+  scheduleSaveAndMaybeBuild();
+}
+
+function createCanvasChild(element, x = 0, y = 0) {
+  return {
+    id: `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    x,
+    y,
+    element,
+  };
+}
+
+function cloneElementWithNewIds(element) {
+  const clone = structuredClone(element);
+  refreshElementIds(clone);
+  return clone;
+}
+
+function refreshElementIds(element) {
+  element.id = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  if (element.type !== "canvas") return;
+  for (const child of element.children || []) {
+    child.id = `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    refreshElementIds(child.element);
+  }
+}
+
 function finishDrag() {
   const hadDrag = state.isDragging || state.draggingId;
   state.isDragging = false;
   state.draggingId = null;
+  state.draggingType = null;
   clearDropSlot();
   renderCanvas();
   if (hadDrag && state.buildQueued && els.liveToggle.checked) scheduleSaveAndMaybeBuild();
@@ -560,7 +831,7 @@ function elementIndex(id) {
 }
 
 function updateSelectionClasses() {
-  els.pageCanvas.querySelectorAll(".canvasElement").forEach((node) => {
+  els.pageCanvas.querySelectorAll(".canvasElement, .canvasChild").forEach((node) => {
     node.classList.toggle("selected", node.dataset.id === state.selectedId);
   });
 }
@@ -576,6 +847,15 @@ function selectElement(id, { renderCanvas = true } = {}) {
 
 function deleteSelected() {
   if (!state.project || !state.selectedId) return;
+  const target = selectedTarget();
+  if (target?.kind === "canvasChild") {
+    target.parentCanvas.children = target.parentCanvas.children.filter((child) => child.id !== target.wrapper.id);
+    enforceCanvasSize(target.parentCanvas);
+    state.selectedId = target.parentCanvas.id;
+    renderAll();
+    scheduleSaveAndMaybeBuild();
+    return;
+  }
   state.project.elements = state.project.elements.filter((element) => element.id !== state.selectedId);
   state.selectedId = state.project.elements[0]?.id || null;
   renderAll();
@@ -583,12 +863,25 @@ function deleteSelected() {
 }
 
 function duplicateSelected() {
-  const element = selectedElement();
-  if (!element) return;
-  const clone = structuredClone(element);
-  clone.id = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const target = selectedTarget();
+  if (!target) return;
+  if (target.kind === "canvasChild") {
+    const clone = structuredClone(target.wrapper);
+    clone.id = `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    clone.x = numericLength(clone.x) + 18;
+    clone.y = numericLength(clone.y) + 18;
+    clone.element = cloneElementWithNewIds(clone.element);
+    clone.element.name = `${clone.element.name} Copy`;
+    target.parentCanvas.children.push(clone);
+    clampCanvasChild(target.parentCanvas, clone);
+    enforceCanvasSize(target.parentCanvas);
+    selectElement(clone.id);
+    scheduleSaveAndMaybeBuild();
+    return;
+  }
+  const clone = cloneElementWithNewIds(target.element);
   clone.name = `${clone.name} Copy`;
-  state.project.elements.splice(elementIndex(element.id) + 1, 0, clone);
+  state.project.elements.splice(elementIndex(target.element.id) + 1, 0, clone);
   selectElement(clone.id);
   scheduleSaveAndMaybeBuild();
 }
@@ -716,7 +1009,36 @@ function syncProjectSelect() {
 }
 
 function selectedElement() {
-  return state.project?.elements.find((element) => element.id === state.selectedId) || null;
+  return selectedTarget()?.element || null;
+}
+
+function selectedTarget() {
+  if (!state.project?.elements || !state.selectedId) return null;
+  for (const element of state.project.elements) {
+    if (element.id === state.selectedId) return { kind: "element", element };
+    const childTarget = canvasChildTarget(state.selectedId, element);
+    if (childTarget) return childTarget;
+  }
+  return null;
+}
+
+function canvasChildTarget(id, rootElement) {
+  const roots = rootElement ? [rootElement] : state.project?.elements || [];
+  for (const element of roots) {
+    if (element.type !== "canvas") continue;
+    for (const wrapper of element.children || []) {
+      if (wrapper.id === id) return { kind: "canvasChild", wrapper, element: wrapper.element, parentCanvas: element };
+      const nested = canvasChildTarget(id, wrapper.element);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function containsElementId(element, id) {
+  if (!element || element.id === id) return Boolean(element);
+  if (element.type !== "canvas") return false;
+  return (element.children || []).some((child) => containsElementId(child.element, id));
 }
 
 function setDeep(object, path, value) {
@@ -724,6 +1046,49 @@ function setDeep(object, path, value) {
   let target = object;
   for (const part of parts.slice(0, -1)) target = target[part] ||= {};
   target[parts.at(-1)] = value;
+}
+
+function effectiveCanvasSize(element, baseWidth = state.project?.page?.width || canvasSize.width) {
+  const pageHeight = state.project?.page?.height || canvasSize.height;
+  const content = canvasContentExtent(element, baseWidth);
+  const width = Math.max(pixelLength(element.width, baseWidth, baseWidth), content.width);
+  const requestedHeight = String(element.height ?? "auto").trim() === "auto" ? 0 : pixelLength(element.height, pageHeight, 0);
+  const height = Math.min(pageHeight, Math.max(requestedHeight, content.height, 72));
+  return { width, height };
+}
+
+function effectiveElementSize(element, baseWidth = state.project?.page?.width || canvasSize.width) {
+  if (!element) return { width: 80, height: 48 };
+  if (element.type === "canvas") return effectiveCanvasSize(element, baseWidth);
+  const fallback = defaultDimensions(element.type);
+  return {
+    width: Math.max(1, pixelLength(element.width, baseWidth, pixelLength(fallback.width, baseWidth, 120))),
+    height: Math.max(1, pixelLength(element.height, canvasSize.height, pixelLength(fallback.height, canvasSize.height, 80))),
+  };
+}
+
+function canvasContentExtent(element, baseWidth = state.project?.page?.width || canvasSize.width) {
+  return (element.children || []).reduce((extent, child) => {
+    const childSize = effectiveElementSize(child.element, baseWidth);
+    return {
+      width: Math.max(extent.width, numericLength(child.x) + childSize.width),
+      height: Math.max(extent.height, numericLength(child.y) + childSize.height),
+    };
+  }, { width: 0, height: 0 });
+}
+
+function enforceCanvasSize(element) {
+  if (element.type !== "canvas") return;
+  const content = canvasContentExtent(element);
+  if (typeof element.width === "number" && element.width < content.width) element.width = content.width;
+  if (typeof element.height === "number" && element.height < content.height) element.height = content.height;
+}
+
+function clampCanvasChild(canvasElement, child) {
+  const pageHeight = state.project?.page?.height || canvasSize.height;
+  const size = effectiveElementSize(child.element, effectiveCanvasSize(canvasElement).width);
+  child.x = Math.max(0, numericLength(child.x));
+  child.y = clampNumber(numericLength(child.y), 0, Math.max(0, pageHeight - size.height));
 }
 
 function cssLength(value) {
@@ -741,6 +1106,22 @@ function parseLengthInput(value) {
   if (text === "auto" || /^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(text)) return text;
   const number = Number(text);
   return Number.isFinite(number) ? number : text;
+}
+
+function pixelLength(value, base, fallback = 0) {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "").trim();
+  if (!text || text === "auto") return fallback;
+  if (text.endsWith("%")) return (Number.parseFloat(text) / 100) * base;
+  if (text.endsWith("fr")) return fallback;
+  const number = Number.parseFloat(text);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function numericLength(value) {
+  if (typeof value === "number") return value;
+  const number = Number.parseFloat(String(value ?? "0"));
+  return Number.isFinite(number) ? number : 0;
 }
 
 async function api(path, options = {}, throwOnAppError = true) {
@@ -812,4 +1193,8 @@ function escapeHtml(value) {
 function clampIndex(value, length) {
   const number = Number(value);
   return Math.max(0, Math.min(length, Number.isFinite(number) ? Math.round(number) : length));
+}
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }

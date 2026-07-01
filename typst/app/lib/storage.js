@@ -154,7 +154,7 @@ function normalizeElement(element) {
     width: lengthOr(element.width, 200),
     height: lengthOr(element.height, 90),
     margin: lengthOr(element.margin, 0),
-    padding: lengthOr(element.padding, 8),
+    padding: lengthOr(element.padding, element.type === "canvas" ? 0 : 8),
     style: {
       font: element.style?.font || "Calibri",
       fontSize: lengthOr(element.style?.fontSize, 11),
@@ -170,9 +170,57 @@ function normalizeElement(element) {
     data: element.data && typeof element.data === "object" ? element.data : {},
   };
   if (element.bindings && typeof element.bindings === "object") normalized.bindings = element.bindings;
-  if (Array.isArray(element.children)) normalized.children = element.children.map(normalizeElement);
+  if (normalized.type === "canvas") {
+    normalized.data = {};
+    normalized.children = Array.isArray(element.children) ? element.children.map(normalizeCanvasChild) : [];
+    enforceCanvasMinimum(normalized);
+  } else if (Array.isArray(element.children)) {
+    normalized.children = element.children.map(normalizeElement);
+  }
   if (element.elementSchemaId) normalized.elementSchemaId = element.elementSchemaId;
   return normalized;
+}
+
+function normalizeCanvasChild(child = {}) {
+  const hasWrapper = child.element && typeof child.element === "object";
+  const sourceElement = hasWrapper ? child.element : child;
+  return {
+    id: hasWrapper ? child.id || nextId("wrap") : nextId("wrap"),
+    x: lengthOr(child.x, 0),
+    y: lengthOr(child.y, 0),
+    element: normalizeElement(sourceElement),
+  };
+}
+
+function enforceCanvasMinimum(element) {
+  const extent = canvasContentExtent(element);
+  const width = absoluteNumber(element.width);
+  const height = absoluteNumber(element.height);
+  if (width !== null && width < extent.width) element.width = extent.width;
+  if (height !== null && height < extent.height) element.height = extent.height;
+}
+
+function canvasContentExtent(element) {
+  return (element.children || []).reduce((extent, child) => {
+    const childWidth = absoluteNumber(child.element?.width) || 0;
+    const childHeight = absoluteNumber(child.element?.height) || 0;
+    return {
+      width: Math.max(extent.width, coordinateValue(child.x) + childWidth),
+      height: Math.max(extent.height, coordinateValue(child.y) + childHeight),
+    };
+  }, { width: 0, height: 0 });
+}
+
+function absoluteNumber(value) {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "").trim();
+  if (!text || text === "auto" || text.endsWith("%") || text.endsWith("fr")) return null;
+  const number = Number.parseFloat(text);
+  return Number.isFinite(number) ? number : null;
+}
+
+function nextId(prefix = "el") {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function assetPrefixForProject(kind) {

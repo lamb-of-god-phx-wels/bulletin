@@ -175,7 +175,8 @@
         { "$ref": "#/$defs/imageElement" },
         { "$ref": "#/$defs/musicElement" },
         { "$ref": "#/$defs/gridElement" },
-        { "$ref": "#/$defs/stackElement" }
+        { "$ref": "#/$defs/stackElement" },
+        { "$ref": "#/$defs/canvasElement" }
       ]
     },
     "baseVisualElement": {
@@ -186,7 +187,7 @@
           "$ref": "#/$defs/identifier"
         },
         "type": {
-          "enum": ["text", "image", "music", "grid", "stack"]
+          "enum": ["text", "image", "music", "grid", "stack", "canvas"]
         },
         "name": {
           "type": "string",
@@ -288,6 +289,42 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "canvasElement": {
+      "allOf": [
+        { "$ref": "#/$defs/baseVisualElement" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "canvas" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false
+            },
+            "children": {
+              "type": "array",
+              "description": "Canvas child wrappers. The wrapper owns x/y placement; the wrapped element owns its own size and data.",
+              "items": { "$ref": "#/$defs/canvasChild" }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "canvasChild": {
+      "type": "object",
+      "required": ["id", "x", "y", "element"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "x": { "$ref": "#/$defs/position" },
+        "y": { "$ref": "#/$defs/position" },
+        "element": {
+          "type": "object",
+          "description": "Wrapped visual element. Validation is performed by the matching element schema.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
     },
     "textData": {
       "type": "object",
@@ -466,6 +503,12 @@
         { "type": "number", "minimum": 0 },
         { "const": "auto" },
         { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$" }
+      ]
+    },
+    "position": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }
       ]
     },
     "spacing": {

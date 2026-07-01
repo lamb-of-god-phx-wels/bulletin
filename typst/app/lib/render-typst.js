@@ -10,11 +10,12 @@ export function renderTypst(project, { assetPrefix = "../../../assets" } = {}) {
 #set text(font: "Calibri", size: 11pt)
 #set par(first-line-indent: 0pt, spacing: 0.35em)
 
-${elements.map((element) => renderElement(element, { assetPrefix })).join("\n\n")}
+${elements.map((element) => renderElement(element, { assetPrefix, page })).join("\n\n")}
 `;
 }
 
 function renderElement(element, context) {
+  if (element.type === "canvas") return renderCanvasBlock(element, context);
   const body = renderElementBody(element, context);
   const margin = numericLength(element.margin) > 0 ? `#v(${typstLength(element.margin)})\n` : "";
   return `${margin}#block(${boxArgs(element)})[
@@ -29,6 +30,39 @@ function renderElementBody(element, context) {
   if (element.type === "music") return renderMusic(element);
   if (element.type === "date") return renderText(element, renderDateText(element));
   return renderText(element, element.data?.text || "");
+}
+
+function renderCanvasBlock(element, context) {
+  const margin = numericLength(element.margin) > 0 ? `#v(${typstLength(element.margin)})\n` : "";
+  const children = renderCanvasChildren(element, context);
+  return `${margin}#block(${canvasBoxArgs(element, context)})[
+${indent(children || "", 2)}
+]${margin ? `\n${margin.trimEnd()}` : ""}`;
+}
+
+function renderCanvasBox(element, context, forcedSize) {
+  return `#box(${canvasBoxArgs(element, context, forcedSize)})[
+${indent(renderCanvasChildren(element, context), 2)}
+]`;
+}
+
+function renderCanvasChildren(element, context) {
+  return (element.children || []).map((child) => renderCanvasChild(child, element, context)).join("\n");
+}
+
+function renderCanvasChild(child, parentCanvas, context) {
+  const parentSize = canvasSize(parentCanvas, context);
+  const childSize = elementSize(child.element, parentSize.width, context);
+  return `#place(dx: ${typstLength(child.x)}, dy: ${typstLength(child.y)})[
+${indent(renderElementBox(child.element, context, childSize), 2)}
+]`;
+}
+
+function renderElementBox(element, context, forcedSize) {
+  if (element.type === "canvas") return renderCanvasBox(element, context, forcedSize);
+  return `#box(${boxArgs(element, forcedSize)})[
+${indent(renderElementBody(element, context), 2)}
+]`;
 }
 
 function renderText(element, text) {
@@ -97,16 +131,50 @@ function formatDate(value, format = "MMMM d, yyyy", locale = "en-US") {
   return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", year: "numeric" }).format(date);
 }
 
-function boxArgs(element) {
+function boxArgs(element, forcedSize) {
   const style = element.style || {};
   const args = [
-    `width: ${typstLength(element.width, { allowAuto: true })}`,
-    `height: ${typstLength(element.height, { allowAuto: true })}`,
+    `width: ${typstLength(forcedSize?.width ?? element.width, { allowAuto: true })}`,
+    `height: ${typstLength(forcedSize?.height ?? element.height, { allowAuto: true })}`,
     `inset: ${typstLength(element.padding)}`,
   ];
   if (style.background && style.background !== "transparent") args.push(`fill: ${color(style.background)}`);
   if (numericLength(style.borderWidth) > 0) args.push(`stroke: ${typstLength(style.borderWidth)} + ${color(style.borderColor || "#d8cdbd")}`);
   return args.join(", ");
+}
+
+function canvasBoxArgs(element, context, forcedSize) {
+  const size = forcedSize || canvasSize(element, context);
+  return [`width: ${typstLength(size.width)}`, `height: ${typstLength(size.height)}`, "inset: 0pt"].join(", ");
+}
+
+function canvasSize(element, context) {
+  const pageWidth = numericLength(context.page?.width || 672);
+  const pageHeight = numericLength(context.page?.height || 816);
+  const requestedWidth = pixelLength(element.width, pageWidth, pageWidth);
+  const content = canvasContentExtent(element, requestedWidth, context);
+  const width = Math.max(requestedWidth, content.width);
+  const requestedHeight = String(element.height ?? "auto").trim() === "auto" ? 0 : pixelLength(element.height, pageHeight, 0);
+  const height = Math.min(pageHeight, Math.max(requestedHeight, content.height, 72));
+  return { width, height };
+}
+
+function canvasContentExtent(element, baseWidth, context) {
+  return (element.children || []).reduce((extent, child) => {
+    const size = elementSize(child.element, baseWidth, context);
+    return {
+      width: Math.max(extent.width, numericLength(child.x) + size.width),
+      height: Math.max(extent.height, numericLength(child.y) + size.height),
+    };
+  }, { width: 0, height: 0 });
+}
+
+function elementSize(element, baseWidth, context) {
+  if (element.type === "canvas") return canvasSize(element, context);
+  return {
+    width: Math.max(1, pixelLength(element.width, baseWidth, 120)),
+    height: Math.max(1, pixelLength(element.height, numericLength(context.page?.height || 816), 80)),
+  };
 }
 
 function textArgs(style) {
@@ -153,6 +221,16 @@ function numericLength(value) {
   if (typeof value === "number") return value;
   const number = Number.parseFloat(String(value ?? "0"));
   return Number.isFinite(number) ? number : 0;
+}
+
+function pixelLength(value, base, fallback = 0) {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "").trim();
+  if (!text || text === "auto") return fallback;
+  if (text.endsWith("%")) return (Number.parseFloat(text) / 100) * base;
+  if (text.endsWith("fr")) return fallback;
+  const number = Number.parseFloat(text);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function round(value) {

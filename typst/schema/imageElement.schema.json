@@ -4,13 +4,11 @@
   "title": "Image Element",
   "description": "An image element for logos, artwork, and photos.",
   "type": "object",
-  "required": ["id", "type", "name", "x", "y", "width", "height", "margin", "padding", "style", "schema", "data"],
+  "required": ["id", "type", "name", "width", "height", "margin", "padding", "style", "schema", "data"],
   "properties": {
     "id": { "$ref": "#/$defs/identifier" },
     "type": { "const": "image" },
     "name": { "type": "string", "minLength": 1 },
-    "x": { "$ref": "#/$defs/position" },
-    "y": { "$ref": "#/$defs/position" },
     "width": { "$ref": "#/$defs/size" },
     "height": { "$ref": "#/$defs/size" },
     "margin": { "$ref": "#/$defs/spacing" },
@@ -41,7 +39,6 @@
   "additionalProperties": false,
   "$defs": {
     "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
-    "position": { "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }] },
     "size": { "oneOf": [{ "type": "number", "minimum": 0 }, { "const": "auto" }, { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$" }] },
     "spacing": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }] },
     "boxStyle": {

@@ -27,7 +27,7 @@
     },
     "elements": {
       "type": "array",
-      "description": "Elements placed on the template canvas. Items may be predefined elements, custom element instances, or embedded custom element schemas.",
+      "description": "Elements arranged in template flow order. Items may be predefined elements, custom element instances, or embedded custom element schemas.",
       "items": {
         "$ref": "#/$defs/templateElement"
       },
@@ -100,8 +100,8 @@
     },
     "customElementInstance": {
       "type": "object",
-      "description": "A placed instance of a reusable custom element definition.",
-      "required": ["id", "type", "elementSchemaId", "name", "x", "y", "width", "height", "margin", "padding", "data"],
+      "description": "An ordered instance of a reusable custom element definition.",
+      "required": ["id", "type", "elementSchemaId", "name", "width", "height", "margin", "padding", "data"],
       "properties": {
         "id": {
           "$ref": "#/$defs/identifier"
@@ -116,12 +116,6 @@
         "name": {
           "type": "string",
           "minLength": 1
-        },
-        "x": {
-          "$ref": "#/$defs/position"
-        },
-        "y": {
-          "$ref": "#/$defs/position"
         },
         "width": {
           "$ref": "#/$defs/size"
@@ -187,12 +181,6 @@
     "typstLength": {
       "type": "string",
       "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$"
-    },
-    "position": {
-      "oneOf": [
-        { "type": "number" },
-        { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }
-      ]
     },
     "size": {
       "oneOf": [

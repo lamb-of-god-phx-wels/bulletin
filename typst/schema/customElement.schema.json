@@ -47,14 +47,8 @@
     },
     "defaultPlacement": {
       "type": "object",
-      "description": "Optional default size and placement when this custom element is dropped onto a template canvas.",
+      "description": "Optional default size when this custom element is inserted into a template flow.",
       "properties": {
-        "x": {
-          "$ref": "#/$defs/position"
-        },
-        "y": {
-          "$ref": "#/$defs/position"
-        },
         "width": {
           "$ref": "#/$defs/size"
         },
@@ -186,7 +180,7 @@
     },
     "baseVisualElement": {
       "type": "object",
-      "required": ["id", "type", "name", "x", "y", "width", "height"],
+      "required": ["id", "type", "name", "width", "height"],
       "properties": {
         "id": {
           "$ref": "#/$defs/identifier"
@@ -197,12 +191,6 @@
         "name": {
           "type": "string",
           "minLength": 1
-        },
-        "x": {
-          "$ref": "#/$defs/position"
-        },
-        "y": {
-          "$ref": "#/$defs/position"
         },
         "width": {
           "$ref": "#/$defs/size"
@@ -472,15 +460,8 @@
       },
       "additionalProperties": false
     },
-    "position": {
-      "description": "Canvas coordinate. Numbers are interpreted by the app in canvas units; strings may use Typst-compatible units.",
-      "oneOf": [
-        { "type": "number" },
-        { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$" }
-      ]
-    },
     "size": {
-      "description": "Element size. Numbers are interpreted by the app in canvas units; strings may be auto, percentages, fractions, or Typst-compatible absolute lengths.",
+      "description": "Element size. Numbers are interpreted by the app in GUI units; strings may be auto, percentages, fractions, or Typst-compatible absolute lengths.",
       "oneOf": [
         { "type": "number", "minimum": 0 },
         { "const": "auto" },

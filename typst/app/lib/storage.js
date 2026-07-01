@@ -64,7 +64,7 @@ export async function saveProject(project) {
   const dir = projectDir(clean.kind, clean.name);
   await mkdir(dir, { recursive: true });
   await writeFile(projectJsonPath(clean.kind, clean.name), JSON.stringify(clean, null, 2) + "\n");
-  await writeFile(projectTypstPath(clean.kind, clean.name), renderTypst(clean));
+  await writeFile(projectTypstPath(clean.kind, clean.name), renderTypst(clean, { assetPrefix: assetPrefixForProject(clean.kind) }));
   return clean;
 }
 
@@ -132,13 +132,17 @@ export function httpError(status, message) {
 
 export function normalizeProject(project, kind, name) {
   const base = createDefaultProject({ kind: validateKind(kind || project.kind || "bulletin"), name: validateName(name || project.name || "Untitled") });
+  const sourceElements = Array.isArray(project.elements) ? project.elements : base.elements;
+  const elements = sourceElements.some(hasLegacyCoordinates)
+    ? [...sourceElements].sort(compareLegacyFlow).map(normalizeElement)
+    : sourceElements.map(normalizeElement);
   return {
     ...base,
     ...project,
     kind: validateKind(project.kind || base.kind),
     name: validateName(project.name || base.name),
     page: { ...base.page, ...project.page },
-    elements: Array.isArray(project.elements) ? project.elements.map(normalizeElement) : base.elements,
+    elements,
   };
 }
 
@@ -147,8 +151,6 @@ function normalizeElement(element) {
     id: element.id || `el_${Date.now().toString(36)}`,
     type: element.type || "text",
     name: element.name || element.type || "Element",
-    x: lengthOr(element.x, 40),
-    y: lengthOr(element.y, 40),
     width: lengthOr(element.width, 200),
     height: lengthOr(element.height, 90),
     margin: lengthOr(element.margin, 0),
@@ -168,9 +170,27 @@ function normalizeElement(element) {
     data: element.data && typeof element.data === "object" ? element.data : {},
   };
   if (element.bindings && typeof element.bindings === "object") normalized.bindings = element.bindings;
-  if (Array.isArray(element.children)) normalized.children = element.children;
+  if (Array.isArray(element.children)) normalized.children = element.children.map(normalizeElement);
   if (element.elementSchemaId) normalized.elementSchemaId = element.elementSchemaId;
   return normalized;
+}
+
+function assetPrefixForProject(kind) {
+  return kind === "template" ? "../../../../assets" : "../../../assets";
+}
+
+function hasLegacyCoordinates(element) {
+  return element && (element.x !== undefined || element.y !== undefined);
+}
+
+function compareLegacyFlow(left, right) {
+  return coordinateValue(left.y) - coordinateValue(right.y) || coordinateValue(left.x) - coordinateValue(right.x);
+}
+
+function coordinateValue(value) {
+  if (typeof value === "number") return value;
+  const number = Number.parseFloat(String(value ?? "0"));
+  return Number.isFinite(number) ? number : 0;
 }
 
 async function walkAssets(dir, results) {

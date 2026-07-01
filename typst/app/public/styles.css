@@ -234,16 +234,21 @@ label input, label textarea, label select {
 }
 
 .pageCanvas {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
   margin: 0 auto;
-  overflow: hidden;
+  overflow: visible;
+  padding: 0.85rem;
   border: 1px solid #a99b8b;
   box-shadow: 0 18px 42px rgb(45 31 20 / 28%);
   transform-origin: top center;
 }
 
 .canvasElement {
-  position: absolute;
+  flex: 0 0 auto;
+  max-width: 100%;
   overflow: hidden;
   white-space: pre-wrap;
   user-select: none;
@@ -255,6 +260,25 @@ label input, label textarea, label select {
 .canvasElement.selected {
   outline: 2px solid var(--accent-2);
   outline-offset: 2px;
+}
+
+.canvasElement.dragging {
+  opacity: 0.35;
+}
+
+.dropSlot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 3.4rem;
+  border: 2px dashed var(--accent-2);
+  border-radius: 0.7rem;
+  background: rgb(216 168 78 / 16%);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .canvasElement img {

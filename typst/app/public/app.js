@@ -13,6 +13,8 @@ const state = {
   buildRunning: false,
   buildQueued: false,
   isDragging: false,
+  draggingId: null,
+  dropIndex: null,
 };
 
 const els = {
@@ -47,14 +49,9 @@ els.applyAssetButton.addEventListener("click", applySelectedAsset);
 els.deleteButton.addEventListener("click", deleteSelected);
 els.duplicateButton.addEventListener("click", duplicateSelected);
 
-els.pageCanvas.addEventListener("dragover", (event) => event.preventDefault());
-els.pageCanvas.addEventListener("drop", (event) => {
-  event.preventDefault();
-  const type = event.dataTransfer.getData("application/x-builder-element");
-  if (!type) return;
-  const point = canvasPoint(event);
-  addElement(type, point.x, point.y);
-});
+els.pageCanvas.addEventListener("dragover", handleCanvasDragOver);
+els.pageCanvas.addEventListener("dragleave", handleCanvasDragLeave);
+els.pageCanvas.addEventListener("drop", handleCanvasDrop);
 
 els.pageCanvas.addEventListener("pointerdown", (event) => {
   if (event.target === els.pageCanvas) selectElement(null);
@@ -88,8 +85,12 @@ function renderPalette() {
     button.innerHTML = `<span>${escapeHtml(paletteTitle(entry))}</span><small>${escapeHtml(paletteDescription(entry))}</small>`;
     button.addEventListener("click", () => addElement(entry.type));
     button.addEventListener("dragstart", (event) => {
+      state.isDragging = true;
+      state.draggingId = null;
+      event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData("application/x-builder-element", entry.type);
     });
+    button.addEventListener("dragend", finishDrag);
     els.palette.append(button);
   }
   if (state.elementSchemas.length === 0) {
@@ -166,23 +167,24 @@ function renderCanvas() {
   if (!state.project) return;
   const page = state.project.page || canvasSize;
   els.pageCanvas.style.width = `${page.width}px`;
-  els.pageCanvas.style.height = `${page.height}px`;
+  els.pageCanvas.style.minHeight = `${Math.min(page.height || canvasSize.height, 320)}px`;
   els.pageCanvas.style.background = page.background || "#fffaf1";
   els.pageCanvas.innerHTML = "";
   for (const element of state.project.elements) {
     els.pageCanvas.append(renderElement(element));
   }
+  if (state.dropIndex !== null) showDropSlot(state.dropIndex);
 }
 
 function renderElement(element) {
   const node = document.createElement("div");
   node.className = `canvasElement type-${element.type}`;
   node.classList.toggle("selected", element.id === state.selectedId);
+  node.classList.toggle("dragging", element.id === state.draggingId);
   node.dataset.id = element.id;
-  node.style.left = cssLength(element.x);
-  node.style.top = cssLength(element.y);
   node.style.width = cssLength(element.width);
   node.style.height = cssLength(element.height);
+  node.style.margin = cssLength(element.margin);
   node.style.padding = cssLength(element.padding);
   node.style.color = element.style.color;
   node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
@@ -200,7 +202,13 @@ function renderElement(element) {
   else if (element.type === "date") node.textContent = renderDateText(element);
   else node.textContent = element.data.text || "";
 
-  node.addEventListener("pointerdown", (event) => beginDrag(event, element.id));
+  node.draggable = true;
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectElement(element.id);
+  });
+  node.addEventListener("dragstart", (event) => beginElementDrag(event, element.id));
+  node.addEventListener("dragend", finishDrag);
   return node;
 }
 
@@ -260,8 +268,6 @@ function renderInspector() {
   els.inspector.innerHTML = `
     <label>Name<input data-path="name" value="${attr(element.name)}"></label>
     <div class="fieldGrid">
-      <label>X<input data-path="x" data-value-type="length" value="${attr(element.x)}"></label>
-      <label>Y<input data-path="y" data-value-type="length" value="${attr(element.y)}"></label>
       <label>Width<input data-path="width" data-value-type="length" value="${attr(element.width)}"></label>
       <label>Height<input data-path="height" data-value-type="length" value="${attr(element.height)}"></label>
       <label>Padding<input data-path="padding" data-value-type="length" value="${attr(element.padding)}"></label>
@@ -336,23 +342,21 @@ function updateSelected(path, value, inputType) {
   scheduleSaveAndMaybeBuild();
 }
 
-function addElement(type, x = 80, y = 80) {
+function addElement(type, index = state.project?.elements.length || 0) {
   if (!state.project) return;
-  const element = createElement(type, x, y);
-  state.project.elements.push(element);
+  const element = createElement(type);
+  state.project.elements.splice(clampIndex(index, state.project.elements.length), 0, element);
   selectElement(element.id);
   scheduleSaveAndMaybeBuild();
 }
 
-function createElement(type, x, y) {
+function createElement(type) {
   const schema = schemaForType(type);
   const defaults = defaultElementValues(type, schema);
   const base = {
     id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     type,
     name: paletteTitle({ type, schema }),
-    x: Math.max(0, Math.round(x)),
-    y: Math.max(0, Math.round(y)),
     width: defaults.width,
     height: defaults.height,
     margin: 0,
@@ -462,37 +466,112 @@ function formatDate(value, format = "MMMM d, yyyy", locale = "en-US") {
   return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", year: "numeric" }).format(date);
 }
 
-function beginDrag(event, id) {
-  event.preventDefault();
+function beginElementDrag(event, id) {
   event.stopPropagation();
+  const element = state.project?.elements.find((item) => item.id === id);
   state.isDragging = true;
-  selectElement(id);
-  const element = selectedElement();
-  const start = { x: event.clientX, y: event.clientY, elX: element.x, elY: element.y };
-  const onMove = (moveEvent) => {
-    const page = state.project.page || canvasSize;
-    const width = pixelLength(element.width, page.width);
-    const height = pixelLength(element.height, page.height);
-    const x = pixelLength(start.elX, page.width) + moveEvent.clientX - start.x;
-    const y = pixelLength(start.elY, page.height) + moveEvent.clientY - start.y;
-    element.x = clamp(x, 0, page.width - width);
-    element.y = clamp(y, 0, page.height - height);
-    renderCanvas();
-  };
-  const onUp = () => {
-    state.isDragging = false;
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    renderInspector();
-    scheduleSaveAndMaybeBuild();
-  };
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
+  state.draggingId = id;
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("application/x-builder-existing", id);
+  event.dataTransfer.setData("text/plain", element?.name || id);
+  selectElement(id, { renderCanvas: false });
+  event.currentTarget.classList.add("dragging");
 }
 
-function selectElement(id) {
+function handleCanvasDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = state.draggingId ? "move" : "copy";
+  showDropSlot(insertionIndexFromPointer(event.clientY));
+}
+
+function handleCanvasDragLeave(event) {
+  const rect = els.pageCanvas.getBoundingClientRect();
+  const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  if (!inside) clearDropSlot();
+}
+
+function handleCanvasDrop(event) {
+  event.preventDefault();
+  const type = event.dataTransfer.getData("application/x-builder-element");
+  const id = event.dataTransfer.getData("application/x-builder-existing");
+  const index = state.dropIndex ?? insertionIndexFromPointer(event.clientY);
+  clearDropSlot();
+  state.isDragging = false;
+  state.draggingId = null;
+  if (id) moveElement(id, index);
+  else if (type) addElement(type, index);
+}
+
+function insertionIndexFromPointer(clientY) {
+  if (!state.project) return 0;
+  const nodes = [...els.pageCanvas.querySelectorAll(".canvasElement")].filter((node) => node.dataset.id !== state.draggingId);
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return elementIndex(node.dataset.id);
+  }
+  return state.project.elements.length;
+}
+
+function showDropSlot(index) {
+  if (!state.project) return;
+  state.dropIndex = clampIndex(index, state.project.elements.length);
+  let slot = els.pageCanvas.querySelector(".dropSlot");
+  if (!slot) {
+    slot = document.createElement("div");
+    slot.className = "dropSlot";
+  }
+  slot.textContent = state.draggingId ? "Move here" : "Drop here";
+  els.pageCanvas.insertBefore(slot, elementNodeAtOrAfter(state.dropIndex));
+}
+
+function clearDropSlot() {
+  state.dropIndex = null;
+  els.pageCanvas.querySelector(".dropSlot")?.remove();
+}
+
+function elementNodeAtOrAfter(index) {
+  return [...els.pageCanvas.querySelectorAll(".canvasElement")]
+    .filter((node) => node.dataset.id !== state.draggingId)
+    .find((node) => elementIndex(node.dataset.id) >= index) || null;
+}
+
+function moveElement(id, targetIndex) {
+  if (!state.project) return;
+  const fromIndex = elementIndex(id);
+  if (fromIndex < 0) return;
+  const [element] = state.project.elements.splice(fromIndex, 1);
+  const adjustedIndex = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
+  state.project.elements.splice(clampIndex(adjustedIndex, state.project.elements.length), 0, element);
+  selectElement(id);
+  scheduleSaveAndMaybeBuild();
+}
+
+function finishDrag() {
+  const hadDrag = state.isDragging || state.draggingId;
+  state.isDragging = false;
+  state.draggingId = null;
+  clearDropSlot();
+  renderCanvas();
+  if (hadDrag && state.buildQueued && els.liveToggle.checked) scheduleSaveAndMaybeBuild();
+}
+
+function elementIndex(id) {
+  return state.project?.elements.findIndex((element) => element.id === id) ?? -1;
+}
+
+function updateSelectionClasses() {
+  els.pageCanvas.querySelectorAll(".canvasElement").forEach((node) => {
+    node.classList.toggle("selected", node.dataset.id === state.selectedId);
+  });
+}
+
+function selectElement(id, { renderCanvas = true } = {}) {
   state.selectedId = id;
-  renderAll();
+  if (renderCanvas) renderAll();
+  else {
+    updateSelectionClasses();
+    renderInspector();
+  }
 }
 
 function deleteSelected() {
@@ -509,9 +588,7 @@ function duplicateSelected() {
   const clone = structuredClone(element);
   clone.id = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   clone.name = `${clone.name} Copy`;
-  clone.x += 18;
-  clone.y += 18;
-  state.project.elements.push(clone);
+  state.project.elements.splice(elementIndex(element.id) + 1, 0, clone);
   selectElement(clone.id);
   scheduleSaveAndMaybeBuild();
 }
@@ -649,11 +726,6 @@ function setDeep(object, path, value) {
   target[parts.at(-1)] = value;
 }
 
-function canvasPoint(event) {
-  const rect = els.pageCanvas.getBoundingClientRect();
-  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-}
-
 function cssLength(value) {
   if (typeof value === "number") return `${value}px`;
   const text = String(value ?? "0").trim();
@@ -669,14 +741,6 @@ function parseLengthInput(value) {
   if (text === "auto" || /^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(text)) return text;
   const number = Number(text);
   return Number.isFinite(number) ? number : text;
-}
-
-function pixelLength(value, base) {
-  if (typeof value === "number") return value;
-  const text = String(value ?? "0").trim();
-  if (text.endsWith("%")) return (Number.parseFloat(text) / 100) * base;
-  const number = Number.parseFloat(text);
-  return Number.isFinite(number) ? number : 0;
 }
 
 async function api(path, options = {}, throwOnAppError = true) {
@@ -745,6 +809,7 @@ function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, Math.round(value)));
+function clampIndex(value, length) {
+  const number = Number(value);
+  return Math.max(0, Math.min(length, Number.isFinite(number) ? Math.round(number) : length));
 }

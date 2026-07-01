@@ -22,9 +22,9 @@ Then open `http://localhost:5177`.
   - Templates: `typst/app/templates/<name>/template.json`
 - Generate Typst source beside each project.
 - Compile PDFs to `typst/pdf/<name>.pdf`.
-- Drag elements from the palette onto a page canvas.
-- Move elements directly on the page.
-- Fine tune `x`, `y`, `width`, `height`, padding, font, colors, and borders.
+- Drag elements from the palette into a page-width linear flow.
+- Reorder existing elements by dragging them between live insertion slots.
+- Fine tune `width`, `height`, margin, padding, font, colors, and borders.
 - Edit type-specific data for text, image, grid, stack, and music elements.
 - Autosave changes.
 - Rebuild the PDF preview automatically when `Live PDF` is enabled.
@@ -39,8 +39,8 @@ Then open `http://localhost:5177`.
 
 ## Notes
 
-- The canvas is WYSIWYG for placement and sizing, while the PDF preview is the
-  final Typst output.
+- The flow editor shows page width and element order, while the PDF preview is
+  the final paginated Typst output.
 - Templates and bulletins use the same document model; the app stores them in
   different folders.
 - The music import tool, nested container editing, resize handles, and AI import

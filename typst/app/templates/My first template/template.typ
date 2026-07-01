@@ -3,8 +3,7 @@
 #set text(font: "Calibri", size: 11pt)
 #set par(first-line-indent: 0pt, spacing: 0.35em)
 
-#place(dx: 34.5pt, dy: 20.25pt)[
-  #box(width: 375pt, height: 105pt, inset: 6pt, fill: rgb("#FF00FF"), stroke: 0.75pt + rgb("#d8cdbd"))[
+#block(width: 375pt, height: 105pt, inset: 6pt, fill: rgb("#FF00FF"), stroke: 0.75pt + rgb("#d8cdbd"))[
     #grid(
       columns: (1fr, 1fr),
       rows: 8,
@@ -26,14 +25,11 @@
       [#text(font: "Calibri", size: 8.25pt, fill: rgb("#251d18"))[]],
       [#text(font: "Calibri", size: 8.25pt, fill: rgb("#251d18"))[]],
     )
-  ]
 ]
 
-#place(dx: 58.5pt, dy: 234pt)[
-  #box(width: 195pt, height: 120pt, inset: 6pt, stroke: 0.75pt + rgb("#d8cdbd"))[
+#block(width: 195pt, height: 120pt, inset: 6pt, stroke: 0.75pt + rgb("#d8cdbd"))[
     #stack(dir: ttb, spacing: 6pt,
       [#text(font: "Calibri", size: 8.25pt, fill: rgb("#251d18"))[First item]],
       [#text(font: "Calibri", size: 8.25pt, fill: rgb("#251d18"))[Second item]]
     )
-  ]
 ]

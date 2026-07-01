@@ -33,7 +33,7 @@ npm start
 ```
 
 Then open `http://localhost:5177`. The app creates disk-backed bulletin and
-template projects, edits a drag-and-drop page canvas, regenerates Typst source,
+template projects, edits a drag-and-drop linear flow, regenerates Typst source,
 compiles PDFs, and previews the result.
 
 ## Requirements

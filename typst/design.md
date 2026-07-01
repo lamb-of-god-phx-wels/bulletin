@@ -10,7 +10,7 @@ process of creating weekly bulletins.
 * Generic template builder
 * Build bulletins from templates or ad-hoc
 * Drag-and-drop interface
-* Fine tuning of element size and placement
+* Fine tuning of element size and flow order
 * Full control of styles
 * Live previews
     * What you see is what you get (WYSIWYG)
@@ -29,8 +29,8 @@ the pre-defined layout or importing content via the AI import tool.
 ### Features
 
 * Create a bulletin template
-    * Drag-and-drop element placement
-    * Select an element to edit its properties (height, width, x, y, etc.)
+    * Drag-and-drop flow ordering
+    * Select an element to edit its properties (height, width, spacing, style, etc.)
     * Nest elements via containers
 
 * Create an element template
@@ -95,3 +95,14 @@ design and interaction with the frontend. The frontend is a web app that
 provides a polished user interface for building and interacting with the
 templates/bulletins and exporting as PDFs. 
 
+
+
+
+## TODO
+
+* Add "page break" element
+* Add "canvas" element
+* Fix "grid" and "stack" layouts
+    * Data is not "text", it's "elements"
+* Default width for elements is 100%
+* Fix background color

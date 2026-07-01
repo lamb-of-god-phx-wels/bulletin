@@ -7,7 +7,7 @@
     "height": 816,
     "typstWidth": "7in",
     "typstHeight": "8.5in",
-    "background": "#fffaf1"
+    "background": "#ffffff"
   },
   "elements": [
     {
@@ -81,12 +81,58 @@
       "schema": [],
       "data": {
         "direction": "vertical",
-        "gap": 8,
-        "items": [
-          "First item",
-          "Second item"
-        ]
-      }
+        "gap": 8
+      },
+      "children": [
+        {
+          "id": "el_mr2imd4u_7dir0i",
+          "type": "text",
+          "name": "Item 1",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "First item"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_hydwsy",
+          "type": "text",
+          "name": "Item 2",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Second item"
+          }
+        }
+      ]
     },
     {
       "id": "el_mqrm6l2r_1qy4x9",
@@ -111,14 +157,106 @@
       "data": {
         "rows": 2,
         "columns": 2,
-        "cellPadding": 6,
-        "cells": [
-          "Cell 1",
-          "Cell 2",
-          "Cell 3",
-          "Cell 4"
-        ]
-      }
+        "cellPadding": 6
+      },
+      "children": [
+        {
+          "id": "el_mr2imd4u_ibfe9e",
+          "type": "text",
+          "name": "Cell 1",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 1"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_dzrgvz",
+          "type": "text",
+          "name": "Cell 2",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 2"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_go75o2",
+          "type": "text",
+          "name": "Cell 3",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 3"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_la7e3d",
+          "type": "text",
+          "name": "Cell 4",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 4"
+          }
+        }
+      ]
     },
     {
       "id": "el_mqrm6lqr_pxj37e",
@@ -142,12 +280,58 @@
       "schema": [],
       "data": {
         "direction": "vertical",
-        "gap": 8,
-        "items": [
-          "First item",
-          "Second item"
-        ]
-      }
+        "gap": 8
+      },
+      "children": [
+        {
+          "id": "el_mr2imd4u_k0tbiy",
+          "type": "text",
+          "name": "Item 1",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "First item"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_mkmik4",
+          "type": "text",
+          "name": "Item 2",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Second item"
+          }
+        }
+      ]
     },
     {
       "id": "el_mqrm6m77_z8vkds",
@@ -196,12 +380,58 @@
       "schema": [],
       "data": {
         "direction": "vertical",
-        "gap": 8,
-        "items": [
-          "First item",
-          "Second item"
-        ]
-      }
+        "gap": 8
+      },
+      "children": [
+        {
+          "id": "el_mr2imd4u_ei6zot",
+          "type": "text",
+          "name": "Item 1",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "First item"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_dvtdiu",
+          "type": "text",
+          "name": "Item 2",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Second item"
+          }
+        }
+      ]
     },
     {
       "id": "el_mqrm6ndv_v3f1yk",
@@ -226,14 +456,106 @@
       "data": {
         "rows": 2,
         "columns": 2,
-        "cellPadding": 6,
-        "cells": [
-          "Cell 1",
-          "Cell 2",
-          "Cell 3",
-          "Cell 4"
-        ]
-      }
+        "cellPadding": 6
+      },
+      "children": [
+        {
+          "id": "el_mr2imd4u_9wurol",
+          "type": "text",
+          "name": "Cell 1",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 1"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_o2ryjq",
+          "type": "text",
+          "name": "Cell 2",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 2"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_25rnzh",
+          "type": "text",
+          "name": "Cell 3",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 3"
+          }
+        },
+        {
+          "id": "el_mr2imd4u_f1e1yi",
+          "type": "text",
+          "name": "Cell 4",
+          "width": "100%",
+          "height": "auto",
+          "margin": 0,
+          "padding": 6,
+          "style": {
+            "font": "Calibri",
+            "fontSize": 11,
+            "fontWeight": "regular",
+            "fontStyle": "normal",
+            "color": "#251d18",
+            "background": "transparent",
+            "borderColor": "#d8cdbd",
+            "borderWidth": 0,
+            "align": "left"
+          },
+          "schema": [],
+          "data": {
+            "text": "Cell 4"
+          }
+        }
+      ]
     },
     {
       "id": "el_mqrm6ntf_ali93h",

@@ -15,6 +15,7 @@ ${elements.map((element) => renderElement(element, { assetPrefix, page })).join(
 }
 
 function renderElement(element, context) {
+  if (element.type === "pageBreak") return "#pagebreak()";
   if (element.type === "canvas") return renderCanvasBlock(element, context);
   const body = renderElementBody(element, context);
   const margin = numericLength(element.margin) > 0 ? `#v(${typstLength(element.margin)})\n` : "";
@@ -25,8 +26,8 @@ ${indent(body, 4)}
 
 function renderElementBody(element, context) {
   if (element.type === "image") return renderImage(element, context);
-  if (element.type === "grid") return renderGrid(element);
-  if (element.type === "stack") return renderStack(element);
+  if (element.type === "grid") return renderGrid(element, context);
+  if (element.type === "stack") return renderStack(element, context);
   if (element.type === "music") return renderMusic(element);
   if (element.type === "date") return renderText(element, renderDateText(element));
   return renderText(element, element.data?.text || "");
@@ -59,6 +60,7 @@ ${indent(renderElementBox(child.element, context, childSize), 2)}
 }
 
 function renderElementBox(element, context, forcedSize) {
+  if (element.type === "pageBreak") return "#pagebreak()";
   if (element.type === "canvas") return renderCanvasBox(element, context, forcedSize);
   return `#box(${boxArgs(element, forcedSize)})[
 ${indent(renderElementBody(element, context), 2)}
@@ -79,14 +81,17 @@ function renderImage(element, context) {
   return `#image("${typstString(assetPath)}", width: 100%, height: 100%, fit: "${fit}")`;
 }
 
-function renderGrid(element) {
-  const rows = Math.max(1, Number(element.data?.rows || 2));
+function renderGrid(element, context) {
   const columns = Math.max(1, Number(element.data?.columns || 2));
-  const cells = Array.isArray(element.data?.cells) ? element.data.cells : [];
+  const total = Math.max((Number(element.data?.rows || 2) || 2) * columns, element.children?.length || 0);
+  const rows = Math.max(1, Number(element.data?.rows || 2), Math.ceil(total / columns));
   const columnSpec = Array(columns).fill("1fr").join(", ");
   const children = [];
-  for (let index = 0; index < rows * columns; index++) {
-    children.push(`[#text(${textArgs(element.style || {})})[${markup(cells[index] || "")}]]`);
+  for (let index = 0; index < total; index++) {
+    const child = element.children?.[index];
+    children.push(child ? `[
+${indent(renderElementBox(child, context), 4)}
+  ]` : `[]`);
   }
   return `#grid(
   columns: (${columnSpec}),
@@ -96,13 +101,14 @@ function renderGrid(element) {
 )`;
 }
 
-function renderStack(element) {
-  const items = Array.isArray(element.data?.items) ? element.data.items : [];
+function renderStack(element, context) {
   const dir = element.data?.direction === "horizontal" ? "horizontal" : "vertical";
   const gap = typstLength(element.data?.gap || 8);
-  const children = items.map((item) => `[#text(${textArgs(element.style || {})})[${markup(item)}]]`).join(",\n  ");
+  const children = (element.children || []).map((child) => `[
+${indent(renderElementBox(child, context), 4)}
+  ]`).join(",\n  ");
   if (dir === "horizontal") {
-    return `#grid(columns: (${items.map(() => "1fr").join(", ") || "1fr"}), gutter: ${gap}, ${children})`;
+    return `#grid(columns: (${(element.children || []).map(() => "1fr").join(", ") || "1fr"}), gutter: ${gap}, ${children})`;
   }
   return `#stack(dir: ttb, spacing: ${gap},
   ${children}

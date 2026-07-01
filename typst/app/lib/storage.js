@@ -151,7 +151,7 @@ function normalizeElement(element) {
     id: element.id || `el_${Date.now().toString(36)}`,
     type: element.type || "text",
     name: element.name || element.type || "Element",
-    width: lengthOr(element.width, 200),
+    width: lengthOr(element.width, "100%"),
     height: lengthOr(element.height, 90),
     margin: lengthOr(element.margin, 0),
     padding: lengthOr(element.padding, element.type === "canvas" ? 0 : 8),
@@ -170,7 +170,15 @@ function normalizeElement(element) {
     data: element.data && typeof element.data === "object" ? element.data : {},
   };
   if (element.bindings && typeof element.bindings === "object") normalized.bindings = element.bindings;
-  if (normalized.type === "canvas") {
+  if (normalized.type === "grid") {
+    normalized.children = normalizeGridChildren(element, normalized);
+    delete normalized.data.cells;
+  } else if (normalized.type === "stack") {
+    normalized.children = normalizeStackChildren(element, normalized);
+    delete normalized.data.items;
+  } else if (normalized.type === "pageBreak") {
+    normalized.data = {};
+  } else if (normalized.type === "canvas") {
     normalized.data = {};
     normalized.children = Array.isArray(element.children) ? element.children.map(normalizeCanvasChild) : [];
     enforceCanvasMinimum(normalized);
@@ -179,6 +187,43 @@ function normalizeElement(element) {
   }
   if (element.elementSchemaId) normalized.elementSchemaId = element.elementSchemaId;
   return normalized;
+}
+
+function normalizeGridChildren(source, normalized) {
+  if (Array.isArray(source.children) && source.children.length > 0) return source.children.map(normalizeElement);
+  const cells = Array.isArray(source.data?.cells) ? source.data.cells : [];
+  return cells.filter((cell) => String(cell ?? "").trim()).map((cell, index) => textChild(`Cell ${index + 1}`, String(cell)));
+}
+
+function normalizeStackChildren(source, normalized) {
+  if (Array.isArray(source.children) && source.children.length > 0) return source.children.map(normalizeElement);
+  const items = Array.isArray(source.data?.items) ? source.data.items : [];
+  return items.filter((item) => String(item ?? "").trim()).map((item, index) => textChild(`Item ${index + 1}`, String(item)));
+}
+
+function textChild(name, text) {
+  return normalizeElement({
+    id: nextId("el"),
+    type: "text",
+    name,
+    width: "100%",
+    height: "auto",
+    margin: 0,
+    padding: 6,
+    style: {
+      font: "Calibri",
+      fontSize: 11,
+      fontWeight: "regular",
+      fontStyle: "normal",
+      color: "#251d18",
+      background: "transparent",
+      borderColor: "#d8cdbd",
+      borderWidth: 0,
+      align: "left",
+    },
+    schema: [],
+    data: { text },
+  });
 }
 
 function normalizeCanvasChild(child = {}) {

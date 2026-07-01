@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "tag:typst-bulletin,2026:schema/gridLayoutElement.schema.json",
   "title": "Grid Layout Element",
-  "description": "A layout container that arranges text cells or child elements in rows and columns.",
+  "description": "A layout container that arranges child elements in rows and columns.",
   "type": "object",
-  "required": ["id", "type", "name", "width", "height", "margin", "padding", "style", "schema", "data"],
+  "required": ["id", "type", "name", "width", "height", "margin", "padding", "style", "schema", "data", "children"],
   "properties": {
     "id": { "$ref": "#/$defs/identifier" },
     "type": { "const": "grid" },
@@ -17,12 +17,11 @@
     "schema": { "type": "array", "items": { "$ref": "#/$defs/dataField" }, "default": [] },
     "data": {
       "type": "object",
-      "required": ["rows", "columns", "cellPadding", "cells"],
+      "required": ["rows", "columns", "cellPadding"],
       "properties": {
         "rows": { "type": "integer", "minimum": 1, "default": 2 },
         "columns": { "type": "integer", "minimum": 1, "default": 2 },
         "cellPadding": { "$ref": "#/$defs/spacing" },
-        "cells": { "type": "array", "items": { "type": "string" }, "default": [] },
         "rowGap": { "$ref": "#/$defs/spacing" },
         "columnGap": { "$ref": "#/$defs/spacing" }
       },
@@ -30,7 +29,7 @@
     },
     "children": {
       "type": "array",
-      "description": "Optional nested visual elements placed inside the grid. Child validation is performed by the matching element schema.",
+      "description": "Nested visual elements placed in grid cells. Child validation is performed by the matching element schema.",
       "items": { "type": "object" },
       "default": []
     },
@@ -38,8 +37,7 @@
       "type": "object",
       "properties": {
         "rows": { "$ref": "#/$defs/binding", "x-compatibleFieldTypes": ["number"] },
-        "columns": { "$ref": "#/$defs/binding", "x-compatibleFieldTypes": ["number"] },
-        "cells": { "$ref": "#/$defs/binding", "x-compatibleFieldTypes": ["list", "text", "richText"] }
+        "columns": { "$ref": "#/$defs/binding", "x-compatibleFieldTypes": ["number"] }
       },
       "additionalProperties": false
     }

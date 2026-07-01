@@ -176,7 +176,8 @@
         { "$ref": "#/$defs/musicElement" },
         { "$ref": "#/$defs/gridElement" },
         { "$ref": "#/$defs/stackElement" },
-        { "$ref": "#/$defs/canvasElement" }
+        { "$ref": "#/$defs/canvasElement" },
+        { "$ref": "#/$defs/pageBreakElement" }
       ]
     },
     "baseVisualElement": {
@@ -187,7 +188,7 @@
           "$ref": "#/$defs/identifier"
         },
         "type": {
-          "enum": ["text", "image", "music", "grid", "stack", "canvas"]
+          "enum": ["text", "image", "music", "grid", "stack", "canvas", "pageBreak"]
         },
         "name": {
           "type": "string",
@@ -311,6 +312,22 @@
       ],
       "unevaluatedProperties": false
     },
+    "pageBreakElement": {
+      "allOf": [
+        { "$ref": "#/$defs/baseVisualElement" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "pageBreak" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "canvasChild": {
       "type": "object",
       "required": ["id", "x", "y", "element"],
@@ -357,11 +374,7 @@
       "properties": {
         "rows": { "type": "integer", "minimum": 1 },
         "columns": { "type": "integer", "minimum": 1 },
-        "cellPadding": { "$ref": "#/$defs/spacing" },
-        "cells": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
+        "cellPadding": { "$ref": "#/$defs/spacing" }
       },
       "additionalProperties": false
     },
@@ -369,11 +382,7 @@
       "type": "object",
       "properties": {
         "direction": { "enum": ["horizontal", "vertical"] },
-        "gap": { "$ref": "#/$defs/spacing" },
-        "items": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
+        "gap": { "$ref": "#/$defs/spacing" }
       },
       "additionalProperties": false
     },
@@ -433,10 +442,6 @@
         "columns": {
           "$ref": "#/$defs/binding",
           "x-compatibleFieldTypes": ["number"]
-        },
-        "cells": {
-          "$ref": "#/$defs/binding",
-          "x-compatibleFieldTypes": ["list", "text", "richText"]
         }
       },
       "additionalProperties": false
@@ -447,10 +452,6 @@
         "direction": {
           "$ref": "#/$defs/binding",
           "x-compatibleFieldTypes": ["choice"]
-        },
-        "items": {
-          "$ref": "#/$defs/binding",
-          "x-compatibleFieldTypes": ["list", "text", "richText"]
         }
       },
       "additionalProperties": false

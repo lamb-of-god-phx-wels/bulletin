@@ -94,14 +94,3 @@ A bulletin is a folder on disk that represents a *typst* project
 design and interaction with the frontend. The frontend is a web app that
 provides a polished user interface for building and interacting with the
 templates/bulletins and exporting as PDFs. 
-
-
-
-
-## TODO
-
-* Add "page break" element
-* Fix "grid" and "stack" layouts
-    * Data is not "text", it's "elements"
-* Default width for elements is 100%
-* Fix background color

@@ -33,11 +33,12 @@ Then open `http://localhost:5177`.
 
 - `Textbox` - styled text content.
 - `Image` - image asset from the shared `assets/` folder.
-- `Grid Container` - basic rows, columns, and cell text.
-- `Stack Container` - vertical or horizontal list of text items.
+- `Grid Container` - rows and columns containing any child elements.
+- `Stack Container` - vertical or horizontal flow containing any child elements.
 - `Canvas` - invisible rendered container with dashed editor border for exact
   x/y placement of child elements; it fills page width by default and grows to
   fit its children up to one page tall.
+- `Page Break` - forces following content onto the next PDF page.
 - `Music` - placeholder for future hymn, psalm, song, and lead-sheet support.
 
 ## Notes

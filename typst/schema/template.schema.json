@@ -56,6 +56,7 @@
         { "$ref": "gridLayoutElement.schema.json" },
         { "$ref": "stackLayoutElement.schema.json" },
         { "$ref": "canvasElement.schema.json" },
+        { "$ref": "pageBreakElement.schema.json" },
         { "$ref": "dateElement.schema.json" },
         { "$ref": "musicElement.schema.json" },
         { "$ref": "customElement.schema.json" },
@@ -84,7 +85,7 @@
         },
         "background": {
           "type": "string",
-          "default": "#fffaf1"
+          "default": "#ffffff"
         },
         "margins": {
           "type": "object",

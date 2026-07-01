@@ -15,7 +15,7 @@ export function createDefaultProject({ kind = "bulletin", name = "Untitled" } = 
       height: canvas.height,
       typstWidth: canvas.typstWidth,
       typstHeight: canvas.typstHeight,
-      background: "#fffaf1",
+      background: "#ffffff",
     },
     elements: [
       textElement({
@@ -69,6 +69,7 @@ export function createElement(type, overrides = {}) {
   if (type === "grid") return gridElement(overrides);
   if (type === "stack") return stackElement(overrides);
   if (type === "canvas") return canvasElement(overrides);
+  if (type === "pageBreak") return pageBreakElement(overrides);
   if (type === "music") return musicElement(overrides);
   return textElement(overrides);
 }
@@ -78,7 +79,7 @@ function baseElement(type, overrides = {}) {
     id: overrides.id || nextId(),
     type,
     name: overrides.name || titleCase(type),
-    width: overrides.width ?? 220,
+    width: overrides.width ?? "100%",
     height: overrides.height ?? 90,
     margin: overrides.margin ?? 0,
     padding: overrides.padding ?? 8,
@@ -109,7 +110,7 @@ function textElement(overrides = {}) {
 
 function imageElement(overrides = {}) {
   return {
-    ...baseElement("image", { width: 180, height: 110, ...overrides }),
+    ...baseElement("image", { width: "100%", height: 110, ...overrides }),
     data: {
       path: overrides.path || overrides.data?.path || "assets/church/logo.png",
       fit: overrides.fit || overrides.data?.fit || "contain",
@@ -119,24 +120,24 @@ function imageElement(overrides = {}) {
 
 function gridElement(overrides = {}) {
   return {
-    ...baseElement("grid", { width: 260, height: 140, ...overrides }),
+    ...baseElement("grid", { width: "100%", height: "auto", ...overrides }),
     data: {
       rows: overrides.rows ?? overrides.data?.rows ?? 2,
       columns: overrides.columns ?? overrides.data?.columns ?? 2,
       cellPadding: overrides.cellPadding ?? overrides.data?.cellPadding ?? 6,
-      cells: overrides.cells || overrides.data?.cells || ["Cell 1", "Cell 2", "Cell 3", "Cell 4"],
     },
+    children: overrides.children || [],
   };
 }
 
 function stackElement(overrides = {}) {
   return {
-    ...baseElement("stack", { width: 260, height: 160, ...overrides }),
+    ...baseElement("stack", { width: "100%", height: "auto", ...overrides }),
     data: {
       direction: overrides.direction || overrides.data?.direction || "vertical",
       gap: overrides.gap ?? overrides.data?.gap ?? 8,
-      items: overrides.items || overrides.data?.items || ["First item", "Second item", "Third item"],
     },
+    children: overrides.children || [],
   };
 }
 
@@ -150,11 +151,18 @@ function canvasElement(overrides = {}) {
 
 function musicElement(overrides = {}) {
   return {
-    ...baseElement("music", { width: 300, height: 120, ...overrides }),
+    ...baseElement("music", { width: "100%", height: 120, ...overrides }),
     data: {
       title: overrides.title || overrides.data?.title || "Music / Lead Sheet",
       notes: overrides.notes || overrides.data?.notes || "Import support TBD",
     },
+  };
+}
+
+function pageBreakElement(overrides = {}) {
+  return {
+    ...baseElement("pageBreak", { width: "100%", height: 28, padding: 0, borderWidth: 0, ...overrides }),
+    data: {},
   };
 }
 

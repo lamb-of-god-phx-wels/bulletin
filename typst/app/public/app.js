@@ -170,7 +170,7 @@ function renderCanvas() {
   const page = state.project.page || canvasSize;
   els.pageCanvas.style.width = `${page.width}px`;
   els.pageCanvas.style.minHeight = `${Math.min(page.height || canvasSize.height, 320)}px`;
-  els.pageCanvas.style.background = page.background || "#fffaf1";
+  els.pageCanvas.style.background = page.background || "#ffffff";
   els.pageCanvas.innerHTML = "";
   for (const element of state.project.elements) {
     els.pageCanvas.append(renderElement(element));
@@ -188,10 +188,10 @@ function renderElement(element) {
   node.style.width = cssLength(canvasBox?.width ?? element.width);
   node.style.height = cssLength(canvasBox?.height ?? element.height);
   node.style.margin = cssLength(element.margin);
-  node.style.padding = element.type === "canvas" ? "0px" : cssLength(element.padding);
+  node.style.padding = element.type === "canvas" || element.type === "pageBreak" ? "0px" : cssLength(element.padding);
   node.style.color = element.style.color;
   node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
-  node.style.border = element.type === "canvas" ? "" : `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
+  node.style.border = element.type === "canvas" || element.type === "pageBreak" ? "" : `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
   node.style.fontFamily = `${element.style.font}, Calibri, sans-serif`;
   node.style.fontSize = cssLength(element.style.fontSize);
   node.style.fontWeight = element.style.fontWeight === "regular" ? "400" : element.style.fontWeight;
@@ -211,7 +211,8 @@ function renderElement(element) {
 }
 
 function appendElementContent(node, element) {
-  if (element.type === "canvas") node.append(renderCanvasElement(element));
+  if (element.type === "pageBreak") node.append(renderPageBreakElement());
+  else if (element.type === "canvas") node.append(renderCanvasElement(element));
   else if (element.type === "image") node.append(renderImageElement(element));
   else if (element.type === "grid") node.append(renderGridElement(element));
   else if (element.type === "stack") node.append(renderStackElement(element));
@@ -237,6 +238,13 @@ function renderCanvasElement(element) {
     surface.append(empty);
   }
   return surface;
+}
+
+function renderPageBreakElement() {
+  const marker = document.createElement("div");
+  marker.className = "pageBreakElement";
+  marker.textContent = "Page Break";
+  return marker;
 }
 
 function renderCanvasChild(child, parentCanvas) {
@@ -290,12 +298,20 @@ function renderImageElement(element) {
 function renderGridElement(element) {
   const grid = document.createElement("div");
   grid.className = "gridElement";
-  grid.style.gridTemplateColumns = `repeat(${element.data.columns || 2}, 1fr)`;
+  const columns = Math.max(1, Number(element.data.columns || 2));
+  grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
   grid.style.gap = cssLength(element.data.cellPadding || 6);
-  const total = Math.max(1, (element.data.rows || 2) * (element.data.columns || 2));
+  grid.addEventListener("dragover", (event) => handleLayoutDragOver(event, element));
+  grid.addEventListener("drop", (event) => handleLayoutDrop(event, element));
+  const rows = Math.max(1, Number(element.data.rows || 2), Math.ceil((element.children?.length || 0) / columns));
+  const total = Math.max(1, rows * columns);
   for (let index = 0; index < total; index++) {
     const cell = document.createElement("div");
-    cell.textContent = element.data.cells?.[index] || "";
+    cell.className = "gridCell";
+    cell.dataset.layoutIndex = String(index);
+    const child = element.children?.[index];
+    if (child) cell.append(renderLayoutChild(child, element));
+    else cell.append(renderLayoutEmptyHint("Drop element"));
     grid.append(cell);
   }
   return grid;
@@ -306,12 +322,56 @@ function renderStackElement(element) {
   stack.className = "stackElement";
   stack.style.flexDirection = element.data.direction === "horizontal" ? "row" : "column";
   stack.style.gap = cssLength(element.data.gap || 8);
-  for (const item of element.data.items || []) {
-    const child = document.createElement("div");
-    child.textContent = item;
-    stack.append(child);
+  stack.addEventListener("dragover", (event) => handleLayoutDragOver(event, element));
+  stack.addEventListener("drop", (event) => handleLayoutDrop(event, element));
+  for (const child of element.children || []) {
+    stack.append(renderLayoutChild(child, element));
   }
+  if (!element.children?.length) stack.append(renderLayoutEmptyHint("Drop elements here"));
   return stack;
+}
+
+function renderLayoutChild(element, parentLayout) {
+  const node = document.createElement("div");
+  node.className = "layoutChild";
+  node.classList.toggle("selected", element.id === state.selectedId);
+  node.classList.toggle("dragging", element.id === state.draggingId);
+  node.dataset.id = element.id;
+  node.draggable = true;
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectElement(element.id);
+  });
+  node.addEventListener("dragstart", (event) => beginLayoutChildDrag(event, element));
+  node.addEventListener("dragend", finishDrag);
+  node.append(renderLayoutChildElement(element));
+  return node;
+}
+
+function renderLayoutChildElement(element) {
+  const node = document.createElement("div");
+  const size = element.type === "canvas" ? effectiveCanvasSize(element) : null;
+  node.className = `layoutChildElement type-${element.type}`;
+  node.style.width = cssLength(size?.width ?? element.width);
+  node.style.height = cssLength(size?.height ?? element.height);
+  node.style.padding = element.type === "canvas" || element.type === "pageBreak" ? "0px" : cssLength(element.padding);
+  node.style.color = element.style.color;
+  node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
+  node.style.border = element.type === "canvas" || element.type === "pageBreak" ? "" : `${cssLength(element.style.borderWidth)} solid ${element.style.borderColor}`;
+  node.style.fontFamily = `${element.style.font}, Calibri, sans-serif`;
+  node.style.fontSize = cssLength(element.style.fontSize);
+  node.style.fontWeight = element.style.fontWeight === "regular" ? "400" : element.style.fontWeight;
+  node.style.fontStyle = element.style.fontStyle;
+  node.style.textAlign = element.style.align;
+  appendElementContent(node, element);
+  return node;
+}
+
+function renderLayoutEmptyHint(text) {
+  const hint = document.createElement("div");
+  hint.className = "layoutEmptyHint";
+  hint.textContent = text;
+  return hint;
 }
 
 function renderMusicElement(element) {
@@ -394,6 +454,7 @@ function renderInspector() {
 }
 
 function typeFields(element) {
+  if (element.type === "pageBreak") return `<p class="mutedText">This element has no data fields.</p>`;
   const dataSchema = schemaForType(element.type)?.properties?.data;
   if (dataSchema?.properties) return schemaDataFields(element, dataSchema);
   return `<label>Text<textarea data-path="data.text">${textarea(element.data.text || "")}</textarea></label>`;
@@ -465,12 +526,12 @@ function createElement(type) {
     width: defaults.width,
     height: defaults.height,
     margin: 0,
-    padding: type === "canvas" ? 0 : 8,
+    padding: type === "canvas" || type === "pageBreak" ? 0 : 8,
     style: defaults.style,
     schema: [],
     data: defaults.data,
   };
-  if (type === "canvas") base.children = [];
+  if (type === "canvas" || type === "grid" || type === "stack") base.children = [];
   return base;
 }
 
@@ -479,7 +540,7 @@ function schemaForType(type) {
 }
 
 function schemaOrder(type) {
-  return { text: 10, image: 20, grid: 30, stack: 40, canvas: 50, date: 60, music: 70 }[type] ?? 100;
+  return { text: 10, image: 20, grid: 30, stack: 40, canvas: 50, date: 60, music: 70, pageBreak: 80 }[type] ?? 100;
 }
 
 function paletteTitle(entry) {
@@ -495,6 +556,7 @@ function paletteDescription(entry) {
   if (entry.type === "canvas") return "Fine placement within a flow block";
   if (entry.type === "date") return "Formatted date display";
   if (entry.type === "music") return "Lead sheet placeholder";
+  if (entry.type === "pageBreak") return "Start the next PDF page";
   return description.split(".")[0] || "Schema-backed element";
 }
 
@@ -508,13 +570,14 @@ function defaultElementValues(type, schema) {
 }
 
 function defaultDimensions(type) {
-  if (type === "image") return { width: 180, height: 110 };
-  if (type === "grid") return { width: 260, height: 140 };
-  if (type === "stack") return { width: 260, height: 160 };
+  if (type === "image") return { width: "100%", height: 110 };
+  if (type === "grid") return { width: "100%", height: "auto" };
+  if (type === "stack") return { width: "100%", height: "auto" };
   if (type === "canvas") return { width: "100%", height: "auto" };
-  if (type === "music") return { width: 300, height: 120 };
-  if (type === "date") return { width: 220, height: 42 };
-  return { width: 220, height: 90 };
+  if (type === "music") return { width: "100%", height: 120 };
+  if (type === "date") return { width: "100%", height: 42 };
+  if (type === "pageBreak") return { width: "100%", height: 28 };
+  return { width: "100%", height: 90 };
 }
 
 function defaultStyle(type) {
@@ -526,7 +589,7 @@ function defaultStyle(type) {
     color: "#251d18",
     background: "transparent",
     borderColor: "#d8cdbd",
-    borderWidth: type === "image" || type === "canvas" ? 0 : 1,
+    borderWidth: type === "image" || type === "canvas" || type === "pageBreak" ? 0 : 1,
     align: "left",
   };
 }
@@ -542,11 +605,12 @@ function defaultData(type, schema) {
 
 function fallbackData(type) {
   if (type === "image") return { path: state.assets[0]?.path || "assets/church/logo.png", fit: "contain" };
-  if (type === "grid") return { rows: 2, columns: 2, cellPadding: 6, cells: ["Cell 1", "Cell 2", "Cell 3", "Cell 4"] };
-  if (type === "stack") return { direction: "vertical", gap: 8, items: ["First item", "Second item"] };
+  if (type === "grid") return { rows: 2, columns: 2, cellPadding: 6 };
+  if (type === "stack") return { direction: "vertical", gap: 8 };
   if (type === "date") return { value: todayIsoDate(), format: "MMMM d, yyyy", locale: "en-US", prefix: "", suffix: "" };
   if (type === "music") return { title: "Music / Lead Sheet", notes: "Import support TBD" };
   if (type === "canvas") return {};
+  if (type === "pageBreak") return {};
   return { text: "Text element" };
 }
 
@@ -600,8 +664,20 @@ function beginCanvasChildDrag(event, child) {
   event.currentTarget.classList.add("dragging");
 }
 
+function beginLayoutChildDrag(event, element) {
+  event.stopPropagation();
+  state.isDragging = true;
+  state.draggingId = element.id;
+  state.draggingType = "layout-child";
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("application/x-builder-layout-child", element.id);
+  event.dataTransfer.setData("text/plain", element.name || element.id);
+  selectElement(element.id, { renderCanvas: false });
+  event.currentTarget.classList.add("dragging");
+}
+
 function handleCanvasDragOver(event) {
-  if (state.draggingType === "canvas-child") return;
+  if (state.draggingType === "canvas-child" || state.draggingType === "layout-child") return;
   event.preventDefault();
   event.dataTransfer.dropEffect = state.draggingId ? "move" : "copy";
   showDropSlot(insertionIndexFromPointer(event.clientY));
@@ -647,7 +723,8 @@ function handleNestedCanvasDrop(event, canvasElement, surface) {
   const type = event.dataTransfer.getData("application/x-builder-element");
   const elementId = event.dataTransfer.getData("application/x-builder-existing");
   const childId = event.dataTransfer.getData("application/x-builder-canvas-child");
-  const point = clampedCanvasPoint(event, surface, canvasElement, dragElementFor(type, elementId, childId));
+  const layoutChildId = event.dataTransfer.getData("application/x-builder-layout-child");
+  const point = clampedCanvasPoint(event, surface, canvasElement, dragElementFor(type, elementId, childId, layoutChildId));
   clearCanvasDropMarker(surface);
   state.isDragging = false;
   state.draggingId = null;
@@ -656,6 +733,32 @@ function handleNestedCanvasDrop(event, canvasElement, surface) {
   if (type) addCanvasChild(canvasElement, createElement(type), point.x, point.y);
   else if (elementId) moveTopLevelElementIntoCanvas(elementId, canvasElement, point.x, point.y);
   else if (childId) moveCanvasChild(childId, canvasElement, point.x, point.y);
+  else if (layoutChildId) moveLayoutChildIntoCanvas(layoutChildId, canvasElement, point.x, point.y);
+}
+
+function handleLayoutDragOver(event, layoutElement) {
+  if (!state.isDragging) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = state.draggingType === "palette" ? "copy" : "move";
+}
+
+function handleLayoutDrop(event, layoutElement) {
+  event.preventDefault();
+  event.stopPropagation();
+  const type = event.dataTransfer.getData("application/x-builder-element");
+  const elementId = event.dataTransfer.getData("application/x-builder-existing");
+  const canvasChildId = event.dataTransfer.getData("application/x-builder-canvas-child");
+  const layoutChildId = event.dataTransfer.getData("application/x-builder-layout-child");
+  const index = layoutInsertionIndex(event, layoutElement);
+  state.isDragging = false;
+  state.draggingId = null;
+  state.draggingType = null;
+
+  if (type) insertLayoutChild(layoutElement, createElement(type), index);
+  else if (elementId) moveTopLevelElementIntoLayout(elementId, layoutElement, index);
+  else if (canvasChildId) moveCanvasChildIntoLayout(canvasChildId, layoutElement, index);
+  else if (layoutChildId) moveLayoutChild(layoutChildId, layoutElement, index);
 }
 
 function insertionIndexFromPointer(clientY) {
@@ -702,11 +805,70 @@ function moveElement(id, targetIndex) {
   scheduleSaveAndMaybeBuild();
 }
 
+function layoutInsertionIndex(event, layoutElement) {
+  const layoutNode = event.currentTarget;
+  if (layoutElement.type === "grid") {
+    const cell = event.target.closest?.(".gridCell");
+    if (cell && layoutNode.contains(cell)) return clampIndex(cell.dataset.layoutIndex, layoutElement.children?.length || 0);
+    return layoutElement.children?.length || 0;
+  }
+  const nodes = [...layoutNode.querySelectorAll(":scope > .layoutChild")].filter((node) => node.dataset.id !== state.draggingId);
+  const horizontal = layoutElement.data?.direction === "horizontal";
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect();
+    const pointer = horizontal ? event.clientX : event.clientY;
+    const middle = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+    if (pointer < middle) return layoutChildIndex(layoutElement, node.dataset.id);
+  }
+  return layoutElement.children?.length || 0;
+}
+
+function insertLayoutChild(layoutElement, element, index) {
+  layoutElement.children ||= [];
+  layoutElement.children.splice(clampIndex(index, layoutElement.children.length), 0, element);
+  selectElement(element.id);
+  scheduleSaveAndMaybeBuild();
+}
+
+function moveTopLevelElementIntoLayout(id, layoutElement, index) {
+  if (id === layoutElement.id) return;
+  const fromIndex = elementIndex(id);
+  if (fromIndex < 0) return;
+  const [element] = state.project.elements.splice(fromIndex, 1);
+  if (containsElementId(element, layoutElement.id)) {
+    state.project.elements.splice(fromIndex, 0, element);
+    return;
+  }
+  insertLayoutChild(layoutElement, element, index);
+}
+
+function moveCanvasChildIntoLayout(childId, layoutElement, index) {
+  const target = canvasChildTarget(childId);
+  if (!target || containsElementId(target.element, layoutElement.id)) return;
+  target.parentCanvas.children = target.parentCanvas.children.filter((child) => child.id !== childId);
+  enforceCanvasSize(target.parentCanvas);
+  insertLayoutChild(layoutElement, target.element, index);
+}
+
+function moveLayoutChild(childId, layoutElement, index) {
+  const target = layoutChildTarget(childId);
+  if (!target || containsElementId(target.element, layoutElement.id)) return;
+  const fromIndex = layoutChildIndex(target.parentLayout, childId);
+  target.parentLayout.children = target.parentLayout.children.filter((child) => child.id !== childId);
+  const adjustedIndex = target.parentLayout === layoutElement && fromIndex < index ? index - 1 : index;
+  insertLayoutChild(layoutElement, target.element, adjustedIndex);
+}
+
+function layoutChildIndex(layoutElement, id) {
+  return layoutElement.children?.findIndex((child) => child.id === id) ?? -1;
+}
+
 function showCanvasDropMarker(surface, canvasElement, event) {
   const type = event.dataTransfer.getData("application/x-builder-element");
   const elementId = event.dataTransfer.getData("application/x-builder-existing");
   const childId = event.dataTransfer.getData("application/x-builder-canvas-child");
-  const dragElement = dragElementFor(type, elementId, childId);
+  const layoutChildId = event.dataTransfer.getData("application/x-builder-layout-child");
+  const dragElement = dragElementFor(type, elementId, childId, layoutChildId);
   const point = clampedCanvasPoint(event, surface, canvasElement, dragElement);
   const size = effectiveElementSize(dragElement, effectiveCanvasSize(canvasElement).width);
   let marker = surface.querySelector(":scope > .canvasDropMarker");
@@ -725,10 +887,11 @@ function clearCanvasDropMarker(surface) {
   surface.querySelector(":scope > .canvasDropMarker")?.remove();
 }
 
-function dragElementFor(type, elementId, childId) {
+function dragElementFor(type, elementId, childId, layoutChildId) {
   if (type) return draftElement(type);
   if (elementId) return state.project?.elements.find((element) => element.id === elementId) || draftElement("text");
   if (childId) return canvasChildTarget(childId)?.element || draftElement("text");
+  if (layoutChildId) return layoutChildTarget(layoutChildId)?.element || draftElement("text");
   return draftElement("text");
 }
 
@@ -741,11 +904,11 @@ function draftElement(type) {
     width: defaults.width,
     height: defaults.height,
     margin: 0,
-    padding: type === "canvas" ? 0 : 8,
+    padding: type === "canvas" || type === "pageBreak" ? 0 : 8,
     style: defaults.style,
     schema: [],
     data: defaults.data,
-    children: type === "canvas" ? [] : undefined,
+    children: type === "canvas" || type === "grid" || type === "stack" ? [] : undefined,
   };
 }
 
@@ -792,6 +955,13 @@ function moveCanvasChild(childId, canvasElement, x, y) {
   scheduleSaveAndMaybeBuild();
 }
 
+function moveLayoutChildIntoCanvas(childId, canvasElement, x, y) {
+  const target = layoutChildTarget(childId);
+  if (!target || containsElementId(target.element, canvasElement.id)) return;
+  target.parentLayout.children = target.parentLayout.children.filter((child) => child.id !== childId);
+  addCanvasChild(canvasElement, target.element, x, y);
+}
+
 function createCanvasChild(element, x = 0, y = 0) {
   return {
     id: `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
@@ -809,10 +979,13 @@ function cloneElementWithNewIds(element) {
 
 function refreshElementIds(element) {
   element.id = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  if (element.type !== "canvas") return;
-  for (const child of element.children || []) {
-    child.id = `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    refreshElementIds(child.element);
+  if (element.type === "canvas") {
+    for (const child of element.children || []) {
+      child.id = `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      refreshElementIds(child.element);
+    }
+  } else if (isLayoutElement(element)) {
+    for (const child of element.children || []) refreshElementIds(child);
   }
 }
 
@@ -831,7 +1004,7 @@ function elementIndex(id) {
 }
 
 function updateSelectionClasses() {
-  els.pageCanvas.querySelectorAll(".canvasElement, .canvasChild").forEach((node) => {
+  els.pageCanvas.querySelectorAll(".canvasElement, .canvasChild, .layoutChild").forEach((node) => {
     node.classList.toggle("selected", node.dataset.id === state.selectedId);
   });
 }
@@ -856,6 +1029,13 @@ function deleteSelected() {
     scheduleSaveAndMaybeBuild();
     return;
   }
+  if (target?.kind === "layoutChild") {
+    target.parentLayout.children = target.parentLayout.children.filter((child) => child.id !== target.element.id);
+    state.selectedId = target.parentLayout.id;
+    renderAll();
+    scheduleSaveAndMaybeBuild();
+    return;
+  }
   state.project.elements = state.project.elements.filter((element) => element.id !== state.selectedId);
   state.selectedId = state.project.elements[0]?.id || null;
   renderAll();
@@ -875,6 +1055,15 @@ function duplicateSelected() {
     target.parentCanvas.children.push(clone);
     clampCanvasChild(target.parentCanvas, clone);
     enforceCanvasSize(target.parentCanvas);
+    selectElement(clone.id);
+    scheduleSaveAndMaybeBuild();
+    return;
+  }
+  if (target.kind === "layoutChild") {
+    const clone = cloneElementWithNewIds(target.element);
+    clone.name = `${clone.name} Copy`;
+    const index = layoutChildIndex(target.parentLayout, target.element.id);
+    target.parentLayout.children.splice(index + 1, 0, clone);
     selectElement(clone.id);
     scheduleSaveAndMaybeBuild();
     return;
@@ -1016,29 +1205,64 @@ function selectedTarget() {
   if (!state.project?.elements || !state.selectedId) return null;
   for (const element of state.project.elements) {
     if (element.id === state.selectedId) return { kind: "element", element };
-    const childTarget = canvasChildTarget(state.selectedId, element);
+    const childTarget = nestedTarget(state.selectedId, element);
     if (childTarget) return childTarget;
   }
   return null;
 }
 
+function nestedTarget(id, element) {
+  return canvasChildTarget(id, element) || layoutChildTarget(id, element);
+}
+
 function canvasChildTarget(id, rootElement) {
   const roots = rootElement ? [rootElement] : state.project?.elements || [];
   for (const element of roots) {
-    if (element.type !== "canvas") continue;
-    for (const wrapper of element.children || []) {
-      if (wrapper.id === id) return { kind: "canvasChild", wrapper, element: wrapper.element, parentCanvas: element };
-      const nested = canvasChildTarget(id, wrapper.element);
-      if (nested) return nested;
+    if (element.type === "canvas") {
+      for (const wrapper of element.children || []) {
+        if (wrapper.id === id) return { kind: "canvasChild", wrapper, element: wrapper.element, parentCanvas: element };
+        const nested = nestedTarget(id, wrapper.element);
+        if (nested) return nested;
+      }
+    } else if (isLayoutElement(element)) {
+      for (const child of element.children || []) {
+        const nested = canvasChildTarget(id, child);
+        if (nested) return nested;
+      }
     }
   }
   return null;
 }
 
+function layoutChildTarget(id, rootElement) {
+  const roots = rootElement ? [rootElement] : state.project?.elements || [];
+  for (const element of roots) {
+    if (isLayoutElement(element)) {
+      for (const child of element.children || []) {
+        if (child.id === id) return { kind: "layoutChild", element: child, parentLayout: element };
+        const nested = nestedTarget(id, child);
+        if (nested) return nested;
+      }
+    } else if (element.type === "canvas") {
+      for (const wrapper of element.children || []) {
+        const nested = layoutChildTarget(id, wrapper.element);
+        if (nested) return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function isLayoutElement(element) {
+  return element?.type === "grid" || element?.type === "stack";
+}
+
 function containsElementId(element, id) {
-  if (!element || element.id === id) return Boolean(element);
-  if (element.type !== "canvas") return false;
-  return (element.children || []).some((child) => containsElementId(child.element, id));
+  if (!element) return false;
+  if (element.id === id) return true;
+  if (element.type === "canvas") return (element.children || []).some((child) => child.id === id || containsElementId(child.element, id));
+  if (isLayoutElement(element)) return (element.children || []).some((child) => containsElementId(child, id));
+  return false;
 }
 
 function setDeep(object, path, value) {

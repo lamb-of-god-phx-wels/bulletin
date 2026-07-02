@@ -13,7 +13,6 @@
       instead. When moving between canvases, it either be unwrapped or used as
       is (if unwrapped, it would follow the same path from that point on as a
       new element being added to the canvas).
-* Feature: "Delete" key deletes element
 * Feature: Undo/redo stack
 * Feature: Canvas "snap"
     * Enable "snap" feature by toggle setting

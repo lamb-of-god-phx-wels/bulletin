@@ -56,6 +56,7 @@ els.pageSetupButton.addEventListener("click", selectPageSetup);
 els.applyAssetButton.addEventListener("click", applySelectedAsset);
 els.deleteButton.addEventListener("click", deleteSelected);
 els.duplicateButton.addEventListener("click", duplicateSelected);
+document.addEventListener("keydown", handleGlobalKeyDown);
 
 els.pageCanvas.addEventListener("dragover", handleCanvasDragOver);
 els.pageCanvas.addEventListener("dragleave", handleCanvasDragLeave);
@@ -1157,6 +1158,18 @@ function selectElement(id, { renderCanvas = true } = {}) {
     updateSelectionClasses();
     renderInspector();
   }
+}
+
+function handleGlobalKeyDown(event) {
+  if (event.key !== "Delete" || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (isTextEntryTarget(event.target)) return;
+  if (!state.selectedId) return;
+  event.preventDefault();
+  deleteSelected();
+}
+
+function isTextEntryTarget(target) {
+  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']"));
 }
 
 function deleteSelected() {

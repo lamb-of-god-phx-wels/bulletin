@@ -3,6 +3,8 @@
 * Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
 * Feature: Toggle page view vs. contiguous view on drag-n-drop view.
 * Feature: Allow drag-to-resize in drag-n-drop view
+    * When resizing this way, dimensions are always turned into absolute
+      dimensions (inches).
 * Feature: Undo/redo stack
 * Feature: Canvas "snap"
     * Enable "snap" feature by toggle setting

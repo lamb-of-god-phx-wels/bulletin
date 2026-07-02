@@ -19,6 +19,7 @@ const state = {
   isDragging: false,
   draggingId: null,
   draggingType: null,
+  draggingElementType: null,
   dropIndex: null,
 };
 
@@ -95,8 +96,10 @@ function renderPalette() {
       state.isDragging = true;
       state.draggingId = null;
       state.draggingType = "palette";
+      state.draggingElementType = entry.type;
       event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData("application/x-builder-element", entry.type);
+      event.dataTransfer.setData("text/plain", entry.type);
     });
     button.addEventListener("dragend", finishDrag);
     els.palette.append(button);
@@ -695,6 +698,7 @@ function beginElementDrag(event, id) {
   state.isDragging = true;
   state.draggingId = id;
   state.draggingType = "element";
+  state.draggingElementType = null;
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("application/x-builder-existing", id);
   event.dataTransfer.setData("text/plain", element?.name || id);
@@ -707,6 +711,7 @@ function beginCanvasChildDrag(event, child) {
   state.isDragging = true;
   state.draggingId = child.id;
   state.draggingType = "canvas-child";
+  state.draggingElementType = null;
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("application/x-builder-canvas-child", child.id);
   event.dataTransfer.setData("text/plain", child.element?.name || child.id);
@@ -719,6 +724,7 @@ function beginLayoutChildDrag(event, element) {
   state.isDragging = true;
   state.draggingId = element.id;
   state.draggingType = "layout-child";
+  state.draggingElementType = null;
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("application/x-builder-layout-child", element.id);
   event.dataTransfer.setData("text/plain", element.name || element.id);
@@ -741,14 +747,11 @@ function handleCanvasDragLeave(event) {
 
 function handleCanvasDrop(event) {
   event.preventDefault();
-  const type = event.dataTransfer.getData("application/x-builder-element");
-  const id = event.dataTransfer.getData("application/x-builder-existing");
+  const { type, elementId: id } = dragPayload(event);
   if (!type && !id) return;
   const index = state.dropIndex ?? insertionIndexFromPointer(event.clientY);
   clearDropSlot();
-  state.isDragging = false;
-  state.draggingId = null;
-  state.draggingType = null;
+  clearDragState();
   if (id) moveElement(id, index);
   else if (type) addElement(type, index);
 }
@@ -770,15 +773,10 @@ function handleNestedCanvasDragLeave(event, surface) {
 function handleNestedCanvasDrop(event, canvasElement, surface) {
   event.preventDefault();
   event.stopPropagation();
-  const type = event.dataTransfer.getData("application/x-builder-element");
-  const elementId = event.dataTransfer.getData("application/x-builder-existing");
-  const childId = event.dataTransfer.getData("application/x-builder-canvas-child");
-  const layoutChildId = event.dataTransfer.getData("application/x-builder-layout-child");
+  const { type, elementId, childId, layoutChildId } = dragPayload(event);
   const point = clampedCanvasPoint(event, surface, canvasElement, dragElementFor(type, elementId, childId, layoutChildId));
   clearCanvasDropMarker(surface);
-  state.isDragging = false;
-  state.draggingId = null;
-  state.draggingType = null;
+  clearDragState();
 
   if (type) addCanvasChild(canvasElement, createElement(type), point.x, point.y);
   else if (elementId) moveTopLevelElementIntoCanvas(elementId, canvasElement, point.x, point.y);
@@ -796,14 +794,9 @@ function handleLayoutDragOver(event, layoutElement) {
 function handleLayoutDrop(event, layoutElement) {
   event.preventDefault();
   event.stopPropagation();
-  const type = event.dataTransfer.getData("application/x-builder-element");
-  const elementId = event.dataTransfer.getData("application/x-builder-existing");
-  const canvasChildId = event.dataTransfer.getData("application/x-builder-canvas-child");
-  const layoutChildId = event.dataTransfer.getData("application/x-builder-layout-child");
+  const { type, elementId, childId: canvasChildId, layoutChildId } = dragPayload(event);
   const index = layoutInsertionIndex(event, layoutElement);
-  state.isDragging = false;
-  state.draggingId = null;
-  state.draggingType = null;
+  clearDragState();
 
   if (type) insertLayoutChild(layoutElement, createElement(type), index);
   else if (elementId) moveTopLevelElementIntoLayout(elementId, layoutElement, index);
@@ -914,10 +907,7 @@ function layoutChildIndex(layoutElement, id) {
 }
 
 function showCanvasDropMarker(surface, canvasElement, event) {
-  const type = event.dataTransfer.getData("application/x-builder-element");
-  const elementId = event.dataTransfer.getData("application/x-builder-existing");
-  const childId = event.dataTransfer.getData("application/x-builder-canvas-child");
-  const layoutChildId = event.dataTransfer.getData("application/x-builder-layout-child");
+  const { type, elementId, childId, layoutChildId } = dragPayload(event);
   const dragElement = dragElementFor(type, elementId, childId, layoutChildId);
   const point = clampedCanvasPoint(event, surface, canvasElement, dragElement);
   const size = effectiveElementSize(dragElement, effectiveCanvasSize(canvasElement).width);
@@ -984,11 +974,24 @@ function addCanvasChild(canvasElement, element, x, y) {
 }
 
 function moveTopLevelElementIntoCanvas(id, canvasElement, x, y) {
-  if (id === canvasElement.id) return;
+  if (id === canvasElement.id) {
+    rejectSelfMove(id);
+    return;
+  }
   const fromIndex = elementIndex(id);
   if (fromIndex < 0) return;
   const [element] = state.project.elements.splice(fromIndex, 1);
+  if (containsElementId(element, canvasElement.id)) {
+    state.project.elements.splice(fromIndex, 0, element);
+    rejectSelfMove(id);
+    return;
+  }
   addCanvasChild(canvasElement, element, x, y);
+}
+
+function rejectSelfMove(id) {
+  selectElement(id);
+  setStatus("Cannot move an element into a canvas inside itself.", true);
 }
 
 function moveCanvasChild(childId, canvasElement, x, y) {
@@ -1042,12 +1045,26 @@ function refreshElementIds(element) {
 
 function finishDrag() {
   const hadDrag = state.isDragging || state.draggingId;
-  state.isDragging = false;
-  state.draggingId = null;
-  state.draggingType = null;
+  clearDragState();
   clearDropSlot();
   renderCanvas();
   if (hadDrag && state.buildQueued && els.liveToggle.checked) scheduleSaveAndMaybeBuild();
+}
+
+function dragPayload(event) {
+  return {
+    type: event.dataTransfer.getData("application/x-builder-element") || (state.draggingType === "palette" ? state.draggingElementType : ""),
+    elementId: event.dataTransfer.getData("application/x-builder-existing") || (state.draggingType === "element" ? state.draggingId : ""),
+    childId: event.dataTransfer.getData("application/x-builder-canvas-child") || (state.draggingType === "canvas-child" ? state.draggingId : ""),
+    layoutChildId: event.dataTransfer.getData("application/x-builder-layout-child") || (state.draggingType === "layout-child" ? state.draggingId : ""),
+  };
+}
+
+function clearDragState() {
+  state.isDragging = false;
+  state.draggingId = null;
+  state.draggingType = null;
+  state.draggingElementType = null;
 }
 
 function elementIndex(id) {
@@ -1163,9 +1180,14 @@ async function saveNow(message = "Saved.") {
     method: "PUT",
     body: JSON.stringify(state.project),
   });
+  if (state.isDragging) {
+    state.saveTimer = window.setTimeout(() => safeAction(() => saveNow(message)), saveDelay);
+    return;
+  }
   state.project = result.project;
   els.projectName.value = state.project.name;
   syncProjectSelect();
+  renderCanvas();
   setStatus(message);
 }
 

@@ -99,8 +99,6 @@ templates/bulletins and exporting as PDFs.
 
 * Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
 * Feature: Toggle page view vs. contiguous view on drag-n-drop view.
-* Bug: When dragging an element onto a canvas, it places a "Drop Here"
-  placeholder above/below the canvas rather than on the canvas.
 * Feature: Allow drag-to-resize in drag-n-drop view
 * Feature: Insert clicked elements from pallete after current selected element
   rather than end.
@@ -124,3 +122,8 @@ templates/bulletins and exporting as PDFs.
       right] and [top, middle, bottom]. 
     * Present as buttons oriented positionally where they correspond to.
 * Bug: Pallete and inspection area do not fit content fully
+* Feature: Run as executable (hide npm/server/browser details)
+* Feature: Multi-element selection/select all (ctrl + a)
+* Feature: up/down arrows for font size
+* Feature: Display grid/stack layout elements as they would render
+* Bug: Cannot place element before canvas if it is the first element

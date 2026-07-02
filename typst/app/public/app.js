@@ -733,9 +733,16 @@ function beginLayoutChildDrag(event, element) {
 }
 
 function handleCanvasDragOver(event) {
+  const canvasTarget = canvasDropTargetFromEvent(event);
+  if (canvasTarget) {
+    clearDropSlot();
+    handleNestedCanvasDragOver(event, canvasTarget.element, canvasTarget.surface);
+    return;
+  }
   if (state.draggingType === "canvas-child" || state.draggingType === "layout-child") return;
   event.preventDefault();
   event.dataTransfer.dropEffect = state.draggingId ? "move" : "copy";
+  clearCanvasDropMarkers();
   showDropSlot(insertionIndexFromPointer(event.clientY));
 }
 
@@ -747,6 +754,11 @@ function handleCanvasDragLeave(event) {
 
 function handleCanvasDrop(event) {
   event.preventDefault();
+  const canvasTarget = canvasDropTargetFromEvent(event);
+  if (canvasTarget) {
+    handleNestedCanvasDrop(event, canvasTarget.element, canvasTarget.surface);
+    return;
+  }
   const { type, elementId: id } = dragPayload(event);
   if (!type && !id) return;
   const index = state.dropIndex ?? insertionIndexFromPointer(event.clientY);
@@ -925,6 +937,20 @@ function showCanvasDropMarker(surface, canvasElement, event) {
 
 function clearCanvasDropMarker(surface) {
   surface.querySelector(":scope > .canvasDropMarker")?.remove();
+}
+
+function clearCanvasDropMarkers() {
+  els.pageCanvas.querySelectorAll(".canvasDropMarker").forEach((marker) => marker.remove());
+}
+
+function canvasDropTargetFromEvent(event) {
+  const canvasNode = event.target.closest?.(".canvasElement.type-canvas");
+  if (!canvasNode || !els.pageCanvas.contains(canvasNode)) return null;
+  if (state.draggingType === "element" && state.draggingId === canvasNode.dataset.id) return null;
+  const element = state.project?.elements.find((item) => item.id === canvasNode.dataset.id);
+  const surface = canvasNode.querySelector(":scope > .canvasSurface");
+  if (!element || element.type !== "canvas" || !surface) return null;
+  return { element, surface };
 }
 
 function dragElementFor(type, elementId, childId, layoutChildId) {

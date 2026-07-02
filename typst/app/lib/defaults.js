@@ -41,7 +41,7 @@ export function createDefaultProject({ kind = "bulletin", name = "Untitled" } = 
         fontSize: 11,
         background: "#ffffff",
         borderColor: "#d8cdbd",
-        borderWidth: 1,
+        borderWidth: 0,
       }),
       imageElement({
         name: "Series Logo",

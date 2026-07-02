@@ -772,7 +772,7 @@ function defaultStyle(type) {
     color: "#251d18",
     background: "transparent",
     borderColor: "#d8cdbd",
-    borderWidth: type === "image" || type === "canvas" || type === "pageBreak" ? 0 : 1,
+    borderWidth: 0,
     align: "left",
   };
 }

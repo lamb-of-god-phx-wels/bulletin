@@ -3,8 +3,6 @@
 * Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
 * Feature: Toggle page view vs. contiguous view on drag-n-drop view.
 * Feature: Allow drag-to-resize in drag-n-drop view
-* Feature: Tool tips on inputs to suggest types of inputs (inches, percent,
-  auto, etc.)
 * Bug: Cannot drag a canvas element off of a canvas.
     * The correct behavior is that when moving a canvas element off of a canvas,
       the canvas element should be unwrapped and its wrapped element placed

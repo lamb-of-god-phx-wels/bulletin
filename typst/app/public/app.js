@@ -431,9 +431,7 @@ function renderInspector() {
       </div>
       <p class="mutedText">Margins define the content box. Elements and PDF output always stay inside this area.</p>
     `;
-    els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
-      input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
-    });
+    wireInspectorInputs();
     return;
   }
   const element = target.element;
@@ -450,9 +448,7 @@ function renderInspector() {
       <h3>Wrapped Element</h3>
       ${wrappedElementFields(element)}
     `;
-    els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
-      input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
-    });
+    wireInspectorInputs();
     return;
   }
 
@@ -468,9 +464,7 @@ function renderInspector() {
       </div>
       <p class="mutedText">Canvas children are positioned by selecting them inside the dashed canvas.</p>
     `;
-    els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
-      input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
-    });
+    wireInspectorInputs();
     return;
   }
 
@@ -498,9 +492,45 @@ function renderInspector() {
     ${typeFields(element)}
   `;
 
+  wireInspectorInputs();
+}
+
+function wireInspectorInputs() {
   els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
+    applyInputTooltip(input);
     input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
   });
+}
+
+function applyInputTooltip(input) {
+  const type = input.dataset.valueType || input.type;
+  const help = inputHelpText(type);
+  if (!help) return;
+  input.title = help;
+  if (input.placeholder || input.tagName === "SELECT") return;
+  const placeholder = inputPlaceholder(type);
+  if (placeholder) input.placeholder = placeholder;
+}
+
+function inputHelpText(type) {
+  if (type === "inch-size") return "Use inches by default, such as 1.25 or 1.25in. Also accepts %, auto, and fr.";
+  if (type === "inch-spacing") return "Use inches by default, such as 0.125 or 0.125in. Also accepts %.";
+  if (type === "page-inch-length") return "Use page size in inches, such as 7 or 7in.";
+  if (type === "typst-inch-length") return "Use PDF page size in inches, such as 7 or 7in.";
+  if (type === "length") return "Use a number or length such as 11, 11pt, 1em, 0.125in, or %.";
+  if (type === "integer") return "Use a whole number.";
+  if (type === "number") return "Use a number.";
+  if (type === "array") return "Enter one item per line.";
+  if (type === "boolean") return "Choose true or false.";
+  return "";
+}
+
+function inputPlaceholder(type) {
+  if (type === "inch-size") return "1.25in, 100%, auto";
+  if (type === "inch-spacing") return "0.125in or 0.125";
+  if (type === "page-inch-length" || type === "typst-inch-length") return "7in";
+  if (type === "length") return "11pt or 11";
+  return "";
 }
 
 function wrappedElementFields(element) {

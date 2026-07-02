@@ -94,3 +94,33 @@ A bulletin is a folder on disk that represents a *typst* project
 design and interaction with the frontend. The frontend is a web app that
 provides a polished user interface for building and interacting with the
 templates/bulletins and exporting as PDFs. 
+
+## TODO
+
+* Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
+* Feature: Toggle page view vs. contiguous view on drag-n-drop view.
+* Bug: When dragging an element onto a canvas, it places a "Drop Here"
+  placeholder above/below the canvas rather than on the canvas.
+* Feature: Allow drag-to-resize in drag-n-drop view
+* Feature: Insert clicked elements from pallete after current selected element
+  rather than end.
+* Feature: Tool tips on inputs to suggest types of inputs (inches, percent,
+  auto, etc.)
+* Bug: Canvas elements do not expose their wrapped element's properties.
+* Bug: Cannot drag a canvas element off of a canvas.
+    * The correct behavior is that when moving a canvas element off of a canvas,
+      the canvas element should be unwrapped and its wrapped element placed
+      instead. When moving between canvases, it either be unwrapped or used as
+      is (if unwrapped, it would follow the same path from that point on as a
+      new element being added to the canvas).
+* Feature: "Delete" key deletes element
+* Feature: Undo/redo stack
+* Feature: Canvas "snap"
+    * Enable "snap" feature by toggle setting
+    * elements will snap to grid
+        * User can set the grid size
+* Feature: Align elements
+    * Per element, give setting in the inspection area to align [left, middle,
+      right] and [top, middle, bottom]. 
+    * Present as buttons oriented positionally where they correspond to.
+* Bug: Pallete and inspection area do not fit content fully

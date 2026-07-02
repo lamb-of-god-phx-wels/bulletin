@@ -295,7 +295,38 @@ label input, label textarea, label select {
 }
 
 .pageCanvas.pageView {
-  overflow: hidden;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--editor-page-height, 816px) - 2px),
+      rgb(113 49 31 / 32%) calc(var(--editor-page-height, 816px) - 2px),
+      rgb(113 49 31 / 32%) var(--editor-page-height, 816px)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(113 49 31 / 8%) 0,
+      rgb(113 49 31 / 8%) var(--editor-margin-top, 0px),
+      transparent var(--editor-margin-top, 0px),
+      transparent calc(var(--editor-page-height, 816px) - var(--editor-margin-bottom, 0px)),
+      rgb(113 49 31 / 8%) calc(var(--editor-page-height, 816px) - var(--editor-margin-bottom, 0px)),
+      rgb(113 49 31 / 8%) var(--editor-page-height, 816px)
+    ),
+    linear-gradient(
+      to right,
+      rgb(113 49 31 / 8%) 0,
+      rgb(113 49 31 / 8%) var(--editor-margin-left, 0px),
+      transparent var(--editor-margin-left, 0px),
+      transparent calc(100% - var(--editor-margin-right, 0px)),
+      rgb(113 49 31 / 8%) calc(100% - var(--editor-margin-right, 0px)),
+      rgb(113 49 31 / 8%) 100%
+    );
+}
+
+.pageSpacer {
+  flex: 0 0 auto;
+  width: 100%;
+  pointer-events: none;
 }
 
 .canvasElement {

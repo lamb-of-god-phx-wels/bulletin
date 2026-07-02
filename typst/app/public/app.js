@@ -182,17 +182,25 @@ function renderCanvas() {
   if (!state.project) return;
   const page = state.project.page || canvasSize;
   const margins = pageMargins(page);
+  const pageHeight = page.height || canvasSize.height;
+  const pageWidth = page.width || canvasSize.width;
   els.pageCanvas.classList.toggle("pageView", state.pageView);
-  els.pageCanvas.style.width = `${page.width}px`;
-  els.pageCanvas.style.height = state.pageView ? `${page.height || canvasSize.height}px` : "";
-  els.pageCanvas.style.minHeight = state.pageView ? `${page.height || canvasSize.height}px` : `${Math.min(page.height || canvasSize.height, 320)}px`;
+  els.pageCanvas.style.width = `${pageWidth}px`;
+  els.pageCanvas.style.height = "";
+  els.pageCanvas.style.minHeight = state.pageView ? `${pageHeight}px` : `${Math.min(pageHeight, 320)}px`;
+  els.pageCanvas.style.setProperty("--editor-page-height", `${pageHeight}px`);
+  els.pageCanvas.style.setProperty("--editor-margin-top", `${pixelLength(margins.top, pageHeight, 0)}px`);
+  els.pageCanvas.style.setProperty("--editor-margin-right", `${pixelLength(margins.right, pageWidth, 0)}px`);
+  els.pageCanvas.style.setProperty("--editor-margin-bottom", `${pixelLength(margins.bottom, pageHeight, 0)}px`);
+  els.pageCanvas.style.setProperty("--editor-margin-left", `${pixelLength(margins.left, pageWidth, 0)}px`);
   els.pageCanvas.style.padding = `${cssLength(margins.top)} ${cssLength(margins.right)} ${cssLength(margins.bottom)} ${cssLength(margins.left)}`;
-  els.pageCanvas.style.background = page.background || "#ffffff";
+  els.pageCanvas.style.backgroundColor = page.background || "#ffffff";
   els.pageCanvas.innerHTML = "";
   for (const element of state.project.elements) {
     els.pageCanvas.append(renderElement(element));
   }
   if (state.dropIndex !== null) showDropSlot(state.dropIndex);
+  applyPageViewPagination(page);
 }
 
 function renderElement(element) {
@@ -977,11 +985,75 @@ function showDropSlot(index) {
   }
   slot.textContent = state.draggingId ? "Move here" : "Drop here";
   els.pageCanvas.insertBefore(slot, elementNodeAtOrAfter(state.dropIndex));
+  applyPageViewPagination();
 }
 
 function clearDropSlot() {
   state.dropIndex = null;
   els.pageCanvas.querySelector(".dropSlot")?.remove();
+  applyPageViewPagination();
+}
+
+function applyPageViewPagination(page = state.project?.page || canvasSize) {
+  els.pageCanvas.querySelectorAll(":scope > .pageSpacer").forEach((spacer) => spacer.remove());
+  resetPageBreakHeights();
+  if (!state.pageView) return;
+  const pageHeight = page.height || canvasSize.height;
+  const margins = pageMargins(page);
+  const marginTop = pixelLength(margins.top, pageHeight, 0);
+  const marginBottom = pixelLength(margins.bottom, pageHeight, 0);
+  const contentHeight = pageHeight - marginTop - marginBottom;
+  if (contentHeight <= 0) return;
+  const gap = pixelLength(window.getComputedStyle(els.pageCanvas).rowGap || window.getComputedStyle(els.pageCanvas).gap, pageHeight, 0);
+  let guard = 0;
+  while (guard++ < 100) {
+    const change = pageViewPaginationChange(pageHeight, marginTop, marginBottom, contentHeight, gap);
+    if (!change) return;
+    if (change.node) els.pageCanvas.insertBefore(change.node, change.before);
+  }
+}
+
+function resetPageBreakHeights() {
+  els.pageCanvas.querySelectorAll(":scope > .canvasElement.type-pageBreak").forEach((node) => {
+    const element = state.project?.elements.find((item) => item.id === node.dataset.id);
+    node.style.height = cssLength(element?.height ?? defaultDimensions("pageBreak").height);
+  });
+}
+
+function pageViewPaginationChange(pageHeight, marginTop, marginBottom, contentHeight, gap) {
+  const canvasRect = els.pageCanvas.getBoundingClientRect();
+  const nodes = [...els.pageCanvas.children].filter((node) => !node.classList.contains("pageSpacer"));
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect();
+    const top = rect.top - canvasRect.top;
+    const height = rect.height;
+    const pageStart = Math.floor(top / pageHeight) * pageHeight;
+    const contentStart = pageStart + marginTop;
+    const contentEnd = pageStart + pageHeight - marginBottom;
+    const nextContentStart = pageStart + pageHeight + marginTop;
+    let desiredTop = null;
+    if (top < contentStart - 0.5) desiredTop = contentStart;
+    else if (top >= contentEnd - 0.5) desiredTop = nextContentStart;
+    else if (height <= contentHeight && top > contentStart + 0.5 && top + height > contentEnd + 0.5) desiredTop = nextContentStart;
+    if (desiredTop === null) continue;
+    const spacer = document.createElement("div");
+    spacer.className = "pageSpacer";
+    spacer.setAttribute("aria-hidden", "true");
+    spacer.style.height = `${Math.max(0, desiredTop - top - gap)}px`;
+    return { node: spacer, before: node };
+  }
+  for (const node of nodes) {
+    if (!node.classList.contains("type-pageBreak")) continue;
+    const rect = node.getBoundingClientRect();
+    const top = rect.top - canvasRect.top;
+    const pageStart = Math.floor(top / pageHeight) * pageHeight;
+    const contentEnd = pageStart + pageHeight - marginBottom;
+    const desiredHeight = Math.max(defaultDimensions("pageBreak").height, contentEnd - top);
+    if (Math.abs(rect.height - desiredHeight) <= 0.5) continue;
+    node.style.height = `${desiredHeight}px`;
+    return { adjusted: true };
+  }
+  return null;
 }
 
 function elementNodeAtOrAfter(index) {

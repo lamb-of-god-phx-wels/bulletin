@@ -819,6 +819,7 @@ function beginLayoutChildDrag(event, element) {
 function handleCanvasDragOver(event) {
   const canvasTarget = canvasDropTargetFromEvent(event);
   if (canvasTarget) {
+    if (showCanvasFlowDropSlot(event, canvasTarget.element, canvasTarget.surface)) return;
     clearDropSlot();
     handleNestedCanvasDragOver(event, canvasTarget.element, canvasTarget.surface);
     return;
@@ -840,6 +841,7 @@ function handleCanvasDrop(event) {
   event.preventDefault();
   const canvasTarget = canvasDropTargetFromEvent(event);
   if (canvasTarget) {
+    if (handleCanvasFlowDrop(event, canvasTarget.element, canvasTarget.surface)) return;
     handleNestedCanvasDrop(event, canvasTarget.element, canvasTarget.surface);
     return;
   }
@@ -854,9 +856,11 @@ function handleCanvasDrop(event) {
 
 function handleNestedCanvasDragOver(event, canvasElement, surface) {
   if (!state.isDragging) return;
+  if (showCanvasFlowDropSlot(event, canvasElement, surface)) return;
   event.preventDefault();
   event.stopPropagation();
   event.dataTransfer.dropEffect = state.draggingType === "palette" ? "copy" : "move";
+  clearDropSlot();
   showCanvasDropMarker(surface, canvasElement, event);
 }
 
@@ -867,6 +871,7 @@ function handleNestedCanvasDragLeave(event, surface) {
 }
 
 function handleNestedCanvasDrop(event, canvasElement, surface) {
+  if (handleCanvasFlowDrop(event, canvasElement, surface)) return;
   event.preventDefault();
   event.stopPropagation();
   const { type, elementId, childId, layoutChildId } = dragPayload(event);
@@ -1025,6 +1030,45 @@ function clearCanvasDropMarker(surface) {
 
 function clearCanvasDropMarkers() {
   els.pageCanvas.querySelectorAll(".canvasDropMarker").forEach((marker) => marker.remove());
+}
+
+function showCanvasFlowDropSlot(event, canvasElement, surface) {
+  const index = canvasFlowDropIndex(event, canvasElement);
+  if (index === null) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = state.draggingId ? "move" : "copy";
+  clearCanvasDropMarker(surface);
+  showDropSlot(index);
+  return true;
+}
+
+function handleCanvasFlowDrop(event, canvasElement, surface) {
+  const index = canvasFlowDropIndex(event, canvasElement);
+  if (index === null) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  const { type, elementId: id } = dragPayload(event);
+  if (!type && !id) return true;
+  clearCanvasDropMarker(surface);
+  clearDropSlot();
+  clearDragState();
+  if (id) moveElement(id, index);
+  else if (type) addElement(type, index);
+  return true;
+}
+
+function canvasFlowDropIndex(event, canvasElement) {
+  if (state.draggingType === "canvas-child" || state.draggingType === "layout-child") return null;
+  const index = elementIndex(canvasElement.id);
+  if (index < 0) return null;
+  const node = [...els.pageCanvas.querySelectorAll(":scope > .canvasElement")].find((element) => element.dataset.id === canvasElement.id);
+  if (!node) return null;
+  const rect = node.getBoundingClientRect();
+  const edgeSize = Math.min(24, Math.max(12, rect.height * 0.12));
+  if (event.clientY <= rect.top + edgeSize) return index;
+  if (event.clientY >= rect.bottom - edgeSize) return index + 1;
+  return null;
 }
 
 function canvasDropTargetFromEvent(event) {

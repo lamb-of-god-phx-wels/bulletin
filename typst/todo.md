@@ -23,6 +23,5 @@
 * Feature: Multi-element selection/select all (ctrl + a)
 * Feature: up/down arrows for font size
 * Feature: Display grid/stack layout elements as they would render
-* Bug: Cannot place element before canvas if it is the first element
 * Feature: Input validation
 * Create a spec

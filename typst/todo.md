@@ -24,8 +24,5 @@
 * Feature: up/down arrows for font size
 * Feature: Display grid/stack layout elements as they would render
 * Bug: Cannot place element before canvas if it is the first element
-* Feature: arrow key element adjustment
-    * Use arrows to micro-adjust selected elements
-    * Use ctrl + arrows to macro-adjust elements
 * Feature: Input validation
 * Create a spec

@@ -1197,11 +1197,36 @@ function selectElement(id, { renderCanvas = true } = {}) {
 }
 
 function handleGlobalKeyDown(event) {
-  if (event.key !== "Delete" || event.ctrlKey || event.metaKey || event.altKey) return;
   if (isTextEntryTarget(event.target)) return;
+  if (adjustSelectedWithArrowKey(event)) return;
+  if (event.key !== "Delete" || event.ctrlKey || event.metaKey || event.altKey) return;
   if (!state.selectedId) return;
   event.preventDefault();
   deleteSelected();
+}
+
+function adjustSelectedWithArrowKey(event) {
+  const delta = arrowDelta(event.key);
+  if (!delta || event.metaKey || event.altKey) return false;
+  const target = selectedTarget();
+  if (target?.kind !== "canvasChild") return false;
+  const step = event.ctrlKey ? 10 : 1;
+  event.preventDefault();
+  target.wrapper.x = numericLength(target.wrapper.x) + delta.x * step;
+  target.wrapper.y = numericLength(target.wrapper.y) + delta.y * step;
+  clampCanvasChild(target.parentCanvas, target.wrapper);
+  enforceCanvasSize(target.parentCanvas);
+  renderAll();
+  scheduleSaveAndMaybeBuild();
+  return true;
+}
+
+function arrowDelta(key) {
+  if (key === "ArrowLeft") return { x: -1, y: 0 };
+  if (key === "ArrowRight") return { x: 1, y: 0 };
+  if (key === "ArrowUp") return { x: 0, y: -1 };
+  if (key === "ArrowDown") return { x: 0, y: 1 };
+  return null;
 }
 
 function isTextEntryTarget(target) {

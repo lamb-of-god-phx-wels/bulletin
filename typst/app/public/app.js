@@ -479,7 +479,7 @@ function renderInspector() {
     <h3>Style</h3>
     <label>Font<input data-path="style.font" value="${attr(element.style.font)}"></label>
     <div class="fieldGrid">
-      <label>Font Size<input data-path="style.fontSize" data-value-type="length" value="${attr(element.style.fontSize)}"></label>
+      ${fontSizeControl("style.fontSize", element.style.fontSize)}
       <label>Weight<select data-path="style.fontWeight">${options(["regular", "bold"], element.style.fontWeight)}</select></label>
       <label>Style<select data-path="style.fontStyle">${options(["normal", "italic"], element.style.fontStyle)}</select></label>
       <label>Align<select data-path="style.align">${options(["left", "center", "right"], element.style.align)}</select></label>
@@ -498,8 +498,54 @@ function renderInspector() {
 function wireInspectorInputs() {
   els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
     applyInputTooltip(input);
+    input.addEventListener("keydown", handleInspectorInputKeyDown);
     input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
   });
+  els.inspector.querySelectorAll("[data-font-size-step]").forEach((button) => {
+    button.addEventListener("click", handleFontSizeButtonClick);
+  });
+}
+
+function fontSizeControl(path, value) {
+  return `<label>Font Size
+    <span class="fontSizeControl">
+      <input data-path="${attr(path)}" data-value-type="length" value="${attr(value)}">
+      <span class="fontSizeButtons">
+        <button type="button" data-font-size-step="1" title="Increase font size" aria-label="Increase font size">&uarr;</button>
+        <button type="button" data-font-size-step="-1" title="Decrease font size" aria-label="Decrease font size">&darr;</button>
+      </span>
+    </span>
+  </label>`;
+}
+
+function handleFontSizeButtonClick(event) {
+  const input = event.currentTarget.closest(".fontSizeControl")?.querySelector("input");
+  if (!input) return;
+  const nextValue = adjustedFontSize(input.value, Number(event.currentTarget.dataset.fontSizeStep), 1);
+  if (nextValue === null) return;
+  input.value = nextValue;
+  updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type);
+}
+
+function handleInspectorInputKeyDown(event) {
+  const input = event.currentTarget;
+  if (!input.dataset.path?.endsWith("style.fontSize")) return;
+  const direction = event.key === "ArrowUp" ? 1 : event.key === "ArrowDown" ? -1 : 0;
+  if (!direction || event.metaKey || event.altKey) return;
+  const nextValue = adjustedFontSize(input.value, direction, event.ctrlKey ? 5 : 1);
+  if (nextValue === null) return;
+  event.preventDefault();
+  input.value = nextValue;
+  updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type);
+}
+
+function adjustedFontSize(value, direction, multiplier) {
+  const match = String(value ?? "").trim().match(/^(-?[0-9]+(?:\.[0-9]+)?)(pt|in|cm|mm|em|%)?$/);
+  if (!match) return null;
+  const unit = match[2] || "";
+  const baseStep = unit === "em" || unit === "in" || unit === "cm" ? 0.1 : unit === "%" ? 5 : 1;
+  const next = Math.max(0, Number(match[1]) + direction * baseStep * multiplier);
+  return `${formatInches(next)}${unit}`;
 }
 
 function applyInputTooltip(input) {
@@ -557,7 +603,7 @@ function wrappedElementFields(element) {
     <h3>Style</h3>
     <label>Font<input data-path="${prefix}style.font" value="${attr(element.style.font)}"></label>
     <div class="fieldGrid">
-      <label>Font Size<input data-path="${prefix}style.fontSize" data-value-type="length" value="${attr(element.style.fontSize)}"></label>
+      ${fontSizeControl(`${prefix}style.fontSize`, element.style.fontSize)}
       <label>Weight<select data-path="${prefix}style.fontWeight">${options(["regular", "bold"], element.style.fontWeight)}</select></label>
       <label>Style<select data-path="${prefix}style.fontStyle">${options(["normal", "italic"], element.style.fontStyle)}</select></label>
       <label>Align<select data-path="${prefix}style.align">${options(["left", "center", "right"], element.style.align)}</select></label>

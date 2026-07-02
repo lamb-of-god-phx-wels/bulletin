@@ -21,7 +21,6 @@
 * Bug: Pallete and inspection area do not fit content fully
 * Feature: Run as executable (hide npm/server/browser details)
 * Feature: Multi-element selection/select all (ctrl + a)
-* Feature: up/down arrows for font size
 * Feature: Display grid/stack layout elements as they would render
 * Feature: Input validation
 * Create a spec

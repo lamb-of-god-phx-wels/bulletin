@@ -196,6 +196,43 @@ label input, label textarea, label select {
   font-weight: 400;
 }
 
+.fontSizeControl {
+  position: relative;
+  display: block;
+}
+
+.fontSizeControl input {
+  width: 100%;
+  padding-right: 2.1rem;
+}
+
+.fontSizeButtons {
+  position: absolute;
+  top: 0.18rem;
+  right: 0.22rem;
+  bottom: 0.18rem;
+  display: grid;
+  width: 1.45rem;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+}
+
+.fontSizeButtons button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.fontSizeButtons button:hover {
+  background: var(--panel-2);
+  transform: none;
+}
+
 .fieldGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

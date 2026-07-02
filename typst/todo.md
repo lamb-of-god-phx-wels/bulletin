@@ -3,8 +3,6 @@
 * Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
 * Feature: Toggle page view vs. contiguous view on drag-n-drop view.
 * Feature: Allow drag-to-resize in drag-n-drop view
-* Feature: Insert clicked elements from pallete after current selected element
-  rather than end.
 * Feature: Tool tips on inputs to suggest types of inputs (inches, percent,
   auto, etc.)
 * Bug: Cannot drag a canvas element off of a canvas.

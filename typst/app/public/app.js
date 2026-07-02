@@ -609,12 +609,18 @@ function updateSelected(path, value, inputType) {
   scheduleSaveAndMaybeBuild();
 }
 
-function addElement(type, index = state.project?.elements.length || 0) {
+function addElement(type, index = newElementInsertionIndex()) {
   if (!state.project) return;
   const element = createElement(type);
   state.project.elements.splice(clampIndex(index, state.project.elements.length), 0, element);
   selectElement(element.id);
   scheduleSaveAndMaybeBuild();
+}
+
+function newElementInsertionIndex() {
+  if (!state.project?.elements?.length || !state.selectedId || state.selectedId === pageSetupId) return state.project?.elements?.length || 0;
+  const selectedIndex = state.project.elements.findIndex((element) => element.id === state.selectedId || containsElementId(element, state.selectedId));
+  return selectedIndex >= 0 ? selectedIndex + 1 : state.project.elements.length;
 }
 
 function createElement(type) {

@@ -260,6 +260,8 @@ function renderPageBreakElement() {
 
 function renderCanvasChild(child, parentCanvas) {
   const size = effectiveElementSize(child.element, effectiveCanvasSize(parentCanvas).width);
+  const autoWidth = isAutoLength(child.element.width);
+  const autoHeight = isAutoLength(child.element.height);
   const wrapper = document.createElement("div");
   wrapper.className = "canvasChild";
   wrapper.classList.toggle("selected", child.id === state.selectedId);
@@ -267,8 +269,9 @@ function renderCanvasChild(child, parentCanvas) {
   wrapper.dataset.id = child.id;
   wrapper.style.left = cssLength(child.x);
   wrapper.style.top = cssLength(child.y);
-  wrapper.style.width = cssLength(size.width);
-  wrapper.style.height = cssLength(size.height);
+  wrapper.style.width = autoWidth ? "fit-content" : cssLength(size.width);
+  wrapper.style.height = autoHeight ? "fit-content" : cssLength(size.height);
+  if (autoWidth) wrapper.style.maxWidth = cssLength(size.width);
   wrapper.draggable = true;
   wrapper.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -276,15 +279,16 @@ function renderCanvasChild(child, parentCanvas) {
   });
   wrapper.addEventListener("dragstart", (event) => beginCanvasChildDrag(event, child));
   wrapper.addEventListener("dragend", finishDrag);
-  wrapper.append(renderCanvasChildElement(child.element, size));
+  wrapper.append(renderCanvasChildElement(child.element, size, { autoWidth, autoHeight }));
   return wrapper;
 }
 
-function renderCanvasChildElement(element, size) {
+function renderCanvasChildElement(element, size, { autoWidth = false, autoHeight = false } = {}) {
   const node = document.createElement("div");
   node.className = `canvasChildElement type-${element.type}`;
-  node.style.width = `${size.width}px`;
-  node.style.height = `${size.height}px`;
+  node.style.width = autoWidth ? "fit-content" : "100%";
+  node.style.height = autoHeight ? "fit-content" : "100%";
+  if (autoWidth) node.style.maxWidth = "100%";
   node.style.padding = element.type === "canvas" ? "0px" : cssLength(element.padding);
   node.style.color = element.style.color;
   node.style.background = element.style.background === "transparent" ? "transparent" : element.style.background;
@@ -437,10 +441,13 @@ function renderInspector() {
     els.selectionHint.textContent = `${element.type} element positioned in canvas.`;
     els.inspector.className = "inspector";
     els.inspector.innerHTML = `
+      <h3>Canvas Position</h3>
       <div class="fieldGrid">
         <label>X<input data-path="x" data-value-type="inch-spacing" value="${attr(inchValue(target.wrapper.x))}"></label>
         <label>Y<input data-path="y" data-value-type="inch-spacing" value="${attr(inchValue(target.wrapper.y))}"></label>
       </div>
+      <h3>Wrapped Element</h3>
+      ${wrappedElementFields(element)}
     `;
     els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
       input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
@@ -495,21 +502,59 @@ function renderInspector() {
   });
 }
 
-function typeFields(element) {
-  if (element.type === "pageBreak") return `<p class="mutedText">This element has no data fields.</p>`;
-  const dataSchema = schemaForType(element.type)?.properties?.data;
-  if (dataSchema?.properties) return schemaDataFields(element, dataSchema);
-  return `<label>Text<textarea data-path="data.text">${textarea(element.data.text || "")}</textarea></label>`;
+function wrappedElementFields(element) {
+  const prefix = "element.";
+  if (element.type === "canvas") {
+    return `
+      <label>Name<input data-path="${prefix}name" value="${attr(element.name)}"></label>
+      <div class="fieldGrid">
+        <label>Width<input data-path="${prefix}width" data-value-type="inch-size" value="${attr(inchValue(element.width))}"></label>
+        <label>Height<input data-path="${prefix}height" data-value-type="inch-size" value="${attr(inchValue(element.height))}"></label>
+        <label>Margin<input data-path="${prefix}margin" data-value-type="inch-spacing" value="${attr(inchValue(element.margin))}"></label>
+      </div>
+      <p class="mutedText">This nested canvas has its own children and placement area.</p>
+    `;
+  }
+  return `
+    <label>Name<input data-path="${prefix}name" value="${attr(element.name)}"></label>
+    <div class="fieldGrid">
+      <label>Width<input data-path="${prefix}width" data-value-type="inch-size" value="${attr(inchValue(element.width))}"></label>
+      <label>Height<input data-path="${prefix}height" data-value-type="inch-size" value="${attr(inchValue(element.height))}"></label>
+      <label>Padding<input data-path="${prefix}padding" data-value-type="inch-spacing" value="${attr(inchValue(element.padding))}"></label>
+      <label>Margin<input data-path="${prefix}margin" data-value-type="inch-spacing" value="${attr(inchValue(element.margin))}"></label>
+    </div>
+    <h3>Style</h3>
+    <label>Font<input data-path="${prefix}style.font" value="${attr(element.style.font)}"></label>
+    <div class="fieldGrid">
+      <label>Font Size<input data-path="${prefix}style.fontSize" data-value-type="length" value="${attr(element.style.fontSize)}"></label>
+      <label>Weight<select data-path="${prefix}style.fontWeight">${options(["regular", "bold"], element.style.fontWeight)}</select></label>
+      <label>Style<select data-path="${prefix}style.fontStyle">${options(["normal", "italic"], element.style.fontStyle)}</select></label>
+      <label>Align<select data-path="${prefix}style.align">${options(["left", "center", "right"], element.style.align)}</select></label>
+      <label>Color<input type="color" data-path="${prefix}style.color" value="${attr(colorValue(element.style.color))}"></label>
+      <label>Background<input data-path="${prefix}style.background" value="${attr(element.style.background)}"></label>
+      <label>Border Color<input type="color" data-path="${prefix}style.borderColor" value="${attr(colorValue(element.style.borderColor))}"></label>
+      <label>Border Width<input data-path="${prefix}style.borderWidth" data-value-type="length" value="${attr(element.style.borderWidth)}"></label>
+    </div>
+    <h3>Data</h3>
+    ${typeFields(element, prefix)}
+  `;
 }
 
-function schemaDataFields(element, dataSchema) {
+function typeFields(element, pathPrefix = "") {
+  if (element.type === "pageBreak") return `<p class="mutedText">This element has no data fields.</p>`;
+  const dataSchema = schemaForType(element.type)?.properties?.data;
+  if (dataSchema?.properties) return schemaDataFields(element, dataSchema, pathPrefix);
+  return `<label>Text<textarea data-path="${pathPrefix}data.text">${textarea(element.data.text || "")}</textarea></label>`;
+}
+
+function schemaDataFields(element, dataSchema, pathPrefix = "") {
   return Object.entries(dataSchema.properties)
-    .map(([key, schema]) => schemaDataField(element, key, schema, dataSchema.required?.includes(key)))
+    .map(([key, schema]) => schemaDataField(element, key, schema, dataSchema.required?.includes(key), pathPrefix))
     .join("");
 }
 
-function schemaDataField(element, key, schema, required) {
-  const path = `data.${key}`;
+function schemaDataField(element, key, schema, required, pathPrefix = "") {
+  const path = `${pathPrefix}data.${key}`;
   const label = `${labelForKey(key)}${required ? " *" : ""}`;
   const value = element.data?.[key] ?? "";
   if (physicalDataFields.has(key)) {
@@ -552,7 +597,9 @@ function updateSelected(path, value, inputType) {
     setDeep(state.project.page, path, nextValue);
   } else if (target.kind === "canvasChild") {
     setDeep(target.wrapper, path, nextValue);
+    if (target.wrapper.element?.type === "canvas") enforceCanvasSize(target.wrapper.element);
     clampCanvasChild(target.parentCanvas, target.wrapper);
+    enforceCanvasSize(target.parentCanvas);
   } else {
     setDeep(target.element, path, nextValue);
     if (target.element.type === "canvas") enforceCanvasSize(target.element);
@@ -1401,9 +1448,31 @@ function effectiveElementSize(element, baseWidth = pageContentBox().width) {
   if (!element) return { width: 80, height: 48 };
   if (element.type === "canvas") return effectiveCanvasSize(element, baseWidth);
   const fallback = defaultDimensions(element.type);
+  const autoFallback = autoElementSizeFallback(element, baseWidth);
+  const pageHeight = pageContentBox().height;
+  const widthFallback = isAutoLength(element.width) ? autoFallback.width : pixelLength(fallback.width, baseWidth, 120);
+  const heightFallback = isAutoLength(element.height) ? autoFallback.height : pixelLength(fallback.height, pageHeight, 80);
   return {
-    width: Math.max(1, pixelLength(element.width, baseWidth, pixelLength(fallback.width, baseWidth, 120))),
-    height: Math.max(1, pixelLength(element.height, pageContentBox().height, pixelLength(fallback.height, pageContentBox().height, 80))),
+    width: Math.max(1, pixelLength(element.width, baseWidth, widthFallback)),
+    height: Math.max(1, pixelLength(element.height, pageHeight, heightFallback)),
+  };
+}
+
+function autoElementSizeFallback(element, baseWidth) {
+  const padding = pixelLength(element.padding, baseWidth, 0) * 2;
+  const border = pixelLength(element.style?.borderWidth, baseWidth, 0) * 2;
+  const chrome = padding + border;
+  if (element.type === "image") return { width: Math.min(baseWidth, 160), height: 110 };
+  if (element.type === "music") return { width: Math.min(baseWidth, 220), height: 120 };
+  if (element.type === "date") return { width: Math.min(baseWidth, 180), height: 42 };
+  if (element.type === "pageBreak") return { width: Math.min(baseWidth, 160), height: 28 };
+  const text = element.type === "text" ? String(element.data?.text || element.name || "Text") : element.name || element.type || "Element";
+  const longestLine = text.split("\n").reduce((longest, line) => Math.max(longest, line.length), 1);
+  const lineCount = Math.max(1, text.split("\n").length);
+  const fontSize = pixelLength(element.style?.fontSize, baseWidth, 11);
+  return {
+    width: clampNumber(Math.ceil(longestLine * fontSize * 0.55 + chrome), 48, baseWidth),
+    height: Math.max(24, Math.ceil(lineCount * fontSize * 1.35 + chrome)),
   };
 }
 
@@ -1465,6 +1534,10 @@ function cssLength(value) {
   if (/^-?[0-9]+(\.[0-9]+)?fr$/.test(text)) return "auto";
   const number = Number(text);
   return Number.isFinite(number) ? `${number}px` : "0px";
+}
+
+function isAutoLength(value) {
+  return String(value ?? "").trim() === "auto";
 }
 
 function inchValue(value) {

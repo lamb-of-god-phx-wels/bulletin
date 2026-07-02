@@ -294,6 +294,10 @@ label input, label textarea, label select {
   transform-origin: top center;
 }
 
+.pageCanvas.pageView {
+  overflow: hidden;
+}
+
 .canvasElement {
   flex: 0 0 auto;
   max-width: 100%;

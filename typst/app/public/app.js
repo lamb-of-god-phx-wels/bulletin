@@ -16,6 +16,7 @@ const state = {
   buildTimer: null,
   buildRunning: false,
   buildQueued: false,
+  pageView: false,
   isDragging: false,
   draggingId: null,
   draggingType: null,
@@ -42,6 +43,7 @@ const els = {
   buildOutput: document.querySelector("#buildOutput"),
   buildOutputToggle: document.querySelector("#buildOutputToggle"),
   pageSetupButton: document.querySelector("#pageSetupButton"),
+  pageViewButton: document.querySelector("#pageViewButton"),
   deleteButton: document.querySelector("#deleteButton"),
   duplicateButton: document.querySelector("#duplicateButton"),
 };
@@ -53,6 +55,7 @@ els.saveButton.addEventListener("click", () => safeAction(() => saveNow("Saved."
 els.buildButton.addEventListener("click", () => safeAction(() => buildNow({ manual: true })));
 els.buildOutputToggle.addEventListener("click", toggleBuildOutput);
 els.pageSetupButton.addEventListener("click", selectPageSetup);
+els.pageViewButton.addEventListener("click", togglePageView);
 els.applyAssetButton.addEventListener("click", applySelectedAsset);
 els.deleteButton.addEventListener("click", deleteSelected);
 els.duplicateButton.addEventListener("click", duplicateSelected);
@@ -179,8 +182,10 @@ function renderCanvas() {
   if (!state.project) return;
   const page = state.project.page || canvasSize;
   const margins = pageMargins(page);
+  els.pageCanvas.classList.toggle("pageView", state.pageView);
   els.pageCanvas.style.width = `${page.width}px`;
-  els.pageCanvas.style.minHeight = `${Math.min(page.height || canvasSize.height, 320)}px`;
+  els.pageCanvas.style.height = state.pageView ? `${page.height || canvasSize.height}px` : "";
+  els.pageCanvas.style.minHeight = state.pageView ? `${page.height || canvasSize.height}px` : `${Math.min(page.height || canvasSize.height, 320)}px`;
   els.pageCanvas.style.padding = `${cssLength(margins.top)} ${cssLength(margins.right)} ${cssLength(margins.bottom)} ${cssLength(margins.left)}`;
   els.pageCanvas.style.background = page.background || "#ffffff";
   els.pageCanvas.innerHTML = "";
@@ -1500,6 +1505,13 @@ function toggleBuildOutput() {
   els.buildOutput.parentElement.classList.toggle("showBuildOutput", !visible);
   els.buildOutputToggle.textContent = visible ? "Show Build Details" : "Hide Build Details";
   els.buildOutputToggle.setAttribute("aria-pressed", String(!visible));
+}
+
+function togglePageView() {
+  state.pageView = !state.pageView;
+  els.pageViewButton.textContent = state.pageView ? "Contiguous View" : "Page View";
+  els.pageViewButton.setAttribute("aria-pressed", String(state.pageView));
+  renderCanvas();
 }
 
 async function refreshProjectOptions(selectedName) {

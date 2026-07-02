@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 import { createDefaultProject } from "./defaults.js";
 import { renderTypst } from "./render-typst.js";
 
+const pxPerIn = 96;
+const ptPerPx = 0.75;
+
 const libDir = path.dirname(fileURLToPath(import.meta.url));
 export const appDir = path.resolve(libDir, "..");
 export const typstDir = path.resolve(appDir, "..");
@@ -141,8 +144,30 @@ export function normalizeProject(project, kind, name) {
     ...project,
     kind: validateKind(project.kind || base.kind),
     name: validateName(project.name || base.name),
-    page: { ...base.page, ...project.page },
+    page: normalizePage(project.page, base.page),
     elements,
+  };
+}
+
+function normalizePage(page = {}, basePage) {
+  const merged = { ...basePage, ...page };
+  return {
+    ...merged,
+    width: numberOr(merged.width, basePage.width),
+    height: numberOr(merged.height, basePage.height),
+    typstWidth: typstLengthOr(merged.typstWidth, basePage.typstWidth),
+    typstHeight: typstLengthOr(merged.typstHeight, basePage.typstHeight),
+    background: merged.background || "#ffffff",
+    margins: normalizeMargins(merged.margins),
+  };
+}
+
+function normalizeMargins(margins = {}) {
+  return {
+    top: lengthOr(margins.top, 0),
+    right: lengthOr(margins.right ?? margins.outer, 0),
+    bottom: lengthOr(margins.bottom, 0),
+    left: lengthOr(margins.left ?? margins.inner, 0),
   };
 }
 
@@ -260,7 +285,12 @@ function absoluteNumber(value) {
   if (typeof value === "number") return value;
   const text = String(value ?? "").trim();
   if (!text || text === "auto" || text.endsWith("%") || text.endsWith("fr")) return null;
-  const number = Number.parseFloat(text);
+  if (text.endsWith("pt")) return Number.parseFloat(text) / ptPerPx;
+  if (text.endsWith("in")) return Number.parseFloat(text) * pxPerIn;
+  if (text.endsWith("cm")) return (Number.parseFloat(text) / 2.54) * pxPerIn;
+  if (text.endsWith("mm")) return (Number.parseFloat(text) / 25.4) * pxPerIn;
+  if (text.endsWith("em")) return Number.parseFloat(text) * 16;
+  const number = Number(text);
   return Number.isFinite(number) ? number : null;
 }
 
@@ -281,7 +311,8 @@ function compareLegacyFlow(left, right) {
 }
 
 function coordinateValue(value) {
-  if (typeof value === "number") return value;
+  const pixels = absoluteNumber(value);
+  if (pixels !== null) return pixels;
   const number = Number.parseFloat(String(value ?? "0"));
   return Number.isFinite(number) ? number : 0;
 }
@@ -317,4 +348,9 @@ function lengthOr(value, fallback) {
     if (trimmed === "auto" || /^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(trimmed)) return trimmed;
   }
   return numberOr(value, fallback);
+}
+
+function typstLengthOr(value, fallback) {
+  if (typeof value === "string" && /^[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%)$/.test(value.trim())) return value.trim();
+  return fallback;
 }

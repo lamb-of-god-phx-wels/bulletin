@@ -1,6 +1,10 @@
 const canvasSize = { width: 672, height: 816 };
+const pxPerIn = 96;
+const ptPerPx = 0.75;
 const liveBuildDelay = 1200;
 const saveDelay = 350;
+const pageSetupId = "__page_setup__";
+const physicalDataFields = new Set(["cellPadding", "rowGap", "columnGap", "gap"]);
 
 const state = {
   project: null,
@@ -36,6 +40,7 @@ const els = {
   pdfFrame: document.querySelector("#pdfFrame"),
   buildOutput: document.querySelector("#buildOutput"),
   buildOutputToggle: document.querySelector("#buildOutputToggle"),
+  pageSetupButton: document.querySelector("#pageSetupButton"),
   deleteButton: document.querySelector("#deleteButton"),
   duplicateButton: document.querySelector("#duplicateButton"),
 };
@@ -46,6 +51,7 @@ els.newButton.addEventListener("click", () => safeAction(createProject));
 els.saveButton.addEventListener("click", () => safeAction(() => saveNow("Saved.")));
 els.buildButton.addEventListener("click", () => safeAction(() => buildNow({ manual: true })));
 els.buildOutputToggle.addEventListener("click", toggleBuildOutput);
+els.pageSetupButton.addEventListener("click", selectPageSetup);
 els.applyAssetButton.addEventListener("click", applySelectedAsset);
 els.deleteButton.addEventListener("click", deleteSelected);
 els.duplicateButton.addEventListener("click", duplicateSelected);
@@ -168,8 +174,10 @@ function renderAll() {
 function renderCanvas() {
   if (!state.project) return;
   const page = state.project.page || canvasSize;
+  const margins = pageMargins(page);
   els.pageCanvas.style.width = `${page.width}px`;
   els.pageCanvas.style.minHeight = `${Math.min(page.height || canvasSize.height, 320)}px`;
+  els.pageCanvas.style.padding = `${cssLength(margins.top)} ${cssLength(margins.right)} ${cssLength(margins.bottom)} ${cssLength(margins.left)}`;
   els.pageCanvas.style.background = page.background || "#ffffff";
   els.pageCanvas.innerHTML = "";
   for (const element of state.project.elements) {
@@ -389,6 +397,37 @@ function renderInspector() {
     els.inspector.textContent = "No element selected.";
     return;
   }
+  if (target.kind === "page") {
+    const page = state.project.page || canvasSize;
+    const margins = pageMargins(page);
+    els.selectionHint.textContent = "Page setup selected.";
+    els.inspector.className = "inspector";
+    els.inspector.innerHTML = `
+      <h3>Editor Page</h3>
+      <div class="fieldGrid">
+        <label>GUI Width<input data-path="width" data-value-type="page-inch-length" value="${attr(inchValue(page.width))}"></label>
+        <label>GUI Height<input data-path="height" data-value-type="page-inch-length" value="${attr(inchValue(page.height))}"></label>
+      </div>
+      <h3>PDF Page</h3>
+      <div class="fieldGrid">
+        <label>PDF Width<input data-path="typstWidth" data-value-type="typst-inch-length" value="${attr(inchValue(page.typstWidth || "7in"))}"></label>
+        <label>PDF Height<input data-path="typstHeight" data-value-type="typst-inch-length" value="${attr(inchValue(page.typstHeight || "8.5in"))}"></label>
+      </div>
+      <label>Page Color<input type="color" data-path="background" value="${attr(colorValue(page.background || "#ffffff"))}"></label>
+      <h3>Margins</h3>
+      <div class="fieldGrid">
+        <label>Top<input data-path="margins.top" data-value-type="inch-spacing" value="${attr(inchValue(margins.top))}"></label>
+        <label>Right<input data-path="margins.right" data-value-type="inch-spacing" value="${attr(inchValue(margins.right))}"></label>
+        <label>Bottom<input data-path="margins.bottom" data-value-type="inch-spacing" value="${attr(inchValue(margins.bottom))}"></label>
+        <label>Left<input data-path="margins.left" data-value-type="inch-spacing" value="${attr(inchValue(margins.left))}"></label>
+      </div>
+      <p class="mutedText">Margins define the content box. Elements and PDF output always stay inside this area.</p>
+    `;
+    els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
+      input.addEventListener("input", () => updateSelected(input.dataset.path, input.value, input.dataset.valueType || input.type));
+    });
+    return;
+  }
   const element = target.element;
 
   if (target.kind === "canvasChild") {
@@ -396,8 +435,8 @@ function renderInspector() {
     els.inspector.className = "inspector";
     els.inspector.innerHTML = `
       <div class="fieldGrid">
-        <label>X<input data-path="x" data-value-type="length" value="${attr(target.wrapper.x)}"></label>
-        <label>Y<input data-path="y" data-value-type="length" value="${attr(target.wrapper.y)}"></label>
+        <label>X<input data-path="x" data-value-type="inch-spacing" value="${attr(inchValue(target.wrapper.x))}"></label>
+        <label>Y<input data-path="y" data-value-type="inch-spacing" value="${attr(inchValue(target.wrapper.y))}"></label>
       </div>
     `;
     els.inspector.querySelectorAll("input, textarea, select").forEach((input) => {
@@ -412,9 +451,9 @@ function renderInspector() {
     els.inspector.innerHTML = `
       <label>Name<input data-path="name" value="${attr(element.name)}"></label>
       <div class="fieldGrid">
-        <label>Width<input data-path="width" data-value-type="length" value="${attr(element.width)}"></label>
-        <label>Height<input data-path="height" data-value-type="length" value="${attr(element.height)}"></label>
-        <label>Margin<input data-path="margin" data-value-type="length" value="${attr(element.margin)}"></label>
+        <label>Width<input data-path="width" data-value-type="inch-size" value="${attr(inchValue(element.width))}"></label>
+        <label>Height<input data-path="height" data-value-type="inch-size" value="${attr(inchValue(element.height))}"></label>
+        <label>Margin<input data-path="margin" data-value-type="inch-spacing" value="${attr(inchValue(element.margin))}"></label>
       </div>
       <p class="mutedText">Canvas children are positioned by selecting them inside the dashed canvas.</p>
     `;
@@ -427,10 +466,10 @@ function renderInspector() {
   els.inspector.innerHTML = `
     <label>Name<input data-path="name" value="${attr(element.name)}"></label>
     <div class="fieldGrid">
-      <label>Width<input data-path="width" data-value-type="length" value="${attr(element.width)}"></label>
-      <label>Height<input data-path="height" data-value-type="length" value="${attr(element.height)}"></label>
-      <label>Padding<input data-path="padding" data-value-type="length" value="${attr(element.padding)}"></label>
-      <label>Margin<input data-path="margin" data-value-type="length" value="${attr(element.margin)}"></label>
+      <label>Width<input data-path="width" data-value-type="inch-size" value="${attr(inchValue(element.width))}"></label>
+      <label>Height<input data-path="height" data-value-type="inch-size" value="${attr(inchValue(element.height))}"></label>
+      <label>Padding<input data-path="padding" data-value-type="inch-spacing" value="${attr(inchValue(element.padding))}"></label>
+      <label>Margin<input data-path="margin" data-value-type="inch-spacing" value="${attr(inchValue(element.margin))}"></label>
     </div>
     <h3>Style</h3>
     <label>Font<input data-path="style.font" value="${attr(element.style.font)}"></label>
@@ -470,6 +509,9 @@ function schemaDataField(element, key, schema, required) {
   const path = `data.${key}`;
   const label = `${labelForKey(key)}${required ? " *" : ""}`;
   const value = element.data?.[key] ?? "";
+  if (physicalDataFields.has(key)) {
+    return `<label>${escapeHtml(label)}<input data-path="${attr(path)}" data-value-type="inch-spacing" value="${attr(inchValue(value))}"></label>`;
+  }
   if (Array.isArray(schema.enum)) {
     return `<label>${escapeHtml(label)}<select data-path="${attr(path)}">${options(schema.enum, value)}</select></label>`;
   }
@@ -493,11 +535,19 @@ function schemaDataField(element, key, schema, required) {
 function updateSelected(path, value, inputType) {
   const target = selectedTarget();
   if (!target) return;
+  const targetObject = selectedTargetObject(target);
+  const currentValue = getDeep(targetObject, path);
   let nextValue = inputType === "number" || inputType === "integer" ? Number(value) : value;
   if (inputType === "boolean") nextValue = value === "true";
   if (inputType === "array") nextValue = value.split("\n").map((line) => line.trim()).filter(Boolean);
   if (inputType === "length") nextValue = parseLengthInput(value);
-  if (target.kind === "canvasChild") {
+  if (inputType === "inch-size") nextValue = parseInchInput(value, { allowAuto: true, allowPercent: true, allowFr: true });
+  if (inputType === "inch-spacing") nextValue = parseInchInput(value, { allowPercent: true });
+  if (inputType === "page-inch-length") nextValue = parsePageInchInput(value, currentValue);
+  if (inputType === "typst-inch-length") nextValue = parseTypstInchInput(value, currentValue);
+  if (target.kind === "page") {
+    setDeep(state.project.page, path, nextValue);
+  } else if (target.kind === "canvasChild") {
     setDeep(target.wrapper, path, nextValue);
     clampCanvasChild(target.parentCanvas, target.wrapper);
   } else {
@@ -914,10 +964,11 @@ function draftElement(type) {
 
 function clampedCanvasPoint(event, surface, canvasElement, element) {
   const rect = surface.getBoundingClientRect();
-  const size = effectiveElementSize(element, effectiveCanvasSize(canvasElement).width);
-  const pageHeight = state.project?.page?.height || canvasSize.height;
+  const canvasBox = effectiveCanvasSize(canvasElement);
+  const size = effectiveElementSize(element, canvasBox.width);
+  const pageHeight = pageContentBox().height;
   return {
-    x: Math.max(0, Math.round(event.clientX - rect.left)),
+    x: clampNumber(Math.round(event.clientX - rect.left), 0, Math.max(0, canvasBox.width - size.width)),
     y: clampNumber(Math.round(event.clientY - rect.top), 0, Math.max(0, pageHeight - size.height)),
   };
 }
@@ -1021,6 +1072,7 @@ function selectElement(id, { renderCanvas = true } = {}) {
 function deleteSelected() {
   if (!state.project || !state.selectedId) return;
   const target = selectedTarget();
+  if (target?.kind === "page") return;
   if (target?.kind === "canvasChild") {
     target.parentCanvas.children = target.parentCanvas.children.filter((child) => child.id !== target.wrapper.id);
     enforceCanvasSize(target.parentCanvas);
@@ -1044,7 +1096,7 @@ function deleteSelected() {
 
 function duplicateSelected() {
   const target = selectedTarget();
-  if (!target) return;
+  if (!target || target.kind === "page") return;
   if (target.kind === "canvasChild") {
     const clone = structuredClone(target.wrapper);
     clone.id = `wrap_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1203,12 +1255,18 @@ function selectedElement() {
 
 function selectedTarget() {
   if (!state.project?.elements || !state.selectedId) return null;
+  if (state.selectedId === pageSetupId) return { kind: "page", page: state.project.page };
   for (const element of state.project.elements) {
     if (element.id === state.selectedId) return { kind: "element", element };
     const childTarget = nestedTarget(state.selectedId, element);
     if (childTarget) return childTarget;
   }
   return null;
+}
+
+function selectPageSetup() {
+  state.selectedId = pageSetupId;
+  renderAll();
 }
 
 function nestedTarget(id, element) {
@@ -1265,6 +1323,16 @@ function containsElementId(element, id) {
   return false;
 }
 
+function selectedTargetObject(target) {
+  if (target.kind === "page") return state.project.page;
+  if (target.kind === "canvasChild") return target.wrapper;
+  return target.element;
+}
+
+function getDeep(object, path) {
+  return path.split(".").reduce((target, part) => target?.[part], object);
+}
+
 function setDeep(object, path, value) {
   const parts = path.split(".");
   let target = object;
@@ -1272,31 +1340,34 @@ function setDeep(object, path, value) {
   target[parts.at(-1)] = value;
 }
 
-function effectiveCanvasSize(element, baseWidth = state.project?.page?.width || canvasSize.width) {
-  const pageHeight = state.project?.page?.height || canvasSize.height;
+function effectiveCanvasSize(element, baseWidth = pageContentBox().width) {
+  const pageHeight = pageContentBox().height;
   const content = canvasContentExtent(element, baseWidth);
-  const width = Math.max(pixelLength(element.width, baseWidth, baseWidth), content.width);
+  const width = Math.min(baseWidth, Math.max(pixelLength(element.width, baseWidth, baseWidth), content.width));
   const requestedHeight = String(element.height ?? "auto").trim() === "auto" ? 0 : pixelLength(element.height, pageHeight, 0);
   const height = Math.min(pageHeight, Math.max(requestedHeight, content.height, 72));
   return { width, height };
 }
 
-function effectiveElementSize(element, baseWidth = state.project?.page?.width || canvasSize.width) {
+function effectiveElementSize(element, baseWidth = pageContentBox().width) {
   if (!element) return { width: 80, height: 48 };
   if (element.type === "canvas") return effectiveCanvasSize(element, baseWidth);
   const fallback = defaultDimensions(element.type);
   return {
     width: Math.max(1, pixelLength(element.width, baseWidth, pixelLength(fallback.width, baseWidth, 120))),
-    height: Math.max(1, pixelLength(element.height, canvasSize.height, pixelLength(fallback.height, canvasSize.height, 80))),
+    height: Math.max(1, pixelLength(element.height, pageContentBox().height, pixelLength(fallback.height, pageContentBox().height, 80))),
   };
 }
 
-function canvasContentExtent(element, baseWidth = state.project?.page?.width || canvasSize.width) {
+function canvasContentExtent(element, baseWidth = pageContentBox().width) {
+  const baseHeight = pageContentBox().height;
   return (element.children || []).reduce((extent, child) => {
     const childSize = effectiveElementSize(child.element, baseWidth);
+    const childX = pixelLength(child.x, baseWidth, 0);
+    const childY = pixelLength(child.y, baseHeight, 0);
     return {
-      width: Math.max(extent.width, numericLength(child.x) + childSize.width),
-      height: Math.max(extent.height, numericLength(child.y) + childSize.height),
+      width: Math.max(extent.width, childX + childSize.width),
+      height: Math.max(extent.height, childY + childSize.height),
     };
   }, { width: 0, height: 0 });
 }
@@ -1309,10 +1380,33 @@ function enforceCanvasSize(element) {
 }
 
 function clampCanvasChild(canvasElement, child) {
-  const pageHeight = state.project?.page?.height || canvasSize.height;
-  const size = effectiveElementSize(child.element, effectiveCanvasSize(canvasElement).width);
-  child.x = Math.max(0, numericLength(child.x));
-  child.y = clampNumber(numericLength(child.y), 0, Math.max(0, pageHeight - size.height));
+  const pageHeight = pageContentBox().height;
+  const canvasBox = effectiveCanvasSize(canvasElement);
+  const size = effectiveElementSize(child.element, canvasBox.width);
+  child.x = clampNumber(pixelLength(child.x, canvasBox.width, 0), 0, Math.max(0, canvasBox.width - size.width));
+  child.y = clampNumber(pixelLength(child.y, pageHeight, 0), 0, Math.max(0, pageHeight - size.height));
+}
+
+function pageContentBox(page = state.project?.page || canvasSize) {
+  const margins = pageMargins(page);
+  const left = pixelLength(margins.left, page.width || canvasSize.width, 0);
+  const right = pixelLength(margins.right, page.width || canvasSize.width, 0);
+  const top = pixelLength(margins.top, page.height || canvasSize.height, 0);
+  const bottom = pixelLength(margins.bottom, page.height || canvasSize.height, 0);
+  return {
+    width: Math.max(1, (page.width || canvasSize.width) - left - right),
+    height: Math.max(1, (page.height || canvasSize.height) - top - bottom),
+  };
+}
+
+function pageMargins(page = state.project?.page || canvasSize) {
+  const margins = page.margins || {};
+  return {
+    top: margins.top ?? 0,
+    right: margins.right ?? margins.outer ?? 0,
+    bottom: margins.bottom ?? 0,
+    left: margins.left ?? margins.inner ?? 0,
+  };
 }
 
 function cssLength(value) {
@@ -1325,11 +1419,59 @@ function cssLength(value) {
   return Number.isFinite(number) ? `${number}px` : "0px";
 }
 
+function inchValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text && typeof value !== "number") return "";
+  if (text === "auto" || text.endsWith("%") || text.endsWith("fr")) return text;
+  const pixels = absolutePixelLength(value);
+  return pixels === null ? text : `${formatInches(pixels / pxPerIn)}in`;
+}
+
 function parseLengthInput(value) {
   const text = String(value ?? "").trim();
   if (text === "auto" || /^-?[0-9]+(\.[0-9]+)?(pt|in|cm|mm|em|%|fr)$/.test(text)) return text;
   const number = Number(text);
   return Number.isFinite(number) ? number : text;
+}
+
+function parseInchInput(value, { allowAuto = false, allowPercent = false, allowFr = false } = {}) {
+  const text = String(value ?? "").trim();
+  if (!text) return 0;
+  if (allowAuto && text === "auto") return "auto";
+  if (allowPercent && /^-?[0-9]+(\.[0-9]+)?%$/.test(text)) return text;
+  if (allowFr && /^-?[0-9]+(\.[0-9]+)?fr$/.test(text)) return text;
+  const pixels = inchInputPixels(text);
+  return pixels === null ? text : roundLength(pixels);
+}
+
+function parsePageInchInput(value, fallback) {
+  const pixels = inchInputPixels(value);
+  return pixels === null || pixels <= 0 ? fallback : roundLength(pixels);
+}
+
+function parseTypstInchInput(value, fallback) {
+  const pixels = inchInputPixels(value);
+  return pixels === null || pixels <= 0 ? fallback : `${formatInches(pixels / pxPerIn)}in`;
+}
+
+function inchInputPixels(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (/^-?[0-9]+(\.[0-9]+)?$/.test(text)) return Number(text) * pxPerIn;
+  return absolutePixelLength(text);
+}
+
+function absolutePixelLength(value) {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "").trim();
+  if (!text || text === "auto" || text.endsWith("%") || text.endsWith("fr")) return null;
+  if (text.endsWith("pt")) return Number.parseFloat(text) / ptPerPx;
+  if (text.endsWith("in")) return Number.parseFloat(text) * pxPerIn;
+  if (text.endsWith("cm")) return (Number.parseFloat(text) / 2.54) * pxPerIn;
+  if (text.endsWith("mm")) return (Number.parseFloat(text) / 25.4) * pxPerIn;
+  if (text.endsWith("em")) return Number.parseFloat(text) * 16;
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
 }
 
 function pixelLength(value, base, fallback = 0) {
@@ -1338,14 +1480,28 @@ function pixelLength(value, base, fallback = 0) {
   if (!text || text === "auto") return fallback;
   if (text.endsWith("%")) return (Number.parseFloat(text) / 100) * base;
   if (text.endsWith("fr")) return fallback;
+  if (text.endsWith("pt")) return Number.parseFloat(text) / ptPerPx;
+  if (text.endsWith("in")) return Number.parseFloat(text) * pxPerIn;
+  if (text.endsWith("cm")) return (Number.parseFloat(text) / 2.54) * pxPerIn;
+  if (text.endsWith("mm")) return (Number.parseFloat(text) / 25.4) * pxPerIn;
+  if (text.endsWith("em")) return Number.parseFloat(text) * 16;
   const number = Number.parseFloat(text);
   return Number.isFinite(number) ? number : fallback;
 }
 
 function numericLength(value) {
-  if (typeof value === "number") return value;
+  const pixels = absolutePixelLength(value);
+  if (pixels !== null) return pixels;
   const number = Number.parseFloat(String(value ?? "0"));
   return Number.isFinite(number) ? number : 0;
+}
+
+function formatInches(value) {
+  return String(roundLength(value)).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+}
+
+function roundLength(value) {
+  return Math.round(value * 10000) / 10000;
 }
 
 async function api(path, options = {}, throwOnAppError = true) {

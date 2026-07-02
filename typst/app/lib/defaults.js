@@ -16,6 +16,12 @@ export function createDefaultProject({ kind = "bulletin", name = "Untitled" } = 
       typstWidth: canvas.typstWidth,
       typstHeight: canvas.typstHeight,
       background: "#ffffff",
+      margins: {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      },
     },
     elements: [
       textElement({

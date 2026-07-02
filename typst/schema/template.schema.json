@@ -90,6 +90,8 @@
         "margins": {
           "type": "object",
           "properties": {
+            "left": { "$ref": "#/$defs/size" },
+            "right": { "$ref": "#/$defs/size" },
             "inner": { "$ref": "#/$defs/size" },
             "outer": { "$ref": "#/$defs/size" },
             "top": { "$ref": "#/$defs/size" },

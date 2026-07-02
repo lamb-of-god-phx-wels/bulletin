@@ -60,12 +60,17 @@ h3 { font-size: 0.84rem; color: var(--accent); text-transform: uppercase; letter
 }
 
 input, textarea, select {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.7rem;
   background: #fffdf8;
   color: var(--ink);
   padding: 0.58rem 0.68rem;
   outline: none;
+}
+
+.panel input, .panel textarea, .panel select {
+  width: 100%;
 }
 
 textarea {
@@ -124,7 +129,11 @@ button:hover { transform: translateY(-1px); }
 
 .panel {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.inspectorPanel {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .panelHeader, .stageHeader {
@@ -141,6 +150,7 @@ button:hover { transform: translateY(-1px); }
 #statusText.error { color: var(--danger); }
 
 .palette {
+  min-height: 0;
   display: grid;
   gap: 0.55rem;
   align-content: start;
@@ -166,6 +176,7 @@ button:hover { transform: translateY(-1px); }
 }
 
 .assetBox {
+  min-width: 0;
   display: grid;
   gap: 0.55rem;
   padding: 0.8rem;

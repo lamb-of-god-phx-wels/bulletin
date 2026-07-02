@@ -18,7 +18,6 @@
     * Per element, give setting in the inspection area to align [left, middle,
       right] and [top, middle, bottom]. 
     * Present as buttons oriented positionally where they correspond to.
-* Bug: Pallete and inspection area do not fit content fully
 * Feature: Run as executable (hide npm/server/browser details)
 * Feature: Multi-element selection/select all (ctrl + a)
 * Feature: Display grid/stack layout elements as they would render

@@ -3,12 +3,6 @@
 * Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
 * Feature: Toggle page view vs. contiguous view on drag-n-drop view.
 * Feature: Allow drag-to-resize in drag-n-drop view
-* Bug: Cannot drag a canvas element off of a canvas.
-    * The correct behavior is that when moving a canvas element off of a canvas,
-      the canvas element should be unwrapped and its wrapped element placed
-      instead. When moving between canvases, it either be unwrapped or used as
-      is (if unwrapped, it would follow the same path from that point on as a
-      new element being added to the canvas).
 * Feature: Undo/redo stack
 * Feature: Canvas "snap"
     * Enable "snap" feature by toggle setting

@@ -870,7 +870,7 @@ function handleCanvasDragOver(event) {
     handleNestedCanvasDragOver(event, canvasTarget.element, canvasTarget.surface);
     return;
   }
-  if (state.draggingType === "canvas-child" || state.draggingType === "layout-child") return;
+  if (state.draggingType === "layout-child") return;
   event.preventDefault();
   event.dataTransfer.dropEffect = state.draggingId ? "move" : "copy";
   clearCanvasDropMarkers();
@@ -891,12 +891,13 @@ function handleCanvasDrop(event) {
     handleNestedCanvasDrop(event, canvasTarget.element, canvasTarget.surface);
     return;
   }
-  const { type, elementId: id } = dragPayload(event);
-  if (!type && !id) return;
+  const { type, elementId: id, childId } = dragPayload(event);
+  if (!type && !id && !childId) return;
   const index = state.dropIndex ?? insertionIndexFromPointer(event.clientY);
   clearDropSlot();
   clearDragState();
   if (id) moveElement(id, index);
+  else if (childId) moveCanvasChildToTopLevel(childId, index);
   else if (type) addElement(type, index);
 }
 
@@ -1040,6 +1041,16 @@ function moveCanvasChildIntoLayout(childId, layoutElement, index) {
   insertLayoutChild(layoutElement, target.element, index);
 }
 
+function moveCanvasChildToTopLevel(childId, index) {
+  const target = canvasChildTarget(childId);
+  if (!target) return;
+  target.parentCanvas.children = target.parentCanvas.children.filter((child) => child.id !== childId);
+  enforceCanvasSize(target.parentCanvas);
+  state.project.elements.splice(clampIndex(index, state.project.elements.length), 0, target.element);
+  selectElement(target.element.id);
+  scheduleSaveAndMaybeBuild();
+}
+
 function moveLayoutChild(childId, layoutElement, index) {
   const target = layoutChildTarget(childId);
   if (!target || containsElementId(target.element, layoutElement.id)) return;
@@ -1094,18 +1105,19 @@ function handleCanvasFlowDrop(event, canvasElement, surface) {
   if (index === null) return false;
   event.preventDefault();
   event.stopPropagation();
-  const { type, elementId: id } = dragPayload(event);
-  if (!type && !id) return true;
+  const { type, elementId: id, childId } = dragPayload(event);
+  if (!type && !id && !childId) return true;
   clearCanvasDropMarker(surface);
   clearDropSlot();
   clearDragState();
   if (id) moveElement(id, index);
+  else if (childId) moveCanvasChildToTopLevel(childId, index);
   else if (type) addElement(type, index);
   return true;
 }
 
 function canvasFlowDropIndex(event, canvasElement) {
-  if (state.draggingType === "canvas-child" || state.draggingType === "layout-child") return null;
+  if (state.draggingType === "layout-child") return null;
   const index = elementIndex(canvasElement.id);
   if (index < 0) return null;
   const node = [...els.pageCanvas.querySelectorAll(":scope > .canvasElement")].find((element) => element.dataset.id === canvasElement.id);

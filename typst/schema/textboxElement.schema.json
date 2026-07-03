@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "tag:typst-bulletin,2026:schema/textboxElement.schema.json",
-  "title": "Textbox Element",
+  "title": "Text Element",
   "description": "A styled text element that can be placed in a template, bulletin, or custom element schema.",
   "type": "object",
   "required": ["id", "type", "name", "width", "height", "margin", "padding", "style", "schema", "data"],
@@ -30,7 +30,7 @@
     },
     "bindings": {
       "type": "object",
-      "description": "Optional custom-element bindings keyed by textbox data property.",
+      "description": "Optional custom-element bindings keyed by text data property.",
       "properties": {
         "text": {
           "$ref": "#/$defs/binding",

@@ -31,7 +31,7 @@ Then open `http://localhost:5177`.
 
 ## Element Types
 
-- `Textbox` - styled text content.
+- `Text` - styled text content.
 - `Image` - image asset from the shared `assets/` folder.
 - `Grid Container` - rows and columns containing any child elements.
 - `Stack Container` - vertical or horizontal flow containing any child elements.

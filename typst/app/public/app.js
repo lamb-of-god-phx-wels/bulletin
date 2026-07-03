@@ -740,7 +740,7 @@ function schemaOrder(type) {
 }
 
 function paletteTitle(entry) {
-  if (entry.type === "text") return "Textbox";
+  if (entry.type === "text") return "Text";
   return String(entry.schema?.title || titleCase(entry.type)).replace(/ Element$/, "");
 }
 

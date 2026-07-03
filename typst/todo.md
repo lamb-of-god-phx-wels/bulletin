@@ -1,5 +1,7 @@
 # TODO
 
+* Feature: User authentication, per-user assets/templates/projects, and resource sharing
+* Feature: User settings panel, including margin guide visibility
 * Feature: Make drag-n-drop view synchronized with PDF preview when scrolling.
 * Feature: Allow drag-to-resize in drag-n-drop view
     * When resizing this way, dimensions are always turned into absolute
@@ -17,4 +19,3 @@
 * Feature: Multi-element selection/select all (ctrl + a)
 * Feature: Display grid/stack layout elements as they would render
 * Feature: Input validation
-* Create a spec

@@ -68,7 +68,7 @@ Mock-up:
 | -------------------  -------------------  ---------------------- |
 | | Elements        |  | Element Data    |  | Drag-and-drop area | |
 | |-----------------|  |-----------------|  | with rendering     | |
-| | Textbox         |  |  Width  _______ |  |                    | |
+| | Text            |  |  Width  _______ |  |                    | |
 | | Grid Container  |  | Height  _______ |  |                    | |
 | | Stack Container |  |      X  _______ |  |                    | |
 | | Image           |  |      Y  _______ |  |                    | |
@@ -94,4 +94,3 @@ A bulletin is a folder on disk that represents a *typst* project
 design and interaction with the frontend. The frontend is a web app that
 provides a polished user interface for building and interacting with the
 templates/bulletins and exporting as PDFs. 
-

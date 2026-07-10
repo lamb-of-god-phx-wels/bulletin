@@ -738,8 +738,415 @@ Decisions:
 - Users should have an approval/finalization step before publishing the final
   PDF.
 
+## Second Pass Review
+
+Status: Open
+
+The second pass reviewed the current `spec.md` and this decision record from all
+review-team perspectives: lead software architect, product UX specialist, local
+file-safety/security architect, data model and persistence architect, Typst/PDF
+layout engineer, and QA/accessibility/reliability lead.
+
+Overall finding: the first-pass product decisions are captured, but several
+architecture-significant contracts remain too vague. Items that affect persisted
+JSON, portable bundle formats, local security boundaries, final PDF validity, or
+data-loss behavior should be resolved in `spec.md` before implementation plans
+depend on them.
+
+### SP2-001: Normative Scope And Release Gates
+
+Severity: Critical
+
+Affected spec areas: `Goals`, `User Settings`, `Undo And Redo`, `Known Future
+Work`.
+
+Finding: The spec mixes required behavior, optional behavior, and future work
+without defining how `must`, `should`, and `may` map to release scope. Some
+features, such as undo/redo and user settings, are specified as behavior but also
+listed as future work.
+
+Recommended spec improvement: Add a normative-language and release-scope section
+that defines MVP requirements, deferred features, optional enhancements, and the
+meaning of `must`, `should`, and `may` in this document.
+
+### SP2-002: Exact JSON Schemas And Workspace Metadata
+
+Severity: Critical
+
+Affected spec areas: `Document Model`, `Element Types`, `Resource Identity`,
+`Assets`, `Resource Packs`, `Import And Export Bundles`, `Local File Conflicts`,
+`Validation Expectations`.
+
+Finding: The spec says distributed JSON schemas define persisted validity, but
+the normative schema shapes are still described narratively. Workspace metadata
+is also implied for resource ids, asset records, revisions, locks, provenance,
+and artifact state, but no workspace metadata contract exists.
+
+Recommended spec improvement: Add schema contracts or appendices for document
+JSON, page setup, common elements, wrappers, page elements, rich text, assets,
+resource packs, bundles, AI contracts/imports, custom elements, workspace
+metadata, user settings, and generated artifact records.
+
+### SP2-003: Asset Identity And Portability Conflict
+
+Severity: Critical
+
+Affected spec areas: `Resource Identity`, `Image`, `Assets`, `Resource Packs`,
+`Import And Export Bundles`, `AI-Assisted Data Import`.
+
+Finding: Local resource ids are not supposed to live in portable project JSON,
+but image JSON stores `data.assetRef` as `asset:<uuid>`. Imports also assign new
+local ids, while asset references are expected to remain stable across export,
+import, and workspace moves.
+
+Recommended spec improvement: Define separate identity classes for local
+workspace resource ids, portable asset ids, bundle entry ids, resource-pack
+content ids, and document element ids. Specify import remapping, manifest maps,
+collision handling, provenance, and when document JSON is rewritten.
+
+### SP2-004: Template, Custom Element, And AI Data Source Of Truth
+
+Severity: Critical
+
+Affected spec areas: `Document Model`, `AI-Assisted Data Import`, `Custom
+Elements And Bindings`, `Template And Custom Element Lifecycle`.
+
+Finding: The spec allows template `schema`, bulletin `fieldValues`, element
+`data`, custom element `dataFields`, bindings, and AI field values, but it does
+not define which layer is authoritative or how edits, re-imports, schema updates,
+manual overrides, and conflicts interact.
+
+Recommended spec improvement: Define a shared field-contract model with stable
+field ids, value types, defaults, constraints, binding paths, materialization into
+visual elements, manual override behavior, source-template metadata, schema
+versioning, and AI import validation rules.
+
+### SP2-005: Rich Text AST And Safe Typst Output
+
+Severity: Critical
+
+Affected spec areas: `Text`, `AI-Assisted Data Import`, `Accessibility
+Requirements`, `Validation Expectations`.
+
+Finding: Rich text is expected to support headings, lists, scripture formatting,
+and inline bold/italic, but no persisted representation is defined. The current
+allowance for validated Typst-supported markup risks unsafe or inconsistent Typst
+generation unless the allowed grammar is explicit.
+
+Recommended spec improvement: Define a structured rich-text AST with allowed
+block nodes, inline marks, list rules, heading levels, scripture-specific nodes,
+plain-text fallback, paste sanitization, accessibility semantics, and Typst
+rendering rules. Prefer structural data over raw Typst.
+
+### SP2-006: Page-Level Element Placement, Layering, And Semantics
+
+Severity: Critical
+
+Affected spec areas: `Document Model`, `Page Model`, `Page-Level Elements`,
+`Page View`, `Selection And Inspector`, `Accessibility Requirements`.
+
+Finding: `pageElements` now cover backgrounds, headers, footers, page numbers,
+and decorations, but the persisted placement schema is missing. Target pages,
+coordinate origin, anchor region, dimensions, z-order, clipping, selection,
+repeat behavior, and accessibility reading order are undefined.
+
+Recommended spec improvement: Define a page-level element schema with `purpose`,
+`target`, `layer`, `region`, `anchor`, `x`, `y`, `width`, `height`, `zIndex`,
+repeat/page-range behavior, artifact/read-order behavior, and validation rules.
+
+### SP2-007: Pagination And Breakability Matrix
+
+Severity: Critical
+
+Affected spec areas: `Pagination And Overflow`, `Page View`, `Text`, `Grid`,
+`Stack`, `Canvas`, `Flow Layout`.
+
+Finding: The spec says text and oversized elements may split at natural break
+points, but breakability is not defined per element/container type. Typst behavior
+depends on boxes, borders, padding, grids, stacks, and generated structure.
+
+Recommended spec improvement: Add a breakability matrix covering every element
+and container type. Specify where breaks are allowed, what stays unbreakable, how
+borders/backgrounds continue across pages, and which overflow cases are warnings
+or blocking errors.
+
+### SP2-008: PDF Accessibility Toolchain And Semantic Mapping
+
+Severity: Critical
+
+Affected spec areas: `Accessibility Requirements`, `Text`, `Image`, `Page-Level
+Elements`, `Print And Export Workflows`, `Persistence And Build`.
+
+Finding: Final PDFs are expected to be tagged/accessible, but the spec does not
+define the PDF accessibility target, toolchain, validation tool, semantic role
+mapping, or finalization behavior when tags cannot be produced.
+
+Recommended spec improvement: Add a PDF accessibility output contract covering
+the target standard or subset, Typst/post-processor strategy, document language
+and title metadata, heading/list/table/figure/artifact mapping, reading order,
+alt/decorative behavior, validation tooling, and finalization pass/fail rules.
+
+### SP2-009: Build Artifact Identity, Finalization, And Export Semantics
+
+Severity: Critical
+
+Affected spec areas: `Persistence Contract`, `Persistence And Build`, `Print And
+Export Workflows`, `Import And Export Bundles`.
+
+Finding: Generated PDFs, preview PDFs, latest built PDFs, finalized PDFs, and
+exported PDFs are not clearly distinguished. Finalization records metadata, but
+there is no build artifact record tying output to document revision, assets,
+fonts, Typst version, validation result, or PDF hash.
+
+Recommended spec improvement: Define artifact types and build records. A final
+approval should approve a specific immutable artifact with build id, document
+hash, Typst source hash, asset/font hashes, app version, Typst version, PDF hash,
+page count, diagnostics, and stale triggers. Define whether export copies the
+approved artifact or rebuilds.
+
+### SP2-010: Resource Pack And Bundle Manifest Contracts
+
+Severity: Critical
+
+Affected spec areas: `Resource Packs`, `Import And Export Bundles`, `Local File
+Safety`, `Assets`.
+
+Finding: Resource packs and bundles depend on deterministic manifests, updates,
+dependency tracking, asset remapping, compatibility checks, and rollback, but the
+manifest schemas are not defined. Per-entry hashes, sizes, content ids, media
+types, dependencies, and rewrite rules are missing.
+
+Recommended spec improvement: Add minimum manifest schemas for `.pak` and `.zip`
+bundles. Include format version, canonical paths, declared sizes, SHA-256 hashes,
+content ids, dependency lists, media types, schema versions, source/provenance,
+asset maps, deterministic ordering, and import rewrite rules.
+
+### SP2-011: Resource Pack Trust And Update Safety
+
+Severity: Critical
+
+Affected spec areas: `Resource Packs`, `Local File Safety`, `Assets`, `Template
+And Custom Element Lifecycle`.
+
+Finding: Stable pack ids and explicit confirmation do not prevent a malicious
+`.pak` from spoofing a trusted pack update. Update/replace can also remove
+pack-managed assets, fonts, styles, or schemas that existing documents still
+reference.
+
+Recommended spec improvement: Define a resource-pack trust model with publisher
+identity, signatures or equivalent verification, signer-change warnings,
+downgrade handling, dependency impact analysis, transactional update/rollback,
+and retention or copy-on-write for referenced pack content.
+
+### SP2-012: Security Threat Model And Untrusted Content Policies
+
+Severity: Critical
+
+Affected spec areas: `Offline Application And Workspace`, `Local File Safety`,
+`Resource Packs`, `Assets`, `Persistence And Build`, `AI-Assisted Data Import`.
+
+Finding: The spec has good local file-safety controls, but no explicit threat
+model. Archive edge cases, SVG rendering, font parsing, imported PDFs, generated
+Typst, untrusted Markdown/readmes, diagnostics, and UI rendering of imported text
+need fail-closed policies.
+
+Recommended spec improvement: Add a security threat model defining trusted
+components, untrusted content classes, same-user process assumptions,
+confidentiality and integrity goals, no-network expectations, and fail-closed
+behavior. Expand policies for archives, SVGs, fonts, imported PDFs, Typst, safe
+Markdown, and untrusted UI text.
+
+### SP2-013: AI Helper Execution Boundary
+
+Severity: Critical
+
+Affected spec areas: `Goals`, `Assets`, `Local File Safety`, `AI-Assisted Data
+Import`, `Error Messages And Support`.
+
+Finding: A controlled working directory does not prevent an external AI helper
+from reading the filesystem, inheriting environment secrets, using the network,
+or modifying files outside the exchange directory. Validating output protects
+document integrity but not confidentiality.
+
+Recommended spec improvement: Define whether external helpers are outside the app
+trust boundary or must run under enforceable isolation. Specify opt-in, command
+allowlists, environment sanitization, network policy, file permissions, working
+directory contents, timeout/cancellation, output limits, cleanup, logging, and
+redaction.
+
+### SP2-014: Autosave, Locking, Conflict, And Crash Recovery State Machines
+
+Severity: Critical
+
+Affected spec areas: `Persistence Contract`, `Persistence And Build`, `Local File
+Conflicts`, `Resource Packs`, `Import And Export Bundles`.
+
+Finding: Autosave is authoritative, but max save latency, retry policy, crash
+recovery, failed-autosave shutdown behavior, conflict handling during dirty
+autosave/build, stale-lock recovery, and partial import rollback are not
+measurable.
+
+Recommended spec improvement: Define state machines for autosave, file locks,
+optimistic revision checks, conflicts, import transactions, startup recovery, and
+crash recovery. Include content-hash revision tokens, lock-file format, conflict
+backup location, transaction logs, atomic metadata commits, rollback, and maximum
+data-loss windows.
+
+### SP2-015: Font Determinism And Font Portability
+
+Severity: High
+
+Affected spec areas: `Style Model`, `Offline Application And Workspace`,
+`Resource Packs`, `Persistence And Build`, `Import And Export Bundles`.
+
+Finding: The default font is `Calibri`, which may not be available or legally
+bundleable on Linux. Font family matching, duplicate imported fonts, missing
+weights, glyph fallback, and font export dependencies can change pagination and
+PDF accessibility.
+
+Recommended spec improvement: Define bundled open fonts, font records, font ids
+or managed references, fallback stacks, font precedence, glyph diagnostics,
+embedding/subsetting rules, non-exportable font behavior, and whether bundles
+must include redistributable referenced fonts.
+
+### SP2-016: Booklet And Folded Output Definition
+
+Severity: High
+
+Affected spec areas: `Primary Bulletin Workflow`, `Page Model`, `Print And
+Export Workflows`, `Page View`.
+
+Finding: Folded/booklet bulletins are expected, but exported PDFs are in reading
+order and professional imposition is out of scope. Users may still expect panel
+ordering, facing-page preview, blank-page insertion, simple 2-up output, fold
+guides, or mirrored margins.
+
+Recommended spec improvement: Define required output modes and explicit
+non-goals. Specify reader-order panel PDF, optional or out-of-scope imposed sheet
+PDF, panel size versus sheet size, page-count handling, blank-page behavior,
+facing-page preview, fold guides, and mirrored margin support or exclusion.
+
+### SP2-017: Validation, Error Codes, Diagnostics, And Final Readiness
+
+Severity: High
+
+Affected spec areas: `Validation Expectations`, `Persistence Contract`, `Error
+Messages And Support`, `Print And Export Workflows`, `Accessibility
+Requirements`.
+
+Finding: The spec requires stable error codes, actionable errors, diagnostic
+bundles, and finalization gates, but does not define an error taxonomy,
+diagnostic redaction rules, or a final-readiness checklist. Missing assets,
+missing fonts, untagged PDFs, missing alt text, horizontal overflow, and stale
+artifacts need operation-specific severity.
+
+Recommended spec improvement: Add an error catalog with code families, severity,
+JSON Pointer/source location, user summary, diagnostic details, recovery action,
+and redaction rules. Add final-readiness gates for print and accessibility,
+including which warnings are overridable.
+
+### SP2-018: Missing Asset Operation Severity
+
+Severity: High
+
+Affected spec areas: `Assets`, `Persistence Contract`, `Print And Export
+Workflows`, `Import And Export Bundles`.
+
+Finding: The spec both allows missing-image placeholders in the editor/PDF and
+says missing referenced assets should be relinked before export or build. This is
+ambiguous for live preview, draft manual build, finalization, and bundle export.
+
+Recommended spec improvement: Define missing-asset behavior by operation. For
+example, editor and live preview may show placeholders, draft builds may warn,
+and finalization/final export may block unless the user explicitly exports a
+draft with placeholders.
+
+### SP2-019: Element Model, Selection, And Drag/Drop Precision
+
+Severity: High
+
+Affected spec areas: `Document Model`, `Container Child Wrappers`, `Grid`,
+`Stack`, `Canvas`, `Selection And Inspector`, `Drag And Drop`.
+
+Finding: Element id uniqueness, wrapper id scope, child array fields, grid cell
+repair, stack index ordering, canvas z-order, page-break placement, selection of
+overlapped/repeated content, and drag/drop source-to-target semantics are still
+ambiguous.
+
+Recommended spec improvement: Define document-global selectable ids or path-based
+addressing, container child schemas, ordering precedence, deterministic repair
+rules, hit-testing/layer precedence, page-break allowed parents, and a drag/drop
+decision table with undo transaction boundaries.
+
+### SP2-020: Size, Performance, And Resource Limits
+
+Severity: High
+
+Affected spec areas: `Persistence And Build`, `Local File Safety`, `Resource
+Packs`, `Assets`, `AI-Assisted Data Import`.
+
+Finding: The spec requires size limits but defers numeric values and omits some
+limit categories. Local denial-of-service risks include huge JSON depth, long
+strings, element counts, image pixel counts, SVG complexity, font counts, PDF
+page counts, archive compression ratios, and AI output size.
+
+Recommended spec improvement: Define required limit categories, default caps,
+warning thresholds, hard caps, configurability, fail-closed behavior, and
+actionable error messages for each content type.
+
+### SP2-021: Packaging, Install, Update, And Uninstall Acceptance
+
+Severity: High
+
+Affected spec areas: `Offline Application And Workspace`, `Project Files`,
+`Persistence Contract`.
+
+Finding: Package formats are named, but installer/update behavior is not
+specified. Release QA needs minimum OS expectations, signing verification,
+desktop integration, bundled Typst/font verification, failed update rollback,
+uninstall behavior, and workspace migration behavior.
+
+Recommended spec improvement: Add platform-specific packaging acceptance criteria
+for signed MSI, Linux package signing expectations, AppImage behavior, AUR/native
+pacman expectations, desktop entries, offline launch, update over previous
+versions, failed-update rollback, and uninstall preserving workspace data unless
+the user explicitly removes it.
+
+### SP2-022: Date, Filename, Locale, And Settings Determinism
+
+Severity: Medium
+
+Affected spec areas: `Date`, `Print And Export Workflows`, `User Settings`,
+`Lengths And Units`.
+
+Finding: Date values, export filename tokens, time zone behavior, locale fallback,
+global versus per-workspace settings, and unit rounding are not deterministic
+enough for reproducible output and cross-platform QA.
+
+Recommended spec improvement: Define ISO date storage, date-only semantics,
+format tokens, filename date-source priority, invalid filename handling, locale
+fallback, global/per-workspace setting boundaries, and length rounding rules.
+
+### SP2-023: Document Library And Weekly Workflow Details
+
+Severity: Medium
+
+Affected spec areas: `Primary Bulletin Workflow`, `Resource Identity`, `Project
+Files`, `Import And Export Bundles`.
+
+Finding: The weekly template workflow is the ideal path, but the spec does not
+define template selection, draft return, required field validation, document
+library search/filter/sort, duplicate display names in lists, recent documents,
+or source-pack grouping.
+
+Recommended spec improvement: Add baseline library and weekly-creation workflow
+requirements covering template chooser, field-filling screens, drafts, required
+field validation, search/filter/sort, duplicate disambiguation, recent items, and
+source-pack grouping.
+
 ## Proposed Next Step
 
-All numbered review items and additional product workflow questions in this file
-are now decided and reflected in `spec.md`. Next, begin architecture and
-implementation planning from the updated source-of-truth spec.
+Resolve or explicitly defer the Critical and High second-pass findings above
+before architecture and implementation planning. In particular, prioritize the
+contracts that affect persisted JSON, portable files, security boundaries,
+build/finalization artifacts, and tagged PDF feasibility.

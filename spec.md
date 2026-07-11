@@ -12,6 +12,12 @@ Typst for normal layout work.
 
 The builder must:
 
+- Make the normal weekly task a protected content-filling and proofreading
+  workflow; users must not need to understand or manipulate layout structures to
+  replace readings, hymns, announcements, dates, or images.
+- Separate the default `Weekly Content` experience from an explicitly entered
+  `Customize Layout` experience so routine edits cannot accidentally damage
+  reusable structure, page setup, headers, footers, or branding.
 - Store all editable layout/content state in JSON.
 - Generate Typst source deterministically from that JSON.
 - Compile PDFs locally with a bundled Typst CLI and local workspace assets.
@@ -20,7 +26,10 @@ The builder must:
 - Support pastor, church secretary, and volunteer workflows without requiring
   technical layout or Typst knowledge.
 - Optimize the normal weekly workflow around creating a bulletin from a reusable
-  template.
+  template, optionally carrying forward reviewed values from the prior compatible
+  bulletin.
+- Make interruption, safe resume, stale-content detection, review, backup,
+  volunteer handoff, and print confidence first-class product concerns.
 - Keep the editor's page, margin, flow, and canvas behavior aligned with the
   rendered PDF wherever practical.
 - Run entirely from local files with no network dependency or separately started
@@ -28,8 +37,9 @@ The builder must:
 - Treat church-specific logos, images, templates, starter bulletins, and other
   reusable content as data that can be imported, exported, backed up, and moved
   independently of the application.
-- Support AI-assisted content import by exposing machine-readable template data
-  contracts and validating AI-generated data before applying it to a bulletin.
+- Support optional, reviewable AI suggestions that map selected pastor
+  instructions into structured bulletin fields without making AI necessary or
+  responsible for layout, pagination, readiness, or publication.
 
 ## Normative Language And Release Scope
 
@@ -60,29 +70,47 @@ Explicit release scope:
 | Feature | Release scope |
 | --- | --- |
 | User settings panel | Required v1 |
+| First-run onboarding and generic starter templates | Required v1 |
+| Church profile and saved sections | Required v1 |
+| Weekly Content and Customize Layout modes | Required v1 |
+| Create This Week rollover and stale-content review | Required v1 |
+| Conditional and repeatable template sections | Required v1 |
+| No-code template authoring | Required v1 |
 | Margin guide visibility UI | Required v1 |
 | Undo and redo | Required v1 |
+| Cross-session document snapshots and trash/restore | Required v1 |
+| Full-workspace backup and restore | Required v1 |
 | Canvas snapping | Required v1 |
 | Strong inspector validation | Required v1 |
 | Faithful grid/stack editor rendering | Required v1 |
-| Rich text editing | Required v1 |
+| Direct on-page rich text editing | Required v1 |
+| Page thumbnails, zoom, and selection-to-preview navigation | Required v1 |
+| Basic drag-to-resize and image crop/focal-point controls | Required v1 |
 | Page-level margin elements | Required v1 |
 | Folded/booklet workflow | Required v1 |
+| Basic two-up print-ready booklet PDF | Required v1 |
 | Final page-count publication constraints | Required v1 |
-| Resource pack import | Required v1 |
+| Review and Export workflow using `printFinal` | Required v1 |
+| Resource pack import | Required, may be staged after the core weekly workflow |
 | Diagnostic bundle export | Required v1 |
-| File-based AI contract import/export | Required v1 |
-| AI-assisted template filling beyond file exchange | Required, may be staged after manual template workflows |
+| File-based AI contract import/export | Required, may be staged after manual weekly workflows |
+| AI-assisted instruction-to-field suggestions | Required, may be staged after manual template workflows |
 | Resource pack creation/export/update/replace | Required, may be staged |
 | Tagged/accessible final PDFs | Required, may be staged |
-| Approval/finalization workflow | Required, may be staged |
-| Local AI helper launch/configuration | Required, may be staged; file exchange is sufficient for v1 |
+| Persisted approval records and approval history | Required, may be staged |
+| Local AI helper launch/configuration | Required, may be staged |
 | Multiple workspaces | Deferred |
 | Moving workspaces from the UI | Deferred |
 | Editor/PDF synchronized scrolling | Optional enhancement |
-| Drag-to-resize | Optional enhancement |
 | Element alignment controls | Optional enhancement |
 | Multi-element selection and select all | Optional enhancement |
+
+A feature explicitly labeled `Required, may be staged` may be omitted completely
+from an initial release, but any shipped portion satisfies every applicable
+validation, transaction, privacy, and security requirement in this spec. Scope
+pressure never permits a weaker partial importer, archive parser, or helper
+executor. Required v1 template authoring and Customize Layout features are not
+implicitly stageable merely because they are advanced workflows.
 
 ## Schema Organization, Versions, And Storage Boundaries
 
@@ -114,6 +142,9 @@ Required schema organization:
 | `ai-exchange.schema.json` | File-based AI template contracts and AI import results. |
 | `manifest.schema.json` | Resource pack, project bundle, and template bundle manifests. |
 | `workspace.schema.json` | Workspace-local registry, resource records, revision state, import provenance, conflict state, and installed pack state. |
+| `church-profile.schema.json` | Workspace-local reusable congregation details, preferred output defaults, brand/library references, schedule, favorites, and spelling dictionary. |
+| `weekly-work.schema.json` | Private per-bulletin instructions, checklist, rollover decisions, and resume state that never affect rendering. |
+| `backup-manifest.schema.json` | Full-workspace backup/handoff contents, hashes, versions, exclusions, restore identity, and verification state. |
 | `asset-record.schema.json` | Workspace-local asset metadata, binary revision, media details, sanitization state, and AI visibility. |
 | `font-record.schema.json` | Workspace-local managed font family/face metadata, immutable hashes, validation, licensing, and portability state. |
 | `settings.schema.json` | Discriminated versioned application-global and workspace editor/export preferences. |
@@ -123,7 +154,9 @@ Required schema organization:
 `common.schema.json` must define separate, non-interchangeable primitives for
 local resource ids, portable asset/font ids and typed references, bundle ids,
 bundle entry ids, pack ids, pack-scoped content ids, field-contract ids, document
-element ids, and AI exchange ids. Portable schemas must not reference the
+element ids, content-rule ids, repeat-item ids, history snapshot ids,
+Church Profile schedule ids, weekly checklist item ids, backup/handoff ids, and AI
+exchange ids. Portable schemas must not reference the
 local-resource-id primitive. `workspace.schema.json` and
 `asset-record.schema.json` must define the
 portable-asset-id resolver and local import/provenance maps;
@@ -141,7 +174,10 @@ bulletin/template in another workspace:
   metadata.
 - Page setup and output-affecting document settings.
 - Normal body flow elements and page-level elements.
-- Template field contracts and bulletin field values.
+- Template field contracts, bulletin field values, and canonical field/content
+  review dispositions required to preserve readiness.
+- Portable authoring policies, conditional/repeatable content rules, and
+  template-only sample field values.
 - Custom element definitions, custom element instance metadata, and bindings.
 - Portable asset references and other portable references defined by schema.
 - Accessibility semantics that affect final PDF output.
@@ -153,6 +189,10 @@ Portable document JSON must not contain:
 - Local asset storage paths.
 - Workspace locks, conflict state, revision tokens, or recovery records.
 - User editor preferences.
+- Church Profile, private weekly instructions/checklists, resume position,
+  uncommitted setup choices, Version History, and Trash state. Canonical
+  per-field rollover dispositions needed for readiness are portable document
+  state, not workspace-only state.
 - Generated Typst, PDFs, thumbnails, diagnostics, build logs, or preview state.
 - Installed resource-pack state or local import/update state.
 - Local AI helper configuration or private execution logs.
@@ -176,13 +216,16 @@ and derived artifacts. It should include:
 - Build records, generated artifact records, diagnostics references, finalization
   records, and approved artifact references.
 - User/workspace editor settings.
+- Church Profile, private weekly-work records, cross-restart history snapshots,
+  Trash metadata, and backup/handoff records.
 
 Versioning rules:
 
 - Every persisted root JSON file must include an integer `version` field.
 - Each root schema owns its own version sequence. Document, workspace, settings,
-  asset record, font record, artifact record, manifest, custom element, and AI
-  exchange versions are independent.
+  Church Profile, weekly work, backup manifest, asset record, font record,
+  artifact record, manifest, custom element, and AI exchange versions are
+  independent.
 - Version `1` is the first version governed by this spec.
 - Compatible changes that can be default-filled without changing meaning may be
   handled by normalization within the same version.
@@ -210,43 +253,278 @@ The primary users are pastors, church secretaries, and volunteers. The app shoul
 assume users may be familiar with the bulletin content but not with document
 layout systems, Typst, JSON, or local workspace internals.
 
-The ideal weekly workflow is template-driven:
+The primary experience is:
 
-- Choose a reusable bulletin template.
-- Fill date-specific, service-specific, and congregation-specific fields.
-- Edit body content such as hymns, readings, announcements, prayers, and notes.
-- Review the generated PDF preview.
-- Run final validation/build.
-- Approve/finalize the bulletin when the staged approval workflow is available.
-- Export the final PDF for printing or distribution.
+```text
+This Week -> Fill and check -> Edit and proof -> Review and Export
+```
 
-Creating a bulletin from scratch, duplicating a prior bulletin, and importing a
-starter bulletin may be supported, but they are secondary workflows. Formal
-templates and resource packs should provide the default starting point for weekly
-bulletin creation.
+The app has two explicit editing modes:
+
+- `Weekly Content` is the default for a bulletin. It exposes fillable fields,
+  template-permitted optional/repeatable sections, direct text editing, image
+  replacement, the weekly brief/checklist, issue navigation, page preview, and
+  export. Template layout, page setup, repeated page elements, and protected
+  branding remain locked unless their author explicitly made a control available
+  in this mode.
+- `Customize Layout` is an intentional advanced mode for creating or changing
+  templates and structural layout. It exposes grids, stacks, canvases, page
+  elements, dimensions, styles, bindings, ordering, and edit-policy controls.
+  Entering it from a bulletin must explain that structural changes affect only
+  that bulletin unless the user explicitly saves or updates a template.
+
+Mode is editor state, not rendered document state. Changing modes must never
+change PDF bytes, create an undo entry, or silently unlock a protected element.
+An ordinary bulletin always opens in Weekly Content after a new app session. If
+recovery shows that an interrupted session was customizing layout, the resume
+card may offer `Continue layout editing`, but the safe default remains Weekly
+Content. Templates open in Customize Layout.
+
+The ideal weekly workflow is template-driven and interruption-safe:
+
+1. `Create This Week's Bulletin` recommends the last-used compatible template and
+   also offers other templates, `Use Last Bulletin`, blank, and import as
+   secondary choices.
+2. The user selects the service label/schedule and may choose a prior bulletin
+   with the same field-contract lineage as a carry-forward source. The current
+   template structure is used rather than blindly copying an outdated layout.
+3. Rollover policies clear, carry, derive, and request review as defined below.
+   Only after the source/schedule is known does the user confirm the derived or
+   entered publication date and suggested display name. The app warns when a
+   bulletin for the same date/service label already exists.
+4. The setup form follows the template's groups and order. The user may paste a
+   pastor's instructions into the private weekly brief, connect checklist items
+   to fields/sections, skip unresolved items, and resume later.
+5. The user edits content directly in Weekly Content mode. Layout remains
+   protected. AI, when available, may propose field values but is never required.
+6. The app presents a stale-content and completeness review, then an authoritative
+   PDF preview.
+7. `Review and Export` saves the exact revision, runs the selected readiness
+   profile, presents the generated artifact and checklist, and exports that exact
+   verified artifact.
+8. Formal approval may be recorded when the staged approval feature is present;
+   its absence does not remove the required v1 Review and Export step.
+
+`Use Last Bulletin` remains available for documents without a suitable formal
+template. It duplicates the prior document, assigns fresh local identity, asks
+for the new publication date before normal editing, and runs the same rollover,
+stale-content, review, and export checks. The UI must explain whether it is using
+the current template with prior values or making a complete copy of the prior
+bulletin. It never copies prior `fieldReview` or `contentReview`; decisions are
+recreated against the new bulletin's date, rules, bindings, and effective
+values.
+
+Blank creation, raw duplication, and import are supported advanced/secondary
+paths. Generic built-in starters ensure that a fresh installation never opens an
+empty template chooser.
+
+### Weekly Brief, Checklist, And Resume
+
+Each local bulletin may have one versioned workspace-local weekly-work record.
+`weekly-work/<local-resource-id>/work.json` is authoritative; any registry count,
+resume label, or last-position summary is a revision-keyed rebuildable cache. The
+record contains:
+
+- A private pasted-text brief titled `This week's instructions`.
+- Ordered checklist items. Each has a stable UUIDv4 item id, nonempty text,
+  `required` boolean, and `unresolved`, `handled`, or `notApplicable` state. The
+  creation control labels `required` as `Must finish before a ready-to-print
+  PDF`, defaults it to `true`, and offers `Reminder only`; the status is always
+  visible and keyboard editable rather than inferred from wording.
+- Optional source evidence containing brief Unicode-scalar start/end offsets,
+  cached excerpt, and excerpt hash. Brief edits update offsets when deterministic;
+  otherwise the evidence is marked stale while preserving the cached excerpt.
+- An optional discriminated link to exactly one document field (scope/field id),
+  visual document node id, conditional/repeat rule id, or workspace-local Saved
+  Section id. Imported strings can never construct an unvalidated link.
+- The most recently active setup step, field, editor selection, page, scroll
+  position, and open panel needed to resume work.
+- The chosen rollover source and any uncommitted setup choices. Committed
+  per-field carry/clear/confirm dispositions live in portable `fieldReview` so
+  readiness survives history, transfer, and restore.
+
+This work record is output-inert and is never portable document content. A full
+workspace backup includes it by default so recovery is complete, with an explicit
+privacy warning and optional exclusion. A handoff includes it only by explicit
+opt-in. A bulletin project export may include it as an explicitly selected
+private workspace attachment; a template export never does. Any backup, handoff,
+or project transfer that would omit a record containing an unresolved required
+item is blocked until the user includes the record, handles/reclassifies the
+item, or marks it not applicable. Silent omission must never make the receiving
+bulletin appear more ready. Weekly work is excluded from diagnostic bundles, AI
+exchange, and generated PDFs by default. Sending any part of it to an AI helper
+requires an explicit per-run selection.
+
+The app must autosave checklist and resume state independently of PDF builds.
+Brief text is covered by the same autosave, bounded recovery snapshot, atomic
+write, retry, and five-second crash-loss contract. Selecting brief text offers
+`Add checklist item`; users can also type an item and later attach/detach source
+evidence or a content link. Weekly-work edits have a local in-session undo/redo
+history while focus is in the brief/checklist; they do not create document undo
+entries or stale PDF output.
+
+The workspace also keeps private, cross-restart weekly-work snapshots before the
+first weekly-work edit in an app session and before clearing the brief, deleting
+any checklist item, or restoring another weekly-work version. The user can restore
+one from `Instructions and checklist history`; restore first snapshots the
+current record. At least the newest 20 automatic snapshots per bulletin are
+retained. They follow the same privacy, backup, handoff, Trash, and permanent-
+deletion rules as the live weekly-work record and never enter portable document
+JSON.
+
+Reopening from the home screen shows a plain summary such as `3 items still
+needed` and returns to the last meaningful task. A resolved checklist does not
+replace field/schema validation; it is a human workflow aid.
+
+The brief/checklist may be pinned beside setup/Page View at wide sizes and opens
+as a focus-preserving drawer/tab at narrow sizes. Navigating to linked content
+keeps the supporting source excerpt available and provides a return action.
+
+After Version History restore, contract migration, subtree replacement, or
+resource removal, weekly-work links and resume targets are revalidated in the
+same transaction. A dangling target is cleared from navigation, preserved as a
+plain labeled unresolved reference for review, and never rebound by matching a
+name or reused id. It must not make otherwise readable `work.json` invalid.
+
+### Stale-Content Review
+
+Before print-final export, the app runs deterministic stale-content checks. The
+review includes:
+
+- Every value whose rollover mode requires confirmation and has not been
+  reviewed for the current bulletin.
+- Carried or literal date values that conflict with the current publication date
+  or a template-declared date role.
+- Template-declared placeholder terms and unresolved tokens such as fields the
+  template explicitly marks as examples or temporary content.
+- Recognized weekly-field placeholders `TBD`, `TODO`, and bracketed replacement
+  prompts; users may confirm an intentional literal occurrence for this bulletin.
+- Required weekly-brief checklist items that remain unresolved.
+- A duplicate bulletin with the same publication date and service label.
+- Content inherited from an older complete-document duplicate whose source date
+  remains visibly present.
+- In `Use Last Bulletin`, unchanged unbound content review targets marked
+  `everyBulletin` or `whenDuplicated`. For legacy content without a hint, Date
+  and Hymn/Song always require review and other eligible unbound body content
+  defaults to `whenDuplicated`; the user can confirm unchanged, edit, or mark a
+  clearly persistent item `none` in Customize Layout.
+
+Stale-content findings are warnings unless they also violate a required field or
+another final-readiness rule. Each finding must use a user-facing label, show why
+it was raised, and provide `Go to content`, `Confirm for this week`, or another
+specific resolution. The app must not silently replace a suspected stale value.
+
+## Church Profile And Saved Sections
+
+The workspace provides a user-facing `Church Profile` for information commonly
+reused when creating templates and bulletins. It may contain congregation name,
+address, contact information, locale/time zone, one or more usual service
+weekday/time labels, logo/approved asset refs, brand colors, preferred bundled
+or managed fonts, default page/output preset, favorite and last-used templates,
+and an optional local spelling dictionary. The Church Profile schema defines a
+closed set of type-safe `profileKey` values that templates may offer during
+creation.
+
+V1 mappable `profileKey` values and field types are closed:
+
+| Profile key | Compatible field type |
+| --- | --- |
+| `churchName` | `text` |
+| `mailingAddress` | `text` |
+| `locationAddress` | `text` |
+| `phone` | `text` |
+| `email` | `text` |
+| `website` | `text` |
+| `defaultServiceLabel` | `text` |
+| `logo` | `assetRef` restricted to supported image media |
+
+Brand colors/fonts, locale/time zone, page/output preset, favorites, dictionary,
+and service schedules are not field-mappable keys; template authoring uses their
+dedicated typed controls. The profile root has a canonical revision hash.
+
+Each service schedule has stable UUIDv4 `scheduleId`, nonempty normalized label,
+ISO weekday `1` through `7`, optional local `HH:MM` time, valid IANA time zone,
+`enabled`, and optional inclusive `effectiveFrom`/`effectiveThrough` date-only
+bounds. Overlapping schedules are legal but setup requires user selection when
+more than one matches; labels are display metadata, never schedule identity.
+
+Church Profile data is workspace-local reusable input, not a live render-time
+dependency. Creating a template or bulletin copies the selected values and
+portable references into that document. Changing the profile must not rewrite
+historical bulletins or existing templates. The UI may offer an explicit reviewed
+update for a current template or bulletin and must show every affected value.
+
+The normal UI calls reusable visual content `Saved Sections`. Users can:
+
+- Save an eligible selected section for reuse.
+- Insert a saved section from favorites, recent items, thumbnails, or search.
+- Rename, duplicate, archive, or move a saved section to Trash.
+- Choose `Change only here`/`Make independent` for one inserted instance.
+- Choose `Update saved section` only through an explicit review that identifies
+  other templates or future insertions affected by the reusable definition.
+
+Custom-element definitions and pinned revisions may implement Saved Sections,
+but `custom element`, `definition revision`, `binding`, `detach`, ids, and hashes
+are advanced/internal terms. An inserted saved section pins or copies the exact
+revision according to the custom-element lifecycle; existing bulletins never
+change silently.
+
+Church Profile and Saved Sections are part of full-workspace backup/restore.
+Their ordinary screens must not expose filesystem paths or workspace identity.
 
 ## Document Library And Weekly Creation
 
-The home/library view lists bulletins and templates by local resource identity.
-Each row/card shows display name, kind, publication date when available,
-draft/readiness/approval state, modified time, source/provenance, and missing or
-conflict state. A missing/corrupt registry entry remains visible with recovery,
-diagnostics, and confirmed removal actions; it is never silently dropped.
+The home view is task-oriented rather than a database table. Its default sections
+are `This Week`, `Recent Bulletins`, `Favorite Templates`, and `Recently
+Exported`. The primary action is `Create This Week's Bulletin`. A resumable card
+shows the publication/service label, last edit time, the next meaningful action,
+and one plain-language summary such as `3 items still needed`, `Ready to review`,
+or `Ready to print`.
 
-Baseline library actions are open/resume setup, duplicate, rename, delete with
-confirmation, import, and eligible export. Recent documents contain the ten most
+When one unfinished recent bulletin is the likely current service, `Continue
+This Week's Bulletin` becomes the primary action and new creation remains
+available beside it. The app never guesses between multiple plausible drafts;
+it shows them for user choice.
+
+Template cards provide keyboard-accessible `Favorite`/`Remove favorite` actions;
+favorites are workspace-local orderable metadata. Recently Exported cards offer
+`Open PDF`, `Show in folder`, and `Resume bulletin`. If exported bytes were moved
+or deleted externally, the card remains with `File missing`, offers rebuild from
+a current matching artifact when possible, and never opens a different same-name
+file by guessing.
+
+The complete library remains available under `All Bulletins`, `Templates`,
+`Saved Sections`, and `Trash`. Resources remain keyed by local identity, but ids
+are never ordinary card content. Normal cards show display name, kind when
+ambiguous, publication date, modified time, and one plain-language state.
+Approval history, source/provenance, pack trust, conflicts, missing dependencies,
+and advanced state details appear under `Details` or `More`, except that a
+problem blocking the user's current action is summarized on the card.
+
+A missing/corrupt registry entry remains visible in the complete library with
+recovery and diagnostic actions; it is never silently dropped. It does not crowd
+the `This Week` view unless it is the current bulletin or blocks a current task.
+
+Baseline library actions are open/resume, duplicate, rename, archive/unarchive,
+move to Trash, import, and eligible export. Permanent deletion is available only from Trash
+under the trash-retention contract. Recent documents contain the ten most
 recently opened distinct local resource ids, newest first; missing registry ids
 are pruned. Opening updates workspace-local `lastOpenedAt` without mutating
 portable document JSON.
 
-Search indexes display name, description, tags, kind, publication-date text, and
-source-pack/publisher display names. Body full-text search is not required v1.
+Search indexes display name, description, tags, kind, publication-date text,
+source-pack/publisher display names, and derived plain text from bulletin,
+template, and Saved Section rich text. Current-document find/replace and
+workspace body full-text search are required v1 and remain entirely local.
+Inactive conditional content follows the explicitly labeled indexing/find rules
+under `Template-Authored Conditional And Repeatable Content`.
 Index/query text uses Unicode NFKC plus default case folding; whitespace-separated
 query tokens must each match a substring of at least one indexed field. Results
 remain keyed by local id even when names are identical.
 
-Required filters cover kind, `draft`/`active` workflow state, `incomplete`/`ready`
-readiness state, current/stale/unfinalized approval when available,
+Advanced filters under `More` cover kind, `draft`/`active` workflow state,
+`incomplete`/`ready` primary-output readiness summary, output-specific readiness,
+current/stale/unfinalized approval when available,
 personal/imported/pack source, publication-date range, and
 missing-dependency/readiness state. Sorts include last opened, modified, created,
 publication date, and normalized name in useful directions. Bulletin default is
@@ -254,15 +532,31 @@ last-opened descending. Template chooser default is source group then normalized
 name. Ties resolve by normalized name, created time, then local resource id,
 independent of filesystem enumeration.
 
-Workflow and readiness are separate workspace-record enums. `workflowState` is
+Workflow and readiness are separate workspace concepts. `workflowState` is
 `draft` until the initial setup is completed once, then `active`; it does not
-return to draft. `readinessState` is derived as `incomplete` or `ready` from the
-current contract, dependencies, and configured output requirements. Thus
+return to draft. Readiness is derived as `incomplete` or `ready` for each
+applicable `{ readinessProfile, outputForm }` pair and may be cached in the
+workspace registry as `readinessByOutput` only with its input hashes. Cache keys
+are the closed tuple rather than a concatenated display string. Folded reader-
+order and Booklet-print readiness can therefore disagree without either
+overwriting the other.
+
+The home-card readiness summary uses the user's last selected publication target.
+Before one exists, it uses `printFinal`/`readerOrder` for standard pages and
+`printFinal`/`bookletTwoUp` for folded work. If another common output differs, the
+card adds a plain secondary summary such as `Reading-order PDF ready; booklet
+needs setup`. An unresolved required weekly-work item makes every final target
+incomplete; non-required reminders do not but remain in Review and Export. Thus
 clearing a required value or violating a final page-count requirement on an
-active bulletin yields `active` plus `incomplete` and stales approval.
-For that requirement, readiness is `ready` only when the newest current verified
-preview or manual artifact count satisfies it; a missing or stale count remains
-`incomplete` pending pagination.
+active bulletin yields `active` plus an incomplete target and stales affected
+approval. Readiness that depends on page count is `ready` only when the newest
+current verified preview or manual artifact supplies a matching count; a missing
+or stale count remains `incomplete` pending pagination.
+
+Archive state is separate workspace-local organization metadata with optional
+`archivedAt`; it does not change portable content, readiness, approval, or
+artifact currency. Archived items leave the default recent view but remain
+searchable under the archived filter and can be restored with `Unarchive`.
 
 Missing/null sort values always follow non-null values in either direction.
 Template source groups order personal/imported first, then packs by normalized
@@ -274,32 +568,47 @@ publication/modified time, and provenance; if still indistinguishable, they show
 a short local-id suffix only as secondary support metadata. Accessible row labels
 include the same disambiguators.
 
-The template chooser groups personal/imported templates separately from each
-installed pack. Pack headers show pack name, claimed publisher, version, and
-trust state. Cards show description, logical page/panel size, modified date,
-required-field count, compatibility problems, and preview when available.
-Incompatible templates are disabled with a reason. Bulletins based on a pack can
-be filtered by that provenance but are not live pack-managed children.
+The template chooser begins with last-used and favorite templates, then generic
+built-in starters, personal/imported templates, and installed packs. Cards show
+preview, task-oriented output description such as `Full letter page` or `Folded
+letter booklet`, modified date, required-item count, and compatibility problems.
+Pack publisher/version/trust appears in details. An incompatible template remains
+focusable and selectable so its reason and recovery action can be read; it cannot
+advance to creation. Bulletins based on a pack can be filtered by that provenance
+but are not live pack-managed children.
 
 Weekly creation is transactional:
 
-1. `New Bulletin` opens the template chooser; blank, duplicate, and import are
-   visible secondary actions.
-2. Choosing a template allocates a local bulletin id, copies normalized portable
-   content/contract/bindings, records source contract/document hashes and pack
-   provenance, and commits a `draft` before the field form opens.
-3. The field form follows contract group/order metadata, uses type-appropriate
+1. `Create This Week's Bulletin` opens the recommendation/chooser described in
+   the primary workflow; blank, raw duplicate, and import are visible secondary
+   actions.
+2. Choosing a template reserves a local bulletin id and stages normalized
+   portable content, contract, bindings, edit policies, source hashes, and pack
+   provenance without exposing an ordinary library row. The user selects an
+   optional compatible rollover source and Church Profile schedule/service.
+3. The app computes any derived-date candidate, then the user confirms service
+   label, publication date, and a suggested nonempty display name or explicitly
+   chooses `Decide later`. The transaction commits a recoverable `draft` on the
+   first field/content/layout edit, `Save and close`, or `Enter bulletin`.
+4. The field form follows contract group/order metadata, uses type-appropriate
    controls/defaults, and validates on field commit, step transition, and review.
-4. Users may save/close or enter the editor with required fields missing. The
-   workspace resource record stores the current setup step so reopen resumes it.
-5. Missing/invalid required values remain visible, allow autosave and preview,
+5. Users may save/close or enter the editor with required fields missing. The
+   authoritative weekly-work record stores the current setup step; the workspace
+   registry may cache only its revision-keyed resume summary.
+6. Missing/invalid required values remain visible, allow autosave and preview,
    and block `finalCandidate`, finalization, and final export.
-6. Completing initial setup changes workflow state to `active`; clearing a
+7. Completing initial setup changes workflow state to `active`; clearing a
    required value later keeps it active but changes readiness to `incomplete` and
    stales any approval.
+8. Canceling an unchanged staged creation discards it. Canceling after a change
+   offers `Keep draft` (safe default) or `Discard`; discard cleans the stage or
+   moves an already committed draft to Trash. A crash recovers a changed stage as
+   a clearly named draft and removes a verified unchanged abandoned stage.
+   Unnamed/unmodified setup drafts must not accumulate in the main library.
 
 The copied bulletin has no live source-template link or source local resource id.
-Bound edits update authoritative field values or use explicit Detach Binding.
+Bound edits update authoritative field values or use the user-facing `Make
+independent` action (`Detach Binding` in the internal model).
 AI values remain proposals until reviewed. Autosave, conflict, undo, and preview
 semantics are identical to ordinary editor changes, including across restart.
 
@@ -316,17 +625,39 @@ Distribution formats:
 
 The application bundle includes the editor runtime, pinned Typst executable,
 bundled Noto fonts/licenses, JSON schemas, migration logic, generic app resources,
+generic accessibility-ready starter templates,
+the pinned/app-owned booklet compositor,
 and the pinned PDF/UA validator when accessible output ships. The signed release
 manifest records their versions/hashes and startup self-check reports missing or
 changed required components. The application bundle must not
 include church-specific logos, images, templates, starter bulletins, or other
 organization-specific content. Church-specific content is imported as resource
-packs or created by the user in the application.
+packs or created by the user in the application. Generic starters must contain no
+denominational, congregation, pastor, address, logo, or organization-specific
+content. Required starters cover a simple single-column service, a folded
+letter-panel booklet, a simple announcements/news sheet, and a blank
+accessibility-ready layout with confirmed page setup. `Accessibility-ready` means the template
+captures semantic headings/order/alt prompts; its PDF is not represented as
+screen-reader-accessible unless the staged tagged-PDF capability is installed and
+passes validation.
 
-On first launch, the app should offer to create a local workspace in the
-system-default user data location or let the user choose a different workspace
-location. If the user accepts the default, the app creates the workspace without
-requiring direct file-system interaction.
+On first launch, the recommended path creates a local workspace in the
+system-default user data location without showing or requiring a filesystem path.
+`Choose another location` is available under Advanced. The app then provides a
+short, skippable, resumable setup that asks for:
+
+- Church/congregation name and optional logo/contact details for Church Profile.
+- The normal output description in task language: full sheet, folded booklet, or
+  another starter/paper preset.
+- A preferred starter or supported bulletin/template bundle to import; `Import a
+  church pack` appears only when that staged capability is installed.
+- Whether to create a practice bulletin and walk through Review and Export.
+
+The user may skip every church-specific question and return later. The first-run
+empty state always offers `Use a starter`, `Import a bulletin or template`, and
+`Start blank`; it adds `Import a church pack` only when supported. The chooser
+lists supported extensions and never implies arbitrary Word/PDF conversion. It
+must never strand the user in an empty chooser.
 
 V1 supports one configured workspace at a time. The user may choose its location
 during first launch, but multiple-workspace management and moving an existing
@@ -336,7 +667,7 @@ and should update its workspace registry only after a requested move succeeds.
 
 Default workspace locations:
 
-- Windows: `%APPDATA%/Church Bulletin Builder/`.
+- Windows: `%LOCALAPPDATA%/Church Bulletin Builder/`.
 - Linux: `${XDG_DATA_HOME:-~/.local/share}/church-bulletin-builder/`.
 
 The workspace is app-managed data. It may be hidden or stored in a location that
@@ -344,10 +675,11 @@ users do not normally browse. Normal interaction with bulletins, templates,
 assets, PDFs, resource packs, and exports should happen through the
 application UI.
 
-The app does not need a dedicated full-workspace backup and restore command.
-Project/template export and import plus resource pack import are the v1 app-level
-transfer and backup mechanisms. Resource pack creation/export becomes an
-additional transfer mechanism when that committed staged feature is implemented.
+The app must provide dedicated full-workspace backup and restore. Individual
+project/template exports and resource packs remain useful sharing formats, but
+they do not replace a complete backup or volunteer-handoff workflow. The backup
+contract is defined under `Workspace Backup, Version History, Trash, And
+Handoff`.
 
 Only local workspace data is in scope. The operating system account and
 file-system permissions are the access boundary for workspace data.
@@ -362,12 +694,12 @@ build, validation, and help must make no network request. External links are
 never fetched automatically.
 
 Trusted computing components are limited to the installed/signed app code, its
-bundled schema catalog, pinned Typst and any included validator binaries, bundled
-fonts, and OS security primitives after their package hashes/signatures pass
+bundled schema catalog, pinned Typst, booklet compositor, any included validator
+binaries, bundled fonts, and OS security primitives after their package hashes/signatures pass
 startup or install verification. User confirmation expresses intent but does
 not make malformed content safe.
 
-Untrusted input includes every project/bundle/pack/AI file, archive name/path,
+Untrusted input includes every project/bundle/pack/backup/handoff/AI file, archive name/path,
 JSON string, Markdown/readme, SVG/raster image, font, imported PDF/Typst
 diagnostic, clipboard payload, filename, metadata field, diagnostic attachment,
 and helper output received outside the installed app. It remains untrusted after
@@ -456,14 +788,16 @@ Linux acceptance:
   desktop/icon metadata. Optional desktop integration requires user action and
   the AppImage never self-modifies.
 - `.deb`/pacman install and uninstall update desktop/MIME caches correctly. The
-  app may associate `.pak`, but must not claim the generic `.zip` type.
+  app may associate `.pak`, `.cbb-backup`, and `.cbb-handoff`, but must not claim
+  the generic `.zip` type.
 
 On a supported clean system with networking disabled after acquisition, every
 package must launch, create/select a workspace, verify bundled schemas/fonts/
 Typst and the validator when the accessible-output stage is included, create a
 bulletin, and build a PDF. The smoke workflow covers
 paths containing spaces and non-ASCII characters. About/diagnostics reports app,
-schema-set, Typst, bundled-font-set, and included validator versions/hashes.
+schema-set, Typst, booklet compositor, generic-starter set, bundled-font-set, and
+included validator versions/hashes.
 
 The application has no required in-app network updater. MSI/package-manager
 updates use verified offline packages; AppImage updates are manual side-by-side.
@@ -484,6 +818,70 @@ exact path. A custom external workspace is never deleted merely because the app
 is uninstalled. Acquisition/AUR builds may require network access; installed app
 runtime, validation, and PDF generation may not.
 
+### Task-Based Product Acceptance
+
+Initial v1 and every release changing weekly editing, setup, review, export,
+recovery, or printing must pass recorded task acceptance in addition to unit,
+schema, security, and rendering tests.
+
+The primary benchmark uses at least five representative non-technical church
+volunteers, a prepared Church Profile/template/prior bulletin, and terse pastor
+notes. Without facilitator help, at least four must create the next bulletin,
+paste the notes, carry two announcements, omit one optional section, correct a
+surfaced stale value, close and resume at the same instruction/field/page, review
+the PDF, and export the intended print-ready result. Median completion time must
+not exceed 15 minutes. Weekly Content must not expose JSON, Typst, ids, hashes,
+bindings, definitions, artifacts, contracts, or build-signature terminology.
+
+A second representative-author benchmark starts from a generic starter. At least
+four of five volunteers must, without facilitator help, create/save a template,
+make Date/Text/Hymn content weekly fields with rollover behavior, add one optional
+section and one repeatable announcement section, protect layout, test the weekly
+workflow, and create a usable new bulletin from it in no more than 30 minutes.
+The task is also run keyboard-only with a trained keyboard user and with each
+screen-reader/platform combination in the release accessibility matrix; a
+failure of required non-drag authoring operations blocks release.
+
+Release acceptance also covers:
+
+- Clean install to first useful PDF with a generic starter, without importing a
+  pack, choosing a workspace path, opening diagnostics, using AI, or using a
+  terminal.
+- Complete keyboard-only weekly setup/edit/review/export, including permitted
+  repeat-item reorder and image replacement/crop. A separate Customize Layout
+  keyboard task covers general create, move, reparent, and resize.
+- The accessibility matrix is Windows 11 with built-in Narrator and a
+  release-pinned NVDA version, plus Ubuntu 24.04 GNOME with its release-pinned
+  Orca version. The release record names OS image, desktop, app runtime, AT
+  version, and speech/braille configuration. Tests cover onboarding, Weekly
+  Content, rich-text caret/selection/format-state and validation announcements,
+  Customize Layout/structure tree, template authoring, Church Library, Review
+  and Export, backup/restore, Trash, and Settings.
+- Windows and Linux at 125%, 150%, and 200% scaling and the required `900 x 480`
+  logical viewport, including 1920x1080 physical display at 200% and 1366x768 at
+  100%/125%, with forced/high-contrast colors; no lost controls, clipped dialogs,
+  required application-level horizontal scrolling, or lost focus/selection.
+- Resume/recovery after normal close, process interruption, autosave failure,
+  stale preview, missing image, and accidental Move to Trash within the stated
+  crash-loss bound.
+- Long translated UI labels, a Unicode label such as `St. John’s — Comunidad de
+  Fe`, duplicate document names, constrained-height dialogs, and dates around
+  locale/time-zone boundaries.
+- Review navigation for missing weekly content, overflow, low-resolution image,
+  leading/trailing blank page, stale preview, and page-count mismatch.
+- A real two-sided one-sheet test and complete multi-sheet booklet on a recorded
+  printer for each required Letter/half-letter, Legal/7-by-8.5, and A4/A5 pair,
+  covering left and right binding across the matrix. The release records PDF
+  viewer/version, OS print path, printer model/firmware, driver/version, paper,
+  duplex/flip, orientation, and scale settings. Order, side orientation, safe
+  inset, fold, covers, and intentional blanks match preview.
+- Verified full backup, restore to clean and nonempty destinations, Version
+  History and private weekly-work-history restore, private brief/checklist
+  recovery, Trash restore, and handoff restore on another supported machine,
+  including the unresolved-required-item include/omit gate.
+
+A failed required task is a release blocker even when schema/rendering tests pass.
+
 ## Project Files
 
 Projects are disk-backed folders inside the local workspace. Storage paths use
@@ -497,10 +895,14 @@ Workspace layout:
   .workspace.lock
   workspace.json
   settings.json
+  church-profile.json
   bulletins/<local-resource-id>/document.json
   templates/<local-resource-id>/template.json
+  saved-sections/<local-resource-id>/definition.json
+  weekly-work/<local-resource-id>/work.json
   assets/<local-resource-id>/asset.json
   assets/<local-resource-id>/original
+  assets/<local-resource-id>/canonical
   assets/<local-resource-id>/derived/
   fonts/<local-resource-id>/font.json
   fonts/<local-resource-id>/faces/<face-id>
@@ -510,6 +912,9 @@ Workspace layout:
   artifacts/<local-resource-id>/<build-id>.pdf
   preview/
   ai-exchange/
+  history/<local-resource-id>/<snapshot-id>.json
+  history/<local-resource-id>/weekly-work/<snapshot-id>.json
+  trash/<local-resource-id>/trash.json
   transactions/
   conflicts/
 ```
@@ -522,14 +927,22 @@ Workspace file roles:
   state machine; it is not portable content.
 - `settings.json` stores user/workspace editor preferences governed by
   `settings.schema.json`.
+- `church-profile.json` stores the optional workspace Church Profile governed by
+  `church-profile.schema.json`.
 - `bulletins/<local-resource-id>/document.json` and
   `templates/<local-resource-id>/template.json` are portable document files
   governed by `document.schema.json`.
+- `saved-sections/` stores reusable pinned custom-element/Saved Section
+  definitions and workspace display metadata.
+- `weekly-work/<local-resource-id>/work.json` stores the output-inert private
+  brief/checklist/resume record governed by `weekly-work.schema.json`.
 - `assets/<local-resource-id>/asset.json` stores workspace-local asset metadata
   governed by `asset-record.schema.json`.
-- `assets/<local-resource-id>/original` stores the original imported asset binary
-  after validation. Sanitized/rasterized/generated derivatives live under
-  `assets/<local-resource-id>/derived/`.
+- `assets/<local-resource-id>/original` stores inert source provenance when
+  retained. `canonical` stores the exact immutable build-safe bytes identified
+  by the portable asset id. Other sanitized/rasterized/generated derivatives
+  live under `derived/` and cannot enter a build unless promoted to a new
+  canonical portable revision.
 - `fonts/<local-resource-id>/font.json` and `faces/` store one managed immutable
   font-family revision and its validated face binaries under
   `font-record.schema.json`.
@@ -538,12 +951,21 @@ Workspace file roles:
   `$defs` record referenced by it.
 - `artifacts/<local-resource-id>/<build-id>.json` stores the build/artifact record
   governed by `artifact-record.schema.json`.
-- `artifacts/<local-resource-id>/<build-id>.typ` and `.pdf` are derived outputs
-  tied to the artifact record.
+- `artifacts/<local-resource-id>/<build-id>.pdf` exists for a compile/compose
+  artifact that owns new PDF bytes. A `.typ` exists only for a reader-order
+  compile. A revalidation record may reference content-addressed bytes/evidence
+  owned by its verified source build and need not create either file. A booklet-
+  two-up compositor artifact owns no synthetic Typst source and instead
+  references its immutable parent reader artifact.
 - `preview/` stores temporary live-preview outputs and may be cleaned during app
   startup.
 - `ai-exchange/` stores owner-only bounded helper exchange/run state and may not
   expose the rest of the workspace to a helper.
+- `history/` stores immutable canonical document snapshots and separately
+  privacy-scoped weekly-work snapshots/reasons needed by cross-restart recovery.
+- `trash/` stores deletion time, prior library kind/location, dependency
+  retention, and restore metadata; moving to Trash does not rewrite portable
+  document content.
 - `transactions/` stores import/save/update transaction journals needed for
   rollback or startup recovery.
 - `conflicts/` stores conflict backups created during stale-save, external-file,
@@ -552,13 +974,19 @@ Workspace file roles:
 Generated Typst and PDFs are derived artifacts. They must be associated with an
 artifact record rather than treated as standalone source-of-truth project files.
 
-Project names may contain only letters, numbers, spaces, underscores, and
-hyphens, with a maximum length of 64 characters.
+Project names are nonempty Unicode display labels normalized to NFC, trimmed of
+leading/trailing whitespace, and limited to 120 Unicode scalar values. They may
+contain ordinary language and punctuation, including apostrophes and periods.
+They must not contain NUL, unpaired surrogates, C0/C1 control characters other
+than ordinary spaces, or bidi controls that would make a security-sensitive
+display ambiguous. Filesystem-forbidden characters are handled only when a name
+is expanded into an export filename; they are not a reason to reject the display
+label itself.
 
 Project names are user-facing display labels. They do not determine storage
 identity and do not need to be globally unique. If duplicate names exist, the UI
 should disambiguate them with metadata such as kind, last modified time, source
-resource pack, or containing folder.
+resource pack, publication date, or service label.
 
 ## Resource Identity
 
@@ -590,6 +1018,12 @@ Identity classes must not be substituted for one another:
 | Resource pack content id | Publisher-stable UUIDv4 unique within one pack. The pair `(packId, contentId)` identifies one logical pack item across pack versions. | Pack manifest and installed-pack provenance. |
 | Field contract id | Portable UUIDv4 identifying one field-contract lineage across compatible contract versions. | Portable documents, custom definitions, and AI exchanges. |
 | Document element id | Identifier for one visual element instance, scoped to a single document. It is not a resource, asset, pack-content, or manifest-entry id. | Portable document JSON. |
+| Content-rule id | Identifier for one conditional/repeatable rule, scoped to a document and separate from visual node and field ids. | Portable document JSON. |
+| Repeat-item id | UUIDv4 identifying one item in a repeat-bound array, scoped to a document and paired with its value across reorder. | Portable bulletin field-value metadata. |
+| Church Profile schedule id | UUIDv4 identifying one stable schedule within a workspace profile; it may appear only as inert derivation evidence in a bulletin. | Church Profile and portable field-review evidence. |
+| Weekly checklist item id | UUIDv4 identifying one private task within a bulletin's workspace-local weekly-work record. | Weekly-work JSON only. |
+| History snapshot id | UUIDv4 identifying one immutable workspace-local document snapshot. | Version History metadata only. |
+| Backup/handoff id | UUIDv4 identifying one backup or handoff archive instance and restore record. | Backup manifest and workspace-local backup history. |
 | AI exchange id | UUIDv4 identifying one exported AI contract/import exchange and its local target-resolution record. | AI exchange JSON and workspace-local exchange metadata. |
 
 UUID-valued identities must use the canonical lowercase hyphenated UUID text
@@ -611,12 +1045,15 @@ new local copy.
 
 The UUID portion of `asset:<uuid>` is a portable asset id, not the local asset
 resource id used in `assets/<local-resource-id>/`. A portable asset id identifies
-exactly one immutable binary revision. Changing or replacing the bytes creates a
-new portable asset id; editing display metadata does not.
+exactly one immutable canonical build-safe binary revision. The originally
+uploaded source may be stored separately as inert provenance. Changing,
+replacing, or regenerating the canonical bytes creates a new portable asset id;
+editing display/source metadata does not.
 
 The workspace asset resolver maps each portable asset id to a local asset
 resource id and the verified SHA-256 digest of that binary. Asset records store
-both identities. The `<local-resource-id>` segment in workspace paths is always
+both identities plus any source-original/sanitizer provenance. The
+`<local-resource-id>` segment in workspace paths is always
 the local asset resource id. A renderer must resolve `data.assetRef` through this
 map and must never interpolate its UUID directly into a filesystem path.
 
@@ -636,9 +1073,10 @@ document does not independently duplicate its referenced assets.
 
 Each project/template bundle manifest must map every referenced portable asset id
 to a bundle asset entry id. Each asset entry supplies the validated archive path,
-SHA-256 digest, byte size, media type, and other fields defined by the manifest
-contract. On import, the app builds a complete source-entry-to-local-resource map
-in quarantine before committing any resource:
+SHA-256 digest, byte size, media type of the canonical build-safe bytes, and
+other fields defined by the manifest contract. On import, the app builds a
+complete source-entry-to-local-resource map in quarantine before committing any
+resource:
 
 - An incoming portable asset id not present in the destination receives a new
   local asset resource id and resolver entry.
@@ -726,8 +1164,15 @@ Rename changes display metadata only. Rename must not change the local resource
 id, storage path, generated artifact path, or internal references.
 
 Duplicate creates a new local resource with a new local resource id and copied
-content. Imported projects and templates always receive new local resource ids
-when imported as new copies.
+content. Duplicating a bulletin clears prior `fieldReview` decisions,
+`contentReview` decisions, weekly private work, approval/final status, and
+current-artifact association, then creates fresh pending review records/source
+evidence required by the new date and duplication context. The new copy is a
+draft needing date/rollover review and cannot inherit publication readiness
+merely because effective values have the same hashes. Duplicating a template
+copies sample/default/authoring state but no bulletin review state. Imported
+projects and templates always receive new local resource ids when imported as
+new copies.
 
 ## Document Model
 
@@ -741,9 +1186,13 @@ Every project has this top-level shape:
   "metadata": {
     "title": "July 5, 2026 Bulletin",
     "language": "en-US",
-    "publicationDate": "2026-07-05"
+    "publicationDate": "2026-07-05",
+    "serviceLabel": "Sunday Worship"
   },
   "page": {},
+  "fieldReview": [],
+  "contentReview": [],
+  "contentRules": [],
   "pageElements": [],
   "elements": []
 }
@@ -751,6 +1200,18 @@ Every project has this top-level shape:
 
 The `kind` field is either `bulletin` or `template`. Bulletins and templates use
 the same layout model; they differ by storage location and user workflow.
+
+`metadata.serviceLabel` is an optional portable user-facing label used to
+distinguish multiple services on one publication date. It is not identity. The
+weekly duplicate-date warning compares publication date plus normalized service
+label when present and publication date alone otherwise.
+
+When a text/choice field declares `semanticRole: "serviceLabel"`, its effective
+display value controls the metadata mirror using the same single-transaction,
+mismatch-error, and no-guess rules as the publication-date mirror. A choice
+stores its stable id in the field but mirrors its current display label into
+metadata; changing choice labels is therefore a reviewed contract/template
+change.
 
 Creating a bulletin from a template copies the template content into a new
 bulletin. Bulletins are not live-linked to the source template by default.
@@ -761,6 +1222,21 @@ a copied contract plus `fieldValues`, bindings, and portable `sourceTemplate`
 lineage. Legacy top-level `schema` data is migration input and must normalize to
 the shared field-contract model.
 
+A template may include output-inert `sampleFieldValues` using the same canonical
+value types for authoring/test preview. Samples are visibly identified, are
+forbidden on bulletins, are never copied during bulletin creation, and never
+resolve as defaults. Converting a sample into a default is an explicit template
+edit.
+
+Templates and bulletins may include a top-level `authoringPolicy` inherited by
+nodes that do not override it. It is portable, output-inert authoring guidance
+with `contentLocked` and `layoutLocked` booleans, both defaulting to `false`.
+Native elements own content/style policy; container and page-placement wrappers
+own placement policy. Weekly Content mode always protects layout and additionally
+honors content locks. Customize Layout may change a lock only through an explicit
+undoable action that explains the affected scope. Locks are guardrails, not an
+access-control boundary, and never affect PDF bytes.
+
 The `elements` array is the normal body flow. The order in this array is the
 order used by the editor, Typst generation, and PDF output.
 
@@ -769,6 +1245,51 @@ backgrounds, page numbers, headers, footers, and decorative elements. Page-level
 elements render independently from normal body flow and may be anchored in page
 margin regions when their placement allows it. Missing `pageElements` should be
 treated as an empty array during normalization.
+
+The optional top-level `contentRules` array stores the closed conditional and
+repeatable presentation rules defined below. Missing rules normalize to an empty
+array. Rule ids match the field-id lexical pattern, are unique within the
+document's rule namespace, and are not visual node ids.
+
+Bulletin-only portable `contentReview` is an ordered array of closed review
+records. Each record has disposition `pending`, `confirmedUnchanged`, `edited`,
+or `notApplicable`, stores a `reviewHash`, and identifies exactly one target:
+
+- `{ "scope": "document", "targetNodeId": "..." }` for a stable native node in
+  the document/page tree; or
+- `{ "scope": "custom", "ownerNodeId": "...", "definitionNodeId": "..." }`
+  for one stable node inside the pinned definition of a specific custom-instance
+  owner.
+
+The target tuple is unique within `contentReview`; conflicting duplicate records
+are invalid. Every record seeded from a template or duplicate retains closed
+`sourceEvidence`; it is required while disposition is `pending` or
+`confirmedUnchanged` and contains `sourceKind` (`template` or
+`bulletinDuplicate`), source document hash, source content-projection hash,
+optional source publication date, and an optional source target using the same
+discriminated shape. Those portable hashes/dates are explanation and comparison
+evidence, not a live link; currentness can be recomputed after transfer without
+the source bulletin. Records sort by the canonical target tuple, are output-
+inert, and affect readiness only.
+
+A content-review projection contains only review-eligible literal/unbound
+content-bearing `data` leaves. A partly bound element excludes its bound leaves
+but may still review its remaining literal leaves. Each leaf inherits the nearest
+explicit `weeklyReview`; an explicitly hinted descendant is excluded from an
+ancestor projection and becomes its own target, preventing duplicate parent/
+child prompts. Otherwise the app aggregates sibling leaves with the same
+effective hint at the nearest meaningful native node. Inside a custom instance,
+the target always pairs the owner instance with the pinned definition node; a
+definition node id alone can never merge reviews from two instances. Nodes with
+no eligible unbound leaves cannot receive a content-review record.
+
+The `reviewHash` covers target identity, the canonical current resolved content
+projection, complete source evidence, current bulletin publication date/service
+label, and conditional context. Bulletin creation/duplication seeds `pending`
+records for applicable targets; editing an included leaf writes `edited` and
+recomputes the record. A projection, source-evidence, date, service, hint, or
+conditional-context change invalidates the decision. Templates forbid
+`contentReview`; a bulletin duplication never copies its source's decisions.
 
 Each element has these common fields:
 
@@ -786,7 +1307,16 @@ Each element has these common fields:
   legacy element `schema` arrays are migration input only.
 - `bindings`: optional ordered bindings from contract fields to allowlisted
   type-specific `data` leaves.
+- `authoringPolicy`: optional content/layout lock override inherited from the
+  document or containing wrapper.
+- `weeklyReview`: optional `everyBulletin`, `whenDuplicated`, or `none`
+  authoring hint for unbound content; it affects stale-content review, not PDF
+  bytes.
 - `data`: type-specific content.
+
+There is no generic persisted `hidden` flag in v1. Output exclusion belongs to a
+validated conditional-content rule. Structure-tree collapse/filtering and
+selection visibility are ephemeral editor state and never affect output.
 
 Persisted physical layout lengths should use explicit unit strings, with inches
 as the default unit for page, margin, element size, spacing, canvas position, and
@@ -813,12 +1343,39 @@ A `fieldContract` contains:
 
 Each field definition contains `id`, `label`, `type`, and `required`, plus
 optional `description`, `groupId`, `nullable`, `default`, `examples`,
-`constraints`, `semanticRole`, and AI instructions. A `groupId` must resolve in
-the same contract. Groups render in group-array order, ungrouped fields render
-after them, and field-array order is authoritative within each group. The only
-v1 semantic role is `publicationDate`, allowed on a date field at most once per
-document. Field ids match `^[A-Za-z][A-Za-z0-9_-]*$`, are stable across label
-changes, and must not be reused for a different meaning.
+`constraints`, `semanticRole`, AI instructions, `weeklyBehavior`, and
+`profileKey`. A `groupId` must resolve in the same contract. A `profileKey` must
+be one of the closed Church Profile keys and its value type must be compatible
+with the field. Groups render in group-array order, ungrouped fields render after
+them, and field-array order is authoritative within each group. A group may
+reference one top-level conditional rule id for matching setup-form visibility;
+it cannot declare a parallel inline condition. Required fields used only by an
+inactive group do not block readiness. The v1 semantic roles are
+`publicationDate` on a date field and `serviceLabel` on a text/choice field, each
+allowed at most once per document. Field ids
+match `^[A-Za-z][A-Za-z0-9_-]*$`, are stable across label changes, and must not be
+reused for a different meaning.
+
+`weeklyBehavior` is a closed object with:
+
+- `rolloverPolicy`: `clear`, `keep`, `ask`, or `deriveConfirm`.
+- `reviewExpectation`: `everyBulletin`, `whenCarried`, or `none`.
+- For `deriveConfirm`, `derivation` is the closed object
+  `{ "kind": "nextScheduledServiceDate", "serviceLabelHint"?: "..." }`, valid
+  only for a date field. A hint helps setup but never selects schedule identity.
+
+An absent weekly behavior defaults to `ask`; imported legacy content must not
+silently inherit values. A `publicationDate` field must use `clear` or
+`deriveConfirm`, never `keep`. A derivation creates a labeled candidate and
+always requires confirmation; it must not assume Sunday or use the wall clock as
+an unreviewed publication date.
+
+`nextScheduledServiceDate` chooses the user-selected enabled Church Profile
+schedule after the rollover source publication date. Without a source it uses the first
+match on/after the current date in the workspace display time zone. The setup
+shows candidate schedules matching the hint/service label, but labels never
+choose identity and confirmation remains mandatory. Multiple matches require the
+user to choose one before a candidate is stored.
 
 Field values use these canonical JSON representations:
 
@@ -844,11 +1401,65 @@ String patterns use a documented linear-time, RE2-compatible subset without
 backreferences or lookaround and run under validation limits; an import cannot
 supply an unbounded backtracking expression.
 
-Bulletin `fieldValues` is an object keyed by field id. Each stored entry contains
-`value` and `origin`, where origin is `manual`, `ai`, `imported`, or
-`materializedDefault`. Origin supports review and conflict handling but does not
-bypass validation. An omitted field resolves to its contract default when one
-exists; defaults need not be copied into `fieldValues` merely to render.
+Top-level bulletin `fieldValues` and each native owner-scoped `fieldValues` store
+are objects keyed by a field id from their corresponding contract. Each stored
+entry contains `value` and `origin`, where origin is `manual`, `ai`, `imported`,
+`materializedDefault`, `carriedForward`, `profile`, or `derived`. Origin supports
+rollover and conflict handling but does not bypass validation. An omitted field
+resolves to its contract default when one exists; defaults need not be copied
+into `fieldValues` merely to render.
+
+An array entry used by a repeat rule also contains `itemIds`: canonical UUIDv4
+values with the same length/order as the array. Add assigns a fresh id; remove
+removes the paired id; reorder moves value and id together. A bulletin
+materializes every effective repeat-bound default into `fieldValues` with origin
+`materializedDefault` and fresh item ids during creation/setup, before normal
+rendering or review. Template authoring previews may use explicitly ephemeral
+item identities that never enter a bulletin. A full
+document duplicate may preserve item ids because they are document-scoped; a new
+bulletin carrying prior array values assigns fresh ids. AI/import replacement
+assigns fresh ids unless a validated exchange format explicitly carries the
+current ids and passes conflict review.
+
+Bulletins additionally contain portable `fieldReview` as an ordered array, so a
+clear/keep/confirm decision survives bundle transfer, Version History, and a
+workspace restore without collisions between scoped contracts. Each closed
+entry's `target` has exactly one of these shapes:
+
+- `{ "scope": "document", "fieldId": "..." }` for the top-level document
+  contract/value store; or
+- `{ "scope": "local", "ownerNodeId": "...", "fieldId": "..." }` for the
+  stable native element/custom-instance node that owns the scoped contract and
+  value store.
+
+The target tuple is unique within `fieldReview`; entries sort by scope, owner node
+id when present, then field id. Transient repeated-instance ids and array indices
+are forbidden. The remainder of each closed entry contains:
+
+- `disposition`: `kept`, `clearedPrior`, `edited`, `derivedConfirmed`,
+  `profileAccepted`, `confirmedUnchanged`, or `notApplicable`.
+- `reviewHash`: `sha256:<lowercase-hex>` over RFC 8785 canonical review context:
+  the complete target tuple, contract id/version/hash, the stored/default field
+  value or `missing`, sorted active binding ids and any target-local fallbacks
+  actually used, plus sorted active conditional/repeat rule uses of that field
+  and, whenever rollover or review policy requires a decision for this bulletin,
+  current publication date/service label.
+- Optional inert source publication date and source value hash for explaining a
+  carried decision; these never resolve a value.
+- For `derivedConfirmed`, required inert `derivationEvidence` with kind, selected
+  schedule id/label, Church Profile revision hash, base date/time-zone rule, and
+  resulting date. It explains/revalidates the decision but is not a live profile
+  dependency after creation.
+
+A review record is current only while its target still resolves to the same
+scoped field and its `reviewHash` matches. Any field edit, default/contract/
+binding/rule change, owner removal, or conditional activation that alters review
+context removes or invalidates the record. Thus `notApplicable` cannot remain
+current after its section becomes active even when the underlying value is still
+missing. A manual edit writes `edited`; confirming an unchanged carried value
+writes `confirmedUnchanged`. Templates must not contain `fieldReview`; a newly
+created bulletin begins with records created only by its reviewed setup
+decisions.
 
 Effective bound values resolve in this order:
 
@@ -856,6 +1467,33 @@ Effective bound values resolve in this order:
 2. The field's valid contract default.
 3. The binding's optional schema-valid fallback.
 4. Missing, which is a validation result when the field is required.
+
+A binding fallback is target-local and never becomes the field's stored/default
+value. Different bindings may have different fallbacks; their ids and only the
+fallbacks actually used are part of the field's aggregate `reviewHash` above.
+
+When creating a bulletin with a compatible prior-bulletin source, rollover is
+resolved before the setup review:
+
+- `clear` stores no prior value. A valid contract default may still resolve.
+- `keep` copies the prior stored value or contract default with origin
+  `carriedForward`; review is required when `reviewExpectation` is `whenCarried`
+  or `everyBulletin`. A target-local binding fallback is never promoted into a
+  field value.
+- `ask` presents only the prior stored value or contract default with `Keep`,
+  `Clear`, and `Edit` and stores nothing until the user decides. When neither
+  exists it presents `No prior value`; target-local binding fallbacks are never
+  offered or promoted as a field value.
+- `deriveConfirm` produces a value with origin `derived` but no current
+  `fieldReview` record until explicitly confirmed.
+- A compatible `profileKey` may offer the current Church Profile value with
+  origin `profile`; the setup review shows it separately from defaults and prior
+  values.
+
+Unresolved `ask` decisions and fields lacking a current required `fieldReview`
+record block print-final readiness but not save, close, or preview. Compatibility
+requires matching contract lineage and field meaning/type. A contract change
+requires a declared compatible migration or explicit reviewed field mapping.
 
 Bindings are stored on the owning visual element as an ordered `bindings` array.
 Each binding has a document-unique `id`, `scope` (`document` or `local`), a
@@ -875,6 +1513,93 @@ An explicit `Detach binding` action removes the binding and writes the currently
 resolved value into the target property as one undoable document edit; that
 literal property is authoritative afterward.
 
+#### Template-Authored Conditional And Repeatable Content
+
+Conditional and repeatable content are closed declarative template features.
+They are separate from ordinary content bindings and are the only field-driven
+rules permitted to affect structure in v1. They must not contain scripts,
+arbitrary expressions, arbitrary JSON mutation, or AI-controlled layout changes.
+They persist in top-level `contentRules` as a discriminated union with
+`kind: "conditional"` or `kind: "repeat"`; unknown kinds are invalid.
+
+A conditional rule contains a unique id, one stable `targetNodeId`, `scope`
+(`document` or `item`), a controlling boolean/choice field or item-property path,
+and one allowlisted condition: boolean equality, choice equality, or choice
+inequality, plus bounded nonempty `activateLabel` and `inactiveLabel` used by
+Weekly Content. `item` scope is valid only when the target is inside one repeat
+prototype and the path resolves to a compatible property of that repeater's array
+item schema. When inactive:
+
+- The target remains in the authoritative template/document tree but is excluded
+  from rendered/PDF text, output layout, pagination, and accessible reading
+  order. Workspace library search may index it with a visible `Not used this
+  week` result label; current-document find has an `Include unused sections`
+  option off by default.
+- Weekly Content shows an editor-only protected placeholder and the
+  template-authored action label, such as `Include Communion this week`; the
+  placeholder consumes no persisted/PDF pagination space.
+- Required fields whose only uses are within that inactive branch do not block
+  readiness.
+
+A missing or null conditional controller is `unresolved`, never implicitly false
+and never true because of `does not equal`. Preview excludes the branch and shows
+an editor-only `Choose a value` placeholder; final readiness blocks until the
+controller resolves or the template provides a valid explicit inactive choice.
+
+The inactive label, such as `Not used this week`, lets the user make that
+decision explicitly. A conditional rule is output-affecting
+portable document state and must be included in build signatures.
+
+A repeatable rule contains a unique id, an array field, exactly one
+`prototypeNodeId` resolving to a native element in the authoritative tree,
+item-scope bindings, `emptyState`, a bounded `maxItems`, and
+`userReorderable`, plus bounded `itemLabel` and `addLabel`. Weekly Content
+provides labeled `Add`, `Remove`, and, when allowed, `Move up`/`Move down`
+actions without requiring drag. Array order is authoritative output and reading
+order; its `minItems`/`maxItems` constraints govern allowed counts.
+
+`emptyState` is either `{ "mode": "collapse" }` or `{ "mode": "show",
+"nodeId": "..." }`, where the node is a static sibling owned by that rule.
+That node renders only when the effective array is empty and cannot be another
+rule's target/prototype; nonempty arrays exclude it. Empty arrays render according
+to the policy; editor placeholders remain output-inert.
+Missing arrays are unresolved and block when the field/rule is required. A valid
+nullable `null` is treated as empty only when the rule explicitly sets
+`nullIsEmpty: true`; otherwise it is unresolved. Rule `maxItems` must be at most
+the field constraint maximum when one exists, and the combined minimum/maximum
+must admit at least one valid count.
+
+Repeat `itemBindings` are a separate closed binding variant; ordinary element
+bindings retain only `document`/`local` scope. Each item binding has a
+document-unique id, an RFC 6901 `itemPath` relative to one array item, a
+`targetNodeId` resolving to the prototype root or one of its descendants, a
+`target` pointer relative to that node, and the same allowlisted deterministic
+format/fallback rules as ordinary content bindings. The item path must resolve in
+the array item schema and be type-compatible with the target. The pointer may
+target only a content-bearing `data` leaf on the declared node, never style,
+geometry, children, ids, rule fields, or pagination controls. During expansion it
+reads only the current item; editing the rendered target updates that exact array
+item/property.
+
+Repeated instances are transient render expansions rather than competing
+persisted copies; the prototype node itself is not additionally rendered outside
+the expansions. Diagnostic and selection identity is deterministically derived
+from the rule id plus the paired stable `itemId`, never the current index; editing
+an item updates the corresponding array value. Reordering an allowed repeater
+reorders the value/id pairs as one undoable
+edit. Only Customize Layout/template authoring may create, retarget, or delete a
+conditional or repeatable rule.
+
+A node may be the direct target of at most one conditional rule and the prototype
+of at most one repeat rule. Rules cannot target transient repeated-instance ids.
+Their dependency/target graph must be acyclic. Resolution first computes field
+values, then applies ancestor conditional exclusion in document tree order, then
+expands active repeat prototypes in array order; conditional rules inside a
+prototype are evaluated independently for each item scope. A rule excluded by an
+inactive ancestor is not evaluated for readiness except for the ancestor's
+controlling value. These rules make editor, search, pagination, accessibility,
+and Typst generation deterministic.
+
 Custom-element definitions use the same field-contract shape. A custom-element
 instance stores its values using the same field-value records, scoped to that
 definition instance. Bindings inside the definition resolve against the instance
@@ -890,7 +1615,11 @@ resource id.
 Field-contract versions are independent of the document schema version. Adding
 an optional field with no rendering effect may be compatible; removing a field,
 reusing an id, changing type, tightening constraints, or changing binding meaning
-is incompatible unless an explicit migration is defined. Re-import or contract
+is incompatible unless an explicit migration is defined. Changing weekly
+behavior or profile mapping increments the field-contract version and appears in
+the reviewed diff. Changing a conditional/repeatable rule changes the portable
+document revision/hash and appears in template-update review even when field
+types remain compatible. Re-import or contract
 update must show a per-field diff. Existing `manual` values win by default and
 are never overwritten silently. Removed or incompatible values move to a
 portable inert `orphanedFieldValues` map until the user remaps or deletes them;
@@ -904,8 +1633,9 @@ Automatic AI application requires exact target contract id, version, and
 canonical hash. Any version or hash mismatch requires an explicit reviewed
 contract migration and complete revalidation before proposals can apply.
 Proposed values use the same field schemas and review. Accepting a value writes
-it to `fieldValues` with origin `ai`; later imports do not replace `manual`
-values unless the user selects those fields explicitly.
+it to the authoritative targeted field-value store with origin `ai` and writes
+`edited` to the matching scoped `fieldReview.target`; later imports do not
+replace `manual` values unless the user selects those fields explicitly.
 
 ## Page Model
 
@@ -913,8 +1643,10 @@ The page model defines both the editor page and the Typst PDF page.
 
 - `page.typstWidth` and `page.typstHeight` are the canonical persisted physical
   finished logical-page/panel lengths, never imposed sheet dimensions.
-- `page.layoutIntent` is `singlePage` (default) or `foldedBooklet`; it chooses
-  initial editor presentation only and does not reorder PDF pages.
+- `page.layoutIntent` is `singlePage` (legacy persisted label shown as `Standard
+  pages`) or `foldedBooklet`. It selects standard versus folded setup/review/
+  output workflow and initial presentation, but never itself reorders the
+  reader-order PDF or limits a standard document to one page.
 - `page.width` and `page.height` are derived editor dimensions in pixels, or
   legacy persisted editor dimensions that should be migrated when safe.
 - `page.background` is the PDF/editor page fill color and defaults to `#ffffff`.
@@ -922,13 +1654,28 @@ The page model defines both the editor page and the Typst PDF page.
   (default) or `right`.
 - Optional `page.finalPageCountRequirement` defines a portable blocking
   publication constraint evaluated after authoritative PDF pagination.
+- Optional `page.printSafeInset` stores top/right/bottom/left printer-safe review
+  guides for standard reader-order pages. It is readiness-only and never clips or
+  changes PDF bytes.
+- `page.bookletPrintSetup` is forbidden for standard documents. It is optional
+  while editing or exporting reader-order output from folded work and required
+  before any Booklet-print preview, finalization, or export. When present, it
+  stores the authoritative portable two-up sheet/duplex/scale/safe-inset choices.
 - Fixed `page.margins.top`, `right`, `bottom`, and `left` define the content box.
 - Mirrored margins use `top`, `bottom`, `inner`, and `outer`; their physical
   left/right mapping follows logical page parity and binding direction.
 
-The default physical page is `7in` by `8.5in`. The editor's matching pixel size
-is derived using `96px` per inch, so the default editor projection is `672` by
-`816` pixels.
+Every new template and bulletin stores an explicit finished logical page/panel
+size selected by its starter, template, or plain-language page setup. There is no
+congregation-specific global page-size default. Blank creation asks for full
+sheet or folded booklet, printer paper/preset, binding/fold when relevant, and
+the resulting finished size before final output. A valid Church Profile default
+may preselect a choice but the setup shows it for confirmation.
+
+Legacy documents that omit physical dimensions may use the former `7in` by
+`8.5in` migration fallback with a persistent `Confirm page size` finding. New v1
+documents may not rely on that fallback. Editor dimensions are always derived at
+`96px` per inch; for example, `7in` by `8.5in` projects to `672` by `816` pixels.
 
 Built-in folded-panel presets include `5.5in` by `8.5in` and `7in` by `8.5in`.
 
@@ -948,6 +1695,38 @@ content width = page width - resolved physical left margin
                 - resolved physical right margin
 content height = page height - top margin - bottom margin
 ```
+
+When present, `page.printSafeInset` is a closed object of nonnegative physical
+`top`, `right`, `bottom`, and `left` lengths measured inward from the finished
+logical page. Page View/Review may show guides and findings, but this
+readiness-only setting never moves/clips content or changes reader PDF bytes.
+
+When present on `foldedBooklet`, `page.bookletPrintSetup` is a closed object
+containing:
+
+- Explicit landscape `sheetWidth`/`sheetHeight`, with width greater than height.
+- `duplexFlip`: `shortEdge` or `longEdge`.
+- Decimal `scale` greater than `0` and at most `1`, default `1`.
+- `safeInset.top/right/bottom/left/fold`: nonnegative physical lengths. `fold`
+  is the protected distance on each side of the center fold.
+
+Let `slotWidth = sheetWidth / 2`. Safe-inset geometry is valid only when
+`sheetHeight - safeInset.top - safeInset.bottom > 0`,
+`slotWidth - safeInset.left - safeInset.fold > 0`, and
+`slotWidth - safeInset.right - safeInset.fold > 0`. Thus the outer and fold bands
+leave a nonempty printable region in both slots; equality, overlap, or a band
+outside the sheet is invalid. An absent setup leaves reader-order work available
+and presents `Set up booklet printing` instead of treating arbitrary defaults as
+confirmed.
+
+Document `page.binding` is the only binding authority; booklet setup must not
+store a second value. V1 performs no automatic panel rotation. The scaled
+finished panel must fit one half-sheet slot in its stored orientation; otherwise
+setup is invalid and offers a compatible sheet/panel preset or explicit smaller
+scale. Changing this object is a portable document edit that stales only booklet-
+two-up evidence, not a matching reader-order PDF: sheet/flip/scale changes stale
+booklet render input, while safe-inset-only changes stale readiness but can reuse
+identical imposed bytes.
 
 `page.finalPageCountRequirement` is absent when the document has no final
 page-count constraint. When present, it is a closed object containing either:
@@ -985,6 +1764,9 @@ the latest verified count when current, otherwise a clearly labeled pagination
 estimate, against the requirement. `CBB-LAYOUT-0004` reports the normalized
 requirement, actual count, and actions to edit content, add an intentional page
 break, or change the requirement. Templates preserve and copy the requirement.
+The normal UI translates this into a direct summary such as `You need 2 more
+pages for this booklet` and may offer the undoable `Add intentional blank pages`
+action defined by Review and Export.
 The booklet workflow offers `Multiple of 4` as a quick setting;
 `layoutIntent: "foldedBooklet"` alone does not silently add a constraint to an
 existing or migrated document. Changing the requirement is a document edit that
@@ -1009,8 +1791,10 @@ default. Users may type plain numbers in those fields, and plain numbers in
 inch-mode fields mean inches. Inch-mode plain-number input should be persisted as
 explicit inch strings, using `.` as the decimal separator in stored JSON.
 
-A future locale-aware input layer may accept locale-specific decimal entry, but
-persisted JSON length strings remain locale-independent.
+V1 numeric/length controls accept the bundled UI locale's decimal separator and
+display a localized example; ambiguous grouping separators are not accepted in
+layout fields. Persisted JSON numbers/length strings always normalize to ASCII
+`.` and remain locale-independent.
 
 Canonical page size rule:
 
@@ -1031,7 +1815,7 @@ Unit allowance by field category:
   `auto` where schema permits.
 - Element height where automatic sizing is allowed: physical lengths and `auto`
   where schema permits.
-- Grid track definitions, when configurable tracks are added: physical lengths,
+- Grid track definitions: physical lengths,
   `%`, `fr`, and `auto` where schema permits.
 - Font size: `pt`, `em`, or plain number interpreted by the font-size schema;
   not displayed as inches by default.
@@ -1069,7 +1853,9 @@ The style object may contain:
 - `borderColor`: stroke color, default `#d8cdbd`.
 - `borderWidth`: stroke width, default `0`.
 - `align`: `left`, `center`, `right`, or `justify`.
-- `verticalAlign`: reserved by schema for future vertical alignment behavior.
+- `verticalAlign`: `top` (default), `center`, or `bottom`. It aligns content only
+  when the resolved content box has excess height; it never changes the outer
+  box, pagination rules, or reading order.
 
 New elements should default to no visible border by using `borderWidth: 0`.
 Typst generation should only emit a stroke when `borderWidth` is greater than
@@ -1241,14 +2027,34 @@ Image elements have `type: "image"` and store image data in:
 - `data.assetRef`: portable asset reference in the form `asset:<uuid>`. The UUID
   identifies an immutable asset binary revision and is not a workspace-local
   resource id.
-- `data.fit`: `contain`, `cover`, or `stretch` in the schema.
+- `data.fit`: `contain` or `cover`.
+- `data.focalPoint`: optional closed object with finite decimal `x` and `y` from
+  `0` through `1`, defaulting to `{ "x": 0.5, "y": 0.5 }`. It selects the
+  preferred crop center for `cover` and has no visual effect for `contain`.
 - `data.alt`: optional accessibility text.
 - `data.decorative`: optional boolean indicating that the image should be
   treated as decorative/artifact content for accessible PDF output.
-- `data.caption`: optional future caption text.
 
-The current Typst renderer supports `contain` and `cover`; any other value falls
-back to `contain`.
+Unknown fit values are validation errors and must never silently change
+rendering. Legacy `stretch` migrates once to `contain` with a visible diagnostic
+because distortion is not supported. Editor Page View, crop preview, and Typst
+rendering must resolve the same focal point against the same destination aspect
+ratio.
+
+Focal coordinates use the canonical oriented source raster with `(0,0)` at its
+top left. For oriented source `W x H` and destination aspect `r = width/height`,
+`cover` uses `visibleH=H, visibleW=H*r` when `W/H >= r`; otherwise
+`visibleW=W, visibleH=W/r`. The crop origin is
+`clamp(focalX*W-visibleW/2, 0, W-visibleW)` and the corresponding y expression.
+The renderer carries these decimal values through its crop transform and rounds
+only emitted physical lengths by the standard length rule.
+
+Effective raster PPI conservatively uses the floor of visible source pixels in
+each axis divided by final printed inches in that axis, then reports the smaller
+value. Booklet-print inches include the explicit imposed scale. Replace Image
+resets focal point to center by default and offers `Keep current crop point` only
+with a preview of the new binary; old alt text/decorative state still requires
+review.
 
 Legacy image data may contain `data.path` pointing to an approved filesystem
 asset. Legacy filesystem asset paths remain valid indefinitely for read and
@@ -1300,10 +2106,25 @@ weekday names. Supported years are `0001` through `9999`.
 
 ### Music
 
-Music elements have `type: "music"`. They are placeholders for future hymn,
-psalm, song, and lead-sheet import support.
+Music elements have `type: "music"` and are presented to users as `Hymn/Song`.
+Their `data` supports:
 
-Current rendering displays `data.title` and `data.notes` in a centered box.
+- Optional `number`.
+- Required nonempty `title`.
+- Optional `instructions` describing what worshipers do.
+- Optional `source`.
+- Optional `richContent` using the shared rich-text AST for permitted hymn/song
+  text or service material.
+- Optional `copyrightNotice` and `licenseReference`.
+
+The renderer produces one semantic grouped block in that order and omits empty
+optional rows; it never displays an unfinished placeholder box. The normal field
+labels are `Hymn number`, `Title`, `What worshipers do`, `Source`, and
+`Copyright/licensing`. When a template marks attribution as required, missing
+source/licensing information appears in Review and Export. The title/metadata
+portion stays with the first rich-content paragraph. Rich content fragments under
+the normal rich-text rules; a fixed-height or `breakPolicy: "avoid"` ancestor may
+suppress that break as defined by pagination rules.
 
 ### Container Child Wrappers
 
@@ -1327,6 +2148,16 @@ reference. Container-specific fields are forbidden on the wrong wrapper kind.
 Cycles, duplicate node ids, or an element reachable through more than one parent
 are hard semantic errors.
 
+A wrapper may carry an `authoringPolicy` layout-lock override for its placement.
+It never controls the wrapped native element's content lock and never affects
+rendering. Page-placement wrappers use the same placement-lock rule.
+
+Deleting a nonempty container in Customize Layout must never discard descendants
+without naming that consequence. The UI offers `Delete section and contents` or,
+when the parent can accept every child deterministically, `Keep contents`. The
+chosen removal/unwrap, id/wrapper normalization, selection, and validation are one
+undoable transaction. Weekly Content cannot delete protected containers.
+
 ### Grid
 
 Grid elements have `type: "grid"` and arrange child elements into rows and
@@ -1338,9 +2169,9 @@ Grid data includes:
 - `data.columns`: column count.
 - `data.rowTracks`: optional row track sizes.
 - `data.columnTracks`: optional column track sizes.
-- `data.cellPadding`: current gap/gutter value.
-- `data.rowGap`: reserved by schema for future row-specific gaps.
-- `data.columnGap`: reserved by schema for future column-specific gaps.
+- `data.cellPadding`: legacy/current uniform gap/gutter value.
+- `data.rowGap`: optional row gap; when absent it inherits `cellPadding`.
+- `data.columnGap`: optional column gap; when absent it inherits `cellPadding`.
 - `data.semanticRole`: `layout` (default) or `table`.
 - `data.tableSemantics`: required only for table role, with nonempty `summary`,
   nonnegative unique `headerRows`, and nonnegative unique `headerColumns` within
@@ -1369,6 +2200,10 @@ Grid tracks are configurable. When explicit track sizes are omitted, rows and
 columns default to equal-sized tracks. Percentage tracks should be used for the
 default equal-width/equal-height behavior. Explicit track definitions may use the
 units allowed by the length/unit rules for grid tracks.
+
+Editor and Typst rendering must apply resolved row/column gaps identically.
+Setting either explicit gap is a normal v1 layout edit; `cellPadding` remains the
+backward-compatible uniform fallback and must not be applied in addition.
 
 Only one child is allowed in a grid cell. If the user needs multiple elements in
 a cell, they should place a stack, grid, or canvas inside that cell and nest the
@@ -1485,11 +2320,18 @@ finalization. It never affects paint or hit testing.
 ### Page Break
 
 Page break elements have `type: "pageBreak"` and force following flow content
-onto the next PDF page.
+onto the next PDF page. `data.intent` is `flowBreak` (default) or
+`intentionalBlank`.
 
-In Typst they render as `#pagebreak()`. In editor Page View, they consume the
-remaining visible content area of the current page so the next flow element
-starts on the next page.
+A `flowBreak` renders the ordinary `#pagebreak()` behavior. An
+`intentionalBlank` ends the current content page when necessary, creates exactly
+one complete blank logical page, and begins following content after it; at the end
+it creates one trailing blank. Page View and sheet preview label that page
+`Intentional blank page` with an editor-only control to remove/change intent.
+Intent is portable, included in page count/build signature, and prevents that
+specific blank from being reported as accidental. Migrated/consecutive legacy
+breaks remain `flowBreak` and continue to receive leading/trailing/consecutive
+warnings until explicitly confirmed.
 
 ### Page-Level Elements
 
@@ -1593,6 +2435,13 @@ the current page as transient context; edits affect all matched pages. A command
 may duplicate and retarget an entry to customize one page. Overlapped entries use
 layer/z-order hit testing and remain selectable from the structure view.
 
+Normal page-level creation uses task actions: `Add header`, `Add footer`, `Add
+page number`, and `Add background`, followed by `Apply to` choices such as all,
+first, odd/even, range, or specific pages. Region, anchor, offset, layer, and
+z-index live under advanced layout controls. Selecting a repeated source shows a
+persistent chip such as `Editing footer on all pages`; deletion, conversion, or
+retargeting names its full scope before commit.
+
 ## Flow Layout
 
 Top-level elements are rendered in linear order. Normal flow elements render as
@@ -1600,8 +2449,11 @@ Typst blocks. `margin` emits vertical spacing before and after the block when
 greater than zero.
 
 Flow width is resolved against the page content box. Fixed widths wider than the
-content box are clamped before Typst generation. Percentage and `auto` widths
-are preserved.
+content box are not silently clamped by the renderer. Interactive controls may
+offer the largest valid width before commit with visible feedback; an imported or
+otherwise persisted oversized width remains the user's value, produces
+`CBB-LAYOUT-0001`, and blocks final build until an explicit undoable resize fixes
+it. Percentage and `auto` widths are preserved.
 
 Normal body flow must not render into page margins. Content that belongs in
 headers, footers, page numbers, backgrounds, or decorative margin regions must be
@@ -1626,20 +2478,25 @@ this matrix:
 | Plain or rich text | Breakable between paragraphs, list items, scripture paragraphs, and text lines. A heading stays with at least the first two lines of following content when space permits. |
 | Image | Unbreakable. It moves to the next page when it fits there; an image box taller than a fresh content area is blocking overflow. |
 | Date | Unbreakable. |
-| Music placeholder | Unbreakable. |
+| Hymn/Song | Metadata stays with the first content paragraph; rich content otherwise follows normal rich-text break points. A Hymn/Song without rich content is unbreakable. |
 | Grid | Breakable only between rows. A row and all of its cells are unbreakable in v1. |
 | Vertical stack | Breakable between children and within a breakable child. |
 | Horizontal stack | Unbreakable as one row. |
 | Canvas | Always unbreakable and limited to one content area. |
-| Page break | Forces a break before the next top-level flow element and renders no content. |
+| Flow page break | Ends the current content page before the next top-level flow element and renders no content. |
+| Intentional-blank page break | Ends the current content page when necessary, emits one complete labeled blank logical page, then begins following content on the next page. |
 | Page-level placement | Never paginates; it is clipped to its target page/region. |
 | Custom element | Expands as its declared v1 vertical-stack break model; breakable between expanded roots and within breakable roots. Unknown/ambiguous models are invalid. |
 
-Only auto-height text, grids, and vertical stacks fragment under these rules. An
-explicit fixed-height outer box is unbreakable unless its type schema defines
-fragment semantics, and an unbreakable ancestor suppresses descendant break
-points. Intended image cropping through `fit: cover` and explicit page-region
-clipping are not overflow; clipped semantic text or normal-flow content is.
+Only the breakable content identified by the matrix fragments: auto-height text,
+grids, vertical stacks, the rich-content portion of Hymn/Song, and custom-element
+expansions through their declared vertical-stack break model. Hymn/Song and
+custom elements delegate to those contained break points rather than introducing
+a competing rule. An explicit fixed-height outer box is unbreakable unless its
+type schema defines fragment semantics, and an unbreakable ancestor suppresses
+descendant break points. Intended image cropping through `fit: cover` and
+explicit page-region clipping are not overflow; clipped semantic text or normal-
+flow content is.
 
 Text continuation preserves reading order, width, and style. Paragraphs should
 avoid a single orphan first/last line when Typst can do so without violating a
@@ -1671,16 +2528,19 @@ unbreakable element remains a blocking error.
 
 Horizontal overflow is an error. Elements, container children, rows, columns,
 images, and text must not intentionally extend beyond the page content width or
-their containing layout box. The editor should clamp, reject, or warn before
-persisting horizontal sizes/positions that cannot render within the allowed
-width. Builds should fail or surface a blocking validation error when unresolved
-horizontal overflow remains.
+their containing layout box. Interactive edits reject an invalid commit or offer
+an explicit visible `Use maximum size` correction that becomes the persisted
+undoable edit. Existing/imported values are preserved with an error marker and
+exact correction; they are never mutated merely by open/preview. Draft/final
+build disposition follows the readiness matrix and unresolved overflow always
+blocks final output.
 
 Page breaks are valid only as direct members of the top-level `elements` array.
 They are invalid in grids, stacks, canvases, custom-element expansions, and
-`pageElements`. Consecutive page breaks intentionally create blank logical pages;
-a page break at the start creates a leading blank page and one at the end creates
-a trailing blank page, with validation warnings so accidental blanks are visible.
+`pageElements`. Consecutive/start/end legacy `flowBreak` elements may create blank
+logical pages but remain unconfirmed and produce validation warnings. A confirmed
+blank uses one `intentionalBlank` element and is excluded from accidental-blank
+warnings while remaining visible in review.
 
 An unbreakable element taller than a fresh page content area, a grid row taller
 than that area, unresolved horizontal overflow, or content clipped outside an
@@ -1715,7 +2575,9 @@ Page View behavior:
   at a natural vertical break point where practical.
 - If an element begins after a page's content area, it is moved to the next
   page's content start.
-- Page break elements expand to the end of the current page content area.
+- A `flowBreak` expands only through the remainder of the current content page.
+  An `intentionalBlank` additionally displays exactly one complete following
+  page labeled `Intentional blank page`, matching the persisted/PDF behavior.
 - Facing presentation pairs logical pages according to the folded-output
   contract and uses clearly editor-only blank slots; it never inserts document
   pages or changes pagination.
@@ -1726,6 +2588,302 @@ Typst generation.
 Margin guide visibility is only a view preference. Hiding margin guides must not
 change the page content box, pagination, element clamping, generated Typst, or
 PDF output.
+
+## Application UI And Frontend Design
+
+These requirements govern the application interface, not the visual design of a
+bulletin. Normal weekly work must not expose or require knowledge of Typst, JSON,
+workspace paths, resource ids, bindings, hashes, or build internals.
+
+### Information Architecture And Editing Modes
+
+Primary application navigation is:
+
+- `This Week`: the default landing view and current resume/create action.
+- `Bulletins`: current, recent, archived, and trashed bulletin documents.
+- `Templates`: template selection, creation, testing, and management.
+- `Church Library`: Church Profile, Saved Sections, images, fonts, and other
+  congregation-owned reusable content.
+- `Settings` and `Help`.
+
+Resource-pack provenance/trust, diagnostics, raw AI exchanges, workspace paths,
+and other administrative information remain available under `Details`,
+`Advanced`, or `Diagnostics`; they must not dominate the weekly workflow.
+
+The current editing mode is always visibly named. Weekly Content permits the
+content operations defined by the template while protecting layout. Customize
+Layout exposes the palette, structure/layers tree, page setup, placement,
+resize, style, and authoring-policy controls. A disabled control must state
+whether the current mode, a template lock, selection type, validation condition,
+or unavailable staged feature is responsible and offer the applicable next
+action. The complete weekly setup, proof, and export flow must be possible
+without entering Customize Layout.
+
+### Responsive Desktop Layout And Scaling
+
+A logical pixel is an OS-scaled application coordinate. The complete weekly
+workflow must remain usable in a `900 x 480` logical-pixel content viewport and
+at 125%, 150%, and 200% operating-system scaling on every supported Windows and
+Linux platform.
+
+At wide sizes the app may show navigation, structure/editor, inspector, and PDF
+preview together. As space narrows, secondary panels collapse into labeled
+drawers or tabs. Collapsing, reopening, or moving a panel must preserve its
+selection, focus target, scroll position, uncommitted control text, and document
+state. Facing Page View may present one page at a time when the viewport cannot
+show a useful pair; that responsive presentation must not change the configured
+view or document.
+
+Normal weekly work must not require application-level horizontal scrolling. A
+page or PDF surface may pan horizontally only after deliberate zoom beyond `Fit
+width`. Text, controls, dialogs, menus, and status messages must not clip or
+overlap at supported sizes/scales. An over-height dialog keeps its title and
+actions reachable while its body scrolls. No required action may exist only on
+hover.
+
+### Direct Content Editing
+
+Editable bulletin text must be editable in place with identical content/keyboard
+semantics on Page View and Contiguous View.
+Clicking editable text places a caret at the indicated content; `Enter` or `F2`
+begins editing a keyboard-selected text element. `Escape` ends the direct-edit
+session and returns focus to the element without undoing committed text.
+Autosave, validation, preview refresh, and unrelated rerendering must not
+unexpectedly move the caret, collapse the selection, or steal focus.
+
+A contextual toolbar exposes every v1 rich-text operation supported by the AST:
+paragraph, semantic heading level, bold, italic, bulleted list, numbered list,
+block quotation, and scripture block with reference/translation. Controls
+reflect mixed and active selection state. Conventional `Ctrl`/`Cmd+B` and
+`Ctrl`/`Cmd+I` shortcuts work without conflicting with application undo/redo or
+native text movement. Paste follows the sanitization contract under `Text` and
+is one undoable edit.
+
+Bound text edits update the authoritative field value. Locked or computed text
+remains selectable and copyable but is never silently detached; the UI explains
+its source and offers `Make independent` only when permitted. Continuous typing
+may form meaningful undo groups; formatting, paste, focus change, or a pause
+boundary ends the current group.
+
+Invoking rich formatting on unbound canonical plain content first converts it to
+the equivalent one-paragraph rich-text AST as part of the same undoable command.
+A property bound to a `text` field cannot silently change type; rich controls are
+disabled with an explanation. Customize Layout may offer `Convert weekly field
+to rich text`, which performs a reviewed contract/binding migration and preserves
+the plain value as equivalent rich text.
+
+Activating an editable date uses the same accessible date control as its setup
+field and shows a live formatted example; ordinary users never need to type date-
+format tokens. Activating an editable image uses the Replace/Adjust Crop actions
+below. These direct controls update the authoritative bound value when present.
+
+The editor provides fully offline spellcheck with `Ignore`, `Ignore all`, and
+`Add to church dictionary`. The private dictionary belongs to Church Profile
+and full-workspace backup. Find and replace works across editable text and field
+values in the current bulletin, previews replace-all matches, and skips locked
+or computed content with an explanation. Neither feature may make a network
+request. One confirmed replace-all is one validated undo/autosave transaction.
+
+Overflow/clipping markers are attached to the affected on-page content and name
+the problem. They offer only valid actions such as `Allow automatic height`,
+`Resize in Customize Layout`, `Move to next page`, or `Go to issue`; they must not
+imply that a clipped preview is ready to publish.
+
+### PDF Preview And Page Navigation
+
+The generated PDF preview is visually and semantically distinct from editable
+Page View. It provides page thumbnails, current/total page count, previous/next
+page, `Fit page`, `Fit width`, and explicit zoom from 25% through 200%. Zoom,
+thumbnail selection, and preview scroll position are view state and never affect
+output.
+
+Every thumbnail has an accessible name containing page number, current/stale
+state, blank/intentional-blank status, and finding count. Review also provides a
+page-by-page textual outline of ordered semantic content and findings. Booklet
+sheet preview has an equivalent textual map, for example `Sheet 1 front: page 8
+left; page 1 right`, including back-side rotation/flip instructions.
+
+A textual/semantic review does not claim to prove visual appearance. Final review
+records `visualReviewMethod` as `self` or `assisted`; a user may complete the
+visual check with a trusted sighted reviewer while independently completing all
+keyboard/screen-reader validation and content-order tasks. The UI must not imply
+that automated or textual checks certify aesthetics or accurate descriptions.
+
+The preview always communicates one of `Updating preview`, `Preview current`,
+`Preview out of date`, or `Preview failed`. A stale preview remains inspectable,
+but a persistent banner or overlay inside the frame states that it is the last
+successful result; color or a toolbar badge alone is insufficient. A failed
+refresh never replaces the last successful preview.
+
+Selecting editable content or activating `Go to field`/`Go to item` from a
+finding opens the relevant editor location and brings its PDF page into view when
+a current or stale source map is available. This selection-to-preview navigation
+is required even though continuous synchronized scrolling is optional. Preview
+controls and state labeling remain available when preview is a narrow-screen tab
+or drawer.
+
+### Inspector And Validation Interaction
+
+The inspector groups ordinary controls under `Content`, `Layout`, `Appearance`,
+and `Accessibility`; `Content` is the default in Weekly Content. Uncommon and
+technical controls are collapsed under `Advanced`. Page setup shows one editable
+`Finished page size`, page color, margins, layout/fold choice, and binding.
+Derived editor-pixel dimensions are implementation details, not a second page
+size.
+For folded documents, `page.binding` is labeled `Booklet opens on` or `Spine
+side`, never simply `Binding`, so it cannot be confused with a linked weekly
+field.
+
+Controls are type-appropriate: repeatable rows for arrays, grouped child fields
+for objects, labeled choices, asset picker/replace, and locale-safe date input.
+Physical lengths use familiar presets plus a visible unit selector; raw unit
+syntax remains available under Advanced. Date formatting provides named presets
+and a live example, with raw format tokens under Advanced.
+
+Appearance controls show Church Profile brand colors and recent document colors,
+permit an exact accessible color value under Advanced, and preview managed fonts
+using their actual faces. Contrast findings update before commit without
+silently altering the chosen bulletin colors.
+
+Inspector and setup controls use an edit buffer. Validation runs when a control
+is committed, loses focus, changes setup step, or is reviewed; the app must not
+announce an error for each intermediate keystroke. Syntactically unparseable
+control text remains visible/editable and in recovery state but does not replace
+the last canonical value or trigger autosave/build as document data. A parseable
+committed value may enter canonical JSON with a semantic finding. Each committed
+change is one undo transaction unless continuous editing applies.
+
+Unparseable edit buffers are durably bounded under
+`transactions/edit-buffer/<local-resource-id>/` with control identity and base
+revision. Panel navigation preserves them. Closing the document/app offers `Fix
+now`, `Keep recovery text`, or `Discard`; the safe default keeps the buffer and
+startup/reopen offers restoration only when the base control still exists and its
+canonical value has not conflicted. Backup/final export requires buffers to be
+committed or explicitly discarded and never silently omits typed recovery text.
+
+An error appears beside its control, identifies the problem in plain language,
+and suggests correction. Review separates blocking findings from confirmation
+items and provides keyboard-operable navigation. Navigation opens the necessary
+panel, focuses the control/content, and brings the affected page into view.
+An error summary may receive focus after an explicit step/review action but must
+not steal focus during ordinary typing or blur validation.
+Required, invalid, warning, success, and disabled states use text/icon/state as
+well as color; required controls use a textual indication rather than only an
+asterisk, and a disabled control exposes its reason.
+
+### Structure And Layers View
+
+Customize Layout includes a keyboard-accessible tree covering body, nested
+containers, and page-level items by layer. Rows use user-facing names/types rather
+than wrapper ids. Selection synchronizes with editor and inspector. The tree
+supports expand/collapse, select, add before/after, duplicate, move before/after,
+move into/out of a container, delete, and permitted layer/order changes without
+dragging.
+
+Clipped, overlapped, content/layout-locked, conditionally inactive,
+decorative/artifact, and repeated page-level nodes remain discoverable. Their
+state is shown and announced with text, not color alone. Selecting a repeated
+rendered instance selects its source and announces the page as transient context.
+Persisted authoring policy and conditional output state must be distinguished
+from ephemeral selection, hover, collapsed-tree, clipping, paint-order, and page
+context.
+
+### Image Interaction And Resize
+
+Selecting an image prominently exposes `Replace image`; a `cover` image also
+exposes `Adjust crop`, while a `contain` image offers `Crop to fill` and previews
+the fit change before committing. The inspector also shows
+thumbnail, display filename, layout dimensions, fit, effective print resolution,
+alt text, and decorative choice. Replacement uses managed-asset import/library,
+preserves placement/dimensions/style, and asks the user to review whether the
+prior alt/decorative choice still describes the new bytes.
+
+`Adjust crop` previews the exact `cover` crop at destination aspect ratio and
+updates `data.focalPoint`. A keyboard-operable focal-point control or numeric x/y
+controls produces the same result as dragging. Missing-image placeholders remain
+selectable and offer `Find replacement` at the point of failure.
+
+In Customize Layout, resizable images, canvas children, and page-level elements
+have visible handles. Dragging previews resolved size, respects model/page/
+container bounds, and commits physical dimensions as one undoable edit. Images
+preserve aspect ratio by default with an explicit unlock where independent
+dimensions are supported. Labeled width/height inspector controls provide the
+same result for keyboard users. Grid gutters may be resized visually when their
+track model permits it; common equal/two-column presets remain available.
+
+For placed raster images, Review and Export shows effective pixels per inch after
+crop and scaling. A default warning is raised below 150 effective PPI; the
+diagnostic explains that vector images are not evaluated this way and lets a
+user replace, resize, or explicitly acknowledge the print-quality risk.
+
+### Application Design System And Language
+
+The application uses a documented design system with semantic tokens for app
+color, typography, spacing, control size, focus, borders, elevation, and status.
+App theme is independent of bulletin output. Navigation, buttons, fields,
+rich-text controls, tabs, trees, dialogs, banners, toasts, progress, empty/
+loading/error/disabled states, and destructive confirmations are defined for
+light, dark, and supported high-contrast/forced-color modes.
+
+Primary, navigation, status, and destructive actions use visible text labels;
+icons supplement rather than replace them. Compact conventional formatting
+controls may use symbols only with accessible names, state, and tooltips. A
+destructive confirmation names the item and consequence, focuses a safe default,
+and never relies on generic `Are you sure?`. A toast may acknowledge success but
+is never the only location of an unresolved save, conflict, preview, validation,
+or export failure.
+
+Normal UI uses task language. These mappings are normative examples:
+
+| Internal concept | Normal UI language |
+| --- | --- |
+| document/project | Bulletin |
+| custom element/definition | Saved section |
+| binding | Linked weekly field |
+| detach binding | Make independent / Change only this item |
+| build/artifact | Update preview / Create PDF / PDF |
+| `draft` profile | Draft PDF |
+| `printFinal` + standard reader-order output | Print-ready PDF |
+| `printFinal` + folded reader-order output | Reading-order PDF — email/screen/archive |
+| `printFinal` + folded imposed output | Booklet-print PDF — print two-sided and fold |
+| `accessibleFinal` profile | Accessible PDF |
+| readiness incomplete/current | Needs attention / Ready to print |
+
+JSON pointers, schemas/contracts and hashes, local/portable/wrapper ids, artifact
+signatures, and raw diagnostic codes remain hidden from ordinary screens. They
+may appear in copyable Advanced diagnostics but never replace plain-language
+summary and recovery.
+
+### Application Accessibility
+
+The supported desktop UI must conform to WCAG 2.2 AA where applicable and expose
+correct roles, names, descriptions, values, states, hierarchy, and focus through
+each platform accessibility API. Focus is visible/logical, restored to the
+invoking control after a dialog/drawer, and preserved when responsive panels move
+or collapse. Save, preview, validation, import, and export status changes are
+announced without repeatedly interrupting text entry.
+
+Every create, reorder, move, placement, crop, and resize operation required for
+normal work has a labeled non-drag action using the same validation, identity,
+undo, autosave, and preview semantics as pointer interaction. Keyboard-only users
+can complete setup, edit, replace/crop an image, resolve findings, review pages,
+and export each supported output.
+
+The UI supports reduced motion and forced/high-contrast modes, never communicates
+state by color alone, and remains usable at 200% scaling. Pointer targets are at
+least `24 x 24` logical pixels; primary and frequent editor controls should be at
+least `32 x 32`. Automated checks plus keyboard-only and screen-reader task tests
+on both Windows and Linux are release acceptance requirements.
+
+### Onboarding And Offline Help
+
+The app includes a skippable first-bulletin tour, contextual help beside template,
+margin, image, and booklet controls, an offline searchable task-based help center,
+and a plain-language glossary. Normal help calls the workspace `Your bulletin
+library`; filesystem language appears only in advanced settings/diagnostics.
+Help must be usable with networking disabled and cover first bulletin, weekly
+rollover, stale-content review, template creation, backup/handoff, accessible
+authoring, Review and Export, and one-sheet booklet test printing.
 
 ## User Settings
 
@@ -1738,13 +2896,14 @@ The application-global root is
 It uses `{ "scope": "application" }`; workspace `settings.json` uses
 `{ "scope": "workspace" }`. Both include independent integer versions.
 
-Application-global settings include UI language/theme, window state, update
-preference, active/recent workspace registration, and defaults for editor view/
-snap, export filename pattern, and display time zone. Workspace settings contain
-optional overrides for those editor/export/time-zone defaults. Portable document
-page setup, layout intent, language/locale, publication date, final page-count
-requirements, and every value that can change PDF bytes or publication
-eligibility remain in document JSON.
+Application-global settings include UI language/theme, window state, the active
+workspace registration, the bounded previous-library return record created only
+by restore, and defaults for editor view/snap, export filename pattern, and
+display time zone. Workspace settings contain optional overrides for those
+editor/export/time-zone defaults. Portable document page setup, layout intent,
+language/locale, publication date, final page-count requirements, and every
+value that can change PDF bytes or publication eligibility remain in document
+JSON.
 
 A user settings panel exposing the v1 settings below is required in v1.
 
@@ -1754,22 +2913,30 @@ margins are project settings, not user settings.
 
 Editable user settings:
 
+- Application UI language from the bundled supported locale set.
+- Application theme: `system`, `light`, or `dark`. This never changes bulletin
+  page colors or PDF output.
 - View mode: `contiguous` or `page`. Controls whether the drag-and-drop editor
-  shows one continuous flow or the scroll-based Page View.
+  shows one continuous flow or the scroll-based Page View. `page` is the default
+  for new workspaces; Contiguous View is available under advanced view controls.
 - Page View presentation: `single` or `facing`. Facing is the default for a new
   document whose `page.layoutIntent` is `foldedBooklet`.
+- Preview zoom default: `fitPage`, `fitWidth`, or an explicit percentage from 25
+  through 200. Per-document current zoom/scroll remains resume state.
 - Margin guide visibility: `true` or `false`. Controls whether Page View draws
   top, right, bottom, and left margin guides. Margins continue to constrain
   layout even when guides are hidden.
 - Live PDF preview: `true` or `false`. Controls whether edits automatically
   trigger live preview builds.
-- Build detail visibility: `true` or `false`. Controls whether build output is
-  expanded in the UI.
+- Advanced `Technical PDF details`: `true` or `false`. Controls whether bounded
+  build/validator details are expanded in Diagnostics; it is not a normal weekly
+  setting or primary status label.
 - Canvas snap: `true` or `false`. Controls whether canvas child movement snaps
   to a grid.
 - Canvas snap grid size: positive length. Controls the snap interval when canvas
   snapping is enabled.
-- Export filename pattern, default `{date:YYYY-MM-DD}.pdf`.
+- Export filename pattern, default `{date:YYYY-MM-DD} {name}.pdf`.
+- Offline spellcheck enabled and Church Profile dictionary management.
 - Workspace display time zone: valid IANA zone id; it never changes date-only
   fields or portable PDF output.
 
@@ -1784,14 +2951,17 @@ application default; the effective value is never written into a document merely
 because it was read.
 
 Workspace creation seeds display time zone from a valid detected system IANA
-zone, otherwise `UTC`. `page.layoutIntent` supplies the initial presentation only
-until the user explicitly chooses `single` or `facing`; the explicit workspace
-view preference wins thereafter but remains output-inert.
+zone, otherwise `UTC`. `page.layoutIntent` seeds the initial presentation until
+the user explicitly chooses `single` or `facing`; that view preference remains
+output-inert and never changes the document's standard/folded workflow intent.
 
 ## Drag And Drop
 
 The palette creates new elements. Existing elements can be reordered or moved
-between supported containers.
+between supported containers in Customize Layout. Weekly Content exposes only
+template-permitted repeatable/conditional content actions, not general drag/drop.
+Every supported move below has the labeled structure-tree/menu alternative
+required by Application Accessibility.
 
 Supported moves:
 
@@ -1799,7 +2969,7 @@ Supported moves:
 - Existing top-level element reorder within top-level flow.
 - Palette element or existing top-level element into any container.
 - Container child from any container into any other container.
-- Canvas child back into top-level flow.
+- Container child from any grid, stack, or canvas back into top-level flow.
 
 Drop semantics are deterministic:
 
@@ -1866,7 +3036,8 @@ element available to the inspector without changing which node owns placement.
 
 The inspector must show fields appropriate to the selection:
 
-- Page setup: editor page size, PDF page size, page color, and margins.
+- Page setup: one editable Finished page size, page color, margins, layout/fold
+  choice, and binding. Derived editor pixels are view/zoom implementation detail.
 - Top-level element: common fields, style fields, and type-specific data fields.
 - Canvas element: name, width, height, margin, and canvas placement guidance.
 - Grid child: read-only wrapper `row`/`column` plus wrapped element fields.
@@ -1880,60 +3051,59 @@ user-editable in the inspector.
 
 Hit testing follows visible paint order: overlay page elements, body/canvas
 front-to-back, underlay, then background. The deepest eligible node wins, while
-an `Alt`/cycle-selection command moves through overlapping ancestors/siblings.
+a `Cycle selection` command moves through overlapping ancestors/siblings. Its
+platform shortcut must not conflict with the OS/window manager and it is also
+available from a labeled menu.
 The keyboard-accessible structure/layers view can select any node regardless of
 overlap or clipping. Repeated page-level content selects its source placement;
-the rendered page number is context only. Hidden, locked, or artifact nodes must
-remain discoverable in the structure view with their state announced.
+the rendered page number is context only. Conditionally inactive,
+content/layout-locked, clipped, or artifact nodes remain discoverable with their
+distinct state announced; none is generically described as hidden.
 
-Inspector edits update the JSON model immediately, rerender the editor, autosave,
-and schedule a live PDF build when Live PDF is enabled.
+Committed, parseable inspector edits update the JSON model, rerender, autosave,
+and schedule live PDF when enabled only if `renderInputHash` changes; readiness-
+only edits refresh findings without recompiling. Syntactically incomplete/unparseable control
+text stays in the transient/recovery edit buffer and must not replace canonical
+JSON until commit, as defined by `Inspector And Validation Interaction`.
 
 Keyboard behavior:
 
-- `Delete` removes the selected element unless the page setup is selected.
-- Arrow keys move a selected canvas child by one editor pixel.
-- `Ctrl` plus an arrow key moves a selected canvas child by ten editor pixels.
+- `Delete` invokes the permitted removal action unless page setup is selected;
+  protected or nonempty-container cases follow their explanation/choice rules.
+- Arrow keys move a selected canvas child by the snap interval when snapping is
+  enabled, otherwise by `1/96in`, independent of zoom.
+- `Shift` plus an arrow key moves it by ten times that interval.
 - Arrow keys inside text inputs keep their normal text-editing behavior.
 - Font-size arrow controls increment or decrement the selected font size.
 
 ## Accessibility Requirements
 
-The desktop editor UI should target WCAG 2.2 AA where the standard applies to a
-desktop application. The app should remain practical for non-technical users, but
-basic editor navigation, form controls, dialogs, menus, and document operations
-must not depend only on pointer precision or visual color changes.
+The desktop editor UI must meet the `Application Accessibility` contract above,
+including WCAG 2.2 AA where applicable, platform accessibility APIs, scaling,
+focus, status announcements, and non-drag alternatives for every core operation.
 
-Editor accessibility requirements:
+Accessible-document authoring help is required v1 even when tagged PDF export is
+staged:
 
-- Provide a logical keyboard focus order for the main editor, palette,
-  inspector, preview, dialogs, and diagnostic views.
-- Provide visible focus indicators for interactive controls.
-- Provide accessible names and descriptions for controls, icons, inspector
-  fields, validation messages, and build/export actions.
-- Avoid shortcut conflicts with text editing and operating-system conventions.
-- Meet WCAG 2.2 AA contrast guidance for normal text, important UI text, focus
-  indicators, and non-text controls where practical.
-- Respect operating-system reduced-motion preferences for animated previews,
-  drag feedback, and transitions.
-- Do not rely on color alone to communicate errors, warnings, selection, drop
-  targets, or build state.
-
-Every drag/drop operation does not need an exact keyboard-only equivalent.
-However, users should still be able to complete core document work without drag
-precision by using the inspector, menus, keyboard shortcuts, or structural
-commands where practical. Required keyboard-accessible operations include opening
-and selecting documents, editing text and fields, deleting selected elements,
-undo/redo, save, build, export, page setup edits, and navigating validation or
-diagnostic output.
+- Inserting/replacing an image asks the user either to describe it or mark it
+  decorative; the choice can be deferred but remains visible in review.
+- Heading controls distinguish semantic level from visual size and warn about a
+  skipped level without silently rewriting it.
+- Creating a grid asks whether it is layout or tabular data. Table choice guides
+  header rows/columns and summary entry.
+- Canvas/page content provides a reading-order review with numbered overlay plus
+  a keyboard-operable list when semantic and paint order differ.
+- Appearance controls warn when configured text/background colors do not meet
+  the app's WCAG contrast guidance; visual meaning must never depend on color
+  alone.
 
 Tagged/accessible final PDF output is a committed requirement that may be staged
 after the initial v1 release. When implemented, tagged PDF output must include a
 meaningful reading order and semantic structure for headings, paragraphs, lists,
 tables, figures, page numbers, and decorative artifacts where those concepts are
-represented by the document model. Live preview PDFs may prioritize speed, but
-final manual builds and exported PDFs produced by the tagged-PDF stage should
-include PDF tags.
+represented by the document model. Live preview PDFs may omit tags and make no
+accessibility claim; every `accessibleFinal` manual build/export must contain the
+required tags and pass the accessible-output validation contract.
 
 Image alt text is optional. Image elements should still expose an optional alt
 text field and an optional decorative/artifact setting. When alt text is
@@ -2002,9 +3172,9 @@ must never silently downgrade that request to an untagged PDF.
 
 ## Undo And Redo
 
-The editor should maintain an undo/redo history for document-editing actions.
-The history belongs to the current editor run and does not need to persist across
-app reloads unless explicitly implemented later.
+The editor must maintain undo/redo for document-editing actions in the current
+run. Cross-restart recovery is provided separately by Version History snapshots;
+the in-session undo stack itself need not serialize across reloads.
 
 Undoable actions should include:
 
@@ -2012,16 +3182,22 @@ Undoable actions should include:
 - Moving elements into, out of, or between containers.
 - Inspector edits to page setup, element fields, style fields, wrapper fields,
   and type-specific data.
+- Direct rich-text edits and formatting.
+- Image replacement, crop/focal-point changes, and alt/decorative changes.
+- Drag or inspector resize, grid-gutter resize, and authoring-policy lock changes.
+- Conditional-section decisions and repeatable-item add/remove/reorder.
+- `Make independent`, no-code field creation, and template-authoring changes.
 - Canvas child movement by drag, inspector edit, or arrow keys.
 - Container child placement changes.
 
 Actions that should not create undo entries:
 
 - Selection changes.
-- View mode changes.
+- Weekly Content/Customize Layout, Page/Contiguous, and panel-view changes.
+- Preview zoom, page navigation, thumbnail selection, and scroll changes.
 - Margin guide visibility changes.
 - Live PDF toggle changes.
-- Build detail visibility changes.
+- Technical PDF detail visibility changes.
 - Manual save/build commands that do not otherwise change the document.
 
 Redo history should be cleared whenever the user performs a new undoable action
@@ -2030,8 +3206,8 @@ into one history entry when they are part of a continuous edit.
 
 Undo/redo must restore the document JSON and rerender the editor. It should also
 restore the most relevant selection when possible. After undo or redo, autosave
-and live preview scheduling should behave the same as after any other document
-edit.
+and preview/readiness refresh follows the same render/readiness-hash rules as any
+other document edit.
 
 Keyboard shortcuts:
 
@@ -2041,6 +3217,15 @@ Keyboard shortcuts:
 Undo/redo shortcuts inside text inputs should preserve normal text-editing
 behavior while the input itself owns the edit. Once an inspector field commits a
 document change, that committed change should be undoable by the editor history.
+
+Duplicating an element or subtree assigns fresh ids to every duplicated visual
+node, wrapper, binding, conditional/repeatable rule, and other id whose namespace
+is document-unique. It rewrites references within only the duplicated closure and
+preserves immutable portable asset/font refs. It never copies scoped field/content
+review decisions to the fresh targets; applicable content targets receive new
+pending source evidence and scoped fields require their own current decisions.
+The duplication is validated as a complete staged edit before commit and is
+exactly one undo transaction; it must never rely on later duplicate-id repair.
 
 ## Persistence Contract
 
@@ -2058,25 +3243,34 @@ Migrations should be ordered, deterministic, idempotent, and non-lossy wherever
 practical. A migration should preserve source metadata needed for diagnostics
 when it changes or removes legacy fields.
 
-Documents with a newer unsupported version should be loaded with warnings when
-the app can preserve and safely operate on the document. Unknown fields from a
-newer document should be preserved when possible. If the app cannot safely load,
-preserve, edit, or render the document without likely data loss, loading should
-fail with an informative error instead of silently stripping data.
+Before an output-affecting migration is persisted, the app creates a verified
+pre-migration Version History snapshot, shows a plain-language impact review
+including possible pagination/font/image changes, and requires confirmation.
+Schema normalization that only fills output-equivalent defaults may persist with
+the next ordinary save but still records its migration version.
+
+Documents with a newer unsupported root version open read-only with warnings and
+`Export original` unless that newer version explicitly declares a compatible,
+bounded feature contract the app fully understands and can round-trip. Unknown
+output-affecting behavior must never be treated as inert merely because unknown
+fields can be preserved. If the app cannot safely inspect/preserve the original,
+loading fails with an informative error rather than stripping data.
 
 Saves must be atomic. The app should write to a temporary file in the target
 directory, validate the written content when practical, and replace the previous
 file only after the write succeeds. Failed saves must leave the previous valid
 document intact and show an actionable error.
 
-Derived artifacts become stale whenever canonical JSON or referenced assets
-change. The app should track stale generated Typst/PDF artifacts and regenerate
-them before manual build/export when required. Stale live previews must not be
+Generated Typst/PDF becomes visually stale when `renderInputHash` changes, not
+merely whenever output-inert canonical JSON changes. Readiness evidence becomes
+stale when `readinessInputHash` changes. The app tracks both and recompiles or
+revalidates before export as required. A visually stale live preview must not be
 presented as current output.
 
 Validation outcomes:
 
-- Hard errors: unsafe project names, invalid resource ids, unreadable or
+- Hard errors: display names that violate the bounded Unicode label contract,
+  invalid resource ids, unreadable or
   unsupported document versions that cannot be preserved safely, malformed JSON,
   invalid element ids, asset references outside approved roots, path traversal,
   unsupported bundle/resource-pack versions, incompatible AI import schema
@@ -2098,16 +3292,52 @@ Validation outcomes:
 
 ## Persistence And Build
 
-The app autosaves project JSON and regenerated Typst after edits. Manual saves
-also normalize the project through the local storage layer.
+The app autosaves canonical document/workspace JSON after edits. Generated Typst
+is derived build input: live-preview Typst remains ephemeral and persisted manual
+Typst belongs only to its immutable artifact record. Manual saves normalize the
+project through the local storage layer but do not create a standalone current
+Typst source file.
+
+Persistence, rendering, and readiness use distinct hashes:
+
+- `canonicalRevisionToken` hashes complete normalized portable document JSON and
+  drives optimistic save/conflict/Version History identity.
+- `renderInputHash` hashes the deterministic resolved render projection plus
+  output-affecting assets, fonts, tools, locale, and output options. The projection
+  materializes effective values/rules and excludes schema-declared output-inert
+  state such as authoring policies, source lineage, orphaned values, template
+  samples, field origins/field/content review records, stable UI item ids, and unknown inert
+  preservation data.
+- `readinessInputHash` hashes the render input hash plus the selected readiness
+  profile, final page-count and printer-safe/readiness-only output settings,
+  current `fieldReview`/review context,
+  weekly/content-review expectations and current `contentReview`, dependency
+  validation, required private-work acknowledgements, and permitted
+  warning acknowledgements.
+
+The schema/catalog must classify every persisted field as render-affecting,
+readiness-only, or inert; unknown fields are always inert/rejected under the
+version rules and cannot enter a projection. Changing only readiness/inert state
+must not make Page/PDF preview stale or force byte-identical recompilation. Review
+and Export may reuse a verified PDF whose render signature still matches, but it
+creates current readiness/final-candidate evidence tied to the current canonical
+revision and readiness hash. Approval becomes stale when either its render or
+readiness hash changes.
 
 Autosave is authoritative for document persistence. Users should not need to
 perform a separate manual save before final build or publication, although manual
 save may remain available as an explicit command.
 
-The UI should show document persistence state, including dirty, saving, saved,
-save failed, building preview, preview current, preview stale, preview failed,
-manual build running, and manual build failed/succeeded states.
+The state machine distinguishes dirty, saving, saved, save failed, building,
+current/stale/failed preview, and manual-build states. Normal UI translates these
+to `Changes not saved yet`, `Saving`, `All changes saved`, `Changes not
+protected`, `Updating preview`, `Preview current/out of date/failed`, `Creating
+PDF`, and `Couldn't create PDF`/`PDF ready`; raw state names and `manual build`
+remain Advanced diagnostics.
+
+Save protection and preview/build freshness are independent indicators. `Saved`
+must not imply that the preview is current, and a current preview must not hide
+`changes not protected` or a save failure.
 
 Autosave failures are blocking document reliability issues. If autosave fails,
 the app should preserve unsaved in-memory changes, show an actionable error, and
@@ -2131,7 +3361,11 @@ stale.
 
 Manual builds take priority over live preview builds. Starting a manual build
 should save the current document, cancel or defer obsolete live preview work, and
-build from the latest saved normalized state.
+build from the latest saved normalized state. Every manual build captures the
+document revision and edit generation at start. An edit while it runs makes its
+result stale immediately; that result may be retained historically but cannot
+replace a newer preview or export as current without a final input-signature
+recheck.
 
 Project size, element count, asset/font/archive complexity, and generated-output
 limits are the deterministic warning/hard caps under `Local File Safety`. Build
@@ -2139,14 +3373,22 @@ and import decisions must not vary silently with available machine memory.
 
 Manual builds:
 
-- Save and render the project.
-- Run the bundled Typst executable.
+- Save and normalize the project.
+- Reader-order compile builds render/run Typst; readiness-only revalidation may
+  reuse a verified matching reader artifact under the artifact contract below.
+- Booklet-two-up compose builds verify a parent reader artifact and run only the
+  pinned compositor; readiness-only revalidation may reuse matching composed
+  bytes under the artifact contract.
 - Use an app-controlled Typst root that contains only the generated source and
   resolved local assets needed for the build.
 - Use bundled application fonts and any imported resource fonts that are valid
   for the current project.
-- Write an artifact record plus generated Typst/PDF outputs under
-  `<workspace>/artifacts/<local-resource-id>/<build-id>.*`.
+- For a reader-order compile, write an artifact record plus generated Typst/PDF
+  under `<workspace>/artifacts/<local-resource-id>/<build-id>.*`. For a
+  booklet-two-up compose, write a compositor artifact/PDF referencing the
+  verified immutable parent reader artifact and no `.typ`. Revalidation writes
+  its new record and reuses the verified source bytes/evidence as specified
+  below rather than inventing per-build source files.
 - Update the PDF preview frame when the build succeeds.
 
 Live builds:
@@ -2159,10 +3401,18 @@ Live builds:
 
 ### Build Artifacts And Approval Identity
 
-Build ids are app-generated UUIDv4 values scoped to a local resource. A successful
-persisted build produces an immutable artifact record plus immutable `.typ` and
-`.pdf` files. Files must never be modified in place after their hashes are
-recorded.
+The terms in this section are internal. They may appear in Advanced diagnostics,
+but they must not be labels or required concepts in Weekly Content or Review and
+Export.
+
+Build ids are app-generated UUIDv4 values scoped to a local resource. Every
+successful persisted build produces an immutable artifact record and mode-
+specific immutable evidence. A reader-order `compile` owns generated `.typ` and
+`.pdf`; `compose` owns an imposed `.pdf` plus its parent-reader evidence and no
+synthetic `.typ`; `revalidate` references/content-address-deduplicates the
+verified source PDF and its Typst or parent/compositor evidence without claiming
+new generated source. Any recorded file is never modified in place after its
+hash is recorded.
 
 Artifact kinds are distinct:
 
@@ -2172,6 +3422,13 @@ Artifact kinds are distinct:
 | `draft` | Persisted manual build that may contain explicitly accepted draft warnings/placeholders. |
 | `finalCandidate` | Persisted manual build that passed the selected final-readiness profile. |
 | `importedDiagnostic` | PDF/Typst supplied by an imported bundle. Untrusted diagnostic attachment, never current output. |
+
+Every user-exportable `draft` record identifies its watermark text/version and
+PDF draft metadata. A draft artifact without the required visible watermark is
+not eligible for the Draft export action.
+A `PROOF` review copy is also a `draft` artifact/output option even when its
+source revision passes `printFinal`; it is never an approved/current publication
+artifact and records the proof watermark in its signature.
 
 `approved` is not another mutable PDF kind. An approval record references one
 specific immutable `finalCandidate` build and its PDF hash. An `export` is an
@@ -2185,57 +3442,93 @@ a successfully persisted document revision token.
 
 Every build record includes artifact-record version, build id, local document
 resource id, kind/status, `createdAt`, selected output/readiness profile,
-normalized input-snapshot hash, tool/schema identities, diagnostic codes, and a
-bounded log reference. `startedAt` exists only after execution begins;
+canonical revision token, `renderInputHash`, applicable `readinessInputHash`,
+tool/schema identities, diagnostic codes, and a bounded log reference.
+`startedAt` exists only after execution begins;
 `completedAt` is required only for terminal status. Preview records include
 `editGeneration`; draft/final records also require the canonical persisted
 revision token.
 
+Output form is distinct from readiness profile. It is `readerOrder` for normal
+logical-page PDFs or `bookletTwoUp` for the required imposed booklet PDF. A
+`bookletTwoUp` record includes sheet dimensions/derived orientation, binding, flip guidance,
+scale, safe inset, imposition algorithm version, logical input page count/hash,
+imposed side count, and required parent reader build id/PDF hash/input signature.
+Retention cannot remove that parent or its evidence while the booklet artifact,
+approval, export event, history, Trash, or backup references it. Changing any
+output-affecting option stales booklet bytes; a safe-inset-only change stales
+readiness evidence. Neither stales a separate reader-order artifact whose own
+signature still matches.
+
+Artifact `executionMode` is `compile`, `revalidate`, or `compose`. A `revalidate`
+final-candidate is allowed for either output form when only canonical readiness/
+inert state changed and its source is a successful persisted artifact with
+identical output form/output-affecting options/watermark (a final target therefore cannot reuse
+draft-watermarked bytes), never preview/importedDiagnostic. It records current
+canonical/readiness hashes, required `sourceRenderBuildId`, source PDF hash,
+render input hash, and source Typst hash for reader-order or parent/compositor
+evidence for booklet-two-up. It reuses/content-address-deduplicates verified
+immutable bytes without invoking Typst/compositor. A `compose` booklet record
+uses the parent-reader contract above. Retention keeps every referenced source-
+render record/evidence. UI still presents one current reviewed PDF, not a
+technical reuse operation.
+
 Only a `succeeded` record includes output evidence:
 
-- SHA-256 of normalized portable document JSON and generated Typst plus
-  generator/renderer version.
+- Reader-order compile: normalized render projection/hash and generated Typst
+  hash plus generator/renderer version; full canonical JSON hash is recorded
+  separately only as persistence/readiness evidence.
+- Booklet-two-up: verified parent reader build id, PDF hash, input signature, and
+  compositor version/hash; it must not claim or require generated Typst of its
+  own.
 - Sorted portable asset refs and verified binary hashes.
 - Sorted font refs, face/revision hashes, and embedding/subsetting decisions.
 - App version/build identity, bundled Typst version/executable hash, schema
-  versions, validator version/profile, locale/language, and output options.
+  versions, booklet-compositor version/hash when used, validator version/profile,
+  locale/language, and output options.
 - Validation report hash, acknowledged draft warnings, and paths/hashes for
   bounded build logs.
-- PDF relative path, SHA-256, byte size, page count, PDF version/standards, and
-  accessibility-validation result when requested.
+- PDF relative path, SHA-256, byte size, output PDF page count, PDF version/
+  standards, and accessibility-validation result when requested. Booklet-two-up
+  additionally records the verified reader-order `logicalPageCount` used for
+  publication constraints.
 
-The build-input signature is the canonical digest of the document revision,
-assets, fonts, renderer/tool versions, schemas, locale, and output options. An
-artifact is current only when its signature matches the requested build state.
-Document edits, binding/field changes, asset/font replacement or loss, output
-profile changes, relevant settings changes, renderer/schema migration, or a
-different pinned tool version make it stale for a new export. Staleness never
-mutates or invalidates the historical artifact bytes; it prevents presenting
-them as current.
+The existing `build-input signature` term is the `renderInputHash`. A PDF is
+visually current when that hash matches. Document edits, resolved binding/field
+value changes, content rules, asset/font replacement/loss, output-form changes,
+relevant rendering settings, or a different renderer/tool version change it.
+Readiness-only edits leave the PDF current but require a current readiness report
+and final-candidate/approval evidence. Staleness never mutates historical bytes;
+it prevents presenting unmatched visual or readiness evidence as current.
 
 An approval record includes approval id/time, optional local approver display
-label, build id, build-input signature, PDF hash, readiness-report hash, selected
-profile, and any permitted warning waivers with reasons. Editing any build input
-marks that approval stale. Approval records and artifact files are local metadata
+label, build id, render input hash, readiness input/report hashes, PDF hash,
+selected profile, and any permitted warning waivers with reasons. Editing input
+represented by either hash marks that approval stale. Approval records and artifact files are local metadata
 and are not copied into portable document JSON.
 
 Ordinary current-PDF export uses the newest successful, non-stale persisted
-manual artifact matching the selected profile; otherwise it saves and rebuilds
-first. Exporting an approved PDF copies the exact approved artifact bytes after
+manual artifact matching selected readiness profile, output form, complete output
+options, render input hash, and current readiness evidence; otherwise it saves
+and rebuilds/revalidates first. Exporting an approved PDF copies the exact approved artifact bytes after
 verifying their hash and never rebuilds behind the approval. A stale approval
 requires re-finalization for a new current export; an explicitly requested
 historical copy must be labeled as historical rather than current.
 
 When `page.finalPageCountRequirement` is present, an artifact is eligible for
-current, final, or approved export only when its verified `pageCount` satisfies
-that requirement. A successful PDF with a mismatching count may be retained or
+current, final, or approved export only when its verified reader-order logical
+page count satisfies that requirement. For `readerOrder` this is the output PDF
+page count; for `bookletTwoUp` it is `logicalPageCount`, not the imposed sheet-
+side count. A successful PDF with a mismatching logical count may be retained or
 exported only through an explicitly labeled non-publication draft or historical
 diagnostic action; it can never be a `finalCandidate` or current publication
 artifact. This gate applies even before the staged approval UI is implemented.
 
 Export writes to a temporary destination, verifies the copied hash, then replaces
 or renames atomically. The local export event records build id, PDF hash,
-destination display filename, time, and whether it was draft/current/approved.
+destination display filename, a private workspace-local destination locator/OS
+bookmark for `Open`/`Show in folder`, time, and whether it was draft/current/
+approved. The locator is never portable and is redacted from diagnostics.
 Preview files are never used as the source of a final export.
 
 When a project/template bundle includes Typst or PDF, the manifest labels its
@@ -2248,31 +3541,98 @@ PDF export is the required publication workflow. The app may later offer a direc
 system print dialog, but exported PDFs are the canonical output for printing,
 sharing outside the app, and archiving.
 
+### Review And Export
+
+`Review and Export` is the required v1 route from editing to a PDF. Build kinds,
+artifact records, profiles, hashes, and approval identity remain internal. Normal
+UI uses `Draft PDF`, `Print-ready PDF` for standard pages, explicit
+`Reading-order PDF`/`Booklet-print PDF` for folded work, and, when installed,
+`Accessible PDF`, plus `Must fix`, `Please review`, and `Ready to export`.
+
+The workflow saves the latest edit, waits for the exact durable revision, builds
+or refreshes the authoritative preview, and presents:
+
+- Page thumbnails/count with fit, zoom, and navigation controls.
+- `Must fix` separately from `Please review`; every finding identifies its field,
+  element, section, or page and provides `Go to...` navigation with focus.
+- Required weekly values and rollover review, unresolved brief items,
+  stale-content findings, overflow/clipping, assets/fonts/glyphs, accidental
+  blank pages, image effective resolution, and stale output.
+- Finished page size, margins, selected printer-safe inset, fold/binding, logical
+  and imposed sheet-side counts where applicable, output filename, and
+  destination in task language.
+- A persistent stale-preview overlay whenever displayed bytes do not represent
+  the saved revision.
+
+`Must fix` blocks print-ready/accessible output. A separately selected Draft PDF
+may proceed only where the readiness matrix permits. Every Draft PDF adds
+`-DRAFT` to the proposed filename, carries draft status in PDF metadata, and has
+a visible `DRAFT — NOT READY TO PRINT` watermark on every page. Renaming the file
+cannot remove that status. The UI may instead create an otherwise-ready pastor
+review copy with a clearly chosen `PROOF` watermark.
+
+Immediately before copying, final export rechecks the current
+`canonicalRevisionToken`, `renderInputHash`, selected profile/output form/options,
+`readinessInputHash` and readiness-report hash, and verified PDF hash against the
+chosen final-candidate record. Any mismatch returns to save/build/review rather
+than exporting stale evidence. After success the app offers `Open PDF` and `Show
+in folder`. When staged approval is installed, it occurs within this workflow
+rather than requiring a separate artifact/final-candidate UI.
+
 ### Folded And Booklet Output
 
-The required booklet output is a reader-order logical-page PDF. The default
-`7in` by `8.5in` physical page is one finished panel/page, not a printer sheet.
-PDF page 1 is the front cover, pages 2 onward follow reading order, and the last
-page is the back cover only when the document actually contains one.
+For `layoutIntent: "foldedBooklet"`, v1 produces two deterministic output
+choices:
+
+- `Reading-order PDF — email, screen, or archive`: pages are the document's
+  finished logical panels in reading order. Page 1 is the front cover; the last
+  page is a back cover only when the document contains one.
+- `Booklet-print PDF — print two-sided and fold`: PDF pages are front/back sides
+  of two-up printer sheets in booklet order.
+
+Accessible/PDF-UA output is always reader-order. The imposed Booklet-print PDF
+is a print artifact and must not claim PDF/UA conformance or replace the
+accessible reader-order export.
+
+A document's finished logical size is one panel. Booklet print setup separately
+edits the persisted `page.bookletPrintSetup` sheet, duplex, scale, and safe-inset
+fields in plain language; binding comes only from `page.binding`. These are shown
+in Review and Export and recorded in output options/build signature. They are
+never inferred only from a printer driver. The app need not provide a system
+print dialog.
+
+Imposition consumes only the verified current reader-order PDF and app-owned
+page geometry through a bundled/pinned deterministic compositor. The artifact
+record includes compositor version/hash and reader-order input PDF hash. A
+failure or page/hash mismatch blocks booklet output and never alters the
+reader-order artifact.
 
 The app does not automatically add blank pages to reach a multiple of four.
-Explicit top-level page breaks may create intentional blank logical pages. When
-`page.layoutIntent` is `foldedBooklet`, a non-multiple-of-four page count receives
-a print/booklet warning because an external imposition tool or printer driver
-may add blanks, but it does not change the reader-order PDF. `singlePage`
-documents do not receive this warning solely because of their page count.
+An imposed booklet requires a logical count divisible by four. If no explicit
+page-count rule forbids it, Review and Export may offer `Add intentional blank
+pages`; it previews their locations, requires confirmation, and adds the needed
+top-level `pageBreak` elements with `intentionalBlank` intent as one undoable
+document edit before rebuilding. It never
+adds imposition-only pages silently. A `singlePage` document receives no booklet
+warning solely from its count.
 
 If the document sets `page.finalPageCountRequirement.multipleOf: 4`, a
-non-multiple-of-four count is instead a blocking publication diagnostic under
-`CBB-LAYOUT-0004`. The general booklet warning never weakens an explicit
-requirement, and the app does not satisfy the requirement by silently adding
-blank pages.
+non-multiple-of-four count is a blocking publication diagnostic under
+`CBB-LAYOUT-0004` for both reader-order and booklet-print final output. Without
+that explicit requirement, the reader-order PDF may still be final after a
+warning, but Booklet-print remains unavailable until the document count is a
+multiple of four. No warning weakens an explicit requirement.
+The non-explicit booklet incompatibility uses `CBB-LAYOUT-0005`; it blocks only
+Booklet-print output and remains a review warning for reader-order output.
 
 Facing Page View is required for the folded/booklet workflow. For left-bound
 left-to-right documents it shows page 1 alone on the right, then 2–3, 4–5, and so
 on; a final unmatched page is shown beside an editor-only blank placeholder.
 Right-bound documents mirror that presentation. Placeholders, fold hints, and
 sheet outlines in the editor are view state and never persisted or exported.
+Facing View is labeled `Reader pages — not printer sheets`; the separate
+Booklet-print sheet preview is labeled with sheet sides/front/back so the two
+cannot reasonably be mistaken for one another.
 
 Page setup supports `marginMode: "fixed" | "mirrored"` and
 `binding: "left" | "right"`. Fixed mode uses top/right/bottom/left. Mirrored
@@ -2280,17 +3640,54 @@ mode stores top/bottom/inner/outer; for left binding, odd pages place inner on t
 left and even pages on the right, with right binding reversed. Page-level margin
 regions resolve after this parity mapping.
 
-Professional imposition, imposed/2-up sheet PDFs, automatic signature ordering,
-crop/bleed/fold marks, printer creep compensation, duplex-printer settings, and
-sheet-size output are explicit v1 non-goals. Users may apply those operations to
-the reader-order PDF in operating-system, printer-driver, or external tools.
+For left binding and `P` logical pages, sheet `i` from `0` through `P/4 - 1`
+places `P-2i | 1+2i` on its front and `2+2i | P-1-2i` on its back. Right binding
+mirrors left/right placement. The sheet preview shows every front/back side with
+logical page numbers, intentional blanks, fold, orientation, and the exact
+instruction such as `Print two-sided; flip on short edge`.
+
+Each imposed PDF page has `MediaBox`, `CropBox`, and `TrimBox` exactly equal to
+the stored sheet width/height and no bleed expansion. In a top-left layout
+coordinate system, slots are `[0, sheetWidth/2]` and
+`[sheetWidth/2, sheetWidth]`, both full sheet height. Each logical panel is scaled
+by the explicit scale and centered in its slot; no crop, auto-fit, or panel
+rotation is allowed. For landscape sheets, a short-edge setup writes front/back
+sheet sides in the same upright viewer orientation; long-edge setup rotates the
+complete back side 180 degrees. Right binding mirrors slot assignment before that
+back-side transform. The compositor converts this geometry exactly to PDF bottom-
+left coordinates using decimal/rational arithmetic and the standard length
+rounding rule.
+
+Safe-inset validation transforms actual placed content bounds at final scale. It
+warns/blocks according to profile when content enters the outer top/right/bottom/
+left inset or the protected band extending `safeInset.fold` to either side of
+sheet center. Inset guides/checks never clip or move content silently.
+
+The app validates panel-to-sheet fit, printer-safe inset, blank intent, and image
+resolution and provides a one-sheet test-print guide/action. Professional
+multi-signature planning, creep compensation, bleed/crop/fold marks, and
+commercial-press controls remain non-goals; basic two-up ordering, sheet output,
+and duplex guidance are required.
+
+The test action creates `booklet-printer-test.pdf`, a non-publication two-page PDF
+representing the front and back of one sheet with app-owned calibration content:
+large front/back/top/bottom labels, left/right panel numbers, fold line, binding
+side, safe-inset boxes, and flip-direction arrows. It uses the selected sheet/
+flip transform but no church/document content, requires no document readiness,
+and carries `PRINTER SETUP TEST — NOT BULLETIN CONTENT` visibly and in metadata.
+It opens the matching offline fold/flip instructions and does not require a
+built-in system print dialog. It is a calibration/test export event, never a
+bulletin artifact, final candidate, approval source, or Recently Exported
+bulletin card.
 
 Page sizes:
 
-- `7in` by `8.5in` is the default page-size preset, not the only supported page
-  size.
-- Built-in presets should include common paper and bulletin sizes where useful,
-  such as letter, legal, A4, and folded-panel presets.
+- Required booklet preset pairs are Letter landscape `11in x 8.5in` to
+  half-letter panels `5.5in x 8.5in`, Legal landscape `14in x 8.5in` to `7in x
+  8.5in` panels, and A4 landscape `297mm x 210mm` to standard A5 `148mm x
+  210mm` panels centered in each half-sheet slot. Letter, Legal, A4, and their
+  panel sizes also exist as ordinary page presets. No preset is a silent
+  universal default.
 - Templates, bulletins, and resource packs may define their own page-size and
   page-setup configurations.
 - Page size, margins, and final page-count requirements are document
@@ -2300,10 +3697,11 @@ Page sizes:
 Export naming:
 
 - Workspace `exportFilenamePattern` is configurable and defaults to
-  `{date:YYYY-MM-DD}.pdf`.
-- Supported substitutions are `{date:<date-format>}`, `{name}`, and `{kind}`;
+  `{date:YYYY-MM-DD} {name}.pdf`.
+- Supported substitutions are `{date:<date-format>}`, `{name}`, `{service}`, and `{kind}`;
   `{{` and `}}` emit literal braces. Date comes only from valid
-  `metadata.publicationDate`. If a required date is absent, prompt for it rather
+  `metadata.publicationDate`; service comes only from `metadata.serviceLabel`.
+  If a required date is absent, prompt for it rather
   than using today's date.
 - Expansion normalizes to Unicode NFC, replaces control and portable-forbidden
   `/ \ : * ? " < > |` characters with `-`, removes path separators, trims
@@ -2315,32 +3713,38 @@ Export naming:
   after user review).
 - A collision may prompt for replacement or use the lowest available ` (2)`,
   ` (3)`, and so on before `.pdf`.
+- The proposed Booklet-print filename adds `-booklet` before `.pdf`; Draft and
+  proof variants add `-DRAFT` or `-PROOF` after any output-form suffix. Users may
+  edit a safe filename, but the embedded watermark/status rules still apply.
 - Exported filenames are display/output labels only and must not affect local
   resource ids, artifact identity, PDF bytes, or internal workspace paths.
 
-Approval and finalization:
+Finalization and optional persisted approval:
 
-- Approval/finalization is a committed requirement that may be staged after the
-  initial v1 release. Before that stage is available, users may manually build and
-  export PDFs without a persisted approval record.
-- When implemented, the app should provide an approval/finalization step before
-  publishing the final PDF.
+- Finalization through Review and Export is required initial v1. It runs
+  `printFinal`/`accessibleFinal`, verifies the final candidate, presents the
+  readiness report, and exports the exact reviewed bytes.
+- Persisted approval records/history may be staged. When installed, `Approve this
+  PDF` records approval of the already finalized candidate within the same
+  workflow; it does not defer or duplicate required v1 finalization.
 - Finalization saves the current document, selects `printFinal` or
   `accessibleFinal`, runs that readiness profile and a persisted manual build,
   verifies the PDF, and presents the complete readiness report.
-- Finalization compares the verified artifact page count with every configured
+- Finalization compares the verified reader-order logical page count with every
+  configured
   final page-count condition. A mismatch blocks finalization and all
   current/final/approved export; it is not a waivable warning.
 - Blocking validation errors or failed builds prevent final approval/export until
   resolved.
 - Non-blocking warnings may be shown during finalization but should not prevent
   approval unless they affect print-readiness or accessible final output.
-- Final approval references the immutable final-candidate build id, build-input
-  signature, PDF hash, readiness-report hash, profile, approval time, and
-  permitted waivers. Export destinations are separate events, not approval
-  identity.
-- Editing the document after approval should mark the approval as stale and
-  require another finalization before publishing a new final PDF.
+- When persisted approval is installed, final approval references the immutable
+  final-candidate build id, build-input signature, PDF hash, readiness-report
+  hash, profile, approval time, and permitted waivers. Export destinations are
+  separate events, not approval identity.
+- An edit changing approval's render/readiness hash marks it stale and requires
+  finalization before a new final PDF. A schema-declared inert authoring/view
+  change alone does not invalidate identical approved bytes/evidence.
 
 ## Error Messages And Support
 
@@ -2371,9 +3775,10 @@ Diagnostics behavior:
 - Diagnostic bundles should include app version, platform, workspace metadata,
   relevant logs, validation reports, build diagnostics, recent error codes, and
   sanitized configuration details.
-- Diagnostic bundle export should avoid including project content, PDFs, images,
-  fonts, or other private church data unless the user explicitly confirms that
-  content should be included.
+- Diagnostic bundle export excludes bulletin/template text, Church Profile,
+  weekly briefs/checklists, spelling dictionary, PDFs, images, fonts, and other
+  private church data unless the user explicitly confirms each category for that
+  bundle.
 
 Autosave errors should show an immediate toast and record full details in
 diagnostics. If an autosave error means the latest document state is not safely
@@ -2383,7 +3788,8 @@ the problem is resolved.
 The app should define actionable handling for at least these failure classes:
 corrupt JSON, failed migration, hard validation failure, missing asset, missing
 or invalid font, missing bundled Typst executable, Typst compile error, compile
-timeout, disk full, file permission failure, failed archive import, unsupported
+timeout, missing/failed booklet compositor, disk full, file permission failure,
+failed backup/restore/history/Trash operation, failed archive import, unsupported
 bundle/resource-pack version, unsafe imported content, and workspace/file
 conflict.
 
@@ -2391,7 +3797,7 @@ conflict.
 
 Stable diagnostic codes use `CBB-<DOMAIN>-<NNNN>`. Defined domains are `DOC`,
 `SCHEMA`, `FIELD`, `ASSET`, `FONT`, `LAYOUT`, `BUILD`, `PDF`, `SAVE`,
-`CONFLICT`, `IMPORT`, `PACK`, `SECURITY`, `AI`, and `PACKAGE`. A code's meaning
+`CONFLICT`, `IMPORT`, `PACK`, `BACKUP`, `SECURITY`, `AI`, and `PACKAGE`. A code's meaning
 and default severity cannot be repurposed; behavior changes require a new code.
 
 The app bundles a versioned `diagnostic-catalog.json` validated by
@@ -2404,9 +3810,12 @@ conditions do not fall back to unstructured text. It includes:
 | Code | Meaning |
 | --- | --- |
 | `CBB-DOC-0001` | Malformed/unsupported document JSON. |
+| `CBB-DOC-0002` | Stale-content or unresolved weekly-work review finding. |
 | `CBB-SCHEMA-0001` | Structural or semantic schema failure. |
 | `CBB-FIELD-0001` | Missing/invalid required field-contract value. |
+| `CBB-FIELD-0002` | Required rollover decision or confirmation is unresolved. |
 | `CBB-ASSET-0001` | Unresolved required portable asset. |
+| `CBB-ASSET-0002` | Raster image has low effective print resolution. |
 | `CBB-FONT-0001` | Missing/invalid font revision. |
 | `CBB-FONT-0002` | Missing glyph after explicit fallback closure. |
 | `CBB-FONT-0003` | Redistribution/embedding permission blocks output. |
@@ -2415,6 +3824,9 @@ conditions do not fall back to unstructured text. It includes:
 | `CBB-LAYOUT-0002` | Oversized unbreakable fragment. |
 | `CBB-LAYOUT-0003` | Clipped semantic content or no-progress pagination. |
 | `CBB-LAYOUT-0004` | Final PDF page count violates the document requirement. |
+| `CBB-LAYOUT-0005` | Folded document count cannot produce a two-up booklet. |
+| `CBB-LAYOUT-0006` | Content enters a configured printer-safe inset or fold band. |
+| `CBB-LAYOUT-0007` | Booklet-print setup is missing or geometrically invalid. |
 | `CBB-BUILD-0001` | Typst compile failure. |
 | `CBB-BUILD-0002` | Build timeout/cancellation. |
 | `CBB-BUILD-0003` | PDF/output hash or parse verification failure. |
@@ -2426,6 +3838,7 @@ conditions do not fall back to unstructured text. It includes:
 | `CBB-CONFLICT-0001` | Optimistic revision conflict. |
 | `CBB-IMPORT-0001` | Invalid/unsafe/incompatible archive or manifest. |
 | `CBB-PACK-0001` | Pack signature/signer/release continuity failure. |
+| `CBB-BACKUP-0001` | Backup, restore, history, Trash, or handoff verification failed. |
 | `CBB-SECURITY-0001` | Required security validation/isolation failed. |
 | `CBB-AI-0001` | Invalid/incompatible AI exchange or helper result. |
 | `CBB-PACKAGE-0001` | Installed/bundled component verification failed. |
@@ -2468,14 +3881,21 @@ profiles.
 | Condition | Edit/preview | Draft | Print final | Accessible final |
 | --- | --- | --- | --- | --- |
 | Missing/invalid required field | Warning | Warning | Block | Block |
+| Unresolved `ask` rollover or required confirmation | Warning | Warning | Block | Block |
+| Required private weekly checklist item unresolved | Warning | Warning | Block | Block |
+| Non-required private checklist reminder unresolved | Reminder | Allow with visible reminder | Acknowledge | Acknowledge |
 | Save failure/conflict or unsaved build revision | Non-final preview allowed | Block | Block | Block |
 | Missing asset | Placeholder warning | Explicit placeholder draft only | Block | Block |
 | Missing/invalid/non-embeddable font | Diagnostic/fallback preview only | Block | Block | Block |
 | Missing glyph after fallback stack | Tofu diagnostic | Block | Block | Block |
 | Missing requested face with deterministic managed substitute | Warning | Allow | Acknowledge | Acknowledge |
 | Horizontal/physical-page overflow or clipped semantic content | Error marker | Block | Block | Block |
+| Content enters configured printer-safe inset/fold band | Guide warning | Allow | Acknowledge | Acknowledge for reader-order only |
 | Configured final page-count requirement not met | Show expected/actual | Explicit labeled draft only | Block | Block |
 | Missing alt on non-decorative image | Warning | Allow | Allow | Block |
+| Raster image below 150 effective PPI | Warning | Allow | Acknowledge | Acknowledge |
+| Folded count not divisible by four without explicit count requirement | Show expected/actual | Allow reader-order draft | Allow reader-order; block booklet-print | Allow reader-order; booklet-print not applicable |
+| Booklet-print setup missing/invalid | Show setup action | Reader-order unaffected; block booklet draft | Reader-order unaffected; block booklet-print | Not applicable |
 | Untagged/nonconforming PDF | Warning/not applicable | Allow without claim | Allow without accessibility claim | Block |
 | Stale artifact | Show/rebuild | Rebuild | Rebuild/finalize | Rebuild/finalize |
 | Build/PDF verification failure | Editing remains available | Block | Block | Block |
@@ -2485,6 +3905,8 @@ Every final candidate requires:
 - The canonical document is successfully saved and the build revision matches.
 - Structural and semantic schemas pass, required field values resolve, and no
   unresolved conflict/recovery transaction exists.
+- Every rollover value required for review is confirmed and the stale-content
+  review has no blocking result.
 - All referenced assets/fonts resolve to verified bytes; no missing glyph or
   placeholder remains.
 - No horizontal overflow, oversized unbreakable element, clipped required
@@ -2492,15 +3914,21 @@ Every final candidate requires:
 - A successful current persisted manual build exists, the PDF opens, its hash
   and page count match the artifact record, and all dependencies/tool hashes are
   recorded.
-- The verified artifact page count satisfies `page.finalPageCountRequirement`
+- The verified reader-order logical page count satisfies
+  `page.finalPageCountRequirement`
   when that portable document requirement is present.
 
-`printFinal` also requires a user review of page size, margins, page count, and
-the visual PDF preview. When `page.layoutIntent` is `foldedBooklet`, that review
-also includes the booklet warning state. `accessibleFinal` additionally requires
+`printFinal` also requires Review and Export confirmation of page size, margins,
+page count, blank intent, image-resolution warnings, any configured printer-safe
+inset, and the visual PDF preview. For Booklet-print it also requires configured
+sheet safe inset, sheet preview, binding, duplex guidance, scale, and divisible-
+by-four count. The readiness report records the visual-review method without
+treating assisted review as inferior. `accessibleFinal` additionally requires
 title/language, valid heading/list/table semantics, unambiguous reading order,
 alt text for every non-decorative figure, successful PDF/UA-1 generation, and no
-external validator conformance failure.
+external validator conformance failure. It inherits reader-order `printFinal`
+content/page/blank/image checks but not booklet sheet/imposition checks, because
+accessible output is never imposed.
 
 Warnings are overridable only when their diagnostic definition marks them
 waivable for that profile. A waiver records code, build id, user reason, and
@@ -2606,7 +4034,12 @@ Conflict recovery preserves
 `conflicts/<local-resource-id>/<YYYYMMDDTHHMMSSmmmZ>-<conflict-id>/base.json`,
 `disk.json`, `ours.json`, and `conflict.json` with base/current/disk hashes and
 safe metadata. The filesystem-safe UTC timestamp contains no colon. The UI
-offers Use Disk Version, Keep My Version, Save Mine As New, or Export Both.
+shows modified/source dates, plain content/dependency summaries, and read-only
+thumbnails/page previews when safely renderable. It offers `Use version saved
+outside the app`, `Keep my current work`, `Save my work as a new bulletin`, or
+`Export both`; technical `disk`/`ours` language remains Advanced. `Export both`
+is identified as the safest no-loss choice when the user is unsure, without
+claiming either version is semantically correct.
 Keeping the current version requires confirmation and a fresh optimistic check
 immediately before replace. Automatic semantic merge is out of scope.
 
@@ -2635,6 +4068,136 @@ snapshot while dirty, but it never becomes a persisted final artifact. Shutdown,
 workspace close, or update installation must not proceed silently through
 `saveFailed`, `conflicted`, or an unresolved committing transaction.
 
+## Workspace Backup, Version History, Trash, And Handoff
+
+V1 provides one-action full-workspace backup and transactional restore through
+the application UI. A backup is a versioned, hash-manifested archive governed by
+`backup-manifest.schema.json`. Full backups use `.cbb-backup`; handoff packages
+use `.cbb-handoff`. Both are zip-compatible but the app must not claim the
+generic `.zip` association. A full backup contains:
+
+- Workspace registry and workspace settings.
+- Church Profile and private spelling dictionary.
+- Every canonical managed resource registered by the workspace: bulletins,
+  templates, Saved Sections, all managed assets/fonts/custom definitions,
+  installed resource packs and trust/update state, including currently
+  unreferenced Church Library items.
+- Cross-restart Version History and Trash with their retained dependencies.
+- Current/final retained artifact records and PDFs needed for church archives.
+- Private weekly-work records by default, with a category-level privacy warning
+  and an explicit option to exclude them from an ordinary user-created backup.
+
+A handoff is intentionally a user-reviewed selected closure rather than a full
+copy of the source workspace. Its defaults and required dependency closure are
+defined below; weekly private work is excluded by default and remains subject to
+the unresolved-required-item transfer gate. Its captured resource map covers all
+and only the selected/included source resources.
+
+Both archive kinds exclude locks, active transaction journals, preview/cache
+files, executable AI helper profiles, credentials/secrets, raw environment data,
+and unredacted diagnostic/AI logs. Backup creation uses a user-selected
+destination outside the workspace, writes atomically, verifies manifest/hashes by
+rereading the completed archive, and reports success only after verification.
+Before capture, the app flushes canonical saves, resolves/blocks active conflicts
+and committing transactions, and takes a short workspace snapshot lock to record
+registry revision plus the complete full-backup resource-path/hash map. Immutable
+resources may copy after the lock releases, but any missing/hash-mismatched member
+aborts the backup; edits after the captured revision belong to the next backup.
+The UI warns that a backup contains private church data and never silently places
+it in a public folder.
+Home/Settings show the last verified backup time and destination display name.
+After the first final export and when no verified backup has succeeded for 30
+days, the app offers a dismissible, non-blocking backup reminder.
+
+Restore treats the archive as untrusted input and uses the same bounded archive,
+schema, path, asset, and font validation as imports. It stages/journals every
+write. Restore into a nonempty destination requires a verified pre-restore backup
+that includes all destination user state, including private weekly work,
+regardless of the ordinary backup exclusion option, plus an explicit `Restore as
+a separate workspace` or `Replace current workspace`
+choice; it must not silently merge identities. Although general multi-workspace
+management is deferred, restore-as-separate may create and switch to one new
+workspace after the transaction succeeds. Failure leaves the prior configured
+workspace usable and selected.
+
+Version History stores immutable canonical document snapshots deduplicated by
+hash. It creates a snapshot:
+
+- Before the first document edit in an editor run.
+- Before a destructive, batch, migration, contract-update, or structural repair.
+- Before restoring another version.
+- At every successful print-final/accessible-final or explicit `PROOF` export.
+
+The history view shows time, reason, publication/display label, and associated
+export when present. It also provides a bounded read-only page preview/thumbnails
+when renderable and a content/change summary covering fields, sections, page
+setup, dependencies, and source date; technical JSON diff remains Advanced.
+Restoring first snapshots current state, then atomically
+makes the chosen snapshot a new current revision; it never deletes later history.
+At least the newest 20 automatic snapshots per document and every final-export
+snapshot are retained until the user reviews a cleanup. Storage cleanup must show
+what will be removed and must never delete the only copy of current content.
+
+For workspace library resources, ordinary `Delete` means `Move to Trash`.
+Deleting an element inside an open document remains an undoable document edit.
+Trash preserves local identity,
+portable content, private weekly work, retained artifacts, dependencies, history,
+prior library kind, and restore
+metadata. Restore returns the resource to its prior kind; duplicate display names
+remain legal. V1 does not auto-empty Trash. Permanent deletion is available only
+inside Trash or `Empty Trash`, names the affected resources, requires explicit
+confirmation, and may collect an asset/font/definition revision only when no
+active document, history snapshot, trashed item, retained artifact, recovery
+record, or in-progress backup/restore references it.
+
+`Create volunteer handoff package` uses the verified backup format and includes
+Church Profile, canonical congregation documents/templates, Saved Sections,
+dependencies, and selected archived finals. It excludes device-specific window
+state/paths, helper configuration, locks, logs, caches, and weekly private notes
+by default. The review lists every included/excluded category and lets the user
+explicitly add private weekly notes when appropriate. Import on the next machine
+uses the same transactional restore flow.
+
+### Backup And Handoff Manifest Contract
+
+`backup-manifest.json` is the required root member of `.cbb-backup` and
+`.cbb-handoff`. Its closed root contains:
+
+- Schema `version`, `kind` (`fullBackup` or `handoff`), backup/handoff id, source
+  workspace id, creation time, creating app version, and all relevant root schema
+  versions.
+- Captured workspace-registry revision/hash. For `fullBackup`, the resource map
+  covers the complete captured source workspace; for `handoff`, it covers every
+  resource in the selected closure and does not claim to enumerate excluded
+  source resources.
+- Explicit included and excluded category lists; an exclusion is data, not an
+  omitted/unknown decision.
+- A complete ordered `entries` array. Each entry has UUID entry id, resource kind
+  when applicable, canonical safe relative path, exact byte size, SHA-256,
+  required flag, and dependency ids.
+- Declared entry count/total bytes and kind-required roots. A full backup requires
+  workspace and settings entry ids plus the Church Profile entry when a profile
+  exists. A handoff requires its handoff registry and selected Church Profile
+  root when present; portable workspace settings are included only when selected,
+  and device-specific settings are forbidden.
+
+Every nondirectory payload member appears exactly once in `entries`; undeclared,
+duplicate, aliased, symlink/device, encrypted, or unsafe members block restore.
+Canonical path, JSON, hashing, streaming verification, quarantine, and
+transaction rules reuse the archive safety contract. Single-file ZIP64 is
+permitted/required above classic ZIP limits; split/multi-volume archives remain
+invalid. Handoff subsets must still
+declare a complete dependency closure for every selected canonical resource.
+
+`Replace current workspace` restores the backed-up source workspace identity
+after the verified safety backup of the destination. `Restore as a separate
+workspace` mints a new workspace id while preserving scoped local resource ids
+and rewrites only workspace-id provenance/registry fields transactionally. The
+new copy remains inactive until the user chooses `Switch to restored library`.
+After switching, a restore-specific `Return to previous library` action remains
+available until explicitly dismissed; this bounded recovery affordance does not
+constitute general multiple-workspace management.
+
 ## Assets
 
 Assets should be stored under an app-generated local resource UUID, not a
@@ -2645,7 +4208,10 @@ Asset records should include:
 
 - Local asset resource id.
 - Portable asset id for the immutable binary revision.
-- Verified SHA-256 digest and byte size for that revision.
+- Verified SHA-256 digest and byte size of the exact canonical build-safe binary
+  identified by that portable revision.
+- Separate source-original digest/size and the sanitizer/rasterizer identity when
+  canonical bytes were derived from an untrusted original.
 - Original filename for display.
 - Media type.
 - Storage location for the binary object.
@@ -2659,6 +4225,24 @@ delete, and export operations work against the local workspace. Replacing asset
 bytes is copy-on-write: it creates a new portable asset id and local asset
 resource rather than changing the bytes associated with an existing portable
 asset id. Old asset revisions must remain available while referenced.
+
+An `asset:<uuid>` always identifies exact immutable canonical bytes permitted as
+renderer/build input, not merely the originally uploaded bytes. For an already
+safe raster the canonical and original bytes may be identical. For SVG, PDF, or
+another format requiring sanitation/flattening, the untrusted source original is
+provenance only and the portable id/hash identify the validated derivative.
+Changing canonical bytes because sanitization/rasterization logic changes creates
+a new portable asset id; artifact signatures record the sanitizer identity. A
+bundle includes the canonical bytes required to reproduce rendering and may
+include the source original only as an explicitly inert optional provenance item.
+
+Canonical raster creation applies and removes EXIF/orientation metadata, stores
+the resulting top-left oriented pixel width/height, fixes the color/profile
+policy under the pinned decoder version, and strips active/non-render metadata.
+Animated/multiframe raster input is not canonical v1 image content: import stops
+and may offer a reviewed `Use first frame as a still image` conversion that mints
+canonical static bytes/id. Editor, crop, PPI, and Typst never reinterpret source
+orientation or animation independently.
 
 AI visibility controls whether an asset may be exposed to a local AI helper or
 included in an AI template contract's asset catalog. Private assets must not be
@@ -2711,7 +4295,7 @@ disposition follows this table rather than changing code by operation.
 | --- | --- |
 | Open/edit/save | Allow the document, preserve the unresolved ref, show the same-size placeholder and warning, and offer relink/import. |
 | Live preview | Render the placeholder and mark the preview `draft-with-placeholders`; do not present it as final-ready. |
-| Draft manual build/export | Require explicit `Build/Export Draft With Placeholders` confirmation, record the warning, mark the artifact draft, and add `-DRAFT` to the proposed filename. |
+| Draft manual build/export | Require explicit `Build/Export Draft With Placeholders` confirmation, record the warning, mark the artifact draft, add `-DRAFT`, PDF draft metadata, and the required visible draft watermark. |
 | Normal current/final export | Block and offer relink or the separate draft-export action. |
 | Finalization/approval | Block for every final-readiness profile. |
 | Project/template bundle export | Block because the bundle must be self-contained. |
@@ -2724,7 +4308,13 @@ source path. Draft status cannot be removed by renaming the exported file; it is
 also recorded in the artifact/export event. Relinking is one undoable document
 edit and makes affected prior artifacts stale.
 
-Deleting a referenced asset is rejected unless the same confirmed transaction
+For each placed raster image, effective print PPI is computed from the cropped
+source pixel region and final printed placement size, including booklet scale.
+`CBB-ASSET-0002` warns below 150
+PPI in Review and Export. It is acknowledgeable for print final, does not apply
+to vector assets, and reports the current value plus replace/resize/crop actions.
+
+Moving a referenced asset to Trash is rejected unless the same confirmed transaction
 relinks or removes every reference. Final readiness always re-resolves the
 current closure and never trusts an older successful preview.
 
@@ -2754,7 +4344,7 @@ include the optional entries below:
 - Positive monotonic release sequence when signed update/rollback behavior is
   supported.
 - Optional claimed publisher metadata and optional signature/key-transition
-  metadata; claims are not trust until cryptographically verified and locally
+  metadata; claims are not trusted until cryptographically verified and locally
   accepted.
 - Optional description.
 - Optional author, church, or organization display metadata.
@@ -2845,11 +4435,15 @@ zip-compatible archives containing `manifest.json`, selected resources,
 referenced assets, included fonts when selected, AI-ready metadata when selected,
 and an optional `readme.md`.
 
-Resource pack import is required in v1. Creating/exporting packs and applying
-pack updates or replacements are committed requirements that may be staged after
-initial v1 import support. Until update/replace support is available, importing a
-pack whose stable identity already exists must stop with an informative message
-rather than silently replacing existing content.
+Resource pack import is committed but may be staged after the core weekly
+workflow. Creating/exporting packs and applying updates/replacements may be
+staged further. If import is absent, generic starters and self-contained project/
+template bundles still support a useful first release. If any pack import ships,
+the complete applicable quarantine, validation, transaction, dependency, and
+trust rules in this spec are mandatory; scope pressure never permits a weaker
+partial importer. Until update/replace is available, importing a pack whose
+stable identity already exists stops with an informative message rather than
+silently replacing content.
 
 ### Resource Pack Trust And Update Safety
 
@@ -2923,7 +4517,10 @@ impact summary lists every local template, bulletin, custom element, and artifac
 that still references an old revision. Referenced old revisions are retained and
 remain resolvable even when hidden from the current pack library. Garbage
 collection may remove a revision only after the workspace proves no canonical
-document, reusable content, recovery record, or retained artifact references it.
+document, Saved Section/reusable content, weekly-work attachment/link, Version
+History snapshot, Trash item, recovery/conflict record, retained/source artifact,
+or in-progress backup/restore references it. This is the same retention graph
+used by Trash and workspace cleanup.
 
 Pack update/replace runs as one journaled transaction. It validates and stages
 the complete incoming closure, writes new immutable resources, updates only the
@@ -2953,8 +4550,10 @@ Supported bundle workflows:
 - Export a resource pack containing an arbitrary selected set of reusable
   content.
 - Import a resource pack.
-- Export an AI template contract for a selected template.
-- Import AI-generated data for a selected template or bulletin.
+- Under Advanced/Integrations when that staged feature is installed, export an AI
+  template contract for a selected template.
+- Under Advanced/Integrations when installed, import AI-generated data for a
+  selected template or bulletin.
 
 Project and template bundles should include:
 
@@ -2964,10 +4563,17 @@ Project and template bundles should include:
 - The project or template JSON.
 - Referenced managed asset binaries and asset metadata.
 - Referenced custom element schemas or style metadata when needed.
-- Generated Typst from the selected persisted artifact for diagnostics.
+- Generated Typst from the selected reader-order compile artifact for
+  diagnostics. If the selected PDF is revalidated/booklet-two-up, include its
+  declared source/parent reader Typst and dependency evidence; never invent
+  compositor Typst.
 - The approved current PDF by default when one exists, otherwise the newest
   non-stale persisted manual artifact. Preview/stale PDFs are never selected as
   current; any explicitly included historical artifact is labeled diagnostic.
+- For a bulletin project only, an optional explicitly selected and privacy-
+  labeled `weeklyWorkAttachment` containing that bulletin's weekly-work record
+  and retained weekly-work snapshots. It is never part of template JSON or a
+  template bundle.
 
 Project and template bundle exports must include referenced assets. The app does
 not support metadata-only project or template exports because imported documents
@@ -2994,6 +4600,9 @@ Import behavior:
 - Report missing, unsupported, or unsafe bundle entries before import completes.
 - Persist the planned id maps in the transaction journal so a retry uses the same
   allocations and cannot expose a partially remapped import.
+- When a bulletin bundle includes a valid `weeklyWorkAttachment`, associate it
+  only with the newly allocated bulletin local resource id after explicit privacy
+  confirmation; it never enters portable document JSON or resolves by name.
 
 Export behavior:
 
@@ -3048,7 +4657,8 @@ Every entry also includes:
 
 - `kind`: `document`, `asset`, `fontFamily`, `fontFace`, `customElement`,
   `style`, `aiContract`, `aiSample`, `readme`, `typstDiagnostic`,
-  `pdfDiagnostic`, or another schema-defined supported kind.
+  `pdfDiagnostic`, bulletin-only `weeklyWorkAttachment`, or another schema-
+  defined supported kind.
 - Explicit `required` boolean and canonical relative `path`.
 - `mediaType`, nonnegative integer exact uncompressed `byteSize`, and lowercase
   64-hex SHA-256.
@@ -3057,6 +4667,10 @@ Every entry also includes:
   when applicable.
 - Sorted dependency records containing target id, closed `relation` enum, and
   `required`; dependency targets exist in the same manifest.
+
+A `weeklyWorkAttachment` is valid only in a `projectBundle` whose root document
+is a bulletin. It has exactly one required `weeklyWorkFor` dependency to that
+root document and is forbidden in template bundles and resource packs.
 
 For bundles, asset/font maps target `entryId`; for packs they target `contentId`.
 Every typed reference in the required closure maps to exactly one compatible
@@ -3112,8 +4726,9 @@ commit. The original archive remains unchanged.
 
 ## Local File Safety
 
-All imported files, resource packs, project/template bundles, assets, fonts, and
-AI helper inputs should be treated as untrusted local content until validated.
+All imported files, resource packs, project/template bundles, backups, handoff
+packages, assets, fonts, and AI helper inputs are untrusted local content until
+validated.
 
 JSON parsing rejects duplicate object keys, invalid Unicode, excessive
 depth/count/string size, non-finite numbers, and unsupported root versions before
@@ -3185,17 +4800,19 @@ Typst build safety:
 
 ### Size, Performance, And Resource Limits
 
-`MiB` means 1,048,576 bytes. File/JSON sizes count exact binary or UTF-8 bytes;
-raster pixels are decoded width times height; visual-node counts include native
-elements and wrappers recursively. Limits apply when the observed value is
-greater than the threshold and are checked from declarations and again while
-streaming/decoding.
+`MiB` means 1,048,576 bytes and `GiB` means 1,073,741,824 bytes. File/JSON sizes
+count exact binary or UTF-8 bytes; raster pixels are decoded width times height;
+visual-node counts include native elements and wrappers recursively. Limits
+apply when the observed value is greater than the threshold and are checked from
+declarations and again while streaming/decoding.
 
 | Category | Warning threshold | Hard cap |
 | --- | ---: | ---: |
 | Portable document JSON | 10 MiB | 50 MiB |
 | Workspace metadata root | 25 MiB | 100 MiB |
-| Manifest/non-helper exchange JSON | 5 MiB | 20 MiB |
+| Bundle/pack manifest or non-helper exchange JSON | 5 MiB | 20 MiB |
+| Backup/handoff manifest JSON | 64 MiB | 128 MiB |
+| Church Profile or one weekly-work JSON | 5 MiB | 20 MiB |
 | JSON nesting depth | 32 | 64 |
 | One JSON string | 256 KiB | 1 MiB |
 | Persisted visual nodes | 5,000 | 20,000 |
@@ -3223,11 +4840,33 @@ streaming/decoding.
 | AI helper result JSON | 8 MiB | 10 MiB |
 | AI selected-input total | 50 MiB | 100 MiB |
 | Generated PDF pages | 250 | 1,000 |
+| One persisted generated Typst/PDF artifact file | 500 MiB | 1 GiB |
+| Projected full-backup payload bytes before archive overhead | 40 GiB | 48 GiB |
+| Projected full-backup payload entries | 150,000 | 190,000 |
+| Completed backup/handoff archive bytes | 50 GiB | 52 GiB |
+| Completed backup/handoff archive entries | 190,000 | 200,000 |
 
 The helper boundary additionally caps stdout and stderr at 1 MiB each and total
 scratch/output at 100 MiB. Builds keep the 30-second default timeout; normal
 settings may raise it only to a 120-second hard maximum. Managed AI runs use
 their separate five/fifteen-minute limits.
+
+The general archive byte/entry caps apply to bundles, packs, and other imports.
+Streamed backup/handoff formats use their explicit larger aggregate and manifest
+caps while retaining all path, ratio, one-entry, JSON-depth, and parser-isolation
+ceilings. Generated artifact files use the one-entry cap, so no valid retained
+PDF or Typst file is individually unbackupable.
+
+The projected full-backup closure counts every payload byte and entry a full
+backup must retain: registry/settings/Profile, canonical resources, unreferenced
+library items, weekly-work/live snapshots, Version History, Trash, retained
+artifacts, and their dependencies. It also reserves the difference between the
+48 GiB/190,000-entry payload caps and completed-archive caps for the manifest,
+ZIP headers, and bounded format overhead. Before every mutating transaction the
+app projects the post-commit full-backup closure and blocks a commit that would
+cross either payload cap or the projected backup-manifest JSON hard cap. It warns
+on approach and offers retention-aware cleanup; a supported workspace must never
+become too large or entry-heavy for its required full-backup operation.
 
 Crossing a warning threshold requires a visible summary/confirmation for import
 or export and a persistent diagnostic for existing content. Crossing a hard cap
@@ -3247,22 +4886,32 @@ one second expose progress and cancellation. Release tests cover exactly-at-limi
 success, one-over failure, deceptive declarations, cancellation, cleanup, and
 transaction rollback.
 
-## AI-Assisted Data Import
+## Optional AI Assistance And Advanced Data Exchange
 
-The app should support AI-assisted creation of bulletin content from high-level
-user instructions. AI assistance should fill structured template data, not make
-the AI tool responsible for visual layout, pagination, storage paths, or Typst
-generation.
+The complete normal workflow works without AI. The private weekly brief supports
+manual checklist creation and field/section mapping in v1. AI is opt-in, off by
+default, and may be staged after manual weekly/template workflows.
 
-The app remains an offline desktop app. AI support must not require a hosted
-service or network access. The app should support file-based exchange with
-external AI tools and should be able to launch/configure a local AI helper, such
-as opencode, when the user has configured one.
+When installed/configured, the primary AI action is `Suggest from instructions`,
+not raw JSON exchange. It may propose structured field values, checklist
+mappings, and approved known-asset choices. Every proposal shows the supporting
+source excerpt when one exists; a proposal without direct support is labeled
+`Inferred — confirm this`. Users accept, edit, or reject each field. AI never
+changes layout, pagination, readiness, diagnostic waivers, output destination, or
+document data before reviewed application.
 
-File-based AI contract export/import is required in v1. Broader AI-assisted
-template filling may be staged after manual template workflows, and launching or
-configuring a local AI helper may also be staged. File exchange with an
-externally run helper is sufficient for v1.
+The app remains offline and must not require a hosted service or network access.
+It may support file exchange with external AI tools and launching/configuring a
+local helper when that staged feature is present. Before a managed run, the UI
+identifies the exact helper and selected instructions/assets that will be
+exposed.
+
+`.ai-template.json` and `.ai-import.json` are Advanced/Integrations formats, not
+the normal volunteer workflow. Contract ids/versions/hashes, target handles, raw
+JSON, and file mechanics remain hidden from Weekly Content. Raw file exchange,
+instruction-to-field suggestions, and managed-helper configuration are committed
+staged features rather than initial-v1 gates; they may ship independently only
+when the same validated proposal/privacy contract applies.
 
 When launching a local AI helper, the app should provide a controlled working
 directory containing the AI template contract, user-provided source input, and
@@ -3272,8 +4921,7 @@ before applying anything to a bulletin.
 
 An externally run helper used through file exchange is outside the app trust
 boundary. The app cannot promise that it will not read other files, environment
-secrets, or the network; the exchange UI must say so. v1 satisfies AI exchange
-without launching a helper process.
+secrets, or the network; the Advanced exchange UI must say so.
 
 The staged app-managed helper launcher may ship only where the platform provides
 an enforceable isolation profile. If the profile cannot be established, launch
@@ -3398,8 +5046,11 @@ Import behavior:
 - Validate the AI import result before applying it.
 - Resolve the target through the workspace-local exchange record and confirm the
   target revision and exact field-contract id/version/hash match.
-  If the record is unavailable, require the user to select a compatible target;
-  never match a target by display name.
+  If that record is unavailable, the import must never update an existing
+  bulletin because base hashes and offered-asset authority cannot be verified.
+  At most, the user may create a new bulletin from a manually selected template
+  whose contract id/version/hash matches exactly; no incoming asset ref is
+  accepted without a verified catalog. Never match by display name.
 - Compare each current field value with its exported base hash. A changed field
   is a conflict regardless of recorded origin and cannot be silently overwritten;
   the review shows base/current/proposed values.
@@ -3409,9 +5060,12 @@ Import behavior:
 - Show a review screen with proposed field values, missing required values,
   validation errors, warnings, unresolved asset requests, and AI notes.
 - Let the user accept, edit, reject, or resolve imported values before applying
-  them.
+  them. `Accept all valid suggestions` may select only schema-valid,
+  non-conflicting proposals; inferred values and changes to manually edited
+  fields still require individual review.
 - Apply accepted values by creating a new bulletin from the target template or by
-  updating authoritative `fieldValues` with origin `ai`.
+  updating the authoritative targeted field-value stores with origin `ai` and
+  matching current scoped `fieldReview` records.
 - Preserve the original high-level instruction and AI tool metadata for
   diagnostics when available.
 - Preserve template layout unless the user explicitly performs normal editor
@@ -3446,15 +5100,74 @@ not persisted as a second editable tree.
 
 Editing a custom instance field updates its scoped `fieldValues`. Structural or
 literal edits inside the expansion require an explicit `Detach Custom Element`
-command that replaces the instance with newly identified native elements using
+command (shown as `Make independent` in normal UI) that replaces the instance
+with newly identified native elements using
 the current resolved values as one undoable transaction. The detached result no
 longer receives definition updates.
+
+## No-Code Template Authoring
+
+Users must be able to create and maintain useful templates without editing JSON,
+Typst, ids, bindings, or schemas. Required entry points are:
+
+- `Save this bulletin as a template`.
+- `Create a template` from a generic starter.
+- `Duplicate template` and `Edit template`.
+- From every supported bindable Text, Date, Image, and Hymn/Song content
+  property, `Make this a weekly field`.
+- `Change only this bulletin` and `Update template for future bulletins` where a
+  local creation-template reference is known.
+
+`Save this bulletin as a template` reviews bulletin-specific values. For each
+weekly value the user can clear it, make it a template default, retain it only as
+sample/test data, or map it to Church Profile. The app warns before preserving
+dates, names, prayers, announcements, or other likely one-week content as a
+template default.
+
+`Make this a weekly field` creates the internal field definition and binding as
+one undoable action. Its plain-language dialog supports label, help text,
+required status, group, default, rollover policy, review expectation, and an
+optional compatible Church Profile mapping. Internal ids and target pointers are
+generated and never required user input.
+
+The setup-form designer supports visual creation/reordering of field groups and
+fields, previewing the form as a weekly volunteer sees it, and identifying unused
+fields/broken bindings. Conditional/repeatable setup uses language such as `Show
+this section when`, active/inactive action labels, `Allow more than one`, item
+fields/prototype, empty-state behavior, `Maximum items`, and `Let the weekly
+editor reorder items`. The author must preview both active/empty states before
+saving.
+
+Template authors may supply sample/test values visibly distinct from defaults.
+They are used only for template preview/testing and never become bulletin values
+unless explicitly converted. `Test weekly workflow` exercises setup, Weekly
+Content, conditional/repeatable behavior, stale checks, and readiness without
+creating a normal library bulletin. Test edits live in a disposable sandbox and
+are discarded on exit/reset; only an explicit `Apply changes to template` review
+may commit authoring changes, never test bulletin values or review state.
+
+Document, section, element, and placement locks are configured visually. The
+authoring view shows what Weekly Content can change and warns about weekly fields
+without visible bindings, visible bindings without usable fields, inaccessible
+conditional controls, and repeaters without bounded item counts.
+For unbound content it also exposes `Review every bulletin`, `Review when copied
+from last bulletin`, and `Persistent — no weekly reminder`, mapping to the
+`weeklyReview` hint.
+
+`Update template for future bulletins` shows every layout, field, default, rule,
+and lock change, creates a recoverable new template revision, and never rewrites
+existing bulletins. `Change only this bulletin` leaves the template unchanged.
 
 ## Template And Custom Element Lifecycle
 
 Templates are copied into bulletins when a bulletin is created from a template.
 The copied bulletin receives its own local resource id and editable document JSON.
 Later changes to the source template do not silently rewrite existing bulletins.
+
+Workspace metadata may retain a local creation-template reference for `Open
+source template` and the explicit no-code `Update template for future bulletins`
+workflow. It is not portable, authoritative for rendering, or a live link.
+Removing/replacing that template cannot damage the copied bulletin.
 
 Custom elements have two related concepts:
 
@@ -3488,7 +5201,7 @@ by filling defaults and migrating legacy layout details where safe.
 
 Validation should reject or normalize:
 
-- Unsafe project names.
+- Display names that violate the bounded Unicode label contract.
 - Workspace-local resource ids or storage paths in portable document fields.
 - Asset references that resolve outside approved local asset roots.
 - Portable asset refs missing from a required bundle/pack asset map, duplicate
@@ -3497,13 +5210,27 @@ Validation should reject or normalize:
   manifest dependencies.
 - Pack content ids reused for a different resource kind within the same pack id.
 - Invalid page sizes.
+- `page.bookletPrintSetup` on standard pages, missing setup for requested Booklet-
+  print output, or invalid sheet/scale/safe-inset geometry.
 - Invalid or internally inconsistent `page.finalPageCountRequirement` objects.
 - Invalid element ids.
 - Duplicate element ids within the same complete document.
+- Invalid authoring-policy inheritance or locks on the wrong node owner.
+- Invalid weekly behavior, incompatible Church Profile mappings, unresolved
+  rollover review, or a publication-date field configured to `keep`.
+- `fieldReview`/`contentReview` on a template, malformed review hashes/records,
+  records for unknown/ineligible fields/nodes, or review state copied by a
+  duplication transaction. A well-formed hash that no longer matches is retained
+  for explanation but treated as unresolved readiness, not structural corruption.
+- Conditional rules with missing/incompatible controls, non-allowlisted
+  expressions, invalid targets, cycles, or ambiguous required-field scope.
+- Repeatable rules with invalid array fields/prototypes/bindings, unbounded or
+  contradictory item limits, or missing/duplicate/misaligned stable item ids.
 - Invalid page-level element placement or unsupported page targeting.
 - Normal-flow elements that intentionally render outside the content box.
 - Rich-text content that contains unsupported blocks, invalid inline marks, or
   unvalidated Typst source.
+- Image fit values other than `contain`/`cover` and focal points outside `[0,1]`.
 - AI import files with an unknown exchange/target handle, incompatible
   field-contract identity/version/hash, or asset refs absent from the exported
   catalog.
@@ -3529,10 +5256,11 @@ silently change product scope.
 
 Committed requirements that may be staged after the initial v1 release:
 
-- AI-assisted template filling beyond required file-based AI contract exchange.
-- Resource pack creation, export, update, and replacement.
+- AI-assisted instruction-to-field suggestions and Advanced raw AI contract
+  exchange.
+- Resource pack import, creation, export, update, and replacement.
 - Tagged/accessible final PDF output.
-- Approval/finalization workflow.
+- Persisted approval records and approval history.
 - Local AI helper launch and configuration.
 
 Deferred from v1:
@@ -3543,10 +5271,14 @@ Deferred from v1:
 Optional enhancements:
 
 - Synchronize editor scrolling with PDF preview scrolling.
-- Drag-to-resize with resized dimensions saved as absolute inches.
 - Element alignment controls.
 - Multi-element selection and select all.
 
-The user settings panel, margin guide visibility UI, undo/redo, canvas snapping,
-strong inspector validation, and faithful grid/stack editor rendering are v1
-requirements and must not be tracked as future-only features.
+Weekly Content/Customize Layout separation, Create This Week rollover, generic
+starters, Church Profile/Saved Sections, no-code template authoring,
+conditional/repeatable content, direct rich-text editing, page thumbnails/zoom/
+selection navigation, basic resize/crop, Review and Export, basic booklet
+imposition, full backup/restore, Version History, Trash, the user settings panel,
+margin guides, undo/redo, canvas snapping, strong inspector validation, and
+faithful grid/stack rendering are v1 requirements and must not be tracked as
+future-only features.

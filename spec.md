@@ -6,9 +6,12 @@ rendering rules the app should preserve as new features are added.
 
 ## Goals
 
-The builder provides a completely offline, GUI-first desktop workflow for
-creating church bulletins and reusable bulletin templates without hand-editing
-Typst for normal layout work.
+The builder provides an offline-first, GUI-first desktop workflow for creating
+church bulletins and reusable bulletin templates without hand-editing Typst for
+normal layout work. Creating, editing, reviewing, building, exporting, backup,
+restore, and help remain fully usable without a network connection. Explicitly
+configured staged integrations may connect a Shared church library or retrieve a
+Scripture passage; neither is required for normal weekly work.
 
 The builder must:
 
@@ -32,8 +35,20 @@ The builder must:
   volunteer handoff, and print confidence first-class product concerns.
 - Keep the editor's page, margin, flow, and canvas behavior aligned with the
   rendered PDF wherever practical.
-- Run entirely from local files with no network dependency or separately started
-  service.
+- Keep the complete weekly bulletin workflow local and usable with networking
+  disabled. Only an explicitly configured Shared church library connection or a
+  user-invoked authorized Scripture provider may make its narrowly scoped network
+  requests; failure must not prevent opening, editing, reviewing, exporting,
+  backing up, restoring, or closing locally saved work.
+- Let an authorized pack maintainer publish a dependency-complete resource-pack
+  release to a Shared church library and let subscribers check for and review
+  newer releases without synchronizing the rest of the workspace.
+- Let volunteers paste and consistently format Scripture offline, with an
+  authorized provider connector as an optional convenience, while preserving
+  exact wording, source provenance, translation attribution, and rights review.
+- Track structured rights metadata for Hymn/Song and Scripture content and
+  generate the bulletin's Copyrights & Permissions section from content that
+  actually renders.
 - Treat church-specific logos, images, templates, starter bulletins, and other
   reusable content as data that can be imported, exported, backed up, and moved
   independently of the application.
@@ -71,7 +86,7 @@ Explicit release scope:
 | --- | --- |
 | User settings panel | Required v1 |
 | First-run onboarding and generic starter templates | Required v1 |
-| Church profile and saved sections | Required v1 |
+| Church profile, Song Library, Scripture catalog, and saved sections | Required v1 |
 | Weekly Content and Customize Layout modes | Required v1 |
 | Create This Week rollover and stale-content review | Required v1 |
 | Conditional and repeatable template sections | Required v1 |
@@ -96,6 +111,10 @@ Explicit release scope:
 | File-based AI contract import/export | Required, may be staged after manual weekly workflows |
 | AI-assisted instruction-to-field suggestions | Required, may be staged after manual template workflows |
 | Resource pack creation/export/update/replace | Required, may be staged |
+| Shared church library hosted pack publishing, update checks, and pull updates | Required, may be staged after resource pack creation/export/update/replace |
+| Offline Paste Scripture formatting and attribution | Required v1 |
+| Authorized Bible Gateway Scripture connector | Required, may be staged after offline Scripture formatting |
+| Structured Hymn/Song rights and generated Copyrights & Permissions block | Required v1 |
 | Tagged/accessible final PDFs | Required, may be staged |
 | Persisted approval records and approval history | Required, may be staged |
 | Local AI helper launch/configuration | Required, may be staged |
@@ -111,6 +130,16 @@ validation, transaction, privacy, and security requirement in this spec. Scope
 pressure never permits a weaker partial importer, archive parser, or helper
 executor. Required v1 template authoring and Customize Layout features are not
 implicitly stageable merely because they are advanced workflows.
+
+Shared church library support must not ship as a reduced network importer. It
+depends on the complete applicable pack manifest, signature continuity,
+quarantine, archive limits, dependency closure, three-way comparison, journaled
+update, rollback, and retention requirements. The first supported release has
+one publishing authority per connected pack and any number of subscribers;
+concurrent multi-author coediting or automatic semantic merge is deferred unless
+separately specified. The Bible Gateway connector must not ship without an
+authorized provider agreement, supported authentication, translation-specific
+rights metadata, and the same local snapshot/review behavior as offline paste.
 
 ## Schema Organization, Versions, And Storage Boundaries
 
@@ -137,18 +166,21 @@ Required schema organization:
 | `common.schema.json` | Shared ids, versions, lengths, colors, style primitives, hashes, timestamps, field contracts, bindings, and portable reference primitives. |
 | `document.schema.json` | Authoritative portable document root for both `bulletin` and `template` documents. |
 | `element.schema.json` | Recursive discriminated union for all normal visual elements and container child wrappers. |
-| `richText.schema.json` | Structured rich-text AST used by text fields and rich-text template fields. |
+| `richText.schema.json` | Structured rich-text AST used by text fields and rich-text template fields, including structured Scripture passages and source snapshots. |
+| `rights.schema.json` | Shared song-work, rights-record snapshot, publication-credit, congregation-license-display, and generated-rights-block policy primitives. |
+| `scripture-catalog.schema.json` | Workspace/pack Scripture translation and presentation-preset revision records with portable identity, rights/usage-policy snapshots, provider mappings, redistribution decision, and hashes. |
 | `customElement.schema.json` | Reusable custom element definitions and custom element instance metadata, reusing `element.schema.json`. |
 | `ai-exchange.schema.json` | File-based AI template contracts and AI import results. |
 | `manifest.schema.json` | Resource pack, project bundle, and template bundle manifests. |
-| `workspace.schema.json` | Workspace-local registry, resource records, revision state, import provenance, conflict state, and installed pack state. |
-| `church-profile.schema.json` | Workspace-local reusable congregation details, preferred output defaults, brand/library references, schedule, favorites, and spelling dictionary. |
+| `workspace.schema.json` | Workspace-local registry, resource records, revision state, import provenance, conflict state, installed pack state, Song Library/Scripture catalog records, pack-maintainer drafts, Shared church library connections, and Scripture-provider configuration. |
+| `pack-feed.schema.json` | Hosted pack-feed head and immutable-release metadata exchanged by a Shared church library provider; network exchange only, never portable document state. |
+| `church-profile.schema.json` | Workspace-local reusable congregation details, preferred output/Scripture/publication-context defaults, Rights & Licenses display records/policy, brand/library references, schedule, favorites, and spelling dictionary. |
 | `weekly-work.schema.json` | Private per-bulletin instructions, checklist, rollover decisions, and resume state that never affect rendering. |
 | `backup-manifest.schema.json` | Full-workspace backup/handoff contents, hashes, versions, exclusions, restore identity, and verification state. |
 | `asset-record.schema.json` | Workspace-local asset metadata, binary revision, media details, sanitization state, and AI visibility. |
 | `font-record.schema.json` | Workspace-local managed font family/face metadata, immutable hashes, validation, licensing, and portability state. |
-| `settings.schema.json` | Discriminated versioned application-global and workspace editor/export preferences. |
-| `artifact-record.schema.json` | Build records, generated Typst/PDF records, diagnostics references, stale state, and approval references. |
+| `settings.schema.json` | Discriminated versioned application-global and workspace editor/export preferences; per-connection choices live only in their connection records. |
+| `artifact-record.schema.json` | Build records, generated Typst/PDF records, Scripture normalizer/presentation and generated-rights evidence, diagnostics references, stale state, and approval references. |
 | `diagnostic-catalog.schema.json` | Bundled versioned stable diagnostic-code meanings, default severity/disposition, locations, recovery actions, and redaction class. |
 
 `common.schema.json` must define separate, non-interchangeable primitives for
@@ -156,8 +188,10 @@ local resource ids, portable asset/font ids and typed references, bundle ids,
 bundle entry ids, pack ids, pack-scoped content ids, field-contract ids, document
 element ids, content-rule ids, repeat-item ids, history snapshot ids,
 Church Profile schedule ids, weekly checklist item ids, backup/handoff ids, and AI
-exchange ids. Portable schemas must not reference the
-local-resource-id primitive. `workspace.schema.json` and
+exchange ids, portable song-work/rights-credit/Scripture-translation ids, and
+workspace-local Shared library/Scripture-provider connection and pack-draft ids.
+Portable schemas must not reference the local-resource-id primitive.
+`workspace.schema.json` and
 `asset-record.schema.json` must define the
 portable-asset-id resolver and local import/provenance maps;
 `manifest.schema.json` must define archive entry identity and portable asset
@@ -173,12 +207,17 @@ bulletin/template in another workspace:
 - Document schema version, kind, display name, and explicitly portable document
   metadata.
 - Page setup and output-affecting document settings.
+- Intended print/digital publication contexts that affect rights readiness but
+  not rendered PDF bytes.
 - Normal body flow elements and page-level elements.
 - Template field contracts, bulletin field values, and canonical field/content
   review dispositions required to preserve readiness.
 - Portable authoring policies, conditional/repeatable content rules, and
   template-only sample field values.
 - Custom element definitions, custom element instance metadata, and bindings.
+- Structured Scripture content/source/rights snapshots, Hymn/Song rights
+  snapshots, generated Copyrights & Permissions block policy, and copied
+  document rights-review policy.
 - Portable asset references and other portable references defined by schema.
 - Accessibility semantics that affect final PDF output.
 
@@ -195,14 +234,18 @@ Portable document JSON must not contain:
   state, not workspace-only state.
 - Generated Typst, PDFs, thumbnails, diagnostics, build logs, or preview state.
 - Installed resource-pack state or local import/update state.
+- Shared-library endpoints, connection/authentication state, opaque credential
+  references, pack-maintainer drafts, Scripture-provider credentials, or network
+  request history.
 - Local AI helper configuration or private execution logs.
 
 Workspace-local metadata owns local identity, storage, privacy, operational state,
 and derived artifacts. It should include:
 
 - Workspace schema version and workspace id.
-- Local resource records for bulletins, templates, assets, fonts, resource
-  packs, reusable schemas, AI exchanges, and generated artifacts.
+- Local resource records for bulletins, templates, assets, fonts, songs/right
+  metadata, Scripture translation/preset catalog revisions, resource packs, pack
+  drafts, reusable schemas, AI exchanges, and generated artifacts.
 - Relative storage paths for app-managed resources.
 - Display metadata used by lists, search, sorting, and disambiguation.
 - Created, imported, modified, and last-opened timestamps.
@@ -211,6 +254,11 @@ and derived artifacts. It should include:
   state, and AI visibility.
 - Import provenance, bundle/resource-pack remapping tables, and installed pack
   state.
+- Shared-library connection role/state, endpoint approval, last-common/observed
+  release identities, publish/update outcomes, and opaque OS-credential-store
+  references; raw secrets are never workspace metadata.
+- Scripture-provider capability/authentication state and Church Profile Rights &
+  Licenses data, excluding provider passwords/tokens from JSON.
 - Workspace locks, file conflict records, transaction/recovery records, and
   conflict backup references.
 - Build records, generated artifact records, diagnostics references, finalization
@@ -224,8 +272,8 @@ Versioning rules:
 - Every persisted root JSON file must include an integer `version` field.
 - Each root schema owns its own version sequence. Document, workspace, settings,
   Church Profile, weekly work, backup manifest, asset record, font record,
-  artifact record, manifest, custom element, and AI exchange versions are
-  independent.
+  artifact record, manifest, custom element, rights record, Scripture catalog,
+  pack feed, and AI exchange versions are independent.
 - Version `1` is the first version governed by this spec.
 - Compatible changes that can be default-filled without changing meaning may be
   handled by normalization within the same version.
@@ -414,16 +462,18 @@ another final-readiness rule. Each finding must use a user-facing label, show wh
 it was raised, and provide `Go to content`, `Confirm for this week`, or another
 specific resolution. The app must not silently replace a suspected stale value.
 
-## Church Profile And Saved Sections
+## Church Profile, Song Library, And Saved Sections
 
 The workspace provides a user-facing `Church Profile` for information commonly
 reused when creating templates and bulletins. It may contain congregation name,
 address, contact information, locale/time zone, one or more usual service
 weekday/time labels, logo/approved asset refs, brand colors, preferred bundled
 or managed fonts, default page/output preset, favorite and last-used templates,
-and an optional local spelling dictionary. The Church Profile schema defines a
-closed set of type-safe `profileKey` values that templates may offer during
-creation.
+preferred Scripture translation/presentation preset, congregation rights/license
+display records, preferred bulletin publication contexts, and an optional local
+spelling dictionary. The Church Profile
+schema defines a closed set of type-safe `profileKey` values that templates may
+offer during creation.
 
 V1 mappable `profileKey` values and field types are closed:
 
@@ -439,7 +489,8 @@ V1 mappable `profileKey` values and field types are closed:
 | `logo` | `assetRef` restricted to supported image media |
 
 Brand colors/fonts, locale/time zone, page/output preset, favorites, dictionary,
-and service schedules are not field-mappable keys; template authoring uses their
+service schedules, Scripture defaults, publication contexts, and Rights &
+Licenses records are not field-mappable keys; template authoring uses their
 dedicated typed controls. The profile root has a canonical revision hash.
 
 Each service schedule has stable UUIDv4 `scheduleId`, nonempty normalized label,
@@ -447,6 +498,93 @@ ISO weekday `1` through `7`, optional local `HH:MM` time, valid IANA time zone,
 `enabled`, and optional inclusive `effectiveFrom`/`effectiveThrough` date-only
 bounds. Overlapping schedules are legal but setup requires user selection when
 more than one matches; labels are display metadata, never schedule identity.
+
+The optional Scripture defaults contain a portable `translation:<uuid>` plus
+display label from the reviewed local/bundled catalog and a named presentation
+preset. The preset controls only reference
+placement, verse-number presentation, paragraph policy, translation-label
+placement, and visual style; it never supplies or rewrites Scripture wording.
+Selecting a default does not grant provider authorization or translation rights.
+
+The optional `defaultPublicationContexts` is a nonempty unique subset of the two
+portable document context values. A bulletin from a template copies the
+template's contexts; a blank bulletin/new template uses this Profile field or,
+when absent, both v1 defaults. Later Profile changes never alter existing
+documents.
+
+`Rights & Licenses` stores congregation-level publication information separately
+from any song or Scripture work: stable UUID record id, provider/display name,
+optional congregation license display number, optional inclusive date-only
+`effectiveFrom`/`effectiveThrough`, and private notes. Missing bounds are open;
+an inverted range is invalid. It also stores `unknownRightsPolicy` as `review` or `block`,
+defaulting to `review`; review requires an explicit final acknowledgement while
+block requires complete metadata. Neither policy can waive a required credit
+line. A record may also hold an opaque OS-credential reference for a future
+reporting integration, but never a password/token in profile JSON. Only a user-
+reviewed publication display string is copied into a bulletin rights snapshot.
+The effective unknown-rights choice is copied into the new document's portable
+`rightsPolicy`; later Profile changes do not change its readiness. Private notes
+and credentials never render.
+
+Choosing a publication display compares the bulletin `metadata.publicationDate`
+to those inclusive bounds and shows `Valid for this bulletin date`, `Outside the
+recorded dates`, `Dates not recorded`, or `Set the bulletin date`. An out-of-range
+record cannot be used as current license display until corrected/reviewed;
+missing dates require review but do not claim invalidity. The portable copied
+snapshot includes exact display line,
+bounds, and `sourceDisplayRevisionHash` over only provider label/display line/
+effective bounds; Profile private notes, credential refs, and unrelated fields
+are excluded. Validity is derived against the current document publication date
+and recorded in readiness evidence, never as a drift-prone persisted result. A
+later bulletin-date edit re-evaluates readiness locally without changing credit
+identity or song association and never consults the live Profile.
+
+The Church Library includes a user-facing `Songs` collection. Each immutable song
+revision has a portable song-work id, revision number/hash, title and alternate
+title, optional number/source, contributors with roles, optional rich content,
+and the structured rights records defined under `Hymn/Song And Rights`. It also
+has a separate closed `packRedistribution` decision: status `allowed`,
+`prohibited`, or `unknown`; allowed scope `metadataOnly` or `completeEntry`;
+the closed `metadataFieldAllowlist` defined under Resource Packs when scope is
+`metadataOnly`;
+optional inclusive date-only `effectiveFrom`/`effectiveThrough`; and reviewed
+basis/source/license id, time, and evidence hash. Status defaults to `unknown`; a
+credit line, congregation display license, provider login, or
+permission to print one bulletin never implies permission to redistribute the
+song in a pack. Users can create, import, search, duplicate, revise, archive, or
+move a song to Trash.
+Until pack authoring ships, this default record remains internal `unknown` state
+and no redistribution question appears in normal Song/right setup. When that
+stage is installed, controls appear only after `Share in a church pack` or in the
+maintainer's Advanced pack review, never in the weekly insert path.
+Inserting a song copies the exact content/rights revision into the bulletin;
+later Song Library or pack updates never rewrite a bulletin silently.
+
+The Church Library also owns `Scripture translations & formatting`. Each
+immutable `scripture-catalog.schema.json` revision has portable
+`translation:<uuid>`, positive revision, canonical revision hash, display label/
+aliases, optional verified provider-kind/provider-translation mappings with
+catalog/adapter version, and a nonempty rights array whose
+`scriptureTranslation` records contain the applicable portable usage-policy/
+counter snapshots. It may also contain a named presentation-preset snapshot and
+a separate pack-redistribution decision. Credentials, authorization
+state, arbitrary provider responses/HTML, and congregation-private notes are
+forbidden. A record saved from `Other translation` remains `unknown` until the
+user reviews its rights; provider mappings can be added only through a verified
+catalog match, never label similarity.
+
+Users can search/select, create/review, archive, or update these records without
+technical ids. Any substantive label/rights/policy/presentation/provider-mapping
+change creates a new immutable catalog revision and follows credit-key lifecycle
+rules. Inserting Scripture copies the exact selected revision's identity, rights,
+and policy snapshot; it continues to use the document presentation. A catalog
+presentation preset appears only as a separate previewed `Apply this Scripture
+format to the bulletin` document edit (or an explicit author-created block
+override), never as a silent side effect of passage insertion. Later local/
+provider/pack catalog changes never rewrite the document. The same
+`(translationId, revision)` with a
+different canonical hash is invalid; unrelated side-by-side collisions use the
+reviewed whole-closure remap rule.
 
 Church Profile data is workspace-local reusable input, not a live render-time
 dependency. Creating a template or bulletin copies the selected values and
@@ -469,8 +607,10 @@ are advanced/internal terms. An inserted saved section pins or copies the exact
 revision according to the custom-element lifecycle; existing bulletins never
 change silently.
 
-Church Profile and Saved Sections are part of full-workspace backup/restore.
-Their ordinary screens must not expose filesystem paths or workspace identity.
+Church Profile, Songs, Scripture catalog/presets, rights metadata, and Saved
+Sections are part of full-
+workspace backup/restore. Their ordinary screens must not expose filesystem paths
+or workspace identity.
 
 ## Document Library And Weekly Creation
 
@@ -612,7 +752,7 @@ independent` action (`Detach Binding` in the internal model).
 AI values remain proposals until reviewed. Autosave, conflict, undo, and preview
 semantics are identical to ordinary editor changes, including across restart.
 
-## Offline Application And Workspace
+## Offline-First Application And Workspace
 
 The builder is a packaged desktop application for Windows and Linux, including
 Arch Linux. A non-technical user should install it once and launch it from a
@@ -681,17 +821,26 @@ they do not replace a complete backup or volunteer-handoff workflow. The backup
 contract is defined under `Workspace Backup, Version History, Trash, And
 Handoff`.
 
-Only local workspace data is in scope. The operating system account and
-file-system permissions are the access boundary for workspace data.
+Canonical bulletin, template, Church Profile, rights, and reusable-library state
+remains local. A Shared church library publish may transmit only the explicitly
+selected resource-pack closure. A Scripture request may transmit only the
+reference, selected translation, provider-required authorization, and bounded
+request metadata disclosed by its action. Neither integration is workspace sync.
+The operating-system account and filesystem permissions remain the access
+boundary for local workspace data.
 
 ### Security Threat Model
 
 Security goals are to preserve document/workspace integrity, avoid unintended
 disclosure of local content or credentials, keep imported content from escaping
 approved roots or executing code, and remain available under malformed or
-resource-exhausting local input. The app is offline: normal editing, import,
-build, validation, and help must make no network request. External links are
-never fetched automatically.
+resource-exhausting local or network input. The app is offline-first: normal
+editing, local-file import, build, validation, export, backup, restore, and help
+make no network request. Network requests occur only through an explicitly
+configured Shared church library or a user-invoked authorized Scripture provider,
+follow the contracts below, and never begin merely because a bulletin was opened.
+Imported content, readmes, images, homepage/support metadata, and external links
+never initiate a request automatically.
 
 Trusted computing components are limited to the installed/signed app code, its
 bundled schema catalog, pinned Typst, booklet compositor, any included validator
@@ -699,11 +848,28 @@ binaries, bundled fonts, and OS security primitives after their package hashes/s
 startup or install verification. User confirmation expresses intent but does
 not make malformed content safe.
 
-Untrusted input includes every project/bundle/pack/backup/handoff/AI file, archive name/path,
-JSON string, Markdown/readme, SVG/raster image, font, imported PDF/Typst
-diagnostic, clipboard payload, filename, metadata field, diagnostic attachment,
-and helper output received outside the installed app. It remains untrusted after
-signature verification; signatures establish publisher continuity, not safety.
+Untrusted input includes every project/bundle/pack/backup/handoff/AI file,
+downloaded pack, pack-feed/provider response, Scripture-provider response or
+HTML fragment, redirect target, archive name/path, JSON string, Markdown/readme,
+SVG/raster image, font, imported PDF/Typst diagnostic, clipboard payload,
+filename, metadata field, diagnostic attachment, and helper output received
+outside the installed app. It remains untrusted after TLS, authentication, or
+signature verification; those establish a service session or publisher
+continuity, not content safety.
+
+Authentication secrets and publisher private keys reside only in an OS
+credential facility or equivalently protected provider facility. Workspace JSON
+may store an opaque reference but never a token, password, cookie, authorization
+header, raw invitation, or private key. Secrets are forbidden from document/pack
+JSON, command lines, clipboard, ordinary backups/handoffs, logs, diagnostics, and
+crash reports. URL query/fragment, authorization material, and unapproved provider
+error bodies are redacted.
+
+The optional network client is a narrow broker, not a general URL fetcher. It
+receives no arbitrary workspace path; downloads go only to a bounded quarantine
+handle, and complex archive/font/image/SVG/PDF parsing continues in the existing
+restricted no-network worker. Provider HTML is sanitized to the allowlisted
+Scripture model before persistence and is never rendered as browser content.
 
 The OS user account and filesystem permissions are the confidentiality boundary.
 A malicious process already running as the same user is outside the protection
@@ -815,8 +981,10 @@ Default uninstall removes application binaries, recreatable caches, shortcuts,
 and registrations while preserving workspaces, settings containing user choices,
 and exports. Removing application data is a separate explicit action showing the
 exact path. A custom external workspace is never deleted merely because the app
-is uninstalled. Acquisition/AUR builds may require network access; installed app
-runtime, validation, and PDF generation may not.
+is uninstalled. Acquisition/AUR builds may require network access. Installed-app
+startup, core editing, validation, and PDF generation remain fully usable
+offline; only explicitly enabled integrations may make the bounded requests
+defined in this spec. There remains no required in-app network updater.
 
 ### Task-Based Product Acceptance
 
@@ -842,6 +1010,39 @@ The task is also run keyboard-only with a trained keyboard user and with each
 screen-reader/platform combination in the release accessibility matrix; a
 failure of required non-drag authoring operations blocks release.
 
+A representative rights task uses a prepared bulletin and a supplied passage
+copied from Bible Gateway. Without facilitator help, at least four of five
+volunteers must use Paste Scripture, verify/correct the reference and translation,
+review every proposed exclusion, insert the passage in the bulletin's existing
+format, add a Hymn/Song with saved rights metadata, and confirm that Copyrights &
+Permissions updates without retyping its credit. They must complete it without
+entering Customize Layout, diagnostics, JSON, or provider-technical settings. At
+least four finish within 10 minutes with no wrong translation, unreviewed omitted
+source fragment, lost wording, or missing/incorrect generated credit. The exact
+task is also run keyboard-only and with every screen-reader/platform combination
+in the accessibility matrix; a critical content/credit error blocks release.
+
+A representative church-library setup task gives five non-technical church
+administrators supplied song title/contributor/component, exact publication
+credit, and congregation display-license text. At least four must create/review/
+save the Song Library revision and then have a separate
+weekly use reuse it without retyping in 10 minutes, with no credential entered in
+a publication field and no rights associated with the wrong song.
+
+When Shared church libraries ship, a task-language subscriber benchmark has at
+least four of five volunteers connect from a supplied invitation, check, identify
+the update/size/source, download, review changes, update, and confirm a prior
+bulletin remains unchanged in 10 minutes without exposing endpoints, digests,
+signing keys, or manifests. An offline retry variant must end with saved local
+content usable and no false success.
+
+When pack authoring ships, at least four of five representative maintainers must
+choose supplied reusable content, encounter redistribution review only inside the
+pack flow, resolve one allowed complete entry and one metadata-only song, remove
+one blocked dependency, inspect the exact closure, and export a valid pack within
+15 minutes. No prohibited/private song bytes or congregation license display may
+appear in the resulting archive.
+
 Release acceptance also covers:
 
 - Clean install to first useful PDF with a generic starter, without importing a
@@ -864,6 +1065,57 @@ Release acceptance also covers:
 - Resume/recovery after normal close, process interruption, autosave failure,
   stale preview, missing image, and accidental Move to Trash within the stated
   crash-loss bound.
+- Startup, open, edit, build, export, backup, and restore with networking disabled
+  while Shared church libraries and a Scripture connector are configured. Core
+  tasks remain usable, opening makes no request unless that library's check-on-
+  open opt-in is active, and every unavailable integration reports local work as
+  safe without producing a bulletin-readiness error.
+- When Shared church libraries ship, keyboard and screen-reader tasks cover
+  connect, exact-data disclosure, check, review/update, publish, cancel, retry,
+  disconnect, and the unpublished-close reminder. Regression tests cover a
+  nonblocking head-only check-on-open with zero archive bytes, declared-size/
+  free-space and metered-network review before explicit download, offline/
+  timeout/authentication failure, corrupt or over-limit download, invalid
+  signature/digest, signer change, equivocation,
+  downgrade, incompatible release, update rollback, simultaneous publisher head
+  advancement, failed post-publish head verification, and restore-disabled
+  connections. No case silently changes the installed pointer or discards a
+  maintainer draft. Pack export/publish tests also cover unknown, prohibited,
+  before/at/after inclusive effective dates, metadata-only, complete-entry, and
+  dependency-narrower redistribution
+  decisions and prove no blocked bytes leave quarantine/the device.
+- Scripture regression tests cover deterministic normalization across supported
+  OS/locale combinations; exact wording and punctuation from approved source
+  projection through editor/preview/PDF; formatting-only transformations;
+  accessible exclusion and old/new diffs; connector absent/offline/unauthorized/
+  failing; translation-catalog and attribution-rule changes; quotation-policy
+  counts exactly at and one over each supported limit, including aggregate active
+  passages and exact basis-point cross-multiplication with no locale/rounding
+  drift; print-only, digital-only, and combined contexts (context-only edits keep
+  PDF bytes current but stale readiness, while a reviewed disclosure update may
+  repaginate); explicit refresh; post-import modification; and two identical
+  passages remaining separate editable content. Paragraph-only wording edits and
+  reviewed paragraph-to-verse conversion must change the render hash and stale/
+  rebuild the preview.
+- When the Bible Gateway connector ships, keyboard/screen-reader tests cover
+  Connect/Reconnect/Disconnect, exact host/data/permission disclosure, catalog
+  refresh, saved-local-content behavior, and restored `authenticationRequired`
+  state. Security tests cover adapter/catalog hash tampering, unapproved API/auth/
+  content origins or redirects, credential redaction/revocation, and conditional
+  About/diagnostic version reporting.
+- Rights-generation regression tests cover the same song used twice, distinct
+  arrangements/translations/settings, conditional exclusion, repeat changes,
+  content-only and rights-only edits invalidating the two-sided association
+  review, custom-element expansion, removal, undo/redo, duplication, Version
+  History, backup/restore, and handoff. They verify deterministic deduplication,
+  correct source navigation, missing-block repair with page-impact preview, long
+  credit lines wrapping/paginating without clipping, publication-license dates
+  before/at/after each inclusive bound plus bulletin-date changes, and a handoff restoring the
+  selected active Song/rights/translation catalog with all Profile/document
+  references closed and no private credential/provenance leakage.
+- A transferred bulletin renders its exact saved Scripture and rights snapshots
+  with no network, original Song Library/pack, Bible Gateway connection, or
+  Church Profile. Provider/profile/library changes never rewrite it silently.
 - Long translated UI labels, a Unicode label such as `St. John’s — Comunidad de
   Fe`, duplicate document names, constrained-height dialogs, and dates around
   locale/time-zone boundaries.
@@ -906,7 +1158,12 @@ Workspace layout:
   assets/<local-resource-id>/derived/
   fonts/<local-resource-id>/font.json
   fonts/<local-resource-id>/faces/<face-id>
+  songs/<local-resource-id>/song.json
+  scripture-catalog/<local-resource-id>/translation.json
   resource-packs/<local-resource-id>/pack.json
+  pack-drafts/<local-resource-id>/draft.json
+  shared-libraries/<connection-id>/connection.json
+  scripture-providers/<connection-id>/connection.json
   artifacts/<local-resource-id>/<build-id>.json
   artifacts/<local-resource-id>/<build-id>.typ
   artifacts/<local-resource-id>/<build-id>.pdf
@@ -946,9 +1203,31 @@ Workspace file roles:
 - `fonts/<local-resource-id>/font.json` and `faces/` store one managed immutable
   font-family revision and its validated face binaries under
   `font-record.schema.json`.
+- `songs/<local-resource-id>/song.json` stores one immutable Song Library
+  content/rights revision governed by `rights.schema.json` and workspace display
+  metadata. A new content or rights revision is copy-on-write.
+- `scripture-catalog/<local-resource-id>/translation.json` stores one immutable
+  translation/rights/usage-policy/presentation revision governed by
+  `scripture-catalog.schema.json`; credentials and live provider state are
+  forbidden.
 - `resource-packs/<local-resource-id>/pack.json` stores workspace-local installed
   pack metadata and import provenance governed by `workspace.schema.json` or a
   `$defs` record referenced by it.
+- `pack-drafts/<local-resource-id>/draft.json` is the authoritative workspace-
+  local definition of a maintainer's selected pack membership and publish
+  projection. It contains stable pack id, editable pack metadata, ordered local
+  resource/dependency roots, reviewed per-entry redistribution decisions/evidence,
+  current projection hash, and optional last published release identity.
+  Publishing exports its validated closure as a normal `.pak`;
+  the draft file itself is never uploaded.
+- `shared-libraries/<connection-id>/connection.json` stores nonsecret connection
+  role/state, approved service origin, opaque remote-library locator, preferences,
+  release identities, and outcomes. Usable credentials/private keys never appear
+  in this file.
+- `scripture-providers/<connection-id>/connection.json` stores the nonsecret
+  signed-adapter identity/hash, approved provider origins, redacted display/state/
+  catalog/outcome fields, and optional opaque OS-credential reference under
+  `workspace.schema.json`; usable credentials and response content never appear.
 - `artifacts/<local-resource-id>/<build-id>.json` stores the build/artifact record
   governed by `artifact-record.schema.json`.
 - `artifacts/<local-resource-id>/<build-id>.pdf` exists for a compile/compose
@@ -966,8 +1245,8 @@ Workspace file roles:
 - `trash/` stores deletion time, prior library kind/location, dependency
   retention, and restore metadata; moving to Trash does not rewrite portable
   document content.
-- `transactions/` stores import/save/update transaction journals needed for
-  rollback or startup recovery.
+- `transactions/` stores import/save/pack-update and hosted-publish operation
+  journals needed for rollback, idempotent reconciliation, or startup recovery.
 - `conflicts/` stores conflict backups created during stale-save, external-file,
   or recovery flows.
 
@@ -1000,7 +1279,10 @@ Workspace-managed resources include:
 - Bulletin projects.
 - Template projects.
 - Managed assets.
+- Song Library revisions and reusable rights metadata.
+- Scripture translation/presentation catalog revisions.
 - Imported resource packs.
+- Pack-maintainer drafts and Shared church library connections.
 - Custom element schemas and other reusable library entries when they are stored
   independently.
 
@@ -1012,10 +1294,16 @@ Identity classes must not be substituted for one another:
 | Local resource id | App-generated UUIDv4 unique within one workspace. Identifies a bulletin, template, asset record, installed pack, or other managed local resource. | Workspace metadata and workspace storage paths only. |
 | Portable asset id | App- or pack-author-generated UUIDv4 identifying one immutable asset binary revision. Its canonical reference form is `asset:<uuid>`. It is not a workspace resource id. | Portable documents, archive manifests, AI asset catalogs, and the workspace asset resolver. |
 | Portable font id | App- or pack-author-generated UUIDv4 identifying one immutable managed font-family revision. Its canonical reference form is `font:<uuid>`. | Portable style/font dependencies, archive manifests, and the workspace font resolver. |
+| Portable song-work id | App- or pack-author-generated UUIDv4 identifying one logical song/work lineage across immutable content/rights revisions. Its canonical reference form is `song:<uuid>`. | Song Library records, portable Hymn/Song source snapshots, and archive manifests. |
+| Portable Scripture-translation id | Catalog- or app-generated UUIDv4 identifying one reviewed translation identity; its canonical form is `translation:<uuid>` and it is never derived from a label/acronym. | Church Profile defaults, Scripture blocks, rights/policy catalog records, and pack metadata. |
+| Rights credit id | Portable UUIDv4 identifying one exact rights component/credit lineage; its canonical form is `credit:<uuid>` and identity never derives from title text. | Song/Scripture rights snapshots and generated attribution evidence. |
 | Bundle id | UUIDv4 identifying one exported project/template bundle instance for validation and provenance. It is not an update identity. | Bundle manifest and local import provenance. |
 | Bundle entry id | UUIDv4 unique within one bundle manifest. Identifies an archive entry independently of its path or display name. | Bundle manifest and local import remap records only. |
 | Resource pack id | Publisher-stable UUIDv4 identifying a pack across pack versions. | Pack manifest and installed-pack metadata. |
 | Resource pack content id | Publisher-stable UUIDv4 unique within one pack. The pair `(packId, contentId)` identifies one logical pack item across pack versions. | Pack manifest and installed-pack provenance. |
+| Pack draft id | App-generated UUIDv4 identifying one workspace-local maintainer working definition for a pack. | Pack-draft and workspace metadata only. |
+| Shared library connection id | App-generated UUIDv4 identifying one workspace-local remote relationship and its preferences/outcomes; it is not pack identity. | Workspace/shared-library metadata only. |
+| Scripture-provider connection id | App-generated UUIDv4 identifying one workspace-local adapter/authentication relationship; it is not a translation or document identity. | Workspace/Scripture-provider metadata only. |
 | Field contract id | Portable UUIDv4 identifying one field-contract lineage across compatible contract versions. | Portable documents, custom definitions, and AI exchanges. |
 | Document element id | Identifier for one visual element instance, scoped to a single document. It is not a resource, asset, pack-content, or manifest-entry id. | Portable document JSON. |
 | Content-rule id | Identifier for one conditional/repeatable rule, scoped to a document and separate from visual node and field ids. | Portable document JSON. |
@@ -1190,6 +1478,12 @@ Every project has this top-level shape:
     "serviceLabel": "Sunday Worship"
   },
   "page": {},
+  "scripturePresentation": {},
+  "rightsPolicy": { "unknownRightsPolicy": "review" },
+  "publicationContexts": [
+    "printedNonsalableChurchBulletin",
+    "digitalNonsalableChurchBulletin"
+  ],
   "fieldReview": [],
   "contentReview": [],
   "contentRules": [],
@@ -1250,6 +1544,32 @@ The optional top-level `contentRules` array stores the closed conditional and
 repeatable presentation rules defined below. Missing rules normalize to an empty
 array. Rule ids match the field-id lexical pattern, are unique within the
 document's rule namespace, and are not visual node ids.
+
+The optional top-level `scripturePresentation` is the document-wide formatting
+authority for Scripture blocks. It contains the formatting fields defined under
+`Scripture Import And Formatting`; missing values use that section's exact v1
+defaults.
+A Church Profile or template may seed it, but profile changes never become a live
+dependency. Changing it is one undoable render-affecting document edit that
+updates every Scripture block without an override and never changes a passage-
+fidelity projection.
+
+The optional top-level portable `rightsPolicy` is readiness-only and contains
+`unknownRightsPolicy` as `review` or `block`, defaulting to `review`. Church
+Profile/template settings seed it when a document is created: a bulletin from a
+template copies the template policy; a blank bulletin/new template uses the
+current Profile choice or the v1 default. It is copied state rather than a live
+Profile dependency. Changing it is an explicit undoable bulletin/template edit
+and never changes displayed credit lines by itself.
+
+The top-level portable readiness-only `publicationContexts` is a nonempty unique
+array drawn from `printedNonsalableChurchBulletin` and
+`digitalNonsalableChurchBulletin`. It records intended distribution, not PDF
+output form: a reader-order PDF may be printed and a print-ready PDF may also be
+emailed/posted. New documents default to both unless a template or Church Profile
+explicitly seeds another choice. Review and Export asks in task language `How
+will this bulletin be shared?` with `Print copies` and `Share the PDF by email or
+online`; changing the checked set is an undoable readiness-only document edit.
 
 Bulletin-only portable `contentReview` is an ordered array of closed review
 records. Each record has disposition `pending`, `confirmedUnchanged`, `edited`,
@@ -1979,8 +2299,9 @@ block nodes are:
 - `bulletList`: ordered `listItem` children.
 - `orderedList`: ordered `listItem` children and optional positive `start`.
 - `blockquote`: one or more paragraph/list blocks.
-- `scripture`: optional plain-text `reference` and `translation` plus one or more
-  paragraph blocks.
+- `scripture`: the structured passage/source/formatting block defined under
+  `Scripture Import And Formatting`; it is not an arbitrary nested paragraph
+  container.
 
 A `listItem` contains one or more paragraph or nested-list blocks. Lists may nest
 at most four levels. Empty documents are valid while editing; empty list items,
@@ -1999,7 +2320,10 @@ Canonical mark order is `strong`, then `emphasis`. Normalization removes empty
 text leaves and merges adjacent text leaves with identical marks. Derived plain
 text concatenates inline text, converts `lineBreak` to LF, separates blocks with
 a blank line, prefixes list items with stable bullets/numbers and two spaces per
-nesting level, and emits scripture reference/translation before its paragraphs.
+nesting level. For a Scripture block it emits the configured reference/
+translation placement and each verse's label/text in canonical order without
+using inert source text as a second rendered copy; for `paragraphOnly` it emits
+the stored paragraphs in order with no invented verse labels.
 
 Clipboard paste is untrusted input. Plain-text paste creates paragraphs and line
 breaks. HTML or rich clipboard paste may preserve only the allowed block/mark
@@ -2019,6 +2343,222 @@ The same AST is used for `richText` field defaults, field values, custom-element
 values, and AI imports. AI-produced strings cannot opt into Typst markup. Rich
 text contributes its structural heading/list/paragraph order to tagged PDF
 output and its derived plain text to search and diagnostics.
+
+### Scripture Import And Formatting
+
+The normal UI presents one `Insert Scripture` flow with two capability-aware
+sources:
+
+- `Paste Scripture` is required v1, entirely offline, and always available.
+- `From Bible Gateway` is required but may be staged. It appears only when an
+  authorized provider connector is installed/configured and may use only a
+  supported API/provider agreement; webpage scraping is forbidden.
+
+The flow asks for reference and translation, preselects but does not lock the
+Church Profile preference, shows the exact passage/attribution and formatted
+preview, then inserts only after confirmation. Provider failure offers `Retry`
+and `Paste Scripture` and never delays local editing. A provider exposes only
+translations authorized for that connection. The app never asks a normal
+volunteer to place a Bible website password/token in document, template, pack,
+or ordinary settings JSON.
+
+The translation picker lists verified bundled/local catalog records by familiar
+label/name; the connector arm limits it further to provider-authorized records.
+`Other translation` in Paste Scripture asks for a display label, mints a portable
+opaque `translation:<uuid>`, and creates an explicit `unknown`
+`scriptureTranslation` rights record. It may be saved as a reusable local/Profile
+choice only through reviewed rights/catalog details. A label, abbreviation, or
+typed provider name never becomes identity and never fuzzy-matches an existing
+translation or credit.
+
+The versioned provider adapter/catalog supplies the exact translation attribution
+and every machine-enforceable quotation/reproduction constraint required by its
+current authorized contract, such as publication context and verse/word/portion
+limits. The insertion review shows the applicable rule and evaluates the proposed
+passage; Review and Export re-evaluates aggregate active quotations. A known
+prohibited/exceeded use blocks provider insertion or final output with a specific
+recovery action. A connector must not offer a translation whose governing policy
+is unavailable. Manual paste with unverified policy remains available but creates
+an `unknown` rights finding; the app never presents its check as legal clearance.
+Verse/word/portion counting uses version-pinned adapter rules and the readiness
+report records the policy, counter version, scope, observed value, and limit.
+
+A `scripture` block is closed, discriminated by `structureKind`, and contains:
+
+- `structureKind`: `verseStructured` or `paragraphOnly`.
+- User-facing `reference`. It is nonempty for `verseStructured` and any imported
+  passage; `paragraphOnly` without import evidence may retain an empty legacy/
+  incomplete draft reference with a final-readiness finding.
+  `canonicalReference` in the app's documented OSIS-compatible subset is required
+  for `verseStructured` and optional for `paragraphOnly`; it is never guessed from
+  the display reference.
+- `translationId` in canonical `translation:<uuid>` form and user-facing
+  `translationLabel`. It is nonempty for known/imported passages; a known mapping
+  reuses its verified catalog id and an unlisted manual translation uses the
+  minted opaque id above. A
+  `paragraphOnly` block without import evidence may preserve an empty legacy
+  label, but it still receives an opaque id/unknown rights record and cannot be
+  final-ready until corrected/reviewed. Identity is never guessed from display
+  text.
+- Optional closed `sourceCatalog` with matching translation id, positive catalog
+  revision, canonical revision hash, and copied display/source label. It is
+  required when insertion claims a known local/bundled/provider catalog record,
+  absent for an unsaved `Other translation`, output-inert provenance, and never a
+  live dependency.
+- A `verseStructured` block has ordered nonempty `verses`. Each has a canonical
+  verse id, bounded display label, `paragraphStart`, and ordered inline
+  `text`/`lineBreak` children using the shared marks. Verse ids are unique and in
+  canonical passage order; `paragraphs` is forbidden.
+- A `paragraphOnly` block has ordered nonempty `paragraphs`, each with ordered
+  inline `text`/`lineBreak` children using the shared marks; `verses` and verse
+  labels are forbidden. It is the valid non-lossy target for reviewed ambiguous
+  manual paste and legacy Scripture, not a claim about verse boundaries.
+- Optional closed `formattingOverride`; without it the block uses the top-level
+  `scripturePresentation`. The shared shape contains `referencePlacement`
+  (`before` or `after`), `verseNumberStyle` (`inline`, `superscript`, or
+  `hidden`), `paragraphPolicy` (`publisher` or `oneVerse`), nonnegative paragraph
+  spacing as a supported physical length, `translationLabelPlacement`
+  (`withReference`, `afterPassage`, or
+  `hidden`), and optional named typography-preset snapshot. An override is an
+  explicit Customize Layout/template-authoring choice, not an import artifact.
+  It is a complete materialized presentation snapshot with every v1 field; no
+  field-by-field merge occurs. `Make formatting different` copies the current
+  effective document presentation before editing, and `Use document formatting`
+  deletes the override. Document presentation changes therefore do not affect an
+  overridden block. Normalization/hashing always uses the resulting complete
+  effective shape; partial overrides are invalid.
+- Optional closed `importSnapshot` and a required nonempty `rights` array with at
+  least one `scriptureTranslation` record. Missing translation metadata produces
+  an explicit `unknown` record; public domain or no displayed-credit requirement
+  must be an explicit reviewed record rather than inferred from absence.
+- Optional closed `importReview` with disposition `changesConfirmed`, the
+  `reviewedFidelityHash` over the reviewed current passage-fidelity projection,
+  `reviewedRightsProjectionHash` over ordered `(creditKey,
+  creditProjectionHash)` pairs, and review time. It can
+  acknowledge a deliberate edit but cannot replace source evidence or label
+  edited wording as provider-original.
+
+Missing `scripturePresentation` or missing fields use the exact v1 defaults:
+reference `before`, verse numbers `superscript`, publisher paragraphs,
+paragraph spacing `6pt`, translation label `withReference`, and no typography
+preset (inherit the surrounding resolved body style). Normalization materializes
+these values for hashing/rendering without writing them until the next permitted
+persistence point.
+
+An `importSnapshot` is a closed `sourceKind` (`paste` or `provider`)
+discriminated union and mirrors the block `structureKind`. Both arms contain the
+reviewed display reference; canonical reference required/optional under the same
+variant rule; translation id/label; required normalizer/importer id and version;
+exact sanitized source text; exact verse/publisher-paragraph boundaries for
+`verseStructured` or paragraph boundaries/content for `paragraphOnly`; SHA-256
+`sourceTextHash`; `importedFidelityHash` over the passage-fidelity
+projection at import, and `rightsProjectionHash` over ordered `(creditKey,
+creditProjectionHash)` pairs plus source evidence for the exact
+block `rights` projection captured at import. The `provider` arm additionally
+requires provider id, adapter id/version, requested reference/translation, and
+retrieval time; it may contain a validated canonical HTTPS source URL that is
+never fetched automatically. The `paste` arm forbids retrieval/response evidence
+and provider-verified claims; it may retain a user-supplied source label and inert
+validated HTTPS source URL explicitly labeled unverified. An `importReview` is
+invalid without an `importSnapshot`. The block's `rights` array is the
+only portable/rendered attribution snapshot; the import record does not contain
+a second editable copy. Raw provider HTML, authorization data, cookies, and
+unbounded response metadata are forbidden. Source text is inert comparison/
+provenance; the active variant's `verses` or `paragraphs` remain the only
+rendered/editable wording. The passage-
+fidelity projection contains `structureKind`, display/canonical reference,
+translation id/label, and either ordered canonical verse ids/display labels/
+publisher-paragraph boundaries/line breaks/exact verse text or the exact ordered
+paragraph-only inline content. It excludes presentation policy, rights, and
+provenance.
+
+`Modified after import` is derived by comparing the current canonical passage-
+fidelity projection with the stored import hash. It is never a drift-prone
+persisted boolean. `Attribution changed after import` is derived by comparing the
+current ordered rights projection with the stored import rights hash. Formatting-
+only changes do not change either projection. A reference, translation, verse
+id/label, wording, punctuation, or capitalization
+edit is permitted but creates a visible review finding; the app never describes
+it as provider-original afterward. Changing translation id/label also invalidates
+the prior translation-rights association; the app requires selection/review of a
+matching catalog rights revision or an explicit `unknown` record and never keeps
+the old credit silently. `Review source` shows the import/current passage and
+attribution diffs and offers restore/refresh or `Keep reviewed changes`. The
+latter stores `importReview` for the current
+passage and rights projections, and any later change to either invalidates it by
+hash comparison.
+`Refresh passage` is explicit, shows old/new wording and attribution, and
+replaces the snapshot/content/rights only as one reviewed undoable edit. Opening,
+previewing, building, and exporting never refetch a saved passage.
+
+Formatting changes presentation and paragraph grouping only. It must never use
+AI or another transformation to rewrite, modernize, summarize, correct,
+capitalize, or punctuate Scripture text. `Paste Scripture` shows original and
+structured results side by side before insert. Ambiguous verse parsing remains
+editable in that review rather than silently assigning references. The user may
+insert it as `paragraphOnly`; that variant preserves stored paragraphs, ignores
+verse-number styling, and uses paragraph spacing while explaining that
+`oneVerse` formatting requires reviewed verse structure. `Structure verses`
+shows a complete paragraph-to-verse diff and changes variants only after explicit
+confirmation as one undoable edit; it never fabricates provider provenance.
+
+Provider HTML/JSON is untrusted, bounded, sanitized, and converted only into this
+allowlisted structure. Editorial headings, footnotes, cross-references, links,
+ads, scripts, and provider styling are omitted unless an adapter contract
+explicitly models and licenses a supported data field; omission is shown in the
+preview. Every provider/importer preserves Unicode wording after required NFC and
+safe-control normalization and records the transformation version.
+
+Scripture renders as a semantic grouped quotation/section. Reference and
+any non-hidden translation label are present in configured reading order even
+when visually placed after the passage. `translationLabelPlacement: "hidden"`
+omits that label from both visual and assistive passage output; it never removes
+the canonical translation id/label, rights record, or required generated
+attribution. Visible verse numbers are selectable/accessible text, not decorative
+images; hidden verse labels are excluded from visual and assistive output while
+canonical verse boundaries remain in the model. Scripture translation rights
+contribute to the generated Copyrights & Permissions block below.
+
+### Authorized Scripture Provider Connector
+
+This staged connector has a closed provider trust boundary. Only an adapter
+shipped in the signed application or a verified optional component may register
+a provider. Its immutable descriptor contains adapter id/version/binary hash,
+provider display name, API contract version, fixed approved HTTPS API and
+authorization origins, any separately approved content-download origin, allowed
+authentication method/scopes, translation-catalog version/hash, and supported
+rights/usage-policy/counter versions. A document, pack, backup, handoff, readme,
+provider response, or pasted URL cannot install an adapter or add/change an
+origin.
+
+The workspace's closed nonsecret connector record contains local connection id,
+adapter id/version/hash, copied approved origins, provider/account display label,
+state `active`, `paused`, or `authenticationRequired`, opaque OS-credential
+reference, last verified catalog identity, last connection/auth outcome/time,
+and bounded diagnostic code. Tokens, passwords, cookies, authorization headers,
+and raw provider responses are forbidden. API redirects fail unless the signed
+descriptor names the exact destination origin; authorization redirects follow
+only the descriptor's closed authentication flow, and credentials never go to a
+content origin.
+
+`Connect Bible Gateway`/`Reconnect` shows the provider/host, requested account
+permission, available-translation/catalog purpose, and data categories future
+passage requests may send before leaving the app/signing in. Each `From Bible
+Gateway` action separately confirms its exact reference, translation id, adapter
+metadata, destination host, and required authorization category before sending.
+The app never asks the volunteer to paste an API token into ordinary settings.
+`Disconnect` confirms that saved passages/rights remain local, revokes/
+deletes the usable credential reference when supported, sets the record paused,
+and never removes document/catalog snapshots. Connection, authentication, catalog
+refresh, and passage retrieval are explicit user actions; no Scripture request
+runs at app/document open or in the background.
+
+Full backup may include this nonsecret descriptor but restore always sets it
+`authenticationRequired`, removes any usable credential reference, and requires
+the full host/data/permission disclosure again. Handoff excludes it. When the
+connector component is installed, About/diagnostics reports adapter/API/catalog/
+policy/counter versions and hashes plus redacted state/outcome; absent components
+produce no dead weekly control and Paste Scripture remains complete.
 
 ### Image
 
@@ -2104,7 +2644,7 @@ localized full/abbreviated month names; `MM`/`M` are padded/unpadded month;
 `DD`/`D` are padded/unpadded day; and `dddd`/`ddd` are localized full/abbreviated
 weekday names. Supported years are `0001` through `9999`.
 
-### Music
+### Hymn/Song And Rights
 
 Music elements have `type: "music"` and are presented to users as `Hymn/Song`.
 Their `data` supports:
@@ -2115,16 +2655,171 @@ Their `data` supports:
 - Optional `source`.
 - Optional `richContent` using the shared rich-text AST for permitted hymn/song
   text or service material.
-- Optional `copyrightNotice` and `licenseReference`.
+- Optional closed `sourceSong` snapshot with portable `song:<uuid>` work ref,
+  source revision/hash, and copied display metadata; it is provenance, not a live
+  Song Library dependency.
+- Required closed `rightsAssociationReview` with `reviewedSongContentHash`,
+  `reviewedRightsProjectionHash`, and review time. The content hash covers
+  normalized number/title/source, rich content, and `sourceSong` work/revision
+  identity, excluding style, placement, rights, and the review record. The rights
+  hash covers the ordered `(creditKey, creditProjectionHash)` pairs. Together
+  they bind that exact content identity to that exact rights set.
+- Required nonempty `rights` array. A newly created song without known metadata
+  receives one explicit `unknown` record rather than silently implying public
+  domain.
 
-The renderer produces one semantic grouped block in that order and omits empty
-optional rows; it never displays an unfinished placeholder box. The normal field
-labels are `Hymn number`, `Title`, `What worshipers do`, `Source`, and
-`Copyright/licensing`. When a template marks attribution as required, missing
-source/licensing information appears in Review and Export. The title/metadata
-portion stays with the first rich-content paragraph. Rich content fragments under
-the normal rich-text rules; a fixed-height or `breakPolicy: "avoid"` ancestor may
-suppress that break as defined by pagination rules.
+Each closed rights record is governed by `rights.schema.json` and contains:
+
+- Stable portable `creditKey` in the form `credit:<uuid>`. It identifies one
+  exact rights/credit lineage and never derives from a title string.
+- Required lowercase SHA-256 `creditProjectionHash` over every substantive
+  component/status/work/contributor/credit/display/usage-policy field, excluding
+  the hash itself, output-inert provenance/retrieval evidence, and readiness-only
+  publication-license effective bounds. It provides exact equality checking, not
+  fuzzy equivalence.
+- `component`: `text`, `tune`, `arrangement`, `translation`, `setting`,
+  `recording`, `scriptureTranslation`, or `other`.
+- `status`: `copyrighted`, `publicDomain`, or `unknown`. Public domain must be an
+  explicit reviewed assertion; absent metadata is `unknown`.
+- Work/title plus optional edition, arrangement, tune, or translation identity
+  needed to distinguish the contribution.
+- Ordered contributors with nonempty name and closed role (`author`, `composer`,
+  `arranger`, `translator`, `adapter`, `publisher`, or `other`).
+- Optional copyright year/holder, administrator, license provider, and provider
+  song/catalog/reporting id.
+- `creditRequiredWhen`: `always`, `renderedText`, or `never`, plus the exact
+  bounded `requiredCreditLine` when required. It contains one or more nonempty
+  publication lines separated only by normalized LF; other controls are invalid.
+- Optional closed user-reviewed `publicationLicenseDisplay` copied from Church
+  Profile with provider label, exact `displayLine`, and
+  `sourceDisplayRevisionHash` defined above. It
+  also contains optional inclusive `effectiveFrom`/`effectiveThrough`; current
+  validity/result is derived from document publication date and is not persisted.
+  It cannot contain a credential, private note, or account value not explicitly
+  approved for publication.
+- For a Scripture translation/provider, optional closed `usagePolicySnapshot`
+  with provider rule id/version, nonempty `applicablePublicationContexts` using
+  the document's closed values, exact numeric quotation constraints when machine-
+  enforceable, optional exact
+  `requiredPublicationDisclosureLine`, policy-source hash, and portable counter
+  id/version. Current passage/aggregate counts are derived rather than stored as
+  permission. Each numeric constraint has closed metric
+  `verses`/`words`/`passages`/`portionBasisPoints`, scope
+  `passage`/`bulletin`/`translation`, and a nonnegative integer limit. A
+  `portionBasisPoints` constraint additionally contains basis metric `verses` or
+  `words` and the exact positive translation-corpus `basisUnitCount` from that
+  policy revision. Evaluation uses exact integer cross-multiplication
+  `observedUnits * 10000 <= limitBasisPoints * basisUnitCount`, with no floating-
+  point rounding. The pinned counter defines word boundaries and verse/passage
+  counting; every operand needed offline is inside the snapshot. Unsupported
+  provider rules are never approximated into this shape.
+
+`requiredPublicationDisclosureLine` is the reviewed union of publication text
+required across every context listed in that snapshot and is always rendered for
+an active applicable record. The generator never filters it from the selected
+document contexts. Changing `publicationContexts` is therefore readiness-only:
+expanding beyond snapshot coverage blocks until the user refreshes/reviews a
+covering rights snapshot, and only that rights-record edit may change rendered
+lines/pagination.
+- Closed metadata source/revision evidence, optional retrieval time, and source
+  hash. Metadata provenance does not itself grant permission.
+
+Different arrangements, translations, settings, or required credit lines require
+distinct credit keys. Reusing the same Song Library revision preserves keys.
+The provider catalog reuses one stable key for the same Scripture translation/
+rights-policy revision, including manual paste when the user selects that verified
+catalog entry; an unknown/manual record receives a new key and is never merged by
+fuzzy translation-label matching.
+Any edit that changes the canonical `creditProjectionHash` mints a new
+`credit:<uuid>`; only output-inert provenance/retrieval evidence may change while
+preserving a key. The edit, new key/hash, all affected Song rights-association or
+Scripture import-review hashes, and source navigation update atomically. Import/
+pack collision validation rejects the same key with new meaning; a reviewed
+side-by-side unrelated collision remaps the whole incoming typed closure.
+Conflicting records with one credit key are invalid. Legacy `copyrightNotice` or
+`licenseReference` strings migrate into one preserved `other`/`unknown` record
+requiring review; they are not discarded or treated as structured proof.
+
+The renderer produces one semantic grouped Hymn/Song block in that order and
+omits empty optional rows; it never displays an unfinished placeholder box.
+Rights lines do not render beside the hymn unless an explicit song-specific
+instruction is part of content; they contribute to the generated block below.
+The normal field labels are `Hymn number`, `Title`, `What worshipers do`,
+`Source`, and `Copyright and permissions`. The title/metadata portion stays with
+the first rich-content paragraph. Rich content fragments under the normal rich-
+text rules; a fixed-height or `breakPolicy: "avoid"` ancestor may suppress that
+break as defined by pagination rules.
+
+Inserting from the Song Library or a pack copies the exact content/rights
+revision as one undoable edit and immediately shows `Copyright details included`
+or `Needs copyright information`. Editing copied rights changes only that
+bulletin unless the user explicitly updates a Song Library revision. An existing
+or finalized bulletin never changes because a central song/pack record changes.
+Changing either the song-identity/content projection or rights projection without
+reviewing the pair makes the applicable reviewed hash stale, preserves the old
+metadata for comparison, and shows `Review copyright details`; it never silently
+associates that credit with newly titled/replaced content. Confirming the
+association or completing a rights edit updates both hashes only after the exact
+content/credit review as one undoable edit.
+
+### Copyrights And Permissions
+
+The native element `type: "rightsAttribution"` is presented as `Copyrights &
+Permissions`. It stores only heading, optional introductory text, visual style,
+closed `groupOrder`, sort policy, and whether explicit public-domain lines are
+included. `groupOrder` is a no-duplicate permutation of `scripture`, `music`, and
+`other`, defaulting to that order; v1 sort policy is only `firstAppearance`.
+`scriptureTranslation` maps to Scripture, the text/tune/arrangement/translation/
+setting/recording components map to Music, and `other` maps to Other. Generated
+credit rows are a derived projection and must never be persisted as a second
+editable copy.
+
+Generation traverses only the resolved content that actually renders after
+bindings, conditional exclusion, repeat expansion, and custom-element expansion.
+It collects Hymn/Song rights and Scripture translation-attribution snapshots,
+applies `creditRequiredWhen` (`always`, only when governed text renders, or
+`never`) against that resolved source. For each active record, the displayed-line
+projection is, in order, the LF-separated exact stored `requiredCreditLine` lines
+when applicable, its exact
+`usagePolicySnapshot.requiredPublicationDisclosureLine` when present, and its
+exact `publicationLicenseDisplay.displayLine` when present. Identical
+nonempty lines within one record collapse; identical publication-display lines
+from different records collapse only when their text and
+`sourceDisplayRevisionHash` match, while retaining all source navigation. The
+generator never composes a
+credit from contributor/account metadata. When block policy includes public-
+domain items, an explicit `publicDomain` record with no stored line may instead
+emit the app-owned localized status form `<work title> — Public domain`; it is
+labeled as status, not invented permission or a publication credit. An unknown/
+incomplete record still creates a readiness finding even when it cannot safely
+generate a line. The generator deduplicates by identical `creditKey` plus
+`creditProjectionHash` and keeps
+different arrangements/translations/credit lines separate. Within each configured
+group, default order is first rendered occurrence, then component rank
+`scriptureTranslation`, `text`, `translation`, `tune`, `arrangement`, `setting`,
+`recording`, `other`, then `creditKey`. The generator and ordering version are
+pinned and recorded in build evidence.
+
+Removing, undoing, or conditionally hiding a contributing item removes only its
+derived contribution; repeated use of the same revision produces one credit.
+When no contribution remains, the element collapses to zero output height and
+does not affect pagination. Generated rows are read-only. `Edit copyright
+details` navigates to each source item; users may edit only block heading,
+introductory text, grouping/order policy, public-domain policy, and style.
+
+At most one `rightsAttribution` element may be active in the resolved bulletin.
+Generic starters include it in a suitable end-matter location, collapsed when
+empty. If a template lacks one, adding the first attributable item offers `Add
+Copyrights & Permissions` with placement and pagination preview; the app does not
+silently insert a layout-changing element. Required credits without an active
+generated block prevent final output.
+
+The exact resolved contribution set, publication-license display snapshots,
+generated lines, and generator version are render-affecting. Missing/unknown
+rights decisions and imported-Scripture modification state are readiness-
+affecting. Attribution metadata never implies permission, validates a user's
+license, or completes CCLI/One License reporting; the normal UI says so wherever
+rights are edited or reviewed.
 
 ### Container Child Wrappers
 
@@ -2479,6 +3174,7 @@ this matrix:
 | Image | Unbreakable. It moves to the next page when it fits there; an image box taller than a fresh content area is blocking overflow. |
 | Date | Unbreakable. |
 | Hymn/Song | Metadata stays with the first content paragraph; rich content otherwise follows normal rich-text break points. A Hymn/Song without rich content is unbreakable. |
+| Copyrights & Permissions | Breakable between generated credit entries; its heading stays with the first entry and each entry stays together when it fits on a fresh page. Credit text wraps and is never clipped. An empty block has zero output height. |
 | Grid | Breakable only between rows. A row and all of its cells are unbreakable in v1. |
 | Vertical stack | Breakable between children and within a breakable child. |
 | Horizontal stack | Unbreakable as one row. |
@@ -2489,14 +3185,15 @@ this matrix:
 | Custom element | Expands as its declared v1 vertical-stack break model; breakable between expanded roots and within breakable roots. Unknown/ambiguous models are invalid. |
 
 Only the breakable content identified by the matrix fragments: auto-height text,
-grids, vertical stacks, the rich-content portion of Hymn/Song, and custom-element
-expansions through their declared vertical-stack break model. Hymn/Song and
-custom elements delegate to those contained break points rather than introducing
-a competing rule. An explicit fixed-height outer box is unbreakable unless its
-type schema defines fragment semantics, and an unbreakable ancestor suppresses
-descendant break points. Intended image cropping through `fit: cover` and
-explicit page-region clipping are not overflow; clipped semantic text or normal-
-flow content is.
+grids, vertical stacks, the rich-content portion of Hymn/Song, generated
+Copyrights & Permissions between its credit entries, and custom-element
+expansions through their declared vertical-stack break model. Hymn/Song,
+Copyrights & Permissions, and custom elements delegate to those stated break
+points rather than introducing a competing rule. An explicit fixed-height outer
+box is unbreakable unless its type schema defines fragment semantics, and an
+unbreakable ancestor suppresses descendant break points. Intended image cropping
+through `fit: cover` and explicit page-region clipping are not overflow; clipped
+semantic text or normal-flow content is.
 
 Text continuation preserves reading order, width, and style. Paragraphs should
 avoid a single orphan first/last line when Typst can do so without violating a
@@ -2602,8 +3299,10 @@ Primary application navigation is:
 - `This Week`: the default landing view and current resume/create action.
 - `Bulletins`: current, recent, archived, and trashed bulletin documents.
 - `Templates`: template selection, creation, testing, and management.
-- `Church Library`: Church Profile, Saved Sections, images, fonts, and other
-  congregation-owned reusable content.
+- `Church Library`: Church Profile, Songs and rights, Scripture translations &
+  formatting, Saved Sections, images, fonts, and other congregation-owned
+  reusable content. When installed,
+  `Shared libraries` appears here for hosted pack connections.
 - `Settings` and `Help`.
 
 Resource-pack provenance/trust, diagnostics, raw AI exchanges, workspace paths,
@@ -2653,7 +3352,7 @@ unexpectedly move the caret, collapse the selection, or steal focus.
 
 A contextual toolbar exposes every v1 rich-text operation supported by the AST:
 paragraph, semantic heading level, bold, italic, bulleted list, numbered list,
-block quotation, and scripture block with reference/translation. Controls
+block quotation, and `Insert Scripture`. Controls
 reflect mixed and active selection state. Conventional `Ctrl`/`Cmd+B` and
 `Ctrl`/`Cmd+I` shortcuts work without conflicting with application undo/redo or
 native text movement. Paste follows the sanitization contract under `Text` and
@@ -2688,6 +3387,63 @@ Overflow/clipping markers are attached to the affected on-page content and name
 the problem. They offer only valid actions such as `Allow automatic height`,
 `Resize in Customize Layout`, `Move to next page`, or `Go to issue`; they must not
 imply that a clipped preview is ready to publish.
+
+### Scripture And Rights Assistance
+
+`Insert Scripture` is available from Add, the rich-text toolbar, and compatible
+rich-text weekly fields. The required offline flow asks for reference,
+translation, and pasted passage text, then shows source text beside the normalized
+bulletin preview, recognized verse/paragraph structure, every non-whitespace
+fragment proposed for exclusion, effective document Scripture presentation, and
+translation credit lines that will contribute to Copyrights & Permissions.
+
+Users can correct parsing without entering Customize Layout. `Back`, `Insert`,
+translation/reference controls, exclusion decisions, and the complete source-
+versus-preview comparison are keyboard/screen-reader operable. Parsing completion
+and errors use polite announcements without moving focus. Ambiguous content
+falls back to an editable clean-paste preview and is never discarded by guess.
+
+When the staged authorized connector is present, `From Bible Gateway` replaces
+only the paste-acquisition step; it uses the identical sanitizer, structure,
+preview, rights snapshot, and explicit insertion transaction. The action shows
+that the requested reference/translation will be sent. It never sends the
+bulletin, pastor notes, Church Profile, or unrelated content. Missing/expired
+authorization, rate limits, offline state, or provider failure keeps `Paste
+Scripture` available and leaves the document unchanged.
+
+`Add Hymn/Song` searches the Song Library first and shows number/title/source
+plus plain status `Copyright details included`, `Public domain`, or `Needs
+copyright information`. Creating a one-off song asks only for the weekly content
+first, then offers three clear rights choices: `Add copyright details`, `I have
+confirmed this is public domain`, or `I don't know yet`. The last choice creates
+the explicit unknown record and visible review task; it never blocks saving or
+closing. The rights form leads with the exact publication credit line and an
+optional reviewed Church Profile license display, with component identities,
+contributors, catalog ids, provenance, and policy evidence under `More details`.
+It states that attribution/license numbers do not establish permission.
+
+Placing a saved song copies its content and rights in the same transaction and
+announces where its credit will appear. If the document has no active Copyrights
+& Permissions element, the inline task offers `Add at end` and a page-impact
+preview; dismissing it preserves the finding for Review and Export. Editing a
+copied song offers `Change only this bulletin` by default and a separately
+reviewed `Save a new Song Library revision` action.
+
+Insertion into a compatible bound rich-text field updates that authoritative
+field. It never silently converts a plain-text field or detaches a binding. The
+passage, import snapshot, rights records, review evidence, autosave, and preview
+refresh form one undoable document transaction. Reimport/refresh shows an
+accessible textual old/new wording and attribution diff before replacement.
+
+Selecting a Scripture block shows `Edit passage`, `Review source`, `Use document
+formatting`/`Make formatting different`, and `Edit attribution`. `Review source`
+shows the exact import/current diff and, as applicable, `Restore imported
+content`, `Refresh passage`, or `Keep reviewed changes`; the last action records
+a review of the current passage/rights hashes without changing the original-
+source claim. Selecting
+a generated Copyrights & Permissions row shows subject, rights status, source
+count, and `Go to source`; generated credit text is selectable/searchable but
+never directly editable. Long credit lines wrap and paginate rather than clip.
 
 ### PDF Preview And Page Navigation
 
@@ -2841,6 +3597,9 @@ Normal UI uses task language. These mappings are normative examples:
 | custom element/definition | Saved section |
 | binding | Linked weekly field |
 | detach binding | Make independent / Change only this item |
+| resource pack / hosted feed | Shared church library / Details |
+| push/pull synchronization | Publish changes / Check for updates / Update shared library |
+| `rightsAttribution` | Copyrights & Permissions |
 | build/artifact | Update preview / Create PDF / PDF |
 | `draft` profile | Draft PDF |
 | `printFinal` + standard reader-order output | Print-ready PDF |
@@ -2883,7 +3642,11 @@ and a plain-language glossary. Normal help calls the workspace `Your bulletin
 library`; filesystem language appears only in advanced settings/diagnostics.
 Help must be usable with networking disabled and cover first bulletin, weekly
 rollover, stale-content review, template creation, backup/handoff, accessible
-authoring, Review and Export, and one-sheet booklet test printing.
+authoring, Paste Scripture/source review, song rights/Copyrights & Permissions,
+Review and Export, and one-sheet booklet test printing. When Shared church
+libraries ship, it also covers connect/disconnect, publish versus check/update,
+offline behavior, close reminders, update review, and conflict recovery without
+instructing volunteers to edit endpoints, manifests, or workspace files.
 
 ## User Settings
 
@@ -2939,6 +3702,22 @@ Editable user settings:
 - Offline spellcheck enabled and Church Profile dictionary management.
 - Workspace display time zone: valid IANA zone id; it never changes date-only
   fields or portable PDF output.
+
+Shared-library preferences are workspace-local and keyed by connection id, but
+their single authoritative persisted copy is the applicable
+`shared-libraries/<connection-id>/connection.json` record governed by
+`workspace.schema.json`; the Settings screen edits that record and
+`settings.json` must not duplicate them.
+`checkOnOpen` defaults to `false`; a newly confirmed publisher connection's
+`remindOnClose` defaults to `true`. There is no silent auto-download or auto-
+install setting in the first release. Connection identity, role, authorization
+state, last-common release, and outcome are operational metadata rather than
+portable settings.
+Scripture-provider configuration exposes capability-gated `Connect Bible
+Gateway`, `Reconnect`, redacted provider/account/host/catalog status, and
+`Disconnect` under the signed-adapter disclosure contract, but never a stored
+credential value, editable arbitrary origin, or option to fetch passages
+automatically.
 
 User settings should stay with the local application/workspace, not with an
 imported or exported project bundle. Opening an imported project should use the
@@ -3144,7 +3923,8 @@ The renderer sets language before document content and maps semantics as follows
 | Paragraph | Paragraph. |
 | Heading levels 1–6 | Corresponding semantic heading level. Heading levels must not skip solely for visual sizing. |
 | Bullet/ordered list | List, list item, label, and item body. |
-| Scripture/blockquote | Grouped quotation/section with reference text in reading order. |
+| Scripture/blockquote | Grouped quotation/section with reference and any visually included translation label in configured reading order; a hidden translation label remains represented by its generated rights attribution, not invisible assistive-only passage text. A visible/raised verse label remains semantic inline text followed by a natural separating space; visual raising never changes extracted/spoken order. |
+| Copyrights & Permissions | Semantic heading followed by grouped sections and selectable plain-text paragraphs/list items in generated display order. |
 | Grid used only for layout | Layout grouping, not a data table. |
 | Grid explicitly marked `semanticRole: "table"` | Table/row/header-cell/data-cell structure; declared header cells and a table summary are required. |
 | Non-decorative image | Figure with alternative description. |
@@ -3156,6 +3936,14 @@ stack content follows canonical child order, and canvas/custom content follows a
 explicit semantic order when it differs from array order. Ambiguous semantic
 order blocks accessible finalization. Repeated headers/footers and page numbers
 are artifacts by default to avoid repetition.
+
+The Scripture source/normalization preview and refresh diff expose additions,
+removals, exclusions, ambiguous parsing, and selected fragments through text and
+accessibility state rather than color. Generated credit lines remain selectable,
+searchable, contrast-compliant text, wrap under scaling, and paginate without
+truncation. Each generated editor entry's accessible name contains subject,
+rights status, and contributing-source count; `Go to source` moves focus to the
+named Scripture or Hymn/Song item.
 
 Every non-decorative image requires nonempty alt text for an accessible final.
 Images of text should be rejected from accessible finalization unless an
@@ -3183,6 +3971,11 @@ Undoable actions should include:
 - Inspector edits to page setup, element fields, style fields, wrapper fields,
   and type-specific data.
 - Direct rich-text edits and formatting.
+- Scripture paste/provider insertion, source-review confirmation, refresh,
+  wording edits, and document/passage presentation changes.
+- Hymn/Song rights edits and insertion/configuration of the generated Copyrights
+  & Permissions element; derived row changes are part of their source edit and
+  never a second undo action.
 - Image replacement, crop/focal-point changes, and alt/decorative changes.
 - Drag or inspector resize, grid-gutter resize, and authoring-policy lock changes.
 - Conditional-section decisions and repeatable-item add/remove/reorder.
@@ -3242,6 +4035,46 @@ that persists the document.
 Migrations should be ordered, deterministic, idempotent, and non-lossy wherever
 practical. A migration should preserve source metadata needed for diagnostics
 when it changes or removes legacy fields.
+
+Every legacy Scripture block migrates to a current discriminated variant. Only
+legacy data already carrying valid canonical verse ids/order becomes
+`verseStructured`; all other blocks become `paragraphOnly`, preserving display
+reference, translation label (including empty), paragraph order, inline wording,
+marks, and line breaks exactly. Migration reuses a translation id only for a
+verified exact catalog mapping and copies that catalog's exact rights revision;
+otherwise it transactionally mints one opaque `translation:<uuid>` and one
+`credit:<uuid>` rights record with component
+`scriptureTranslation`, status `unknown`, `creditRequiredWhen: "never"`, the
+preserved translation label or editor-only `Translation not recorded` subject,
+and computed `creditProjectionHash`, with no invented credit line. It omits
+`importSnapshot` and `importReview`, never
+fabricates Bible Gateway/provider provenance, retrieval evidence, exact-source
+claims, attribution, canonical references, or verse boundaries, and persists
+allocated ids/hashes idempotently before removing legacy fields. Missing labels/
+reference and paragraph-only structure receive the readiness actions below while
+the exact legacy content remains available for edit/preview; any presentation
+change follows the output-affecting migration review below.
+
+Every legacy Music element migrates once to the structured rights contract. If
+`music.data.copyrightNotice` and/or `licenseReference` is nonempty, their values
+join in original field order with an explicit LF into one newly minted
+`credit:<uuid>` record with component `other`, status `unknown`,
+`creditRequiredWhen: "always"`, preserved `requiredCreditLine`, and computed
+`creditProjectionHash`. If both are empty/absent, migration still creates one
+new `other`/`unknown` record with `creditRequiredWhen: "never"` and no invented
+credit text. It computes a current `rightsAssociationReview` pair for the exact
+legacy song content/rights while unknown status continues to require review.
+The migration persists allocated keys/hashes transactionally before removing
+legacy fields, so retry cannot mint a second identity or create competing
+sources. Existing templates/bulletins never receive a rightsAttribution element
+silently; generic starters include one, and attributable legacy content without
+one receives the same previewed corrective action as newly added content.
+Documents without `rightsPolicy` normalize to `{ "unknownRightsPolicy":
+"review" }`; the next permitted persistence writes that portable default rather
+than consulting the current Church Profile.
+Documents without `publicationContexts` normalize to both closed nonsalable
+print/digital values; the next permitted persistence writes that portable default
+rather than inferring intent from output form or the current Church Profile.
 
 Before an output-affecting migration is persisted, the app creates a verified
 pre-migration Version History snapshot, shows a plain-language impact review
@@ -3306,14 +4139,31 @@ Persistence, rendering, and readiness use distinct hashes:
   output-affecting assets, fonts, tools, locale, and output options. The projection
   materializes effective values/rules and excludes schema-declared output-inert
   state such as authoring policies, source lineage, orphaned values, template
-  samples, field origins/field/content review records, stable UI item ids, and unknown inert
-  preservation data.
+  samples, field origins/field/content review records, stable UI item ids,
+  Scripture source URL/retrieval/raw-source evidence, rights provenance/Song
+  Library lineage, and unknown inert preservation data. It includes current
+  Scripture `structureKind`, the active `verses` or `paragraphs` render
+  projection, and effective presentation; Hymn/Song displayed content; the
+  active generated-rights contribution projection/lines/order, block policy, and
+  attribution-generator version.
 - `readinessInputHash` hashes the render input hash plus the selected readiness
   profile, final page-count and printer-safe/readiness-only output settings,
   current `fieldReview`/review context,
   weekly/content-review expectations and current `contentReview`, dependency
-  validation, required private-work acknowledgements, and permitted
-  warning acknowledgements.
+  validation, required private-work acknowledgements, Scripture import/source
+  review, the portable document `rightsPolicy`, required/unknown/conflicting
+  rights findings, current Hymn/Song rights-association reviews, generated-block
+  coverage, current document publication date plus each copied publication-
+  license effective-bound/result evaluation, every active canonical
+  `usagePolicySnapshot`, the complete selected `publicationContexts`, counter/
+  policy versions,
+  resolved active passage/aggregate count inputs and evaluation result, and
+  permitted warning acknowledgements.
+
+Shared-library remote freshness, connection status, observed head, and
+unpublished-draft status are operational workspace metadata. They never enter a
+document's canonical/render/readiness hashes and update availability alone cannot
+make a bulletin or PDF stale.
 
 The schema/catalog must classify every persisted field as render-affecting,
 readiness-only, or inert; unknown fields are always inert/rejected under the
@@ -3483,6 +4333,11 @@ Only a `succeeded` record includes output evidence:
   own.
 - Sorted portable asset refs and verified binary hashes.
 - Sorted font refs, face/revision hashes, and embedding/subsetting decisions.
+- Scripture-presentation/normalizer versions when used and the generated
+  Copyrights & Permissions contribution-projection hash, displayed-credit hash,
+  attribution-generator version, Scripture usage-policy/counter versions, and
+  applicable aggregate-evaluation hash, plus publication-license bound evaluation
+  hash/current bulletin date when used.
 - App version/build identity, bundled Typst version/executable hash, schema
   versions, booklet-compositor version/hash when used, validator version/profile,
   locale/language, and output options.
@@ -3558,9 +4413,19 @@ or refreshes the authoritative preview, and presents:
 - Required weekly values and rollover review, unresolved brief items,
   stale-content findings, overflow/clipping, assets/fonts/glyphs, accidental
   blank pages, image effective resolution, and stale output.
+- Imported Scripture whose current passage or attribution projection neither
+  matches its import snapshot nor has a current import review, missing/invalid
+  translation attribution,
+  stale Hymn/Song rights associations, unknown/conflicting song
+  rights, and every required credit not represented by the active generated
+  Copyrights & Permissions block. Each offers `Go to source`/`Review source` and
+  explains conditionally excluded contributions.
 - Finished page size, margins, selected printer-safe inset, fold/binding, logical
   and imposed sheet-side counts where applicable, output filename, and
   destination in task language.
+- Intended `Print copies`/`Share the PDF by email or online` publication contexts,
+  every Scripture policy evaluation for those checked contexts, and a correction
+  action when a policy snapshot does not cover the intended use.
 - A persistent stale-preview overlay whenever displayed bytes do not represent
   the saved revision.
 
@@ -3791,14 +4656,18 @@ or invalid font, missing bundled Typst executable, Typst compile error, compile
 timeout, missing/failed booklet compositor, disk full, file permission failure,
 failed backup/restore/history/Trash operation, failed archive import, unsupported
 bundle/resource-pack version, unsafe imported content, and workspace/file
-conflict.
+conflict. It also covers Shared church library offline/timeout/authentication/
+head-conflict/integrity/compatibility failures, Scripture parsing/provider/
+fidelity/attribution findings, and missing/unknown/conflicting rights or
+generated-block coverage.
 
 ### Diagnostic Codes And Redaction
 
 Stable diagnostic codes use `CBB-<DOMAIN>-<NNNN>`. Defined domains are `DOC`,
 `SCHEMA`, `FIELD`, `ASSET`, `FONT`, `LAYOUT`, `BUILD`, `PDF`, `SAVE`,
-`CONFLICT`, `IMPORT`, `PACK`, `BACKUP`, `SECURITY`, `AI`, and `PACKAGE`. A code's meaning
-and default severity cannot be repurposed; behavior changes require a new code.
+`CONFLICT`, `IMPORT`, `PACK`, `SYNC`, `SCRIPTURE`, `RIGHTS`, `BACKUP`,
+`SECURITY`, `AI`, and `PACKAGE`. A code's meaning and default severity cannot be
+repurposed; behavior changes require a new code.
 
 The app bundles a versioned `diagnostic-catalog.json` validated by
 `diagnostic-catalog.schema.json`. It is normative for code meaning, default
@@ -3838,6 +4707,15 @@ conditions do not fall back to unstructured text. It includes:
 | `CBB-CONFLICT-0001` | Optimistic revision conflict. |
 | `CBB-IMPORT-0001` | Invalid/unsafe/incompatible archive or manifest. |
 | `CBB-PACK-0001` | Pack signature/signer/release continuity failure. |
+| `CBB-PACK-0002` | Pack export/publish redistribution decision is missing, prohibited, outside its effective dates, or narrower than the selected closure. |
+| `CBB-SYNC-0001` | Shared-library check or transfer could not complete; installed local content is unchanged. |
+| `CBB-SYNC-0002` | Shared-library authentication or authorization must be renewed. |
+| `CBB-SYNC-0003` | Hosted head changed before publish; local and incoming work require review. |
+| `CBB-SYNC-0004` | Hosted feed/release identity, length, digest, signature, or compatibility validation failed. |
+| `CBB-SYNC-0005` | Published bytes could not be verified as the visible hosted head. |
+| `CBB-SCRIPTURE-0001` | Scripture parsing, source-fidelity, reference, translation, or required-attribution finding. |
+| `CBB-RIGHTS-0001` | Required, missing, unknown, or undisplayed rights metadata. |
+| `CBB-RIGHTS-0002` | Conflicting rights identity or invalid Copyrights & Permissions aggregation. |
 | `CBB-BACKUP-0001` | Backup, restore, history, Trash, or handoff verification failed. |
 | `CBB-SECURITY-0001` | Required security validation/isolation failed. |
 | `CBB-AI-0001` | Invalid/incompatible AI exchange or helper result. |
@@ -3889,6 +4767,19 @@ profiles.
 | Missing/invalid/non-embeddable font | Diagnostic/fallback preview only | Block | Block | Block |
 | Missing glyph after fallback stack | Tofu diagnostic | Block | Block | Block |
 | Missing requested face with deterministic managed substitute | Warning | Allow | Acknowledge | Acknowledge |
+| Imported Scripture passage or attribution differs from its import snapshot and has no current import review | Warning with review action | Allow with visible warning | Block until reviewed | Block until reviewed |
+| `paragraphOnly` Scripture has no verified canonical verse structure | Review marker with `Structure verses` | Allow | Acknowledge | Acknowledge |
+| `paragraphOnly` Scripture has an empty reference or translation label | Warning with correction action | Explicit labeled draft only | Block | Block |
+| Required Scripture attribution is missing | Warning with corrective action | Explicit labeled draft only | Block | Block |
+| Known provider/catalog Scripture policy prohibits or omits a selected publication context | Error with context action | Block | Block | Block |
+| Known Scripture quotation/reproduction constraint is exceeded | Error with scope/count/action | Block | Block | Block |
+| Required rights record is missing/incomplete or has no active Copyrights & Permissions block | Warning with corrective action | Explicit labeled draft only | Block | Block |
+| Hymn/Song content or rights set differs from its rights-association review | Warning with exact content/credit review | Allow with visible warning | Block until reviewed | Block until reviewed |
+| Rights status is `unknown` | Reminder | Allow with visible reminder | Acknowledge or block under document `rightsPolicy` | Acknowledge or block under document `rightsPolicy` |
+| Publication-license display is outside effective dates or bulletin date is unavailable | Warning with date/license action | Explicit labeled draft only | Block | Block |
+| Publication-license display dates are unrecorded | Reminder | Allow | Acknowledge or block under document `rightsPolicy` | Acknowledge or block under document `rightsPolicy` |
+| Conflicting content for one credit key or invalid rights aggregation | Error | Block | Block | Block |
+| Rights explicitly marked `publicDomain`, with no separate required-credit/policy finding | Show status | Allow | Allow | Allow |
 | Horizontal/physical-page overflow or clipped semantic content | Error marker | Block | Block | Block |
 | Content enters configured printer-safe inset/fold band | Guide warning | Allow | Acknowledge | Acknowledge for reader-order only |
 | Configured final page-count requirement not met | Show expected/actual | Explicit labeled draft only | Block | Block |
@@ -3907,6 +4798,17 @@ Every final candidate requires:
   unresolved conflict/recovery transaction exists.
 - Every rollover value required for review is confirmed and the stale-content
   review has no blocking result.
+- Every imported Scripture passage has a current import/source decision, its required
+  translation attribution resolves, every known provider/catalog policy snapshot
+  covers each selected publication context, its active aggregate use satisfies
+  every machine-enforceable constraint, and no connector/source evidence is
+  misrepresented as an exact unmodified quotation. Manual/unverified policy
+  remains an `unknown` rights condition governed by the document `rightsPolicy`.
+- Every active required rights contribution has a usable credit line and is
+  represented exactly once by the active Copyrights & Permissions block; no
+  stale Hymn/Song rights association, credit-key conflict, or invalid aggregation
+  remains. Every copied publication-license display is valid for the bulletin
+  date or has the permitted current unrecorded-date acknowledgement.
 - All referenced assets/fonts resolve to verified bytes; no missing glyph or
   placeholder remains.
 - No horizontal overflow, oversized unbreakable element, clipped required
@@ -4051,6 +4953,14 @@ hashes, and completed steps. Fresh ids are allocated once during planning and
 reused by retries. Staged files are invisible to the workspace registry until a
 commit marker is durable; installed-pack/version pointers advance last.
 
+Shared-library download/application uses this same local journal. Publication
+has a separate durable operation record containing the clean pack-draft
+projection hash, expected prior hosted head, idempotency key, generated archive
+identity, upload outcome, and verified returned/visible head. Recovery may retry
+an idempotent conditional request or re-read head, but never guesses that an
+upload was published, deletes an immutable remote release, advances local
+`published` state without matching head evidence, or discards the local draft.
+
 On startup, a valid `planned`/`staged` transaction is rolled back, while an
 interrupted `committing` transaction is completed only when every remaining step
 is idempotent and all hashes match; otherwise it rolls back to recorded old
@@ -4079,9 +4989,12 @@ generic `.zip` association. A full backup contains:
 - Workspace registry and workspace settings.
 - Church Profile and private spelling dictionary.
 - Every canonical managed resource registered by the workspace: bulletins,
-  templates, Saved Sections, all managed assets/fonts/custom definitions,
-  installed resource packs and trust/update state, including currently
-  unreferenced Church Library items.
+  templates, Saved Sections, Song Library revisions, Scripture catalog/presets,
+  and rights snapshots, all managed assets/fonts/custom definitions, installed
+  and fully downloaded staged
+  resource-pack releases, pack-maintainer drafts, pack trust/update state, and
+  nonsecret Shared church library/Scripture-provider connection descriptors,
+  including currently unreferenced Church Library items.
 - Cross-restart Version History and Trash with their retained dependencies.
 - Current/final retained artifact records and PDFs needed for church archives.
 - Private weekly-work records by default, with a category-level privacy warning
@@ -4094,8 +5007,12 @@ the unresolved-required-item transfer gate. Its captured resource map covers all
 and only the selected/included source resources.
 
 Both archive kinds exclude locks, active transaction journals, preview/cache
-files, executable AI helper profiles, credentials/secrets, raw environment data,
-and unredacted diagnostic/AI logs. Backup creation uses a user-selected
+files, executable AI helper profiles, credentials/secrets, provider access or
+refresh tokens, authorization cookies/headers, publisher private signing keys,
+raw environment data, and unredacted diagnostic/AI logs. A hosted release's
+continued availability is never treated as backup: the backup contains every
+pack byte/revision needed to preserve the captured installed, staged, or draft
+state locally. Backup creation uses a user-selected
 destination outside the workspace, writes atomically, verifies manifest/hashes by
 rereading the completed archive, and reports success only after verification.
 Before capture, the app flushes canonical saves, resolves/blocks active conflicts
@@ -4119,6 +5036,12 @@ choice; it must not silently merge identities. Although general multi-workspace
 management is deferred, restore-as-separate may create and switch to one new
 workspace after the transaction succeeds. Failure leaves the prior configured
 workspace usable and selected.
+
+Every restored Shared church library connection starts `paused` with no usable
+credential reference, no automatic opening check, and a visible `Reconnect`
+action. Reauthorization rechecks the provider/origin, role, library identity,
+signer continuity, and current remote head; restoration never resumes network
+traffic or publication merely because a former connection descriptor exists.
 
 Version History stores immutable canonical document snapshots deduplicated by
 hash. It creates a snapshot:
@@ -4147,16 +5070,31 @@ metadata. Restore returns the resource to its prior kind; duplicate display name
 remain legal. V1 does not auto-empty Trash. Permanent deletion is available only
 inside Trash or `Empty Trash`, names the affected resources, requires explicit
 confirmation, and may collect an asset/font/definition revision only when no
-active document, history snapshot, trashed item, retained artifact, recovery
+active document, Song Library/rights or Scripture-catalog revision, installed or
+staged pack, pack draft, history snapshot, trashed item, retained artifact, recovery/conflict
 record, or in-progress backup/restore references it.
 
 `Create volunteer handoff package` uses the verified backup format and includes
-Church Profile, canonical congregation documents/templates, Saved Sections,
-dependencies, and selected archived finals. It excludes device-specific window
-state/paths, helper configuration, locks, logs, caches, and weekly private notes
-by default. The review lists every included/excluded category and lets the user
-explicitly add private weekly notes when appropriate. Import on the next machine
-uses the same transactional restore flow.
+Church Profile, canonical congregation documents/templates, Saved Sections, the
+reviewed active Song Library/rights and Scripture translation/preset catalog
+needed for continuing weekly work, their complete dependency closure, and
+selected archived finals. The category review names song text/rights/license
+data and lets the user omit unneeded archived/inactive library revisions while
+preserving every selected document/Profile favorite/default reference. It
+excludes device-specific window
+state/paths, helper configuration, Shared church library connection descriptors,
+Scripture-provider connection descriptors, credentials/signing keys, locks, logs,
+caches, and weekly private notes by
+default. A user may explicitly include an installed pack's portable bytes as
+content, but never its connection or publishing authority. Its Church Profile
+projection may include reviewed publication-display license records but excludes
+Rights & Licenses private notes by default and always excludes credential
+references. Song/translation records exclude private notes, credential refs, and
+nonessential provider/retrieval provenance by default while retaining portable
+content/credit/policy snapshots needed to render and review. The review lists
+every included/excluded category and lets the user
+explicitly add private weekly/license notes when appropriate. Import on the next
+machine uses the same transactional restore flow.
 
 ### Backup And Handoff Manifest Contract
 
@@ -4323,11 +5261,14 @@ current closure and never trusts an older successful preview.
 Resource packs are importable local content bundles with the `.pak` extension.
 They represent an arbitrary collection of reusable content, such as church logos,
 approved images, fonts, templates, starter bulletins, custom element schemas,
-styles, and optional metadata.
+styles, Song Library/right records, Scripture presentation presets, and optional
+metadata.
 
-Resource packs are data, not application code. They are delivered separately from
-the application and imported through the UI. The application bundle must not need
-to change when a church creates, updates, or distributes its own resource pack.
+Resource packs are data, not application code. They may be distributed as files
+or through an explicitly configured hosted Shared church library and are always
+installed through the same app-owned validation/review workflow. The application
+bundle must not change when a church creates, publishes, updates, or distributes
+its own resource pack.
 
 A resource pack is a zip-compatible archive. It must contain a `manifest.json`
 file at the archive root. The bundle may include a `readme.md` file that
@@ -4353,8 +5294,9 @@ include the optional entries below:
 - Optional minimum compatible app version.
 - Optional readme path, defaulting to `readme.md` when present.
 - Manifest entries for included assets, templates, starter bulletins, custom
-  element schemas, styles, fonts, AI template contracts, sample AI data imports,
-  and other supported content.
+  element schemas, styles, fonts, songs/rights metadata, Scripture presentation
+  presets, AI template contracts, sample AI data imports, and other supported
+  content.
 - Dependency metadata for content that references other entries in the pack.
 - Update metadata that lets the app identify whether a later `.pak` is an update
   to an already imported pack.
@@ -4380,6 +5322,9 @@ contain those content types:
 - `custom-elements/` for custom element schemas.
 - `styles/` for reusable style metadata.
 - `fonts/` for included fonts.
+- `songs/` for Song Library records and portable rights snapshots.
+- `scripture/` for reusable Scripture presentation/rights metadata, never
+  provider credentials or cached arbitrary webpages.
 - `ai/` for AI template contracts, sample prompts, and sample AI data imports.
 
 Resource pack fonts may use any standard font format supported by the bundled
@@ -4402,8 +5347,11 @@ Import behavior:
   them to the source pack.
 - Preserve original names as display metadata.
 - Track source pack metadata for display and diagnostics.
-- Never require the original resource pack file to remain available after import;
-  updates occur by importing another `.pak` with compatible update metadata.
+- Never require the original resource-pack file or a live feed connection after
+  import. A later update always arrives as another complete `.pak`, whether
+  selected locally or downloaded through a Shared church library, and follows
+  the identical identity, signature, review, conflict, transaction, and rollback
+  path.
 
 Duplicate and update handling must be deterministic. When importing a pack whose
 `packId` matches an installed pack, the app compares only `(packId, contentId)`
@@ -4429,11 +5377,67 @@ portable asset id and local asset resource; pack-managed templates may be update
 to reference it only after confirmation. Earlier revisions must remain while
 referenced by copied bulletins, detached templates, or other local content.
 
+Pack Song/Scripture-library updates are also copy-on-write. Changed song content,
+rights, redistribution data, or associations create a new immutable Song Library
+revision under the same song-work id; changed Scripture catalog/presentation/
+rights data creates a new immutable preset/catalog revision. Review shows wording,
+structure, credit/display/policy, association, and redistribution diffs. Installed
+pack mappings advance only after confirmation, while existing bulletins/templates
+remain pinned and every referenced prior revision is retained.
+
+The same `(song:<uuid>, revision)` or Scripture catalog id/revision may not name
+different canonical projections, and one `creditKey` may not name a different
+`creditProjectionHash`. Such conflicts block an in-lineage update as equivocation.
+For a genuinely unrelated side-by-side import, a reviewed collision remap mints
+new incoming portable ids, rewrites every typed reference/hash/association in the
+quarantined closure, and revalidates it before commit; existing local content is
+never rewritten.
+
 Resource packs may be exported from the app when the user wants to distribute a
 curated set of reusable local content. Exported resource packs should be `.pak`
 zip-compatible archives containing `manifest.json`, selected resources,
 referenced assets, included fonts when selected, AI-ready metadata when selected,
 and an optional `readme.md`.
+
+Pack export/publish has a separate redistribution gate. Every selected entry and
+binary in its dependency closure has a reviewed draft `redistributionDecision`
+with status `allowed`, `prohibited`, or `unknown`; allowed scope
+`metadataOnly` or `completeEntry`; review basis/source/license id, reviewer time,
+optional inclusive date-only `effectiveFrom`/`effectiveThrough`, and evidence
+hash. A song `metadataOnly` decision also contains a unique
+`metadataFieldAllowlist` subset of `contributors`, `copyrightStatus`, and
+`publicCreditLine`. Default is `unknown`. At export/publish, effective bounds are compared to
+the operation's workspace-time-zone local date; the operation record preserves
+that date/zone and both bounds are inclusive. Missing bounds are open and an
+inverted range is invalid. Attribution, a required credit line, a
+congregation display license, provider access, or permission for local bulletin
+use is never treated as redistribution authority. `unknown`/`prohibited`, an
+out-of-effective-range decision, or a closure wider than its allowed scope blocks
+pack export and hosted
+publish and offers remove, replace, supply/review evidence, or cancel.
+
+Song records seed this decision from `packRedistribution`. `metadataOnly`
+produces a distinct closed `songMetadata` entry, never a stripped `songRecord`.
+Its base projection contains portable source work id, title/alternate title,
+number/source citation, and only the public redistribution assertion (status,
+scope, metadata-field allowlist, effective bounds, and evidence hash); a reviewed per-field
+allowlist may additionally include public contributor name/role, copyright
+status, and exact public credit line. It always excludes rich song text, media,
+dependencies, active credit keys/projection hashes, congregation
+`publicationLicenseDisplay`, provider reporting/catalog/account ids, usage-policy
+snapshots, private notes, credential references, and provenance/retrieval/source
+evidence, including raw review basis/source/license id/reviewer identity/time.
+Full evidence remains only in the local draft. `songMetadata` has no dependencies
+and is informational on import; using
+it to create a local insertable song requires new rights identities and explicit
+review. The preview/validator enumerates every projected field and verifies this
+closed projection before any bytes leave the device. Template/starter/Saved
+Section decisions cover embedded Scripture, song text, media, fonts, and
+expanded dependencies rather than approving only the root JSON. The manifest
+records each exported assertion/scope/evidence hash for downstream review, but
+an importer treats it as provenance rather than proof of permission. Imported
+assertions do not set a destination draft/Song Library decision to `allowed`
+until that workspace explicitly reviews their evidence and scope.
 
 Resource pack import is committed but may be staged after the core weekly
 workflow. Creating/exporting packs and applying updates/replacements may be
@@ -4444,6 +5448,159 @@ trust rules in this spec are mandatory; scope pressure never permits a weaker
 partial importer. Until update/replace is available, importing a pack whose
 stable identity already exists stops with an informative message rather than
 silently replacing content.
+
+### Shared Church Library Experience And Hosted Releases
+
+This capability is `Required, may be staged after resource pack creation/export/
+update/replace`. `Shared church library` is its normal-UI name. `Resource pack`,
+endpoint, digest, signer fingerprint, and release sequence remain in Details/
+Advanced. The feature transports one complete dependency-closed pack release at
+a time; it never presents a loose asset/template upload as independently safe
+when that item has pack dependencies.
+
+The product separates two tasks instead of exposing an ambiguous bidirectional
+`Sync` command:
+
+- A maintainer with connection role `publisher` uses `Publish changes` to create
+  and publish a new immutable pack release.
+- A connection with role `subscriber` uses `Check for updates`, then `Review
+  update` and `Update shared library` for a newer compatible release.
+
+The Shared libraries screen and connected-pack details show a non-color-only
+plain status: `Saved locally — not published`, `Checking`, `Up to date`, `Update
+available`, `Needs review`, `Couldn't connect — your local work is safe`, or
+`Sign in again`, plus `Paused — reconnect to check for updates` for a restored/
+paused connection. They show local/remote display version when different and last
+successful check; sequence/digest/signer/endpoint/transaction details are behind
+Details. `Check now` is always available and `Check all` appears for two or more
+connections. Checks are cancellable, keyboard accessible, and never block
+unrelated editing.
+
+`Connect a shared library` reviews the provider/host, church/library display
+name, requested role, and exact categories the app may send before confirmation.
+Normal setup uses task-language sign-in/invitation rather than requiring raw URLs,
+tokens, hashes, or fingerprints when the provider supports it. Advanced provider
+setup may expose safe connection details. Imported packs, documents, bundles,
+readmes, backups, or metadata cannot create/alter a connection, approve an
+origin, supply credentials, enable checking, or trigger traffic.
+
+`Check for updates when the app opens` is a per-connection opt-in. The local
+workspace becomes usable first; only then may one nonblocking `Read head` begin.
+Opening checks and `Check now` are metadata-only and never download archive
+bytes. A successful check shows `Update available`, release notes, and declared
+archive size. `Review update` shows size, destination/free-space result, metered-
+network warning when the OS can identify one, and `Download and review`; only
+that explicit action may stream the candidate into bounded quarantine. The app
+does not expose a silent auto-download/install preference. `Auto-refresh` means
+automatic availability checking, never downloading, activating, replacing,
+retiring, or removing workspace content. Availability/failure is operational
+status, not a bulletin-readiness finding.
+
+A publisher's `Remind me to publish when closing` defaults on when that connection
+is confirmed. After local autosave is clean, the app prompts only when closing the
+pack-authoring surface/app with a draft publish projection different from the
+last successfully published projection. Multiple packs use one accessible
+summary. Actions are `Publish now`, `Review changes`, `Close and publish later`,
+and `Don't remind me for this library`. Failure/cancel leaves a durable
+unpublished state plus `Retry`/safe close; it never offers discard or blocks
+closing because the network is unavailable. Subscribers are never prompted to
+publish merely because an update exists.
+
+Installed/subscribed packs and maintainer drafts are distinct. Editing a pack-
+managed item does not make its user a publisher or alter the hosted release. The
+user explicitly chooses `Make an independent copy` or, when authorized, `Create
+a maintainer draft from this release`. Existing bulletins/detached copies remain
+pinned through publication or pull update. Disconnecting removes/invalidates the
+remote relationship/credential reference after confirmation but keeps installed
+content and never deletes bulletins/templates.
+
+A closed Shared library connection record contains connection id; stable pack
+id; bounded normalized church/library display name (metadata, never identity);
+role `subscriber` or `publisher`; provider kind; canonical approved HTTPS
+service origin, optional separately approved canonical HTTPS download origin, and
+opaque remote-library locator; opaque OS-credential reference; durable state
+`active`, `paused`, or `authenticationRequired`; applicable last-
+common/installed/published release identity; last observed head; last check/
+successful transfer times; bounded outcome/code; and its two preferences. Tokens,
+passwords, cookies, raw authorization headers, invitation secrets, and private
+signing keys are forbidden.
+
+A release identity is the tuple `(packId, releaseSequence, manifestDigest,
+archiveDigest, signerFingerprint)`, with a positive sequence and lowercase
+`sha256:<64-lowercase-hex>` digests. Display version/time never replace it for
+ordering, equality, concurrency, or trust.
+
+The hosted provider exposes these logical operations regardless of transport:
+
+1. `Read head` conditionally returns `notModified` or a closed `packFeedHead`
+   containing feed-schema version, pack id, positive sequence, optional display
+   version/release notes, manifest/archive digests, archive byte length, signer
+   fingerprint, optional minimum app version, opaque immutable-release locator,
+   publication time, and optimistic head token.
+2. `Read release` returns the exact immutable `.pak` bytes identified by the
+   head. The client checks length/archive digest before normal pack validation;
+   feed metadata is never safety/authenticity proof. After full validation, the
+   pack id, signed release sequence, canonical manifest digest, archive digest,
+   and signer fingerprint must exactly match the head or the candidate is
+   quarantined under `CBB-SYNC-0004`.
+3. `Publish release` accepts a locally complete validated `.pak`, idempotency key,
+   and exact expected prior head token/release identity. The provider stores it
+   immutably and advances the visible head atomically only if the expected head
+   matches. Comparison failure changes no visible head and returns conflict.
+
+One `(packId, releaseSequence)` may never identify different bytes. Release
+locators are opaque handles, not arbitrary content URLs. Transport uses
+authenticated HTTPS with normal certificate/hostname validation. A separate
+download origin is disclosed/approved at connection time; credentials never
+cross origins or redirects. Non-HTTPS/unapproved redirects fail. Responses/error
+text are untrusted, bounded, schema validated, and never executable markup.
+Requests use bounded connect/idle/response/total-transfer limits, cancellation,
+and automatic-check backoff. Offline, missing/deleted remote, timeout, auth, or
+server failure changes no local canonical state/installed pointer.
+
+Publishing waits for the pack draft and selected dependencies to be durably
+clean. It computes the dependency closure, deterministically generates a `.pak`,
+runs export/license checks, validates with the normal importer, obtains an
+update-capable signature/sequence, and shows the upload inventory/change summary.
+It reads the current head and requires equality with the draft's last common
+release before conditional publish. Local state becomes `published` only after
+the provider confirms the same digest as the visible head and the client
+revalidates returned identity.
+
+If another publisher advanced the head, last-write-wins/automatic semantic merge
+are forbidden. The app enters `Needs review`, downloads/validates incoming, and
+shows last-common/local/incoming changes. The user may retain/export local work,
+resolve conflicts and rebase, or cancel. A successfully uploaded blob that loses
+head comparison is not published local state and cannot affect subscribers.
+
+A subscriber check compares complete release identity. Equal means `Up to date`;
+same sequence/different digest is equivocation/tampering; lower sequence is a
+reviewed downgrade; a higher compatible release is offered for the explicit
+download/review flow and may stage only after that action. Before mutation the
+app applies signer continuity and installed-snapshot/current-local/
+incoming comparison, then shows additions, changes, removals, dependencies,
+trust/signer changes, local modifications, compatibility, and license findings.
+`Update shared library` reuses the journaled pack transaction, advances installed
+pointers last, and retains referenced revisions. Cancel/failure leaves the prior
+pack active/renderable.
+
+Before first publication and material closure changes, a preflight reruns the
+complete pack redistribution gate and lists content kind/count, destination, and
+every license/restriction blocker. Only generated pack bytes leave the device.
+Bulletins, Church Profile, weekly work, Version History,
+Trash, exports, artifacts, backups, handoffs, settings, diagnostics, arbitrary
+workspace files, and resources that merely refer to a selected resource but are
+not in its declared forward dependency closure are never uploaded. Typed
+references inside selected/dependency JSON necessarily remain in the generated
+pack and are disclosed by the inventory.
+Enabling a connection does not enable telemetry, analytics, remote content
+indexing, provider discovery, an application updater, or calls to unrelated
+endpoints; the broker allowlist contains only the disclosed head/release/publish
+operations for that connection.
+Hosted update requires the signed lineage/trust rules below; service-account
+authentication alone is not signature continuity. Guided signing/key custody,
+recovery, rotation, and publisher-role enforcement are release dependencies and
+must not require normal volunteers to manipulate key files.
 
 ### Resource Pack Trust And Update Safety
 
@@ -4482,6 +5639,11 @@ by both the pinned old key and incoming new key; otherwise associating a new
 signer requires a separate warning showing both fingerprints and cannot
 overwrite content in the same confirmation step.
 
+A candidate downloaded by the opt-in opening check has no additional authority.
+Its presence in quarantine may shorten the later review, but it never satisfies
+impact confirmation, signer/trust review, conflict resolution, update/replace
+choice, or installed-pointer commit on the user's behalf.
+
 The pack-only `keyTransition` descriptor contains `fromFingerprint`,
 `toFingerprint`, positive `minimumReleaseSequence`, `oldSignaturePath`, and
 `newSignaturePath`. The fingerprints must match the locally pinned old key and
@@ -4512,15 +5674,17 @@ state, and incoming state:
 - Incoming removal hides/removes an unmodified pack-owned library item only in an
   explicitly confirmed replace. Normal update retains it.
 
-Changing a pack asset/font/schema/template is copy-on-write. The dependency
+Changing a pack asset/font/schema/template/song revision/Scripture catalog or
+preset revision is copy-on-write. The dependency
 impact summary lists every local template, bulletin, custom element, and artifact
 that still references an old revision. Referenced old revisions are retained and
 remain resolvable even when hidden from the current pack library. Garbage
 collection may remove a revision only after the workspace proves no canonical
-document, Saved Section/reusable content, weekly-work attachment/link, Version
-History snapshot, Trash item, recovery/conflict record, retained/source artifact,
-or in-progress backup/restore references it. This is the same retention graph
-used by Trash and workspace cleanup.
+document, Saved Section/Song Library/right/Scripture-catalog revision, pack-maintainer draft,
+installed or staged pack map, weekly-work attachment/link, Version History
+snapshot, Trash item, recovery/conflict record, retained/source artifact, or in-
+progress backup/restore references it. This is the same retention graph used by
+Trash and workspace cleanup.
 
 Pack update/replace runs as one journaled transaction. It validates and stages
 the complete incoming closure, writes new immutable resources, updates only the
@@ -4537,9 +5701,11 @@ rewrite copied documents or resurrect deleted local edits silently.
 
 ## Import And Export Bundles
 
-The offline app transfers data through file-based import and export bundles.
+The offline-first app always supports file-based import and export bundles.
 Project and template bundles use the `.zip` extension and are zip-compatible
-archives.
+archives. The optional Shared church library is only a hosted transport for the
+same immutable resource-pack releases; it never replaces portable files, full
+backup, or volunteer handoff.
 
 Supported bundle workflows:
 
@@ -4561,6 +5727,10 @@ Project and template bundles should include:
   entry id, entry records, dependency records, and portable-asset-id-to-entry-id
   map.
 - The project or template JSON.
+- Every portable Scripture import/rights snapshot and generated-attribution
+  policy needed by that document, normally embedded in its canonical JSON. Raw
+  provider HTML, connector credentials, live library connections, and Song
+  Library workspace lineage are forbidden.
 - Referenced managed asset binaries and asset metadata.
 - Referenced custom element schemas or style metadata when needed.
 - Generated Typst from the selected reader-order compile artifact for
@@ -4656,17 +5826,31 @@ survives pack versions.
 Every entry also includes:
 
 - `kind`: `document`, `asset`, `fontFamily`, `fontFace`, `customElement`,
-  `style`, `aiContract`, `aiSample`, `readme`, `typstDiagnostic`,
-  `pdfDiagnostic`, bulletin-only `weeklyWorkAttachment`, or another schema-
-  defined supported kind.
+  `style`, pack-only `songRecord`, pack-only informational `songMetadata`, pack-
+  only `scriptureCatalogRecord`, `aiContract`, `aiSample`, `readme`, `typstDiagnostic`,
+  `pdfDiagnostic`, bulletin-only
+  `weeklyWorkAttachment`, or another schema-defined supported kind. A song
+  record contains its complete portable rights snapshot; a
+  `scriptureCatalogRecord` is the complete `scripture-catalog.schema.json`
+  revision, including optional presentation preset, and never provider response
+  HTML or credentials.
+  A `songMetadata` entry uses only the closed metadata-only pack projection and
+  has an empty dependency list.
 - Explicit `required` boolean and canonical relative `path`.
 - `mediaType`, nonnegative integer exact uncompressed `byteSize`, and lowercase
   64-hex SHA-256.
 - Schema URI and root version matching parsed JSON content when applicable.
-- Portable asset/font revision ref, inert source provenance, and license metadata
-  when applicable.
+- Portable asset/font revision ref, inert source provenance, license metadata,
+  and the pack-export redistribution assertion/scope/evidence hash when
+  applicable. These are review provenance, never imported authority.
 - Sorted dependency records containing target id, closed `relation` enum, and
   `required`; dependency targets exist in the same manifest.
+
+Song-record dependencies include each asset/font/custom-definition revision
+needed to render its saved content. Template/starter dependencies identify song
+records only when the library item itself, rather than a copied portable
+content/rights snapshot, is part of the reusable pack contract. Import resolves
+the whole declared closure before exposing any item.
 
 A `weeklyWorkAttachment` is valid only in a `projectBundle` whose root document
 is a bulletin. It has exactly one required `weeklyWorkFor` dependency to that
@@ -4727,8 +5911,10 @@ commit. The original archive remains unchanged.
 ## Local File Safety
 
 All imported files, resource packs, project/template bundles, backups, handoff
-packages, assets, fonts, and AI helper inputs are untrusted local content until
-validated.
+packages, assets, fonts, AI helper inputs, downloaded pack/feed bytes, Scripture-
+provider responses, provider markup, redirect targets, and remote metadata are
+untrusted content until validated. TLS, authentication, or a valid pack signature
+does not make response content safe to parse or render.
 
 JSON parsing rejects duplicate object keys, invalid Unicode, excessive
 depth/count/string size, non-finite numbers, and unsupported root versions before
@@ -4798,6 +5984,36 @@ Typst build safety:
 - Include only assets referenced by the normalized project/template and approved
   for the current build.
 
+Network response safety for explicitly enabled integrations:
+
+- Every request goes through the narrow integration broker, uses an approved
+  canonical HTTPS origin with certificate/hostname validation, and has bounded
+  connect, idle, response, and total-transfer timeouts plus user cancellation.
+- Redirects are disabled unless the integration contract permits a separately
+  disclosed HTTPS download origin. Authorization, cookies, client certificates,
+  and other credentials never cross an origin or redirect boundary.
+- Headers and declared lengths are bounded before allocation. Bodies stream to
+  quarantine while enforcing observed byte limits and hashes; partial, over-limit,
+  decompression-expanding, canceled, or mismatched responses are deleted and
+  cannot change canonical workspace state.
+- Feed/head JSON uses the same strict duplicate-key, Unicode, depth, string,
+  schema, and version validation as local JSON. Downloaded `.pak` bytes use the
+  complete archive, signature, dependency, review, and transaction pipeline.
+- Scripture-provider markup is sanitized and converted to the allowlisted
+  Scripture AST in an isolated bounded parser. Scripts, event handlers, CSS,
+  links, remote media, hidden page chrome, and arbitrary HTML never enter the
+  document, preview, logs, or diagnostic UI; proposed non-whitespace exclusions
+  remain visible for review.
+- A Scripture request sends only the disclosed reference, translation identifier,
+  bounded adapter metadata, and provider-required authorization. A pack publish
+  sends only the reviewed generated pack bytes and bounded conditional-publish
+  metadata. Neither path sends bulletin text, pastor notes, Church Profile,
+  weekly work, or unrelated workspace data.
+- Provider/server error strings render only as escaped bounded text. Secrets are
+  stored through the operating-system credential service and are redacted from
+  request metadata, journals, notifications, logs, support bundles, backups, and
+  handoffs.
+
 ### Size, Performance, And Resource Limits
 
 `MiB` means 1,048,576 bytes and `GiB` means 1,073,741,824 bytes. File/JSON sizes
@@ -4811,6 +6027,8 @@ declarations and again while streaming/decoding.
 | Portable document JSON | 10 MiB | 50 MiB |
 | Workspace metadata root | 25 MiB | 100 MiB |
 | Bundle/pack manifest or non-helper exchange JSON | 5 MiB | 20 MiB |
+| Hosted pack feed/head JSON | 256 KiB | 1 MiB |
+| One Scripture-provider response body | 2 MiB | 10 MiB |
 | Backup/handoff manifest JSON | 64 MiB | 128 MiB |
 | Church Profile or one weekly-work JSON | 5 MiB | 20 MiB |
 | JSON nesting depth | 32 | 64 |
@@ -4900,11 +6118,12 @@ source excerpt when one exists; a proposal without direct support is labeled
 changes layout, pagination, readiness, diagnostic waivers, output destination, or
 document data before reviewed application.
 
-The app remains offline and must not require a hosted service or network access.
-It may support file exchange with external AI tools and launching/configuring a
-local helper when that staged feature is present. Before a managed run, the UI
-identifies the exact helper and selected instructions/assets that will be
-exposed.
+The AI capabilities in this section remain local and require no hosted service
+or network access even when a Shared church library or Scripture connector is
+configured. They may support file exchange with external AI tools and launching/
+configuring a local helper when that staged feature is present. Before a managed
+run, the UI identifies the exact helper and selected instructions/assets that
+will be exposed.
 
 `.ai-template.json` and `.ai-import.json` are Advanced/Integrations formats, not
 the normal volunteer workflow. Contract ids/versions/hashes, target handles, raw
@@ -5115,6 +6334,12 @@ Typst, ids, bindings, or schemas. Required entry points are:
 - `Duplicate template` and `Edit template`.
 - From every supported bindable Text, Date, Image, and Hymn/Song content
   property, `Make this a weekly field`.
+- `Scripture formatting` for the document-wide reference, verse-number,
+  paragraph, translation-label, spacing, and typography choices.
+- `How this bulletin is usually shared` with `Print copies` and `Share the PDF
+  by email or online`, copied into future bulletins as rights-readiness intent.
+- `Add/Move Copyrights & Permissions` plus its heading, grouping, and explicit
+  public-domain display choices.
 - `Change only this bulletin` and `Update template for future bulletins` where a
   local creation-template reference is known.
 
@@ -5129,6 +6354,15 @@ one undoable action. Its plain-language dialog supports label, help text,
 required status, group, default, rollover policy, review expectation, and an
 optional compatible Church Profile mapping. Internal ids and target pointers are
 generated and never required user input.
+
+Generic starters contain one collapsed Copyrights & Permissions element in
+normal end-matter flow. Template authors configure Scripture presentation and
+the generated block visually and can test representative long Scripture/credit
+content for pagination without editing stored rows. When attributable content is
+added to a custom template with no active block, authoring and weekly test mode
+show `Add Copyrights & Permissions` with placement/page-impact preview. Saving a
+template may preserve the unresolved review finding but never silently inserts,
+duplicates, fixes to a page, or clips the block.
 
 The setup-form designer supports visual creation/reordering of field groups and
 fields, previewing the form as a weekly volunteer sees it, and identifying unused
@@ -5209,6 +6443,11 @@ Validation should reject or normalize:
 - Duplicate bundle entry ids, duplicate normalized archive paths, and unresolved
   manifest dependencies.
 - Pack content ids reused for a different resource kind within the same pack id.
+- Invalid pack/song redistribution statuses/scopes/evidence, a `metadataOnly`
+  projection/`songMetadata` containing a non-allowlisted field or any dependency,
+  or a pack export/
+  publish closure with `unknown`, `prohibited`, out-of-effective-range, or insufficient-scope
+  redistribution decisions.
 - Invalid page sizes.
 - `page.bookletPrintSetup` on standard pages, missing setup for requested Booklet-
   print output, or invalid sheet/scale/safe-inset geometry.
@@ -5216,6 +6455,8 @@ Validation should reject or normalize:
 - Invalid element ids.
 - Duplicate element ids within the same complete document.
 - Invalid authoring-policy inheritance or locks on the wrong node owner.
+- Invalid or unknown top-level `rightsPolicy` fields/values.
+- Empty, duplicate, or unknown top-level `publicationContexts` values.
 - Invalid weekly behavior, incompatible Church Profile mappings, unresolved
   rollover review, or a publication-date field configured to `keep`.
 - `fieldReview`/`contentReview` on a template, malformed review hashes/records,
@@ -5230,6 +6471,48 @@ Validation should reject or normalize:
 - Normal-flow elements that intentionally render outside the content box.
 - Rich-text content that contains unsupported blocks, invalid inline marks, or
   unvalidated Typst source.
+- Raw provider HTML/markup, provider credentials, authorization data, remote
+  media, fabricated provider provenance, unsupported Scripture source kinds,
+  unsafe source URLs, or unbounded provider metadata in a document or pack.
+- Malformed Scripture references/translation records, duplicate or out-of-order
+  canonical verse ids, unsupported presentation/override values, malformed
+  import snapshots/boundaries/hashes/import reviews, or source/display evidence
+  that is internally inconsistent; either arm missing normalizer/importer
+  identity/version, provider snapshots missing provider/adapter/request/retrieval
+  evidence, paste snapshots containing provider-verified evidence, or an import
+  review without an import snapshot. A well-formed stored
+  import or import-review hash that no longer matches an edited passage is a
+  readiness finding, not structural corruption.
+- Invalid rights credit keys, mismatched `creditProjectionHash` values,
+  components, statuses, contributor roles,
+  credit-display conditions, publication-license snapshots/display lines, or
+  empty/unbounded/unsafe required credit or policy-disclosure lines; invalid or
+  internally inconsistent Scripture usage-policy rule ids/versions/contexts/
+  limits/source hashes.
+- Invalid/inverted publication-license effective dates or a malformed source
+  revision hash. Applicability is recomputed readiness evidence, never a
+  persisted result to validate.
+- Missing/malformed Hymn/Song `rightsAssociationReview` or content/rights
+  projection hashes. A well-formed reviewed hash that no longer matches current
+  song content or rights is a readiness finding, not structural corruption.
+- One credit key associated with conflicting canonical rights records, more than
+  one active resolved `rightsAttribution` element, persisted generated credit
+  rows, or a rights-attribution element placed as a fixed/page-level/clipped
+  artifact instead of supported normal body flow.
+- Rendered rights with required credit but no active Copyrights & Permissions
+  element or usable credit line. This is a semantic readiness failure rather
+  than permission for the renderer to invent text.
+- Invalid Shared church library connection roles/states/origins, credential
+  values stored in JSON, malformed feed/release identities, nonpositive release
+  sequences, invalid digest/fingerprint forms, or a hosted locator treated as an
+  arbitrary fetch URL.
+- Invalid Scripture-catalog ids/revisions/provider mappings/rights/policy/preset
+  shapes, credentials or response markup in a catalog record, or the same
+  `(translationId, revision)` associated with different canonical hashes.
+- A Scripture block `sourceCatalog` whose translation id does not match the block
+  or whose revision/hash is malformed. When the named local catalog revision is
+  available, a hash mismatch is stale provenance requiring review, not permission
+  to rewrite the portable copied snapshot; absence is valid portability state.
 - Image fit values other than `contain`/`cover` and focal points outside `[0,1]`.
 - AI import files with an unknown exchange/target handle, incompatible
   field-contract identity/version/hash, or asset refs absent from the exported
@@ -5259,6 +6542,13 @@ Committed requirements that may be staged after the initial v1 release:
 - AI-assisted instruction-to-field suggestions and Advanced raw AI contract
   exchange.
 - Resource pack import, creation, export, update, and replacement.
+- Hosted Shared church library publishing, checking, staged download, and
+  reviewed update, after the complete resource-pack create/export/update/
+  replacement and signing contracts it depends on.
+- Authorized Bible Gateway connector access, after the offline Paste Scripture
+  normalizer/review flow is complete and an authorized provider agreement,
+  authentication flow, translation catalog, and reproduction/attribution
+  contract are available. Webpage scraping is never an interim implementation.
 - Tagged/accessible final PDF output.
 - Persisted approval records and approval history.
 - Local AI helper launch and configuration.
@@ -5275,10 +6565,11 @@ Optional enhancements:
 - Multi-element selection and select all.
 
 Weekly Content/Customize Layout separation, Create This Week rollover, generic
-starters, Church Profile/Saved Sections, no-code template authoring,
+starters, Church Profile/Song Library/Scripture catalog/Saved Sections, no-code template authoring,
 conditional/repeatable content, direct rich-text editing, page thumbnails/zoom/
-selection navigation, basic resize/crop, Review and Export, basic booklet
-imposition, full backup/restore, Version History, Trash, the user settings panel,
-margin guides, undo/redo, canvas snapping, strong inspector validation, and
-faithful grid/stack rendering are v1 requirements and must not be tracked as
-future-only features.
+selection navigation, offline Paste Scripture formatting/attribution, structured
+Hymn/Song rights with the generated Copyrights & Permissions block, basic resize/
+crop, Review and Export, basic booklet imposition, full backup/restore, Version
+History, Trash, the user settings panel, margin guides, undo/redo, canvas
+snapping, strong inspector validation, and faithful grid/stack rendering are v1
+requirements and must not be tracked as future-only features.

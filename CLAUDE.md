@@ -12,6 +12,7 @@ The current `typst` branch contains **no application code** — it is in the spe
 
 - `spec.md` — the source-of-truth behavior spec (~6,000 lines). Everything else supports refining this document.
 - `spec-review.md` — decision record from the expert-team spec review (recommendations, risks, and decisions already made, e.g. offline packaged desktop app; Windows + Linux targets). Check it before re-litigating a settled question.
+- `architecture.md` — the system architecture derived from the spec: technology stack (Electron shell over runtime-agnostic TypeScript core packages), process/trust topology, module decomposition, deterministic document pipeline, and delivery staging. Keep it consistent with `spec.md` when behavior changes.
 - `use-case-spec-review.md` — UX/volunteer-persona review of the spec; `user-case-expert-agent.md` is the persona prompt used to produce it.
 - `todo.md` — feature backlog not yet folded into the spec.
 - `schema/` — JSON Schemas (draft 2020-12) for the document model: `template.schema.json` plus one schema per element type (text, image, date, music, grid, stack, canvas, page break, custom). These mirror the spec's Document Model / Element Types sections and must stay consistent with it.

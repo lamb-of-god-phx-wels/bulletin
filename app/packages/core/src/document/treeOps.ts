@@ -73,7 +73,13 @@ export type NodeLocation =
       readonly parentId: NodeId;
       readonly wrapperIndex: number;
     }
-  | { readonly kind: "pageLevelWrapper"; readonly index: number };
+  | { readonly kind: "pageLevelWrapper"; readonly index: number }
+  | { readonly kind: "customDefinition"; readonly index: number }
+  | {
+      readonly kind: "customDefinitionElement";
+      readonly definitionIndex: number;
+      readonly elementIndex: number;
+    };
 
 export interface NodeRef {
   readonly id: NodeId;
@@ -94,8 +100,7 @@ function visitElement(
   if (visitor(el.id, location)) return true;
 
   if (el.type === "grid") {
-    for (let wi = 0; wi < el.children.length; wi++) {
-      const wrap = el.children[wi];
+    for (const [wi, wrap] of el.children.entries()) {
       const wrapLoc: NodeLocation = {
         kind: "gridWrapper",
         parentId: el.id,
@@ -110,8 +115,7 @@ function visitElement(
       if (visitElement(wrap.element, childLoc, visitor)) return true;
     }
   } else if (el.type === "stack") {
-    for (let wi = 0; wi < el.children.length; wi++) {
-      const wrap = el.children[wi];
+    for (const [wi, wrap] of el.children.entries()) {
       const wrapLoc: NodeLocation = {
         kind: "stackWrapper",
         parentId: el.id,
@@ -126,8 +130,7 @@ function visitElement(
       if (visitElement(wrap.element, childLoc, visitor)) return true;
     }
   } else if (el.type === "canvas") {
-    for (let wi = 0; wi < el.children.length; wi++) {
-      const wrap = el.children[wi];
+    for (const [wi, wrap] of el.children.entries()) {
       const wrapLoc: NodeLocation = {
         kind: "canvasWrapper",
         parentId: el.id,
@@ -147,19 +150,35 @@ function visitElement(
 }
 
 function visitDocument(doc: CbbDocument, visitor: Visitor): void {
-  for (let i = 0; i < doc.elements.length; i++) {
-    const el = doc.elements[i];
+  for (const [i, el] of doc.elements.entries()) {
     const loc: NodeLocation = { kind: "bodyElement", index: i };
     if (visitElement(el, loc, visitor)) return;
   }
 
   const pageElements = doc.pageElements ?? [];
-  for (let i = 0; i < pageElements.length; i++) {
-    const wrapper = pageElements[i];
+  for (const [i, wrapper] of pageElements.entries()) {
     const wrapLoc: NodeLocation = { kind: "pageLevelWrapper", index: i };
     if (visitor(wrapper.id, wrapLoc)) return;
     const elLoc: NodeLocation = { kind: "pageElementChild", wrapperIndex: i };
-    if (visitor(wrapper.element.id, elLoc)) return;
+    if (visitElement(wrapper.element, elLoc, visitor)) return;
+  }
+
+  for (const [definitionIndex, definition] of (
+    doc.customElementDefinitions ?? []
+  ).entries()) {
+    const definitionLoc: NodeLocation = {
+      kind: "customDefinition",
+      index: definitionIndex,
+    };
+    if (visitor(definition.id, definitionLoc)) return;
+    for (const [elementIndex, element] of definition.elements.entries()) {
+      const elementLoc: NodeLocation = {
+        kind: "customDefinitionElement",
+        definitionIndex,
+        elementIndex,
+      };
+      if (visitElement(element, elementLoc, visitor)) return;
+    }
   }
 }
 
@@ -207,8 +226,16 @@ export function buildParentMap(
 
   const pageElements = doc.pageElements ?? [];
   for (const pw of pageElements) {
-    // Page-level element's inner element -> wrapper id
-    map.set(pw.element.id, pw.id);
+    // Page-level element's root -> placement wrapper; nested container
+    // descendants retain the same wrapper/element parent semantics as body
+    // containers.
+    addParentsFromElement(pw.element, pw.id, map);
+  }
+
+  for (const definition of doc.customElementDefinitions ?? []) {
+    for (const element of definition.elements) {
+      addParentsFromElement(element, definition.id, map);
+    }
   }
 
   return map;
@@ -245,7 +272,8 @@ function addParentsFromElement(
 
 /**
  * Collect every NodeId in the document tree into a Set.
- * Includes element ids, wrapper ids, and page-level wrapper/element ids.
+ * Includes body/page/custom-definition element ids and every wrapper id in
+ * the one document-global namespace.
  */
 export function collectAllNodeIds(doc: CbbDocument): ReadonlySet<NodeId> {
   const ids = new Set<NodeId>();
@@ -259,7 +287,8 @@ export function collectAllNodeIds(doc: CbbDocument): ReadonlySet<NodeId> {
 }
 
 /**
- * Count total persisted visual nodes (elements + wrappers, recursively).
+ * Count total persisted visual nodes (definitions, elements, and wrappers,
+ * recursively).
  * Used to enforce DOCUMENT_LIMITS.PERSISTED_VISUAL_NODES_CAP.
  */
 export function countNodes(doc: CbbDocument): number {
@@ -416,7 +445,10 @@ export function moveElement(
 
   if (from === to) return doc;
 
-  const [moved] = elements.splice(from, 1);
+  const moved = elements[from];
+  if (moved === undefined) return doc;
+
+  elements.splice(from, 1);
   elements.splice(to, 0, moved);
 
   return { ...doc, elements };
@@ -435,8 +467,7 @@ export function moveElement(
  * each child element recursively.
  *
  * The existing set is used to skip ids that don't collide — only collision
- * ids are re-minted. A fresh id is generated for every id in the subtree
- * when existingIds is empty (e.g. for a wholly new import).
+ * ids are re-minted unless forceRemint is enabled.
  *
  * Spec: spec.md §Document Model (1392-1465) — element-id collision re-mint
  * rules on copy/paste.
@@ -462,18 +493,30 @@ function generateFreshId(
   usedIds: Set<NodeId>,
   idPort: IdPort
 ): NodeId {
-  let candidate: string;
   // First try the existing id (if not in usedIds)
   if (!usedIds.has(base)) {
     usedIds.add(base);
     return base;
   }
-  // Otherwise mint new ids until we find one not in use
+
+  return mintUniqueNodeId(usedIds, idPort);
+}
+
+/**
+ * Mint a schema-valid NodeId while retaining all 128 bits from the UUID.
+ * UUID hyphens are unnecessary because NodeId has its own lexical contract;
+ * the leading letter makes every UUID-derived value valid even when the UUID
+ * starts with a decimal digit.
+ */
+function mintUniqueNodeId(
+  usedIds: Set<NodeId>,
+  idPort: IdPort
+): NodeId {
+  let candidate: NodeId;
   do {
-    candidate = idPort.randomUuid().replace(/-/g, "").slice(0, 12);
-    // Ensure it starts with a letter (NodeId must start with [A-Za-z])
-    candidate = "n" + candidate;
+    candidate = `n${idPort.randomUuid().replace(/-/g, "")}`;
   } while (usedIds.has(candidate));
+
   usedIds.add(candidate);
   return candidate;
 }
@@ -485,27 +528,13 @@ function remintElementIds(
   forceRemint: boolean
 ): NativeElement {
   const newId = forceRemint
-    ? (() => {
-        let candidate: string;
-        do {
-          candidate = "n" + idPort.randomUuid().replace(/-/g, "").slice(0, 12);
-        } while (usedIds.has(candidate));
-        usedIds.add(candidate);
-        return candidate;
-      })()
+    ? mintUniqueNodeId(usedIds, idPort)
     : generateFreshId(el.id, usedIds, idPort);
 
   if (el.type === "grid") {
     const children: GridChildWrapper[] = el.children.map((wrap) => {
       const newWrapId = forceRemint
-        ? (() => {
-            let c: string;
-            do {
-              c = "n" + idPort.randomUuid().replace(/-/g, "").slice(0, 12);
-            } while (usedIds.has(c));
-            usedIds.add(c);
-            return c;
-          })()
+        ? mintUniqueNodeId(usedIds, idPort)
         : generateFreshId(wrap.id, usedIds, idPort);
       return {
         ...wrap,
@@ -519,14 +548,7 @@ function remintElementIds(
   if (el.type === "stack") {
     const children: StackChildWrapper[] = el.children.map((wrap) => {
       const newWrapId = forceRemint
-        ? (() => {
-            let c: string;
-            do {
-              c = "n" + idPort.randomUuid().replace(/-/g, "").slice(0, 12);
-            } while (usedIds.has(c));
-            usedIds.add(c);
-            return c;
-          })()
+        ? mintUniqueNodeId(usedIds, idPort)
         : generateFreshId(wrap.id, usedIds, idPort);
       return {
         ...wrap,
@@ -540,14 +562,7 @@ function remintElementIds(
   if (el.type === "canvas") {
     const children: CanvasChildWrapper[] = el.children.map((wrap) => {
       const newWrapId = forceRemint
-        ? (() => {
-            let c: string;
-            do {
-              c = "n" + idPort.randomUuid().replace(/-/g, "").slice(0, 12);
-            } while (usedIds.has(c));
-            usedIds.add(c);
-            return c;
-          })()
+        ? mintUniqueNodeId(usedIds, idPort)
         : generateFreshId(wrap.id, usedIds, idPort);
       return {
         ...wrap,
@@ -573,17 +588,17 @@ export function maxContainerDepth(elements: readonly NativeElement[]): number {
   function depthOf(el: NativeElement): number {
     if (el.type === "grid") {
       const childDepths = el.children.map((w) => depthOf(w.element));
-      const maxChild = childDepths.length > 0 ? Math.max(...childDepths) : -1;
+      const maxChild = childDepths.length > 0 ? Math.max(...childDepths) : 0;
       return 1 + maxChild;
     }
     if (el.type === "stack") {
       const childDepths = el.children.map((w) => depthOf(w.element));
-      const maxChild = childDepths.length > 0 ? Math.max(...childDepths) : -1;
+      const maxChild = childDepths.length > 0 ? Math.max(...childDepths) : 0;
       return 1 + maxChild;
     }
     if (el.type === "canvas") {
       const childDepths = el.children.map((w) => depthOf(w.element));
-      const maxChild = childDepths.length > 0 ? Math.max(...childDepths) : -1;
+      const maxChild = childDepths.length > 0 ? Math.max(...childDepths) : 0;
       return 1 + maxChild;
     }
     return 0;
@@ -599,7 +614,15 @@ export function maxContainerDepth(elements: readonly NativeElement[]): number {
 export function checkContainerDepth(
   doc: CbbDocument
 ): { ok: true } | { ok: false; depth: number; limit: number } {
-  const depth = maxContainerDepth(doc.elements);
+  const pageRoots = (doc.pageElements ?? []).map((entry) => entry.element);
+  const definitionRoots = (doc.customElementDefinitions ?? []).flatMap(
+    (definition) => definition.elements,
+  );
+  const depth = Math.max(
+    maxContainerDepth(doc.elements),
+    maxContainerDepth(pageRoots),
+    maxContainerDepth(definitionRoots),
+  );
   if (depth > DOCUMENT_LIMITS.CONTAINER_NESTING_DEPTH_CAP) {
     return {
       ok: false,

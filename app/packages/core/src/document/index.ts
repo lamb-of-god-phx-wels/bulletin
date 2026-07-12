@@ -160,6 +160,13 @@ export {
   toJson,
 } from "./parse.js";
 
+// ---- semantic validation -------------------------------------------------
+export { validateDocumentSemantics } from "./semantic.js";
+export {
+  isSafeFieldPattern,
+  matchesSafeFieldPattern,
+} from "./safePattern.js";
+
 // ---- treeOps --------------------------------------------------------------
 export type { NodeLocation, NodeRef } from "./treeOps.js";
 export {
@@ -179,21 +186,44 @@ export {
 
 // ---- resolvedTypes --------------------------------------------------------
 export type {
+  ResolvedExpansion,
   ResolvedNodeProvenance,
+  ResolvedInline,
+  EffectiveScripturePresentation,
+  ResolvedScriptureVerse,
+  ResolvedScriptureParagraph,
+  ResolvedScriptureBlock,
+  ResolvedRichTextBlock,
+  ResolvedRichTextDocument,
+  ResolvedTextContent,
+  ResolvedRightsContribution,
+  ResolvedFlowProperties,
+  ResolvedTextElement,
+  ResolvedImageElement,
+  ResolvedDateElement,
+  ResolvedMusicElement,
+  ResolvedRightsAttributionElement,
+  ResolvedPageBreakElement,
+  ResolvedGridChild,
+  ResolvedGridElement,
+  ResolvedStackChild,
+  ResolvedStackElement,
+  ResolvedCanvasChild,
+  ResolvedCanvasElement,
+  ResolvedElement,
   ResolvedNode,
   ResolvedRenderTree,
   ResolvedPageElement,
+  ProjectedGridChild,
+  ProjectedStackChild,
+  ProjectedCanvasChild,
+  ProjectedElement,
+  ProjectedPageElement,
+  RenderPageProjection,
   FontIdentityRef,
   AssetIdentityRef,
   RenderProjection,
 } from "./resolvedTypes.js";
-export {
-  makeDirectResolvedNode,
-  makeRepeatResolvedNode,
-  makeCustomResolvedNode,
-  makeEmptyResolvedRenderTree,
-} from "./resolvedTypes.js";
-
 // ---- fieldClassificationData ----------------------------------------------
 export {
   DOCUMENT_FIELD_CLASSIFICATIONS,

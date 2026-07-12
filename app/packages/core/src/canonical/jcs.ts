@@ -38,6 +38,25 @@ const encoder = new TextEncoder();
  * double-quote delimiters, which is the correct JSON serialization for a string.
  */
 function escapeString(value: string): string {
+  // RFC 8785 requires Unicode scalar values. JSON.stringify preserves lone
+  // UTF-16 surrogates as escapes, but they cannot be encoded as canonical
+  // UTF-8 and would otherwise diverge from downstream TextEncoder behavior.
+  for (let index = 0; index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) {
+        throw new TypeError(
+          "canonicalStringify: lone UTF-16 surrogate is not valid Unicode",
+        );
+      }
+      index++;
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      throw new TypeError(
+        "canonicalStringify: lone UTF-16 surrogate is not valid Unicode",
+      );
+    }
+  }
   // JSON.stringify produces `"<escaped>"` including the surrounding quotes.
   // This relies on JSON.stringify being spec-compliant, which all conformant
   // JS engines guarantee.

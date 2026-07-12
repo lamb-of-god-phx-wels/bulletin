@@ -1,283 +1,435 @@
 /**
- * @cbb/core/document/resolvedTypes — Downstream contract types.
+ * Render-only document contracts.
  *
- * Defines the resolved render tree (post field-substitution / conditional /
- * repeat / custom expansion) and the render projection (the render-affecting
- * subset used for build hashing and Typst emission).
- *
- * These are types + constructors only — logic comes from later agents
- * (resolve, hashes, layout, typstgen).
- *
- * Spec references:
- *   spec.md §Persistence And Build (4126-4260) — renderInputHash semantics
- *   spec.md §Template-Authored Conditional And Repeatable Content (1836-1960)
- *   spec.md §Custom Elements And Bindings (6298-6395)
+ * The persisted document model deliberately contains authoring state.  These
+ * types are the boundary after resolution: a consumer cannot observe field
+ * stores, bindings, locks, review records, source names, custom instances, or
+ * raw container children through a ResolvedElement.
  */
 
 import type {
+  CanvasPosition,
+  ColorValue,
+  DateElementData,
+  ElementSize,
+  FocalPoint,
+  GridElementData,
+  ImageElementData,
   NodeId,
-  NativeElement,
-  PageLevelWrapper,
-  PageSetup,
-  StyleObject,
+  PageElementSize,
+  PagePlacementSemantics,
+  PageTargetMode,
+  PhysicalLength,
+  PhysicalOrRelativeLength,
+  PortableAssetRefString,
   PortableFontRefString,
-  ScripturePresentationSettings,
-  PublicationContext,
+  RightsAttributionElementData,
+  Sha256HashString,
+  SpacingLength,
+  StackElementData,
+  StyleObject,
+  TableSemantics,
+  TextContent,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// Provenance tracking
+// Provenance and stable transient identity
 // ---------------------------------------------------------------------------
 
+export type ResolvedExpansion =
+  | {
+      readonly kind: "repeat";
+      readonly ruleId: string;
+      readonly prototypeNodeId: NodeId;
+      readonly itemId: string;
+      readonly itemIndex: number;
+    }
+  | {
+      readonly kind: "custom";
+      readonly ownerInstanceId: NodeId;
+      readonly definitionId: NodeId;
+      readonly definitionNodeId: NodeId;
+    };
+
 /**
- * Provenance record tracing a resolved node back to its source in the
- * authoritative persisted document tree.
+ * `expansions` is outermost-to-innermost.  It is intentionally composable: a
+ * custom definition inside a repeated prototype (or the reverse) retains both
+ * steps instead of losing one in a discriminated union.
+ *
+ * The legacy discriminator fields remain for the small constructor helpers;
+ * downstream code should use `expansions`.
  */
 export type ResolvedNodeProvenance =
   | {
-      /** Node is directly present in the source tree (no expansion). */
       readonly kind: "direct";
       readonly sourceElementId: NodeId;
+      readonly expansions: readonly ResolvedExpansion[];
     }
   | {
-      /**
-       * Node is one copy of a repeated prototype, expanded for a specific
-       * array item. The sourceElementId is the prototypeNodeId. ruleId is the
-       * repeat rule; itemId is the stable per-item UUIDv4.
-       */
       readonly kind: "repeatExpansion";
       readonly sourceElementId: NodeId;
       readonly ruleId: string;
       readonly itemId: string;
-      /** Zero-based position within the current expansion. */
       readonly itemIndex: number;
+      readonly expansions: readonly ResolvedExpansion[];
     }
   | {
-      /**
-       * Node is expanded from a custom element definition. ownerInstanceId is
-       * the customInstance node in the source tree; definitionNodeId is the
-       * definition's own element id within the definition.
-       */
       readonly kind: "customExpansion";
+      readonly sourceElementId: NodeId;
       readonly ownerInstanceId: NodeId;
       readonly definitionNodeId: NodeId;
+      readonly expansions: readonly ResolvedExpansion[];
     };
 
 // ---------------------------------------------------------------------------
-// Resolved nodes
+// Render-only rich text and rights contributions
 // ---------------------------------------------------------------------------
 
-/**
- * A node in the resolved render tree. Every native element type is
- * represented; conditional-excluded nodes are absent; repeated nodes are
- * expanded; custom-element instances are replaced by their definition trees
- * with resolved field values.
- *
- * `resolvedId` is a deterministic stable identifier for this node in this
- * resolved expansion:
- *   - Direct node: same as source element id.
- *   - Repeat expansion: "<ruleId>/<itemId>/<sourceElementId>".
- *   - Custom expansion: "<ownerInstanceId>/<definitionNodeId>".
- *
- * `data` carries the resolved element with bound field values materialized
- * into content-bearing leaves (bindings stripped; literal values written).
- */
+export type ResolvedInline =
+  | {
+      readonly type: "text";
+      readonly text: string;
+      readonly marks?: readonly ("strong" | "emphasis")[];
+    }
+  | { readonly type: "lineBreak" };
+
+export interface EffectiveScripturePresentation {
+  readonly referencePlacement: "before" | "after";
+  readonly verseNumberStyle: "inline" | "superscript" | "hidden";
+  readonly paragraphPolicy: "publisher" | "oneVerse";
+  readonly paragraphSpacing: PhysicalLength;
+  readonly translationLabelPlacement:
+    | "withReference"
+    | "afterPassage"
+    | "hidden";
+  readonly typographyPresetSnapshot?: Readonly<Record<string, unknown>>;
+}
+
+export interface ResolvedScriptureVerse {
+  readonly verseId: string;
+  readonly label: string;
+  readonly paragraphStart: boolean;
+  readonly children: readonly ResolvedInline[];
+}
+
+export interface ResolvedScriptureParagraph {
+  readonly type: "paragraph";
+  readonly children: readonly ResolvedInline[];
+}
+
+export type ResolvedScriptureBlock =
+  | {
+      readonly type: "scripture";
+      readonly structureKind: "verseStructured";
+      readonly reference: string;
+      readonly canonicalReference: string;
+      readonly translationLabel: string;
+      readonly verses: readonly ResolvedScriptureVerse[];
+      readonly presentation: EffectiveScripturePresentation;
+    }
+  | {
+      readonly type: "scripture";
+      readonly structureKind: "paragraphOnly";
+      readonly reference: string;
+      readonly canonicalReference?: string;
+      readonly translationLabel: string;
+      readonly paragraphs: readonly ResolvedScriptureParagraph[];
+      readonly presentation: EffectiveScripturePresentation;
+    };
+
+export type ResolvedRichTextBlock =
+  | { readonly type: "paragraph"; readonly children: readonly ResolvedInline[] }
+  | {
+      readonly type: "heading";
+      readonly level: 1 | 2 | 3 | 4 | 5 | 6;
+      readonly children: readonly ResolvedInline[];
+    }
+  | {
+      readonly type: "bulletList" | "orderedList" | "blockquote" | "listItem";
+      readonly start?: number;
+      readonly children: readonly ResolvedRichTextBlock[];
+    }
+  | ResolvedScriptureBlock;
+
+export interface ResolvedRichTextDocument {
+  readonly type: "document";
+  readonly blocks: readonly ResolvedRichTextBlock[];
+}
+
+export type ResolvedTextContent =
+  | { readonly kind: "plain"; readonly text: string }
+  | { readonly kind: "richText"; readonly document: ResolvedRichTextDocument };
+
+/** Sanitized, active contribution input for the later rights generator. */
+export interface ResolvedRightsContribution {
+  /** Shared by every rights record collected from one rendered source node. */
+  readonly firstAppearance: number;
+  readonly creditKey: string;
+  /** Exact revision identity used for de-duplication and equivocation checks. */
+  readonly creditProjectionHash: Sha256HashString;
+  readonly component:
+    | "text"
+    | "tune"
+    | "arrangement"
+    | "translation"
+    | "setting"
+    | "recording"
+    | "scriptureTranslation"
+    | "other";
+  readonly status: "copyrighted" | "publicDomain" | "unknown";
+  /** Retained only for the app-owned optional public-domain status line. */
+  readonly workTitle?: string;
+  readonly creditRequiredWhen: "always" | "renderedText" | "never";
+  /**
+   * Resolved applicability of requiredCreditLine for this rendered occurrence.
+   * `always` is true, `never` is false, and `renderedText` reflects whether the
+   * governed source contains rendered text after binding/rule expansion.
+   */
+  readonly requiredCreditLineApplies: boolean;
+  readonly requiredCreditLine?: string | undefined;
+  readonly usagePolicyDisclosureLine?: string;
+  readonly publicationLicenseDisplay?: {
+    readonly displayLine: string;
+    readonly sourceDisplayRevisionHash: Sha256HashString;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Closed resolved element union
+// ---------------------------------------------------------------------------
+
+export interface ResolvedFlowProperties {
+  readonly width?: ElementSize;
+  readonly height?: ElementSize;
+  readonly breakPolicy?: "auto" | "avoid";
+  readonly margin?: SpacingLength;
+  readonly padding?: SpacingLength;
+  /** Output-affecting style only; the legacy family-name migration input is removed. */
+  readonly style?: Omit<StyleObject, "font">;
+}
+
+export interface ResolvedTextElement extends ResolvedFlowProperties {
+  readonly type: "text";
+  readonly data: { readonly content: ResolvedTextContent };
+}
+
+export interface ResolvedImageElement extends ResolvedFlowProperties {
+  readonly type: "image";
+  readonly data: ImageElementData;
+}
+
+export interface ResolvedDateElement extends ResolvedFlowProperties {
+  readonly type: "date";
+  readonly data: DateElementData;
+}
+
+export interface ResolvedMusicElement extends ResolvedFlowProperties {
+  readonly type: "music";
+  readonly data: {
+    readonly number?: string;
+    readonly title: string;
+    readonly instructions?: string;
+    readonly source?: string;
+    readonly richContent?: ResolvedRichTextDocument;
+  };
+}
+
+export interface ResolvedRightsAttributionElement extends ResolvedFlowProperties {
+  readonly type: "rightsAttribution";
+  readonly data: RightsAttributionElementData;
+}
+
+export interface ResolvedPageBreakElement extends ResolvedFlowProperties {
+  readonly type: "pageBreak";
+  readonly data: { readonly intent?: "flowBreak" | "intentionalBlank" };
+}
+
+export interface ResolvedGridChild {
+  readonly resolvedId: string;
+  readonly provenance: ResolvedNodeProvenance;
+  readonly row: number;
+  readonly column: number;
+  readonly element: ResolvedNode;
+}
+
+export interface ResolvedGridElement extends ResolvedFlowProperties {
+  readonly type: "grid";
+  readonly data: GridElementData;
+  readonly children: readonly ResolvedGridChild[];
+}
+
+export interface ResolvedStackChild {
+  readonly resolvedId: string;
+  readonly provenance: ResolvedNodeProvenance;
+  readonly index: number;
+  readonly element: ResolvedNode;
+}
+
+export interface ResolvedStackElement extends ResolvedFlowProperties {
+  readonly type: "stack";
+  readonly data: StackElementData;
+  readonly children: readonly ResolvedStackChild[];
+}
+
+export interface ResolvedCanvasChild {
+  readonly resolvedId: string;
+  readonly provenance: ResolvedNodeProvenance;
+  readonly x: CanvasPosition;
+  readonly y: CanvasPosition;
+  readonly semanticOrder?: number;
+  readonly element: ResolvedNode;
+}
+
+export interface ResolvedCanvasElement extends ResolvedFlowProperties {
+  readonly type: "canvas";
+  readonly data?: Readonly<Record<never, never>>;
+  readonly children: readonly ResolvedCanvasChild[];
+}
+
+export type ResolvedElement =
+  | ResolvedTextElement
+  | ResolvedImageElement
+  | ResolvedDateElement
+  | ResolvedMusicElement
+  | ResolvedRightsAttributionElement
+  | ResolvedPageBreakElement
+  | ResolvedGridElement
+  | ResolvedStackElement
+  | ResolvedCanvasElement;
+
 export interface ResolvedNode {
   readonly resolvedId: string;
   readonly provenance: ResolvedNodeProvenance;
-  /**
-   * The element after field value substitution. For container elements,
-   * `children` contains resolved children (the raw schema children array is
-   * replaced with resolvedChildren below).
-   */
-  readonly element: NativeElement;
-  /** Resolved children for container elements (grid/stack/canvas). */
-  readonly resolvedChildren?: readonly ResolvedNode[];
+  readonly element: ResolvedElement;
 }
 
-// ---------------------------------------------------------------------------
-// Resolved render tree
-// ---------------------------------------------------------------------------
+export interface ResolvedPageElement {
+  readonly resolvedId: string;
+  readonly provenance: ResolvedNodeProvenance;
+  readonly purpose:
+    | "background"
+    | "header"
+    | "footer"
+    | "pageNumber"
+    | "decoration";
+  readonly target: PageTargetMode;
+  readonly layer: "background" | "underlay" | "overlay";
+  readonly region:
+    | "page"
+    | "content"
+    | "topMargin"
+    | "bottomMargin"
+    | "leftMargin"
+    | "rightMargin";
+  readonly anchor:
+    | "topLeft"
+    | "topCenter"
+    | "topRight"
+    | "centerLeft"
+    | "center"
+    | "centerRight"
+    | "bottomLeft"
+    | "bottomCenter"
+    | "bottomRight";
+  readonly x: PhysicalOrRelativeLength;
+  readonly y: PhysicalOrRelativeLength;
+  readonly width: PageElementSize;
+  readonly height: PageElementSize;
+  readonly zIndex: number;
+  readonly clipToRegion: boolean;
+  readonly semantic: PagePlacementSemantics;
+  readonly element: ResolvedNode;
+}
 
-/**
- * The full resolved document tree after:
- *   1. Field value binding / substitution.
- *   2. Conditional rule evaluation (inactive branches removed).
- *   3. Repeat prototype expansion (one node per array item).
- *   4. Custom element instance expansion (definition roots inlined).
- *
- * No bindings or content rules remain. Every node has a stable resolvedId
- * plus provenance back to its source element and, for expansions, its
- * rule/item identity.
- *
- * This type is the input to layout, Typst generation, rights attribution
- * generation, and build hashing. It is never persisted.
- */
 export interface ResolvedRenderTree {
-  /** Ordered resolved body-flow elements. */
   readonly elements: readonly ResolvedNode[];
-  /** Resolved page-level elements. */
   readonly pageElements: readonly ResolvedPageElement[];
-  /** Total node count (including nested children). */
+  /** Elements and placement wrappers, including nested container wrappers. */
   readonly totalNodeCount: number;
 }
 
-/**
- * A resolved page-level element (wrapper + resolved inner element).
- */
-export interface ResolvedPageElement {
-  readonly resolvedId: string;
-  readonly wrapper: PageLevelWrapper;
-  readonly resolvedElement: ResolvedNode;
+// ---------------------------------------------------------------------------
+// ID-free render projection
+// ---------------------------------------------------------------------------
+
+export type ProjectedGridChild = Pick<ResolvedGridChild, "row" | "column"> & {
+  readonly element: ProjectedElement;
+};
+export type ProjectedStackChild = Pick<ResolvedStackChild, "index"> & {
+  readonly element: ProjectedElement;
+};
+export type ProjectedCanvasChild = Pick<
+  ResolvedCanvasChild,
+  "x" | "y" | "semanticOrder"
+> & { readonly element: ProjectedElement };
+
+export type ProjectedElement =
+  | ResolvedTextElement
+  | ResolvedImageElement
+  | ResolvedDateElement
+  | ResolvedMusicElement
+  | ResolvedRightsAttributionElement
+  | ResolvedPageBreakElement
+  | (Omit<ResolvedGridElement, "children"> & {
+      readonly children: readonly ProjectedGridChild[];
+    })
+  | (Omit<ResolvedStackElement, "children"> & {
+      readonly children: readonly ProjectedStackChild[];
+    })
+  | (Omit<ResolvedCanvasElement, "children"> & {
+      readonly children: readonly ProjectedCanvasChild[];
+    });
+
+export type ProjectedPageElement = Omit<
+  ResolvedPageElement,
+  "resolvedId" | "provenance" | "element"
+> & { readonly element: ProjectedElement };
+
+export interface RenderPageProjection {
+  readonly typstWidth: PhysicalLength;
+  readonly typstHeight: PhysicalLength;
+  readonly background?: ColorValue;
+  readonly marginMode?: "fixed" | "mirrored";
+  readonly binding?: "left" | "right";
+  readonly margins?: {
+    readonly top?: PhysicalLength;
+    readonly right?: PhysicalLength;
+    readonly bottom?: PhysicalLength;
+    readonly left?: PhysicalLength;
+    readonly inner?: PhysicalLength;
+    readonly outer?: PhysicalLength;
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Font / asset identity references (render-affecting)
-// ---------------------------------------------------------------------------
-
-/**
- * A font face reference captured from the document for hashing purposes.
- * The resolver fills this from the fontRef + fontFallbackRefs on each element
- * that has a style.fontRef.
- */
+/** A portable ref observed during resolution; no byte digest is asserted. */
 export interface FontIdentityRef {
   readonly fontRef: PortableFontRefString;
-  /**
-   * Family digest from the font record (sha256 over canonical face array).
-   * Filled by the resolve agent when it has access to the font catalog.
-   * May be undefined when font records are not available (partial resolve).
-   */
-  readonly familyDigest?: string;
 }
 
-/**
- * An asset reference captured from the resolved tree.
- */
+/** A portable ref observed during resolution; no byte digest is asserted. */
 export interface AssetIdentityRef {
-  readonly assetRef: string;
+  readonly assetRef: PortableAssetRefString;
 }
 
-// ---------------------------------------------------------------------------
-// Render projection
-// ---------------------------------------------------------------------------
-
-/**
- * The render-affecting subset of a resolved document, suitable for:
- *   - Computing renderInputHash (build signature).
- *   - Driving Typst source generation.
- *   - Stale-build detection.
- *
- * Per spec §Persistence And Build (4134-4148):
- *   renderInputHash covers: resolved render projection + output-affecting
- *   assets, fonts, tools, locale, and output options. Excludes: authoring
- *   policies, source lineage, orphaned values, template samples, field
- *   origins/field/content review records, stable UI item ids, Scripture
- *   source URL/retrieval/raw-source evidence, rights provenance/Song Library
- *   lineage, and unknown inert preservation data.
- *
- * This type carries the projection without hashing — the hash agent reads it.
- */
 export interface RenderProjection {
-  /** Canonical document name (appears in build artifacts). */
-  readonly documentName: string;
-
-  /** Resolved page setup. */
-  readonly pageSetup: PageSetup;
-
-  /** Document-level style (base style used for body flow). */
-  readonly documentStyle?: StyleObject;
-
-  /** Effective font fallback stack (fontRef list in resolution order). */
-  readonly fontFallbackStack: readonly PortableFontRefString[];
-
-  /** Effective scripture presentation (with v1 defaults applied). */
-  readonly scripturePresentation: Required<
-    Omit<ScripturePresentationSettings, "typographyPresetSnapshot">
-  > &
-    Pick<ScripturePresentationSettings, "typographyPresetSnapshot">;
-
-  /** Ordered resolved body elements. */
-  readonly elements: readonly ResolvedNode[];
-
-  /** Resolved page-level elements. */
-  readonly pageElements: readonly ResolvedPageElement[];
-
-  /** Deduplicated font refs referenced anywhere in the resolved tree. */
+  readonly version: 1;
+  /** Effective machine-readable PDF title; metadata.title falls back to document.name. */
+  readonly title: string;
+  readonly locale: string;
+  readonly page: RenderPageProjection;
+  readonly scripturePresentation: EffectiveScripturePresentation;
+  readonly fontFallbackRefs: readonly PortableFontRefString[];
+  readonly elements: readonly ProjectedElement[];
+  readonly pageElements: readonly ProjectedPageElement[];
+  readonly rightsContributions: readonly ResolvedRightsContribution[];
   readonly referencedFonts: readonly FontIdentityRef[];
-
-  /** Deduplicated asset refs referenced anywhere in the resolved tree. */
   readonly referencedAssets: readonly AssetIdentityRef[];
-
-  /** Active publication contexts (render-affecting via rights generation). */
-  readonly publicationContexts: readonly PublicationContext[];
 }
 
-// ---------------------------------------------------------------------------
-// Constructor helpers (pure data constructors, no logic)
-// ---------------------------------------------------------------------------
-
-/**
- * Construct a direct-provenance resolved node from a native element.
- * No binding substitution is performed here — that belongs to the resolve
- * agent.
- */
-export function makeDirectResolvedNode(element: NativeElement): ResolvedNode {
-  return {
-    resolvedId: element.id,
-    provenance: { kind: "direct", sourceElementId: element.id },
-    element,
-  };
-}
-
-/**
- * Construct a repeat-expansion resolved node.
- */
-export function makeRepeatResolvedNode(
-  ruleId: string,
-  itemId: string,
-  itemIndex: number,
-  element: NativeElement
-): ResolvedNode {
-  const resolvedId = `${ruleId}/${itemId}/${element.id}`;
-  return {
-    resolvedId,
-    provenance: {
-      kind: "repeatExpansion",
-      sourceElementId: element.id,
-      ruleId,
-      itemId,
-      itemIndex,
-    },
-    element,
-  };
-}
-
-/**
- * Construct a custom-expansion resolved node.
- */
-export function makeCustomResolvedNode(
-  ownerInstanceId: NodeId,
-  element: NativeElement
-): ResolvedNode {
-  const resolvedId = `${ownerInstanceId}/${element.id}`;
-  return {
-    resolvedId,
-    provenance: {
-      kind: "customExpansion",
-      ownerInstanceId,
-      definitionNodeId: element.id,
-    },
-    element,
-  };
-}
-
-/**
- * Construct an empty resolved render tree.
- */
-export function makeEmptyResolvedRenderTree(): ResolvedRenderTree {
-  return {
-    elements: [],
-    pageElements: [],
-    totalNodeCount: 0,
-  };
-}
+// Re-export data types useful to layout/Typst consumers without reopening the
+// persisted union.
+export type {
+  FocalPoint,
+  TableSemantics,
+  TextContent,
+};

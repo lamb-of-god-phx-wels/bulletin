@@ -37,10 +37,6 @@ import {
   findDuplicateNodeId,
   checkNodeLimit,
   checkContainerDepth,
-  makeDirectResolvedNode,
-  makeRepeatResolvedNode,
-  makeCustomResolvedNode,
-  makeEmptyResolvedRenderTree,
   DOCUMENT_LIMITS,
   DOCUMENT_FIELD_CLASSIFICATIONS,
   ELEMENT_FIELD_CLASSIFICATIONS,
@@ -55,7 +51,6 @@ import type {
   TextElement,
   GridElement,
   StackElement,
-  CanvasElement,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -93,6 +88,14 @@ function loadSchemas(): ReadonlyMap<string, SchemaObject> {
 
 function loadFixture(name: string): unknown {
   return JSON.parse(readFileSync(resolve(FIXTURES_DIR, name), "utf-8"));
+}
+
+function atOrThrow<T>(values: readonly T[], index: number): T {
+  const value = values.at(index);
+  if (value === undefined) {
+    throw new Error(`Expected an item at index ${index}`);
+  }
+  return value;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +187,7 @@ describe("fromJson / toJson round-trip", () => {
     }
     expect(err).toBeDefined();
     expect(err!.errors.length).toBeGreaterThan(0);
-    expect(err!.errors[0].message).toBeTruthy();
+    expect(err!.errors[0]?.message).toBeTruthy();
   });
 });
 
@@ -242,6 +245,77 @@ describe("tree operations", () => {
     expect(ref!.location.kind).toBe("pageElementChild");
   });
 
+  it("traverses custom definitions in the global node namespace", () => {
+    expect(findById(doc, "customDef1")?.location.kind).toBe(
+      "customDefinition",
+    );
+    expect(findById(doc, "defChildTitle1")?.location.kind).toBe(
+      "customDefinitionElement",
+    );
+    expect(buildParentMap(doc).get("defChildTitle1")).toBe("customDef1");
+    expect(collectAllNodeIds(doc).has("defChildTitle1")).toBe(true);
+  });
+
+  it("traverses nested container descendants inside page-level content", () => {
+    const base = fromJson(loadFixture("minimal-bulletin.json"), catalog);
+    const pageGrid: GridElement = {
+      id: "pageGrid",
+      type: "grid",
+      name: "Page grid",
+      data: { rows: 1, columns: 1 },
+      children: [
+        {
+          id: "pageGridWrapper",
+          row: 0,
+          column: 0,
+          element: {
+            id: "pageGridText",
+            type: "text",
+            name: "Nested page text",
+            data: { content: { kind: "plain", text: "Footer" } },
+          },
+        },
+      ],
+    };
+    const doc: CbbDocument = {
+      ...base,
+      pageElements: [
+        {
+          id: "pagePlacement",
+          purpose: "footer",
+          target: { mode: "all" },
+          layer: "overlay",
+          region: "bottomMargin",
+          anchor: "bottomCenter",
+          x: "0in",
+          y: "0in",
+          width: "100%",
+          height: "auto",
+          zIndex: 0,
+          clipToRegion: true,
+          semantic: { mode: "artifact" },
+          element: pageGrid,
+        },
+      ],
+    };
+
+    expect(findById(doc, "pageGridWrapper")?.location.kind).toBe(
+      "gridWrapper"
+    );
+    expect(findById(doc, "pageGridText")?.location.kind).toBe("gridChild");
+    expect(buildParentMap(doc).get("pageGrid")).toBe("pagePlacement");
+    expect(buildParentMap(doc).get("pageGridWrapper")).toBe("pageGrid");
+    expect(buildParentMap(doc).get("pageGridText")).toBe("pageGridWrapper");
+    expect(collectAllNodeIds(doc)).toEqual(
+      expect.objectContaining(new Set([
+        "pagePlacement",
+        "pageGrid",
+        "pageGridWrapper",
+        "pageGridText",
+      ]))
+    );
+  });
+
   it("findById returns undefined for a nonexistent id", () => {
     const ref = findById(doc, "nonexistent_xyz");
     expect(ref).toBeUndefined();
@@ -290,6 +364,9 @@ describe("tree operations", () => {
     // Page elements
     expect(ids.has("pageFooter1")).toBe(true);
     expect(ids.has("footerText1")).toBe(true);
+    // Custom definitions share the same global namespace.
+    expect(ids.has("customDef1")).toBe(true);
+    expect(ids.has("defChildTitle1")).toBe(true);
   });
 
   it("countNodes returns a positive integer >= body element count", () => {
@@ -332,7 +409,7 @@ describe("insertElement", () => {
       data: { content: { kind: "plain", text: "Hello" } },
     };
     const next = insertElement(doc, newEl, 0);
-    expect(next.elements[0].id).toBe("newText");
+    expect(atOrThrow(next.elements, 0).id).toBe("newText");
   });
 
   it("inserts at end when index > length", () => {
@@ -345,7 +422,7 @@ describe("insertElement", () => {
       data: { content: { kind: "plain", text: "World" } },
     };
     const next = insertElement(doc, newEl, 999);
-    expect(next.elements[next.elements.length - 1].id).toBe("newText2");
+    expect(atOrThrow(next.elements, -1).id).toBe("newText2");
   });
 
   it("does not mutate the original document", () => {
@@ -371,6 +448,18 @@ describe("insertElement", () => {
       name: "Collision",
       data: { content: { kind: "plain", text: "x" } },
     };
+    expect(() => insertElement(doc, colliding, 0)).toThrow(/collision/i);
+  });
+
+  it("rejects an insertion colliding with a custom-definition node", () => {
+    const doc = fromJson(loadFixture("full-featured-bulletin.json"), catalog);
+    const colliding: TextElement = {
+      id: "defChildTitle1",
+      type: "text",
+      name: "Definition collision",
+      data: { content: { kind: "plain", text: "x" } },
+    };
+
     expect(() => insertElement(doc, colliding, 0)).toThrow(/collision/i);
   });
 });
@@ -405,12 +494,12 @@ describe("moveElement", () => {
   it("moves an element from index 0 to index 1", () => {
     const raw = loadFixture("full-featured-bulletin.json");
     const doc = fromJson(raw, catalog);
-    const firstId = doc.elements[0].id;
-    const secondId = doc.elements[1].id;
+    const firstId = atOrThrow(doc.elements, 0).id;
+    const secondId = atOrThrow(doc.elements, 1).id;
 
     const next = moveElement(doc, 0, 1);
-    expect(next.elements[0].id).toBe(secondId);
-    expect(next.elements[1].id).toBe(firstId);
+    expect(atOrThrow(next.elements, 0).id).toBe(secondId);
+    expect(atOrThrow(next.elements, 1).id).toBe(firstId);
   });
 
   it("is a no-op when fromIndex === toIndex", () => {
@@ -425,13 +514,13 @@ describe("moveElement", () => {
     const raw = loadFixture("full-featured-bulletin.json");
     const doc = fromJson(raw, catalog);
     const len = doc.elements.length;
-    const lastId = doc.elements[len - 1].id;
+    const lastId = atOrThrow(doc.elements, -1).id;
     // Moving index 0 to 9999 should land it at the end
     const next = moveElement(doc, 0, 9999);
-    expect(next.elements[next.elements.length - 1].id).toBe(doc.elements[0].id);
+    expect(atOrThrow(next.elements, -1).id).toBe(atOrThrow(doc.elements, 0).id);
     expect(next.elements.length).toBe(len);
     // Original last element moves to index len-2
-    expect(next.elements[len - 2].id).toBe(lastId);
+    expect(atOrThrow(next.elements, len - 2).id).toBe(lastId);
   });
 });
 
@@ -493,14 +582,55 @@ describe("remintIds", () => {
 
     // Grid root must have a new id (old id was in existingIds)
     expect(reminted.id).not.toBe(gridEl.id);
+    expect(reminted.id).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
     // Wrappers must also have new ids
-    for (let i = 0; i < reminted.children.length; i++) {
-      expect(reminted.children[i].id).not.toBe(gridEl.children[i].id);
+    for (const [i, remintedChild] of reminted.children.entries()) {
+      const originalChild = atOrThrow(gridEl.children, i);
+
+      expect(remintedChild.id).not.toBe(originalChild.id);
+      expect(remintedChild.id).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
       // Child elements must have new ids too
-      expect(reminted.children[i].element.id).not.toBe(
-        gridEl.children[i].element.id
-      );
+      expect(remintedChild.element.id).not.toBe(originalChild.element.id);
+      expect(remintedChild.element.id).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
     }
+
+    const remintedTree: CbbDocument = {
+      ...doc,
+      elements: [reminted],
+      pageElements: [],
+    };
+    const remintedIds = collectAllNodeIds(remintedTree);
+    expect(remintedIds.size).toBe(countNodes(remintedTree));
+  });
+
+  it("retries a UUID collision without discarding UUID entropy", () => {
+    const firstUuid = "00000000-0000-4000-8000-000000000001";
+    const secondUuid = "00000000-0000-4000-8000-000000000002";
+    const firstNodeId = `n${firstUuid.replace(/-/g, "")}`;
+    const secondNodeId = `n${secondUuid.replace(/-/g, "")}`;
+    const uuids = [firstUuid, secondUuid];
+    let callCount = 0;
+    const idPort = {
+      randomUuid(): string {
+        const uuid = uuids[callCount];
+        callCount++;
+        if (uuid === undefined) throw new Error("ID port sequence exhausted");
+        return uuid;
+      },
+    };
+    const textEl: TextElement = {
+      id: "sourceId",
+      type: "text",
+      name: "Source",
+      data: { content: { kind: "plain", text: "x" } },
+    };
+
+    const reminted = remintIds(textEl, new Set([firstNodeId]), idPort, true);
+
+    expect(reminted.id).toBe(secondNodeId);
+    expect(reminted.id).toHaveLength(33);
+    expect(reminted.id).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
+    expect(callCount).toBe(2);
   });
 
   it("preserves non-id element data after reminting", () => {
@@ -517,9 +647,6 @@ describe("remintIds", () => {
   });
 
   it("forceRemint=true generates new ids for every node regardless of collision", () => {
-    const raw = loadFixture("minimal-bulletin.json");
-    const doc = fromJson(raw, catalog);
-
     const textEl: TextElement = {
       id: "absolutelyUniqueId",
       type: "text",
@@ -562,7 +689,7 @@ describe("field classification exhaustiveness", () => {
     );
 
     expect(report.unclassified).toHaveLength(0);
-    expect(report.classified.sort()).toEqual([...docProperties].sort());
+    expect([...report.classified].sort()).toEqual([...docProperties].sort());
   });
 
   it("ELEMENT_FIELD_CLASSIFICATIONS covers all base element fields", () => {
@@ -594,6 +721,8 @@ describe("field classification exhaustiveness", () => {
     expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "authoringPolicy")).toBe("inert");
     expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "orphanedFieldValues")).toBe("inert");
     expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "contentRules")).toBe("renderAffecting");
+    expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "name")).toBe("renderAffecting");
+    expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "metadata")).toBe("renderAffecting");
     expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "publicationContexts")).toBe("readinessOnly");
     expect(catalog2.classificationFor(DOCUMENT_CLASSIFICATION_SCHEMA_ID, "rightsPolicy")).toBe("readinessOnly");
   });
@@ -658,31 +787,75 @@ describe("node count limits", () => {
     expect(checkContainerDepth(doc)).toEqual({ ok: true });
   });
 
-  it("insertElement throws when adding a subtree would exceed the cap", () => {
-    // Build a document that is exactly at the cap by constructing a big element array
-    const raw = loadFixture("minimal-bulletin.json");
-    const doc = fromJson(raw, catalog);
-
-    // Build a doc with close-to-cap elements by creating many simple text elements
-    let bigDoc = doc;
-    for (let i = 0; i < DOCUMENT_LIMITS.PERSISTED_VISUAL_NODES_CAP; i++) {
-      bigDoc = {
-        ...bigDoc,
-        elements: [
-          ...bigDoc.elements,
-          {
-            id: `autoEl${i}`,
-            type: "text",
-            name: `Auto ${i}`,
-            data: { content: { kind: "plain", text: `Text ${i}` } },
-          } as NativeElement,
+  it("checkContainerDepth includes page-level container trees", () => {
+    const base = fromJson(loadFixture("minimal-bulletin.json"), catalog);
+    let nested: NativeElement = {
+      id: "pageLeaf",
+      type: "text",
+      name: "Leaf",
+      data: { content: { kind: "plain", text: "x" } },
+    };
+    for (let depth = 0; depth <= DOCUMENT_LIMITS.CONTAINER_NESTING_DEPTH_CAP; depth++) {
+      nested = {
+        id: `pageStack${depth}`,
+        type: "stack",
+        name: `Stack ${depth}`,
+        data: { direction: "vertical", gap: "0pt" },
+        children: [
+          { id: `pageStackWrap${depth}`, index: 0, element: nested },
         ],
       };
     }
+    const doc: CbbDocument = {
+      ...base,
+      pageElements: [
+        {
+          id: "deepPagePlacement",
+          purpose: "footer",
+          target: { mode: "all" },
+          layer: "overlay",
+          region: "bottomMargin",
+          anchor: "bottomCenter",
+          x: "0in",
+          y: "0in",
+          width: "100%",
+          height: "auto",
+          zIndex: 0,
+          clipToRegion: true,
+          semantic: { mode: "artifact" },
+          element: nested,
+        },
+      ],
+    };
 
-    // Now bigDoc has > cap elements; checkNodeLimit should fail
-    const limitResult = checkNodeLimit(bigDoc);
-    expect(limitResult.ok).toBe(false);
+    expect(checkContainerDepth(doc)).toEqual({
+      ok: false,
+      depth: DOCUMENT_LIMITS.CONTAINER_NESTING_DEPTH_CAP + 1,
+      limit: DOCUMENT_LIMITS.CONTAINER_NESTING_DEPTH_CAP,
+    });
+  });
+
+  it("insertElement throws when adding a subtree would exceed the cap", () => {
+    const raw = loadFixture("minimal-bulletin.json");
+    const doc = fromJson(raw, catalog);
+    const nodesToAdd =
+      DOCUMENT_LIMITS.PERSISTED_VISUAL_NODES_CAP - countNodes(doc);
+    const generatedElements: NativeElement[] = Array.from(
+      { length: nodesToAdd },
+      (_, i): TextElement => ({
+        id: `autoEl${i}`,
+        type: "text",
+        name: `Auto ${i}`,
+        data: { content: { kind: "plain", text: `Text ${i}` } },
+      })
+    );
+    const atLimit: CbbDocument = {
+      ...doc,
+      elements: [...doc.elements, ...generatedElements],
+    };
+
+    expect(countNodes(atLimit)).toBe(DOCUMENT_LIMITS.PERSISTED_VISUAL_NODES_CAP);
+    expect(checkNodeLimit(atLimit)).toEqual({ ok: true });
 
     // insertElement must also throw
     const extraEl: TextElement = {
@@ -692,7 +865,7 @@ describe("node count limits", () => {
       data: { content: { kind: "plain", text: "x" } },
     };
 
-    expect(() => insertElement(bigDoc, extraEl, 0)).toThrow(/cap/i);
+    expect(() => insertElement(atLimit, extraEl, 0)).toThrow(/cap/i);
   });
 });
 
@@ -727,68 +900,17 @@ describe("container depth limits", () => {
 
     expect(maxContainerDepth([grid])).toBe(2);
   });
-});
 
-// ---------------------------------------------------------------------------
-// 7. Downstream contract type constructors
-// ---------------------------------------------------------------------------
-
-describe("resolved type constructors", () => {
-  it("makeDirectResolvedNode produces correct resolvedId and provenance", () => {
-    const el: TextElement = {
-      id: "testEl",
-      type: "text",
-      name: "T",
-      data: { content: { kind: "plain", text: "hi" } },
+  it("counts an empty container as one container level", () => {
+    const emptyGrid: GridElement = {
+      id: "emptyGrid",
+      type: "grid",
+      name: "Empty grid",
+      data: { rows: 1, columns: 1 },
+      children: [],
     };
-    const node = makeDirectResolvedNode(el);
-    expect(node.resolvedId).toBe("testEl");
-    expect(node.provenance.kind).toBe("direct");
-    if (node.provenance.kind === "direct") {
-      expect(node.provenance.sourceElementId).toBe("testEl");
-    }
-    expect(node.element).toBe(el);
-  });
 
-  it("makeRepeatResolvedNode produces composite resolvedId", () => {
-    const el: TextElement = {
-      id: "proto1",
-      type: "text",
-      name: "P",
-      data: { content: { kind: "plain", text: "x" } },
-    };
-    const node = makeRepeatResolvedNode("ruleA", "uuid-1", 0, el);
-    expect(node.resolvedId).toBe("ruleA/uuid-1/proto1");
-    expect(node.provenance.kind).toBe("repeatExpansion");
-    if (node.provenance.kind === "repeatExpansion") {
-      expect(node.provenance.ruleId).toBe("ruleA");
-      expect(node.provenance.itemId).toBe("uuid-1");
-      expect(node.provenance.itemIndex).toBe(0);
-      expect(node.provenance.sourceElementId).toBe("proto1");
-    }
-  });
-
-  it("makeCustomResolvedNode produces composite resolvedId", () => {
-    const el: TextElement = {
-      id: "defEl1",
-      type: "text",
-      name: "D",
-      data: { content: { kind: "plain", text: "y" } },
-    };
-    const node = makeCustomResolvedNode("ownerInst1", el);
-    expect(node.resolvedId).toBe("ownerInst1/defEl1");
-    expect(node.provenance.kind).toBe("customExpansion");
-    if (node.provenance.kind === "customExpansion") {
-      expect(node.provenance.ownerInstanceId).toBe("ownerInst1");
-      expect(node.provenance.definitionNodeId).toBe("defEl1");
-    }
-  });
-
-  it("makeEmptyResolvedRenderTree produces empty tree", () => {
-    const tree = makeEmptyResolvedRenderTree();
-    expect(tree.elements).toHaveLength(0);
-    expect(tree.pageElements).toHaveLength(0);
-    expect(tree.totalNodeCount).toBe(0);
+    expect(maxContainerDepth([emptyGrid])).toBe(1);
   });
 });
 

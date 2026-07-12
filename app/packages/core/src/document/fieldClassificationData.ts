@@ -57,21 +57,22 @@ export const DOCUMENT_FIELD_CLASSIFICATIONS: readonly FieldClassificationEntry[]
     },
     {
       path: "name",
-      classification: "inert",
+      classification: "renderAffecting",
       reason:
-        "User-facing document label; appears in build artifact filenames but " +
-        "does not change PDF bytes.",
+        "User-facing document label is also the machine-readable PDF-title " +
+        "fallback when metadata.title is absent. With an explicit title it " +
+        "affects filenames/display only; finer-grained projection separates that case.",
     },
 
     // --- Metadata ---
     {
       path: "metadata",
-      classification: "readinessOnly",
+      classification: "renderAffecting",
       reason:
-        "publicationDate / serviceLabel affect field-review readiness and the " +
-        "duplicate-date warning, but do not change rendered PDF bytes. The " +
-        "publication date that affects rendering is the resolved field value " +
-        "behind the binding, not the metadata mirror.",
+        "title is emitted as machine-readable PDF metadata and language controls " +
+        "Typst text language, hyphenation, and tagged output. publicationDate / " +
+        "serviceLabel remain readiness-only metadata mirrors; finer-grained " +
+        "projection excludes them from render identity.",
     },
 
     // --- Page setup ---

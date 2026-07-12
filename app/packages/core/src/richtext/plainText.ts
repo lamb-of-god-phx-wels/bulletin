@@ -115,14 +115,16 @@ function renderScripture(
   block: ScriptureBlock,
   formatting: ScriptureFormatting,
 ): string {
+  const reference = block.reference ?? "";
+  const translationLabel = block.translationLabel ?? "";
   const refLabel =
     formatting.translationLabelPlacement === "withReference"
-      ? `${block.reference} (${block.translationLabel})`
-      : block.reference;
+      ? `${reference} (${translationLabel})`
+      : reference;
 
   const translationLine =
     formatting.translationLabelPlacement === "afterPassage"
-      ? `(${block.translationLabel})`
+      ? `(${translationLabel})`
       : null;
 
   const passageLines: string[] = [];

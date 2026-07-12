@@ -9,6 +9,17 @@ export const CORE_PACKAGE_NAME = "@cbb/core" as const;
 
 export * from "./canonical/index.js";
 export * from "./geometry/index.js";
+// The persisted document model has page-setup types with the same names as
+// geometry's parsed exact-arithmetic types. Preserve the established geometry
+// names at the package root and expose the document shapes under clear aliases.
+export type {
+  BookletPrintSetup,
+  FinalPageCountRequirement,
+} from "./geometry/index.js";
+export type {
+  BookletPrintSetup as DocumentBookletPrintSetup,
+  FinalPageCountRequirement as DocumentFinalPageCountRequirement,
+} from "./document/index.js";
 
 // Schema module: catalog loader, migration engine, field classification,
 // and semantic validation registry.
@@ -63,3 +74,10 @@ export type {
 // In-memory document model, tree operations, resolved/render types,
 // parse/serialize, and field classification data.
 export * from "./document/index.js";
+
+// Deterministic document pipeline: resolution/projection, hash identities,
+// shared pagination semantics, and safe Typst emission.
+export * from "./resolve/index.js";
+export * from "./hashes/index.js";
+export * from "./layout/index.js";
+export * from "./typstgen/index.js";

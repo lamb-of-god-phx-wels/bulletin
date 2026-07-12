@@ -8,6 +8,8 @@
  * Runtime-agnostic — no Node.js or browser globals used here.
  */
 
+import type { RightsRecord } from "../document/types.js";
+
 // ---------------------------------------------------------------------------
 // Inline marks
 // ---------------------------------------------------------------------------
@@ -70,7 +72,7 @@ export interface ScriptureVerse {
    * honour `paragraphPolicy: "publisher"`.
    */
   readonly paragraphStart: boolean;
-  /** Inline children — non-empty per spec ("ordered nonempty"). */
+  /** Ordered inline children; an empty verse body is schema-valid while editing. */
   readonly children: readonly InlineNode[];
 }
 
@@ -79,7 +81,8 @@ export interface ScriptureVerse {
  * Children follow the shared inline model.
  */
 export interface ScriptureParagraph {
-  /** Inline children — non-empty per spec ("ordered nonempty paragraphs"). */
+  readonly type: "paragraph";
+  /** Ordered inline children; an empty paragraph body is schema-valid while editing. */
   readonly children: readonly InlineNode[];
 }
 
@@ -96,7 +99,7 @@ export interface ScriptureParagraph {
  *   paragraphPolicy:           "publisher"
  *   paragraphSpacing:          "6pt"
  *   translationLabelPlacement: "withReference"
- *   typographyPreset:          absent (inherit surrounding resolved body style)
+ *   typographyPresetSnapshot:  absent (inherit surrounding resolved body style)
  */
 export interface ScriptureFormatting {
   readonly referencePlacement: "before" | "after";
@@ -109,12 +112,12 @@ export interface ScriptureFormatting {
     | "afterPassage"
     | "hidden";
   /** Optional named typography-preset snapshot. */
-  readonly typographyPreset?: string;
+  readonly typographyPresetSnapshot?: Readonly<Record<string, unknown>>;
 }
 
 /** v1 defaults for `ScriptureFormatting` when fields are absent. */
 export const SCRIPTURE_FORMATTING_DEFAULTS: Readonly<
-  Required<Omit<ScriptureFormatting, "typographyPreset">>
+  Required<Omit<ScriptureFormatting, "typographyPresetSnapshot">>
 > = {
   referencePlacement: "before",
   verseNumberStyle: "superscript",
@@ -134,21 +137,13 @@ export interface ScriptureSourceCatalog {
   /** SHA-256 hex digest of the catalog entry at `catalogRevision`. */
   readonly revisionHash: string;
   /** Copied display label from the catalog record. */
-  readonly displayLabel: string;
+  readonly displayLabel?: string;
   /** Copied source label from the catalog record. */
-  readonly sourceLabel: string;
+  readonly sourceLabel?: string;
 }
 
-/** One `scriptureTranslation` rights record. */
-export interface ScriptureTranslationRecord {
-  /**
-   * "known" for verified catalog entries; "unknown" for manually pasted
-   * passages without a verified policy.
-   */
-  readonly kind: "known" | "unknown";
-  readonly translationId: string;
-  readonly translationLabel: string;
-}
+/** @deprecated Scripture rights use the shared persisted RightsRecord shape. */
+export type ScriptureTranslationRecord = RightsRecord;
 
 /** Disposition of a block import review. */
 export type ImportReviewDisposition = "changesConfirmed";
@@ -167,13 +162,18 @@ export interface ScriptureImportReview {
   readonly reviewTime: string;
 }
 
-/** Discriminated import snapshot — `paste` arm. */
-export interface PasteImportSnapshot {
-  readonly sourceKind: "paste";
-  /** `verseStructured` or `paragraphOnly` — must match the block's `structureKind`. */
-  readonly structureKind: "verseStructured" | "paragraphOnly";
+export interface ScriptureVerseBoundary {
+  readonly verseId: string;
+  readonly label: string;
+}
+
+export interface ScriptureParagraphBoundary {
+  readonly paragraphIndex: number;
+  readonly content?: string;
+}
+
+interface ImportSnapshotCommon {
   readonly displayReference: string;
-  readonly canonicalReference?: string;
   readonly translationId: string;
   readonly translationLabel: string;
   /** Normalizer/importer identifier. */
@@ -190,40 +190,61 @@ export interface PasteImportSnapshot {
    * source evidence captured at import.
    */
   readonly rightsProjectionHash: string;
-  /** Optional user-supplied source label (inert). */
-  readonly sourceLabel?: string;
-  /** Optional validated canonical HTTPS source URL (inert, explicitly unverified). */
-  readonly sourceUrl?: string;
-}
-
-/** Discriminated import snapshot — `provider` arm. */
-export interface ProviderImportSnapshot {
-  readonly sourceKind: "provider";
-  readonly structureKind: "verseStructured" | "paragraphOnly";
-  readonly displayReference: string;
-  readonly canonicalReference?: string;
-  readonly translationId: string;
-  readonly translationLabel: string;
-  readonly normalizerId: string;
-  readonly normalizerVersion: string;
-  readonly sourceText: string;
-  readonly sourceTextHash: string;
-  readonly importedFidelityHash: string;
-  readonly rightsProjectionHash: string;
-  readonly providerId: string;
-  readonly adapterId: string;
-  readonly adapterVersion: string;
-  readonly requestedReference: string;
-  readonly requestedTranslation: string;
-  /** ISO-8601 retrieval timestamp. */
-  readonly retrievalTime: string;
+  readonly verseBoundaries?: readonly ScriptureVerseBoundary[];
+  readonly paragraphBoundaries?: readonly ScriptureParagraphBoundary[];
   /** Optional validated canonical HTTPS source URL (never auto-fetched). */
   readonly sourceUrl?: string;
 }
 
+interface VerseStructuredImportFields {
+  readonly structureKind: "verseStructured";
+  readonly canonicalReference: string;
+  readonly verseBoundaries: readonly ScriptureVerseBoundary[];
+  readonly paragraphBoundaries?: readonly ScriptureParagraphBoundary[];
+}
+
+interface ParagraphOnlyImportFields {
+  readonly structureKind: "paragraphOnly";
+  readonly canonicalReference?: string;
+  readonly paragraphBoundaries: readonly ScriptureParagraphBoundary[];
+  readonly verseBoundaries?: readonly ScriptureVerseBoundary[];
+}
+
+type ImportStructureFields =
+  | VerseStructuredImportFields
+  | ParagraphOnlyImportFields;
+
+/** Discriminated import snapshot — `paste` arm. */
+export type PasteImportSnapshot = ImportSnapshotCommon & ImportStructureFields & {
+  readonly sourceKind: "paste";
+  /** Optional user-supplied source label (inert). */
+  readonly sourceLabel?: string;
+};
+
+/** Discriminated import snapshot — `provider` arm. */
+export type ProviderImportSnapshot = ImportSnapshotCommon & ImportStructureFields & {
+  readonly sourceKind: "provider";
+  readonly providerId: string;
+  readonly adapterId: string;
+  readonly adapterVersion: string;
+  readonly requestedReference: string;
+  readonly requestedTranslationId: string;
+  /** ISO-8601 retrieval timestamp. */
+  readonly retrievalTime: string;
+};
+
 export type ScriptureImportSnapshot =
   | PasteImportSnapshot
   | ProviderImportSnapshot;
+
+export type VerseStructuredImportSnapshot = Extract<
+  ScriptureImportSnapshot,
+  { readonly structureKind: "verseStructured" }
+>;
+export type ParagraphOnlyImportSnapshot = Extract<
+  ScriptureImportSnapshot,
+  { readonly structureKind: "paragraphOnly" }
+>;
 
 /**
  * `verseStructured` scripture block.
@@ -248,7 +269,7 @@ export interface VerseStructuredScriptureBlock {
   readonly verses: readonly ScriptureVerse[];
   /** If absent, uses the document-level `scripturePresentation`. */
   readonly formattingOverride?: ScriptureFormatting;
-  readonly importSnapshot?: ScriptureImportSnapshot;
+  readonly importSnapshot?: VerseStructuredImportSnapshot;
   /** At least one `scriptureTranslation` record required. */
   readonly rights: readonly ScriptureTranslationRecord[];
   readonly importReview?: ScriptureImportReview;
@@ -266,15 +287,15 @@ export interface ParagraphOnlyScriptureBlock {
    * Spec: "paragraphOnly without import evidence may retain an empty legacy/
    * incomplete draft reference".
    */
-  readonly reference: string;
+  readonly reference?: string;
   readonly canonicalReference?: string;
   readonly translationId: string;
-  readonly translationLabel: string;
+  readonly translationLabel?: string;
   readonly sourceCatalog?: ScriptureSourceCatalog;
   /** Ordered non-empty paragraphs. */
   readonly paragraphs: readonly ScriptureParagraph[];
   readonly formattingOverride?: ScriptureFormatting;
-  readonly importSnapshot?: ScriptureImportSnapshot;
+  readonly importSnapshot?: ParagraphOnlyImportSnapshot;
   readonly rights: readonly ScriptureTranslationRecord[];
   readonly importReview?: ScriptureImportReview;
 }

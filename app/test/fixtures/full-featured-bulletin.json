@@ -172,7 +172,7 @@
       "itemBindings": [
         {
           "id": "hymnNumBinding",
-          "itemPath": "/0",
+          "itemPath": "",
           "targetNodeId": "hymnPrototype1",
           "target": "/data/content/text"
         }
@@ -281,6 +281,12 @@
             "label": "Sermon Title",
             "type": "text",
             "required": true
+          },
+          {
+            "id": "showTitle",
+            "label": "Show Title",
+            "type": "boolean",
+            "required": true
           }
         ]
       },
@@ -303,7 +309,7 @@
           "id": "ruleDefLocal1",
           "targetNodeId": "defChildTitle1",
           "scope": "document",
-          "fieldId": "sermonTitle",
+          "fieldId": "showTitle",
           "condition": {
             "kind": "booleanEquals",
             "value": true
@@ -315,6 +321,10 @@
       "sampleFieldValues": {
         "sermonTitle": {
           "value": "The Good Shepherd",
+          "origin": "manual"
+        },
+        "showTitle": {
+          "value": true,
           "origin": "manual"
         }
       }
@@ -353,7 +363,7 @@
       "name": "Bulletin Title",
       "width": "100%",
       "height": "auto",
-      "breakPolicy": "avoid",
+      "breakPolicy": "auto",
       "margin": "0.25in",
       "padding": "0in",
       "style": {
@@ -370,7 +380,7 @@
           {
             "id": "titleText",
             "label": "Title",
-            "type": "richText",
+            "type": "text",
             "required": true
           }
         ]
@@ -391,19 +401,8 @@
       ],
       "data": {
         "content": {
-          "kind": "richText",
-          "document": {
-            "type": "document",
-            "blocks": [
-              {
-                "type": "heading",
-                "level": 1,
-                "children": [
-                  { "type": "text", "text": "Sunday Worship", "marks": [] }
-                ]
-              }
-            ]
-          }
+          "kind": "plain",
+          "text": "Sunday Worship"
         }
       }
     },
@@ -425,6 +424,33 @@
       "name": "Opening Hymn",
       "width": "100%",
       "height": "auto",
+      "fieldContract": {
+        "id": "eeee4444-eeee-4eee-8eee-eeee44444444",
+        "version": 1,
+        "name": "Opening Hymn Fields",
+        "fields": [
+          {
+            "id": "hymnTitle",
+            "label": "Hymn Title",
+            "type": "text",
+            "required": true
+          }
+        ]
+      },
+      "fieldValues": {
+        "hymnTitle": {
+          "value": "What a Friend We Have in Jesus",
+          "origin": "manual"
+        }
+      },
+      "bindings": [
+        {
+          "id": "hymnTitleBinding",
+          "scope": "local",
+          "fieldId": "hymnTitle",
+          "target": "/data/title"
+        }
+      ],
       "data": {
         "number": "370",
         "title": "What a Friend We Have in Jesus",
@@ -595,8 +621,8 @@
                 },
                 "rights": [
                   {
-                    "creditKey": "credit:44444444-4444-4444-8444-444444444444",
-                    "creditProjectionHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                    "creditKey": "credit:33333333-3333-4333-8333-333333333333",
+                    "creditProjectionHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
                     "component": "scriptureTranslation",
                     "status": "copyrighted",
                     "workTitle": "New International Version",
@@ -753,12 +779,16 @@
       "type": "customInstance",
       "name": "Children's Sermon Block",
       "definitionId": "customDef1",
-      "definitionHash": "sha256:4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb",
+      "definitionHash": "sha256:e236446aa77d53b7582a11b2ac6bd4ec2c398002f8664050447b82afd9c86f02",
       "width": "100%",
-      "breakPolicy": "avoid",
+      "breakPolicy": "auto",
       "fieldValues": {
         "sermonTitle": {
           "value": "The Good Shepherd",
+          "origin": "manual"
+        },
+        "showTitle": {
+          "value": true,
           "origin": "manual"
         }
       }

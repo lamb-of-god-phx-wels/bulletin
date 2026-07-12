@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160" role="img" aria-label="Lamb of God demo mark">
+  <rect width="320" height="160" rx="20" fill="#f4efe7"/>
+  <circle cx="80" cy="80" r="47" fill="#ffffff" stroke="#4b382f" stroke-width="8"/>
+  <path d="M62 82c0-20 13-34 31-34 18 0 31 14 31 34 0 18-11 31-27 34v13H76v-14c-9-4-14-11-14-20z" fill="#d7b56d"/>
+  <circle cx="101" cy="73" r="4" fill="#251d18"/>
+  <path d="M130 37v86M108 59h44" fill="none" stroke="#8b2f2f" stroke-linecap="round" stroke-width="10"/>
+  <path d="M178 53h104M178 80h82M178 107h104" fill="none" stroke="#4b382f" stroke-linecap="round" stroke-width="12"/>
+</svg>

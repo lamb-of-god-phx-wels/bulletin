@@ -356,7 +356,14 @@ describe("normalize — scripture block normalization", () => {
           ],
         },
       ],
-      rights: [{ kind: "known", translationId: "translation:abc", translationLabel: "NIV" }],
+      rights: [{
+        creditKey: "credit:abc",
+        creditProjectionHash: "sha256:test",
+        component: "scriptureTranslation",
+        status: "copyrighted",
+        contributors: [],
+        creditRequiredWhen: "never",
+      }],
     });
     const result = normalize(d);
     const sb = result.blocks[0] as VerseStructuredScriptureBlock;
@@ -375,9 +382,16 @@ describe("normalize — scripture block normalization", () => {
       translationId: "translation:abc",
       translationLabel: "NIV",
       paragraphs: [
-        { children: [text(""), text("verse text")] },
+        { type: "paragraph", children: [text(""), text("verse text")] },
       ],
-      rights: [{ kind: "known", translationId: "translation:abc", translationLabel: "NIV" }],
+      rights: [{
+        creditKey: "credit:abc",
+        creditProjectionHash: "sha256:test",
+        component: "scriptureTranslation",
+        status: "copyrighted",
+        contributors: [],
+        creditRequiredWhen: "never",
+      }],
     });
     const result = normalize(d);
     const sb = result.blocks[0];
@@ -517,7 +531,14 @@ describe("plainText — scripture", () => {
         children: [text("For God so loved the world")],
       },
     ],
-    rights: [{ kind: "known", translationId: "translation:abc", translationLabel: "NIV" }],
+    rights: [{
+      creditKey: "credit:abc",
+      creditProjectionHash: "sha256:test",
+      component: "scriptureTranslation",
+      status: "copyrighted",
+      contributors: [],
+      creditRequiredWhen: "never",
+    }],
   };
 
   it("emits reference before passage by default", () => {
@@ -586,10 +607,17 @@ describe("plainText — scripture", () => {
       translationId: "translation:xyz",
       translationLabel: "ESV",
       paragraphs: [
-        { children: [text("The Lord is my shepherd.")] },
-        { children: [text("I shall not want.")] },
+        { type: "paragraph", children: [text("The Lord is my shepherd.")] },
+        { type: "paragraph", children: [text("I shall not want.")] },
       ],
-      rights: [{ kind: "known", translationId: "translation:xyz", translationLabel: "ESV" }],
+      rights: [{
+        creditKey: "credit:xyz",
+        creditProjectionHash: "sha256:test",
+        component: "scriptureTranslation",
+        status: "copyrighted",
+        contributors: [],
+        creditRequiredWhen: "never",
+      }],
     });
     const result = plainText(d);
     expect(result).toContain("The Lord is my shepherd.");

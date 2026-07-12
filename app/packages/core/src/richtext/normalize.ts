@@ -165,7 +165,7 @@ function normalizeScriptureVerseInlines(
 function normalizeScriptureParagraphInlines(
   para: ScriptureParagraph,
 ): ScriptureParagraph {
-  return { children: normalizeInlines(para.children) };
+  return { type: "paragraph", children: normalizeInlines(para.children) };
 }
 
 function normalizeScripture(block: ScriptureBlock): ScriptureBlock {

@@ -579,11 +579,10 @@ export interface UsagePolicySnapshot {
   readonly providerRuleId: string;
   readonly providerRuleVersion: string;
   readonly applicablePublicationContexts: readonly PublicationContext[];
-  readonly constraints?: readonly UsagePolicyConstraint[];
+  readonly quotationConstraints?: readonly UsagePolicyConstraint[];
   readonly requiredPublicationDisclosureLine?: string;
   readonly policySourceHash: Sha256HashString;
-  readonly counterId: string;
-  readonly counterVersion: string;
+  readonly counterIdVersion: string;
 }
 
 export interface RightsRecord {
@@ -602,17 +601,22 @@ export interface RightsRecord {
   readonly workTitle?: string;
   readonly edition?: string;
   readonly arrangement?: string;
-  readonly tuneTitle?: string;
-  readonly contributors?: readonly RightsContributor[];
+  readonly tune?: string;
+  readonly translationIdentity?: string;
+  readonly contributors: readonly RightsContributor[];
   readonly copyrightYear?: number;
   readonly copyrightHolder?: string;
   readonly administrator?: string;
   readonly licenseProvider?: string;
-  readonly songCatalogId?: string;
+  readonly providerSongId?: string;
+  readonly providerCatalogId?: string;
+  readonly providerReportingId?: string;
   readonly creditRequiredWhen: "always" | "renderedText" | "never";
   readonly requiredCreditLine?: string;
   readonly publicationLicenseDisplay?: PublicationLicenseDisplay;
   readonly usagePolicySnapshot?: UsagePolicySnapshot;
+  readonly metadataSourceHash?: Sha256HashString;
+  readonly retrievalTime?: Rfc3339Timestamp;
 }
 
 export interface RightsAssociationReview {
@@ -804,23 +808,21 @@ export type PageTargetMode =
   | { readonly mode: "range"; readonly start: number; readonly end: number }
   | { readonly mode: "pages"; readonly pages: readonly number[] };
 
+/** Fields that belong to normal flow rather than page-placed content. */
+type FlowOnlyElementField = "width" | "height" | "margin" | "breakPolicy";
+
 /**
- * Page content element variant — no flow-only width/height/margin/breakPolicy.
+ * Distributively remove flow-only fields while retaining the native element's
+ * discriminated data/children shape. Page breaks and custom instances are not
+ * legal page-content roots in the v1 schema.
  */
-export interface PageContentElement {
-  readonly id: NodeId;
-  readonly type: string;
-  readonly name: string;
-  readonly padding?: SpacingLength;
-  readonly style?: StyleObject;
-  readonly authoringPolicy?: AuthoringPolicy;
-  readonly weeklyReview?: "everyBulletin" | "whenDuplicated" | "none";
-  readonly fieldContract?: FieldContract;
-  readonly fieldValues?: FieldValues;
-  readonly bindings?: readonly Binding[];
-  readonly data?: unknown;
-  readonly children?: unknown;
-}
+type AsPageContentElement<T> = T extends NativeElement
+  ? Omit<T, FlowOnlyElementField>
+  : never;
+
+export type PageContentElement = AsPageContentElement<
+  Exclude<NativeElement, PageBreakElement | CustomElementInstance>
+>;
 
 /**
  * Page-level placement wrapper. Lives in document.pageElements.

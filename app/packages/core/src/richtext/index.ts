@@ -32,8 +32,12 @@ export type {
   ScriptureSourceCatalog,
   ScriptureTranslationRecord,
   ScriptureImportSnapshot,
+  VerseStructuredImportSnapshot,
+  ParagraphOnlyImportSnapshot,
   PasteImportSnapshot,
   ProviderImportSnapshot,
+  ScriptureVerseBoundary,
+  ScriptureParagraphBoundary,
   ScriptureImportReview,
   ImportReviewDisposition,
   // Document root
@@ -44,6 +48,12 @@ export { MARK_ORDER, SCRIPTURE_FORMATTING_DEFAULTS } from "./types.js";
 
 // Normalization.
 export { normalize } from "./normalize.js";
+
+// Runtime guard for generic field values before they enter resolution.
+export {
+  isRichTextDocument,
+  MAX_RICH_TEXT_UNICODE_SCALARS,
+} from "./validate.js";
 
 // Plain-text derivation.
 export { plainText } from "./plainText.js";

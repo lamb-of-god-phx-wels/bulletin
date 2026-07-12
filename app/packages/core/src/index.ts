@@ -59,3 +59,7 @@ export type {
 // root to avoid the ambiguous-export conflict with schema/types.ts.
 // Import it directly:
 //   import type { DiagnosticSeverity } from "@cbb/core/src/diagnostics/index.js";
+
+// In-memory document model, tree operations, resolved/render types,
+// parse/serialize, and field classification data.
+export * from "./document/index.js";

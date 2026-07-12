@@ -23,3 +23,16 @@ The current `typst` branch contains **no application code** — it is in the spe
 - Normative language: `must` / `should` / `may` per the "Normative Language And Release Scope" section. Requirements default to `Required v1` unless labeled `Required, may be staged`, `Deferred`, or `Optional enhancement`.
 - Markdown is hard-wrapped at 80 columns.
 - When changing behavior in `spec.md`, check whether the affected element/document schemas in `schema/` need matching updates.
+
+
+## Implemenation Rules
+
+Utilize dynamic workflows as the planner, orchestrator, and reviewer while
+delegating all of the coding, fixes, changes, etc to Sonnet subagents. The
+subagents must produce code that is as good as you would produce (or better).
+They should demonstrate that the task they were assigned is implented/working as
+expected. I would like to see the demos as well via either screenshots or screen
+captures. Tests should be written with high quality and must prove the
+functionality and pass. Once all of this criteria is met, the code can be
+committed. If any of this criteria is not met, the subagent must fix the
+problems and resubmit for review with you until it meets the criteria.

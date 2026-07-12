@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Image Fit",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "imgEl1",
+      "type": "image",
+      "name": "Bad Image Element",
+      "data": {
+        "assetRef": "asset:44444444-4444-4444-8444-444444444444",
+        "fit": "stretch"
+      }
+    }
+  ]
+}

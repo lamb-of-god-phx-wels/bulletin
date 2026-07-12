@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/settings.schema.json",
+  "title": "CBB Settings",
+  "description": "Discriminated versioned application-global and workspace editor/export preferences; per-connection choices live only in their connection records.",
+  "$defs": {
+    "globalSettings": {
+      "description": "Application-global preferences.",
+      "type": "object",
+      "required": ["version", "kind"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "globalSettings" },
+        "theme": { "enum": ["light", "dark", "system"] },
+        "defaultLanguage": { "type": "string" },
+        "telemetryEnabled": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "workspaceSettings": {
+      "description": "Workspace-level editor and export preferences.",
+      "type": "object",
+      "required": ["version", "kind"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "workspaceSettings" },
+        "defaultExportFormat": { "enum": ["readerOrder", "bookletTwoUp"] },
+        "snapGridSize": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$"
+        },
+        "previewResolution": { "type": "integer", "minimum": 72 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

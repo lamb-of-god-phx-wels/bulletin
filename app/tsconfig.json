@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/services" },
+    { "path": "packages/workers" },
+    { "path": "packages/shell" },
+    { "path": "packages/ui" }
+  ]
+}

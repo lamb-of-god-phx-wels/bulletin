@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "kind": "brochure",
+  "name": "Invalid Kind Document",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": []
+}

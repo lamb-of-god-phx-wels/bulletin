@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/backup-manifest.schema.json",
+  "title": "CBB Backup Manifest",
+  "description": "Full-workspace backup/handoff contents, hashes, versions, exclusions, restore identity, and verification state.",
+  "type": "object",
+  "required": ["version", "kind", "backupId", "workspaceId", "createdAt", "entries", "hash"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "backupManifest" },
+    "backupId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "createdAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "appVersion": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "hash", "included"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "included": { "type": "boolean" },
+          "exclusionReason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "restoreIdentity": { "type": "string" },
+    "verificationState": { "enum": ["verified", "unverified", "failed"] }
+  },
+  "additionalProperties": false
+}

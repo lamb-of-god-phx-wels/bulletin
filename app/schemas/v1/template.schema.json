@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/template.schema.json",
+  "title": "CBB Template (compatibility wrapper)",
+  "description": "Legacy compatibility schema. document.schema.json is the authoritative root for portable bulletin and template JSON. This schema delegates entirely to document.schema.json with kind constrained to 'template'.",
+  "type": "object",
+  "allOf": [
+    { "$ref": "https://church-bulletin-builder.local/schema/v1/document.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "template" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}

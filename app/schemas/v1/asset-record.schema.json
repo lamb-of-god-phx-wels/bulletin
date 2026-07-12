@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/asset-record.schema.json",
+  "title": "CBB Asset Record",
+  "description": "Workspace-local asset metadata, binary revision, media details, sanitization state, and AI visibility.",
+  "type": "object",
+  "required": ["version", "kind", "localId", "portableAssetId", "mediaType", "canonicalHash", "byteSize", "importedAt"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "assetRecord" },
+    "localId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Workspace-local resource identifier."
+    },
+    "portableAssetId": {
+      "type": "string",
+      "pattern": "^asset:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Portable asset binary revision identifier."
+    },
+    "displayName": { "type": "string" },
+    "mediaType": { "type": "string", "minLength": 1, "description": "MIME type of the canonical binary." },
+    "canonicalHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "byteSize": { "type": "integer", "minimum": 0 },
+    "width": { "type": "integer", "minimum": 1, "description": "Pixel width for raster images." },
+    "height": { "type": "integer", "minimum": 1, "description": "Pixel height for raster images." },
+    "sanitizationState": { "enum": ["sanitized", "unsanitized", "failed"] },
+    "aiVisible": { "type": "boolean" },
+    "importedAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "sourceProvenancePath": { "type": "string", "description": "Relative path to inert source provenance when retained." }
+  },
+  "additionalProperties": false
+}

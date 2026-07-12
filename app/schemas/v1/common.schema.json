@@ -1,0 +1,715 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/common.schema.json",
+  "title": "CBB Common Primitives",
+  "description": "Shared ids, versions, lengths, colors, style primitives, hashes, timestamps, field contracts, bindings, and portable reference primitives used across all CBB schemas.",
+  "$defs": {
+    "nodeId": {
+      "description": "Stable document-global visual node identifier. Shared by element ids and container/page-placement wrapper ids.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "fieldId": {
+      "description": "Field identifier within a field contract. Same lexical pattern as nodeId but occupies a separate namespace.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "ruleId": {
+      "description": "Content-rule identifier (conditional/repeat). Same lexical pattern, separate namespace from nodeId and fieldId.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "contractId": {
+      "description": "Portable UUIDv4 identifying a field contract lineage.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "portableAssetId": {
+      "description": "Portable asset binary revision identifier in the form asset:<uuid>. Identifies an immutable asset binary, not a workspace-local resource.",
+      "type": "string",
+      "pattern": "^asset:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "portableFontId": {
+      "description": "Portable font family revision identifier in the form font:<uuid>.",
+      "type": "string",
+      "pattern": "^font:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "portableSongWorkId": {
+      "description": "Portable Song Library work reference in the form song:<uuid>.",
+      "type": "string",
+      "pattern": "^song:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "translationId": {
+      "description": "Portable Scripture translation identifier in the form translation:<uuid>.",
+      "type": "string",
+      "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "creditKey": {
+      "description": "Stable portable rights/credit lineage key in the form credit:<uuid>.",
+      "type": "string",
+      "pattern": "^credit:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "bundleId": {
+      "description": "Portable bundle identifier (UUIDv4 string).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "bundleEntryId": {
+      "description": "Identifier for one entry inside a portable bundle archive.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "packId": {
+      "description": "Stable resource pack identifier (UUIDv4 string).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "packContentId": {
+      "description": "Pack-scoped content identifier (stable string key within a pack).",
+      "type": "string",
+      "minLength": 1
+    },
+    "historySnapshotId": {
+      "description": "History snapshot identifier (UUIDv4).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "scheduleId": {
+      "description": "Church Profile schedule entry identifier.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "checklistItemId": {
+      "description": "Weekly checklist item identifier.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "backupId": {
+      "description": "Backup/handoff identifier (UUIDv4).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "aiExchangeId": {
+      "description": "AI exchange run identifier (UUIDv4).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "repeatItemId": {
+      "description": "Canonical UUIDv4 paired with an array item for a repeatable rule.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "bindingId": {
+      "description": "Document-unique binding identifier. Same lexical pattern as nodeId.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "contentRuleId": {
+      "description": "Unique content rule identifier matching the field-id lexical pattern.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "sha256Hash": {
+      "description": "SHA-256 hash in the form sha256:<64 lowercase hex characters>.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "isoDate": {
+      "description": "ISO 8601 calendar date string YYYY-MM-DD (proleptic Gregorian, no time zone). Years 0001-9999; year 0000 is not valid.",
+      "type": "string",
+      "pattern": "^(?:000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "rfc3339Timestamp": {
+      "description": "RFC 3339 UTC timestamp with Z suffix, e.g. 2026-07-05T14:30:00Z.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "physicalLength": {
+      "description": "Physical absolute length string: number followed by pt, in, cm, or mm. Preferred persisted form for page/margin/element size fields.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$"
+    },
+    "physicalOrRelativeLength": {
+      "description": "Physical absolute length (pt/in/cm/mm), em-relative length, or percentage.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em|%)$"
+    },
+    "trackLength": {
+      "description": "Grid/stack track length: physical (pt/in/cm/mm), %, fr, or auto. em is not allowed (spec.md:2138-2140).",
+      "oneOf": [
+        { "const": "auto" },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|%|fr)$" }
+      ]
+    },
+    "elementSize": {
+      "description": "Element width or height field: physical lengths (pt/in/cm/mm), %, auto, or legacy plain number (migration: interpreted as editor pixels). fr and em are not allowed (spec.md:2127-2130).",
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "const": "auto" },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|%)$" }
+      ]
+    },
+    "spacingLength": {
+      "description": "Spacing length for margins, padding, gaps, canvas x/y: physical lengths (pt/in/cm/mm) only, or legacy plain number. % and em are not allowed (spec.md:2131-2135).",
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$" }
+      ]
+    },
+    "canvasPosition": {
+      "description": "Canvas child x/y placement: nonnegative physical lengths (pt/in/cm/mm) or legacy number. % and em are not allowed (spec.md:2135).",
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$" }
+      ]
+    },
+    "pageElementSize": {
+      "description": "Page-level placement width/height: physical (pt/in/cm/mm), %, or auto. em is not allowed (spec.md:2141-2143).",
+      "oneOf": [
+        { "const": "auto" },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|%)$" }
+      ]
+    },
+    "colorValue": {
+      "description": "CSS hex color, e.g. #ffffff or #251d18. Also accepts 'transparent'.",
+      "type": "string",
+      "pattern": "^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|transparent)$"
+    },
+    "style": {
+      "description": "Visual style object for elements. All fields are optional; missing fields inherit or use spec defaults.",
+      "type": "object",
+      "properties": {
+        "fontRef": {
+          "$ref": "#/$defs/portableFontId",
+          "description": "Managed immutable font:<uuid> family revision."
+        },
+        "font": {
+          "type": "string",
+          "description": "Legacy family-name string; migration input only. fontRef is authoritative when both present."
+        },
+        "fontSize": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|em)$" }
+          ],
+          "description": "Text size. Default 11 (plain number). pt and em strings accepted."
+        },
+        "fontWeight": {
+          "enum": ["regular", "medium", "semibold", "bold"],
+          "description": "Font weight. Resolves to 400/500/600/700."
+        },
+        "fontStyle": {
+          "enum": ["normal", "italic"]
+        },
+        "color": {
+          "$ref": "#/$defs/colorValue",
+          "description": "Text color. Default #251d18."
+        },
+        "background": {
+          "$ref": "#/$defs/colorValue",
+          "description": "Box fill color. Default transparent. colorValue pattern already includes 'transparent'."
+        },
+        "borderColor": {
+          "$ref": "#/$defs/colorValue",
+          "description": "Stroke color. Default #d8cdbd."
+        },
+        "borderWidth": {
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm|em)$" }
+          ],
+          "description": "Stroke width. Default 0. pt, physical, or plain number."
+        },
+        "align": {
+          "enum": ["left", "center", "right", "justify"]
+        },
+        "verticalAlign": {
+          "enum": ["top", "center", "bottom"],
+          "description": "Aligns content only when resolved content box has excess height. Default top."
+        }
+      },
+      "additionalProperties": false
+    },
+    "authoringPolicy": {
+      "description": "Output-inert content/layout lock guidance. contentLocked and layoutLocked default false.",
+      "type": "object",
+      "properties": {
+        "contentLocked": { "type": "boolean" },
+        "layoutLocked": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "weeklyReview": {
+      "description": "Authoring hint for unbound content review. Affects stale-content review, not PDF bytes.",
+      "enum": ["everyBulletin", "whenDuplicated", "none"]
+    },
+    "breakPolicy": {
+      "description": "Flow fragmentation policy. auto = default; avoid = prefer not to break.",
+      "enum": ["auto", "avoid"]
+    },
+    "fieldType": {
+      "description": "Canonical field type for field contract definitions.",
+      "enum": [
+        "text", "richText", "date", "number", "boolean",
+        "choice", "assetRef", "array", "object"
+      ]
+    },
+    "semanticRole": {
+      "description": "v1 semantic roles: publicationDate on a date field, serviceLabel on text/choice.",
+      "enum": ["publicationDate", "serviceLabel"]
+    },
+    "rolloverPolicy": {
+      "description": "Rollover behavior for a field across bulletin creation from template.",
+      "enum": ["clear", "keep", "ask", "deriveConfirm"]
+    },
+    "reviewExpectation": {
+      "description": "Content review expectation for a field's carried value.",
+      "enum": ["everyBulletin", "whenCarried", "none"]
+    },
+    "weeklyBehavior": {
+      "description": "Rollover and review behavior for a field in the weekly creation workflow.",
+      "type": "object",
+      "required": ["rolloverPolicy", "reviewExpectation"],
+      "properties": {
+        "rolloverPolicy": { "$ref": "#/$defs/rolloverPolicy" },
+        "reviewExpectation": { "$ref": "#/$defs/reviewExpectation" },
+        "derivation": {
+          "description": "Required when rolloverPolicy is deriveConfirm and the field is a date field.",
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "nextScheduledServiceDate" },
+            "serviceLabelHint": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "fieldConstraints": {
+      "description": "Type-specific constraints on a field definition.",
+      "type": "object",
+      "properties": {
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "pattern": { "type": "string", "description": "RE2-compatible pattern without backreferences." },
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "choices": {
+          "type": "array",
+          "description": "Allowed choice entries for choice fields.",
+          "items": {
+            "type": "object",
+            "required": ["id", "label"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "minItems": { "type": "integer", "minimum": 0 },
+        "maxItems": { "type": "integer", "minimum": 1 },
+        "mediaType": { "type": "string", "description": "Asset media-type restriction for assetRef fields." }
+      },
+      "additionalProperties": false
+    },
+    "fieldDefinition": {
+      "description": "One field in a field contract. For array fields, itemField declares the field type of each item. For object fields, childFields declares child fields. These enable repeat rules (which require an array field) and object-property validation.",
+      "type": "object",
+      "required": ["id", "label", "type", "required"],
+      "properties": {
+        "id": { "$ref": "#/$defs/fieldId" },
+        "label": { "type": "string", "minLength": 1 },
+        "type": { "$ref": "#/$defs/fieldType" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" },
+        "groupId": { "$ref": "#/$defs/fieldId", "description": "Must resolve in the same contract's groups array." },
+        "nullable": { "type": "boolean", "description": "When true, JSON null is a valid stored value." },
+        "default": { "description": "Default value; must validate against same field definition." },
+        "examples": { "type": "array", "description": "Example values for display; must validate against same field definition." },
+        "constraints": { "$ref": "#/$defs/fieldConstraints" },
+        "semanticRole": { "$ref": "#/$defs/semanticRole" },
+        "weeklyBehavior": { "$ref": "#/$defs/weeklyBehavior" },
+        "profileKey": { "type": "string", "description": "Closed Church Profile key whose value type must be compatible with this field." },
+        "aiInstructions": { "type": "string", "description": "Instructions to AI helper for filling this field." },
+        "itemField": {
+          "$ref": "#/$defs/fieldDefinition",
+          "description": "For array fields: declares the field type for each array item. Array items validate against this field definition. Required when type is 'array'."
+        },
+        "childFields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fieldDefinition" },
+          "description": "For object fields: declares child field definitions. Object properties validate against declared child fields. Required when type is 'object'."
+        }
+      },
+      "additionalProperties": false,
+      "if": { "properties": { "type": { "const": "array" } }, "required": ["type"] },
+      "then": {
+        "description": "Array fields must declare itemField.",
+        "properties": { "itemField": { "not": { "const": null } } },
+        "required": ["itemField"]
+      }
+    },
+    "fieldContractGroup": {
+      "description": "A named group of fields for form presentation in a field contract.",
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/fieldId" },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "conditionalRuleId": { "$ref": "#/$defs/ruleId", "description": "Top-level conditional rule id for group visibility. May not declare an inline condition." }
+      },
+      "additionalProperties": false
+    },
+    "fieldContract": {
+      "description": "The sole definition of fillable data for templates, document fields, custom-element definitions, AI contracts, and AI imports.",
+      "type": "object",
+      "required": ["id", "version", "name", "fields"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contractId" },
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "groups": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fieldContractGroup" }
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fieldDefinition" }
+        },
+        "contractHash": { "$ref": "#/$defs/sha256Hash", "description": "sha256 over RFC 8785 canonical fieldContract excluding this field." }
+      },
+      "additionalProperties": false
+    },
+    "fieldValueOrigin": {
+      "description": "How a field value was set.",
+      "enum": ["manual", "ai", "imported", "materializedDefault", "carriedForward", "profile", "derived"]
+    },
+    "fieldValueEntry": {
+      "description": "One stored field value entry in a fieldValues object.",
+      "type": "object",
+      "required": ["value", "origin"],
+      "properties": {
+        "value": { "description": "The stored value. Type must match the field definition." },
+        "origin": { "$ref": "#/$defs/fieldValueOrigin" },
+        "itemIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/repeatItemId" },
+          "description": "For array fields used by a repeat rule: canonical UUIDv4 ids parallel to the array."
+        }
+      },
+      "additionalProperties": false
+    },
+    "fieldValues": {
+      "description": "Object keyed by field id from the corresponding contract. Values are fieldValueEntry objects.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/fieldValueEntry" }
+    },
+    "binding": {
+      "description": "Binding from a contract field to an allowlisted content-bearing data leaf on the owning element.",
+      "type": "object",
+      "required": ["id", "scope", "fieldId", "target"],
+      "properties": {
+        "id": { "$ref": "#/$defs/bindingId" },
+        "scope": { "enum": ["document", "local"] },
+        "fieldId": { "$ref": "#/$defs/fieldId" },
+        "target": {
+          "type": "string",
+          "description": "RFC 6901 JSON Pointer relative to the owning element targeting a content-bearing data leaf."
+        },
+        "fallback": { "description": "Optional schema-valid fallback value used when the field has no resolved value." },
+        "format": {
+          "type": "object",
+          "description": "Optional closed deterministic format object.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "itemBinding": {
+      "description": "Repeat item binding variant for repeatable content rules.",
+      "type": "object",
+      "required": ["id", "itemPath", "targetNodeId", "target"],
+      "properties": {
+        "id": { "$ref": "#/$defs/bindingId" },
+        "itemPath": {
+          "type": "string",
+          "description": "RFC 6901 JSON Pointer relative to one array item schema."
+        },
+        "targetNodeId": { "$ref": "#/$defs/nodeId" },
+        "target": {
+          "type": "string",
+          "description": "RFC 6901 JSON Pointer relative to the declared targetNodeId targeting a content-bearing data leaf."
+        },
+        "fallback": { "description": "Optional schema-valid fallback value." },
+        "format": {
+          "type": "object",
+          "description": "Optional closed deterministic format object.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceTemplate": {
+      "description": "Optional portable lineage record from the source template used to create a bulletin. Must not contain a workspace-local resource id.",
+      "type": "object",
+      "required": ["contractId"],
+      "properties": {
+        "contractId": { "$ref": "#/$defs/contractId" },
+        "contractVersion": { "type": "integer", "minimum": 1 },
+        "contractHash": { "$ref": "#/$defs/sha256Hash" },
+        "sourceDocumentHash": { "$ref": "#/$defs/sha256Hash" },
+        "sourceDisplayName": { "type": "string" },
+        "packId": { "$ref": "#/$defs/packId" },
+        "contentId": { "$ref": "#/$defs/packContentId" },
+        "packVersion": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "publicationContext": {
+      "description": "One publication distribution context.",
+      "enum": ["printedNonsalableChurchBulletin", "digitalNonsalableChurchBulletin"]
+    },
+    "publicationContexts": {
+      "description": "Nonempty unique array of intended distribution contexts.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/publicationContext" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "unknownRightsPolicy": {
+      "description": "How to handle unknown/unreviewed rights at readiness check.",
+      "enum": ["review", "block"]
+    },
+    "rightsPolicy": {
+      "description": "Top-level document rights readiness policy.",
+      "type": "object",
+      "required": ["unknownRightsPolicy"],
+      "properties": {
+        "unknownRightsPolicy": { "$ref": "#/$defs/unknownRightsPolicy" }
+      },
+      "additionalProperties": false
+    },
+    "conditionalRule": {
+      "description": "Conditional content rule: shows/hides a target node based on a field value. For document scope, fieldId must be a field identifier. For item scope, the controller may be a field identifier or an RFC 6901 JSON Pointer path (e.g. '/isFeatured') resolving to a compatible property on the repeater's array item schema.",
+      "type": "object",
+      "required": ["kind", "id", "targetNodeId", "scope", "fieldId", "condition", "activateLabel", "inactiveLabel"],
+      "properties": {
+        "kind": { "const": "conditional" },
+        "id": { "$ref": "#/$defs/contentRuleId" },
+        "targetNodeId": { "$ref": "#/$defs/nodeId" },
+        "scope": { "enum": ["document", "item"] },
+        "fieldId": {
+          "description": "For document scope: a field identifier matching ^[A-Za-z][A-Za-z0-9_-]*$. For item scope: a field identifier or an RFC 6901 JSON Pointer path (e.g. '/isFeatured').",
+          "oneOf": [
+            { "$ref": "#/$defs/fieldId" },
+            { "type": "string", "pattern": "^(/[^/]*)+" }
+          ]
+        },
+        "condition": {
+          "description": "Allowlisted condition: boolean equality, choice equality, or choice inequality.",
+          "type": "object",
+          "required": ["kind"],
+          "oneOf": [
+            {
+              "properties": {
+                "kind": { "const": "booleanEquals" },
+                "value": { "type": "boolean" }
+              },
+              "required": ["kind", "value"],
+              "additionalProperties": false
+            },
+            {
+              "properties": {
+                "kind": { "const": "choiceEquals" },
+                "choiceId": { "type": "string", "minLength": 1 }
+              },
+              "required": ["kind", "choiceId"],
+              "additionalProperties": false
+            },
+            {
+              "properties": {
+                "kind": { "const": "choiceNotEquals" },
+                "choiceId": { "type": "string", "minLength": 1 }
+              },
+              "required": ["kind", "choiceId"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "activateLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "inactiveLabel": { "type": "string", "minLength": 1, "maxLength": 120 }
+      },
+      "additionalProperties": false
+    },
+    "emptyState": {
+      "description": "Empty-state behavior for a repeatable rule.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["mode"],
+          "properties": { "mode": { "const": "collapse" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["mode", "nodeId"],
+          "properties": {
+            "mode": { "const": "show" },
+            "nodeId": { "$ref": "#/$defs/nodeId" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "repeatRule": {
+      "description": "Repeatable content rule: expands a prototype node for each item in an array field.",
+      "type": "object",
+      "required": ["kind", "id", "fieldId", "prototypeNodeId", "emptyState", "maxItems", "userReorderable", "itemLabel", "addLabel"],
+      "properties": {
+        "kind": { "const": "repeat" },
+        "id": { "$ref": "#/$defs/contentRuleId" },
+        "fieldId": { "$ref": "#/$defs/fieldId" },
+        "prototypeNodeId": { "$ref": "#/$defs/nodeId" },
+        "itemBindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/itemBinding" }
+        },
+        "emptyState": { "$ref": "#/$defs/emptyState" },
+        "maxItems": { "type": "integer", "minimum": 1 },
+        "userReorderable": { "type": "boolean" },
+        "nullIsEmpty": { "type": "boolean" },
+        "itemLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "addLabel": { "type": "string", "minLength": 1, "maxLength": 120 }
+      },
+      "additionalProperties": false
+    },
+    "contentRule": {
+      "description": "Discriminated union of conditional or repeatable content rules.",
+      "oneOf": [
+        { "$ref": "#/$defs/conditionalRule" },
+        { "$ref": "#/$defs/repeatRule" }
+      ]
+    },
+    "fieldReviewTarget": {
+      "description": "Target for a field review record: document-scope or local (element-scoped) field.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["scope", "fieldId"],
+          "properties": {
+            "scope": { "const": "document" },
+            "fieldId": { "$ref": "#/$defs/fieldId" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["scope", "ownerNodeId", "fieldId"],
+          "properties": {
+            "scope": { "const": "local" },
+            "ownerNodeId": { "$ref": "#/$defs/nodeId" },
+            "fieldId": { "$ref": "#/$defs/fieldId" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "fieldReviewEntry": {
+      "description": "One field review record capturing a rollover/review decision for a specific field.",
+      "type": "object",
+      "required": ["target", "disposition", "reviewHash"],
+      "properties": {
+        "target": { "$ref": "#/$defs/fieldReviewTarget" },
+        "disposition": {
+          "enum": [
+            "kept", "clearedPrior", "edited", "derivedConfirmed",
+            "profileAccepted", "confirmedUnchanged", "notApplicable"
+          ]
+        },
+        "reviewHash": { "$ref": "#/$defs/sha256Hash" },
+        "sourcePublicationDate": { "$ref": "#/$defs/isoDate" },
+        "sourceValueHash": { "$ref": "#/$defs/sha256Hash" },
+        "derivationEvidence": {
+          "description": "Required for derivedConfirmed disposition.",
+          "type": "object",
+          "required": ["kind", "selectedScheduleId", "selectedScheduleLabel", "churchProfileRevisionHash", "baseDateRuleDescription", "resultingDate"],
+          "properties": {
+            "kind": { "const": "nextScheduledServiceDate" },
+            "selectedScheduleId": { "$ref": "#/$defs/scheduleId" },
+            "selectedScheduleLabel": { "type": "string", "minLength": 1 },
+            "churchProfileRevisionHash": { "$ref": "#/$defs/sha256Hash" },
+            "baseDateRuleDescription": { "type": "string" },
+            "resultingDate": { "$ref": "#/$defs/isoDate" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "contentReviewTarget": {
+      "description": "Target for a content review record.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["scope", "targetNodeId"],
+          "properties": {
+            "scope": { "const": "document" },
+            "targetNodeId": { "$ref": "#/$defs/nodeId" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["scope", "ownerNodeId", "definitionNodeId"],
+          "properties": {
+            "scope": { "const": "custom" },
+            "ownerNodeId": { "$ref": "#/$defs/nodeId" },
+            "definitionNodeId": { "$ref": "#/$defs/nodeId" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "contentReviewEntry": {
+      "description": "One content review record for a specific node in a bulletin.",
+      "type": "object",
+      "required": ["target", "disposition", "reviewHash"],
+      "properties": {
+        "target": { "$ref": "#/$defs/contentReviewTarget" },
+        "disposition": {
+          "enum": ["pending", "confirmedUnchanged", "edited", "notApplicable"]
+        },
+        "reviewHash": { "$ref": "#/$defs/sha256Hash" },
+        "sourceEvidence": {
+          "description": "Required while disposition is pending or confirmedUnchanged.",
+          "type": "object",
+          "required": ["sourceKind", "sourceDocumentHash", "sourceContentProjectionHash"],
+          "properties": {
+            "sourceKind": { "enum": ["template", "bulletinDuplicate"] },
+            "sourceDocumentHash": { "$ref": "#/$defs/sha256Hash" },
+            "sourceContentProjectionHash": { "$ref": "#/$defs/sha256Hash" },
+            "sourcePublicationDate": { "$ref": "#/$defs/isoDate" },
+            "sourceTarget": { "$ref": "#/$defs/contentReviewTarget" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "documentMetadata": {
+      "description": "Portable document metadata for library/display use.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "description": "BCP 47 language tag, e.g. en-US." },
+        "publicationDate": { "$ref": "#/$defs/isoDate" },
+        "serviceLabel": { "type": "string", "description": "Optional user-facing label to distinguish multiple services on one publication date." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

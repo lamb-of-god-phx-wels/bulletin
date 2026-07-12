@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Grid Occupancy",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "gridEl1",
+      "type": "grid",
+      "name": "Bad Grid",
+      "data": {
+        "rows": 1,
+        "columns": 2,
+        "cellPadding": "0in",
+        "semanticRole": "layout"
+      },
+      "children": [
+        {
+          "id": "wrap1",
+          "row": 0,
+          "column": 0,
+          "element": {
+            "id": "child1",
+            "type": "text",
+            "name": "Child 1",
+            "data": { "content": { "kind": "plain", "text": "A" } }
+          }
+        },
+        {
+          "id": "wrap1",
+          "row": 0,
+          "column": 0,
+          "element": {
+            "id": "child2",
+            "type": "text",
+            "name": "Child 2",
+            "data": { "content": { "kind": "plain", "text": "B" } }
+          }
+        }
+      ]
+    }
+  ]
+}

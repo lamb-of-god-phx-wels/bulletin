@@ -1,0 +1,783 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "July 5, 2026 Bulletin",
+  "metadata": {
+    "title": "July 5, 2026 Bulletin",
+    "language": "en-US",
+    "publicationDate": "2026-07-05",
+    "serviceLabel": "Sunday Worship"
+  },
+  "page": {
+    "typstWidth": "5.5in",
+    "typstHeight": "8.5in",
+    "width": 528,
+    "height": 816,
+    "layoutIntent": "foldedBooklet",
+    "background": "#ffffff",
+    "marginMode": "mirrored",
+    "binding": "left",
+    "margins": {
+      "top": "0.5in",
+      "bottom": "0.5in",
+      "inner": "0.75in",
+      "outer": "0.5in"
+    },
+    "bookletPrintSetup": {
+      "sheetWidth": "11in",
+      "sheetHeight": "8.5in",
+      "duplexFlip": "shortEdge",
+      "scale": 1,
+      "safeInset": {
+        "top": "0.125in",
+        "right": "0.125in",
+        "bottom": "0.125in",
+        "left": "0.125in",
+        "fold": "0.0625in"
+      }
+    },
+    "finalPageCountRequirement": {
+      "minimum": 4,
+      "maximum": 16,
+      "multipleOf": 4
+    }
+  },
+  "scripturePresentation": {
+    "referencePlacement": "before",
+    "verseNumberStyle": "superscript",
+    "paragraphPolicy": "publisher",
+    "paragraphSpacing": "6pt",
+    "translationLabelPlacement": "withReference"
+  },
+  "rightsPolicy": { "unknownRightsPolicy": "review" },
+  "publicationContexts": [
+    "printedNonsalableChurchBulletin",
+    "digitalNonsalableChurchBulletin"
+  ],
+  "fieldContract": {
+    "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "version": 1,
+    "name": "Sunday Bulletin Fields",
+    "description": "Fields for the standard Sunday worship bulletin.",
+    "groups": [
+      {
+        "id": "grpService",
+        "label": "Service Details"
+      },
+      {
+        "id": "grpHymns",
+        "label": "Hymns"
+      }
+    ],
+    "fields": [
+      {
+        "id": "publicationDate",
+        "label": "Publication Date",
+        "type": "date",
+        "required": true,
+        "semanticRole": "publicationDate",
+        "groupId": "grpService",
+        "weeklyBehavior": {
+          "rolloverPolicy": "deriveConfirm",
+          "reviewExpectation": "everyBulletin",
+          "derivation": {
+            "kind": "nextScheduledServiceDate"
+          }
+        }
+      },
+      {
+        "id": "serviceLabel",
+        "label": "Service Label",
+        "type": "text",
+        "required": true,
+        "semanticRole": "serviceLabel",
+        "groupId": "grpService",
+        "weeklyBehavior": {
+          "rolloverPolicy": "keep",
+          "reviewExpectation": "whenCarried"
+        }
+      },
+      {
+        "id": "showChildren",
+        "label": "Show Children's Sermon",
+        "type": "boolean",
+        "required": false,
+        "groupId": "grpService",
+        "weeklyBehavior": {
+          "rolloverPolicy": "ask",
+          "reviewExpectation": "everyBulletin"
+        }
+      },
+      {
+        "id": "hymnList",
+        "label": "Hymn Numbers",
+        "type": "array",
+        "required": false,
+        "groupId": "grpHymns",
+        "itemField": {
+          "id": "hymnItem",
+          "label": "Hymn",
+          "type": "text",
+          "required": true
+        },
+        "weeklyBehavior": {
+          "rolloverPolicy": "clear",
+          "reviewExpectation": "everyBulletin"
+        }
+      }
+    ],
+    "contractHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "fieldValues": {
+    "publicationDate": {
+      "value": "2026-07-05",
+      "origin": "derived"
+    },
+    "serviceLabel": {
+      "value": "Sunday Worship",
+      "origin": "carriedForward"
+    },
+    "showChildren": {
+      "value": true,
+      "origin": "manual"
+    },
+    "hymnList": {
+      "value": ["370", "385"],
+      "origin": "manual",
+      "itemIds": [
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ]
+    }
+  },
+  "contentRules": [
+    {
+      "kind": "conditional",
+      "id": "ruleShowChildren",
+      "targetNodeId": "childrenSermonEl1",
+      "scope": "document",
+      "fieldId": "showChildren",
+      "condition": {
+        "kind": "booleanEquals",
+        "value": true
+      },
+      "activateLabel": "Show Children's Sermon",
+      "inactiveLabel": "Hide Children's Sermon"
+    },
+    {
+      "kind": "repeat",
+      "id": "ruleHymnList",
+      "fieldId": "hymnList",
+      "prototypeNodeId": "hymnPrototype1",
+      "itemBindings": [
+        {
+          "id": "hymnNumBinding",
+          "itemPath": "/0",
+          "targetNodeId": "hymnPrototype1",
+          "target": "/data/content/text"
+        }
+      ],
+      "emptyState": { "mode": "collapse" },
+      "maxItems": 10,
+      "userReorderable": true,
+      "nullIsEmpty": true,
+      "itemLabel": "Hymn",
+      "addLabel": "Add Hymn"
+    }
+  ],
+  "fieldReview": [
+    {
+      "target": {
+        "scope": "document",
+        "fieldId": "publicationDate"
+      },
+      "disposition": "derivedConfirmed",
+      "reviewHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "sourcePublicationDate": "2026-06-28",
+      "sourceValueHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "derivationEvidence": {
+        "kind": "nextScheduledServiceDate",
+        "selectedScheduleId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "selectedScheduleLabel": "Sunday 10:00 AM",
+        "churchProfileRevisionHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "baseDateRuleDescription": "Next Sunday after 2026-06-28",
+        "resultingDate": "2026-07-05"
+      }
+    },
+    {
+      "target": {
+        "scope": "document",
+        "fieldId": "serviceLabel"
+      },
+      "disposition": "kept",
+      "reviewHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "sourcePublicationDate": "2026-06-28",
+      "sourceValueHash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "target": {
+        "scope": "local",
+        "ownerNodeId": "hymnEl1",
+        "fieldId": "hymnTitle"
+      },
+      "disposition": "edited",
+      "reviewHash": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  ],
+  "contentReview": [
+    {
+      "target": {
+        "scope": "document",
+        "targetNodeId": "scriptureEl1"
+      },
+      "disposition": "confirmedUnchanged",
+      "reviewHash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "sourceEvidence": {
+        "sourceKind": "bulletinDuplicate",
+        "sourceDocumentHash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+        "sourceContentProjectionHash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "sourcePublicationDate": "2026-06-28",
+        "sourceTarget": {
+          "scope": "document",
+          "targetNodeId": "scriptureEl1"
+        }
+      }
+    },
+    {
+      "target": {
+        "scope": "custom",
+        "ownerNodeId": "customEl1",
+        "definitionNodeId": "customDef1"
+      },
+      "disposition": "edited",
+      "reviewHash": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ],
+  "sourceTemplate": {
+    "contractId": "9999aaaa-9999-4999-8999-999999999999",
+    "contractVersion": 1,
+    "contractHash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "sourceDocumentHash": "sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
+    "sourceDisplayName": "Standard Sunday Worship Template",
+    "packId": "bbbb1111-bbbb-4bbb-8bbb-bbbb11111111",
+    "contentId": "sunday-worship-v1",
+    "packVersion": "1.0.0"
+  },
+  "customElementDefinitions": [
+    {
+      "version": 1,
+      "kind": "customElementDefinition",
+      "id": "customDef1",
+      "name": "Children's Sermon Block",
+      "description": "A reusable block for the children's sermon section.",
+      "category": "Liturgy",
+      "fieldContract": {
+        "id": "cccc2222-cccc-4ccc-8ccc-cccc22222222",
+        "version": 1,
+        "name": "Children's Sermon Fields",
+        "fields": [
+          {
+            "id": "sermonTitle",
+            "label": "Sermon Title",
+            "type": "text",
+            "required": true
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "defChildTitle1",
+          "type": "text",
+          "name": "Sermon Title Display",
+          "data": {
+            "content": {
+              "kind": "plain",
+              "text": "Children's Sermon"
+            }
+          }
+        }
+      ],
+      "contentRules": [
+        {
+          "kind": "conditional",
+          "id": "ruleDefLocal1",
+          "targetNodeId": "defChildTitle1",
+          "scope": "document",
+          "fieldId": "sermonTitle",
+          "condition": {
+            "kind": "booleanEquals",
+            "value": true
+          },
+          "activateLabel": "Show Title",
+          "inactiveLabel": "Hide Title"
+        }
+      ],
+      "sampleFieldValues": {
+        "sermonTitle": {
+          "value": "The Good Shepherd",
+          "origin": "manual"
+        }
+      }
+    }
+  ],
+  "pageElements": [
+    {
+      "id": "pageFooter1",
+      "purpose": "footer",
+      "target": { "mode": "all" },
+      "layer": "overlay",
+      "region": "bottomMargin",
+      "anchor": "bottomCenter",
+      "x": "0in",
+      "y": "0in",
+      "width": "100%",
+      "height": "auto",
+      "zIndex": 0,
+      "clipToRegion": true,
+      "semantic": { "mode": "artifact" },
+      "element": {
+        "id": "footerText1",
+        "type": "text",
+        "name": "Footer Text",
+        "style": { "fontSize": 8, "align": "center" },
+        "data": {
+          "content": { "kind": "plain", "text": "Lamb of God Lutheran Church" }
+        }
+      }
+    }
+  ],
+  "elements": [
+    {
+      "id": "titleText1",
+      "type": "text",
+      "name": "Bulletin Title",
+      "width": "100%",
+      "height": "auto",
+      "breakPolicy": "avoid",
+      "margin": "0.25in",
+      "padding": "0in",
+      "style": {
+        "fontSize": 24,
+        "fontWeight": "bold",
+        "align": "center",
+        "color": "#251d18"
+      },
+      "fieldContract": {
+        "id": "dddd3333-dddd-4ddd-8ddd-dddd33333333",
+        "version": 1,
+        "name": "Title Field Contract",
+        "fields": [
+          {
+            "id": "titleText",
+            "label": "Title",
+            "type": "richText",
+            "required": true
+          }
+        ]
+      },
+      "fieldValues": {
+        "titleText": {
+          "value": "Sunday Worship",
+          "origin": "manual"
+        }
+      },
+      "bindings": [
+        {
+          "id": "titleBinding",
+          "scope": "local",
+          "fieldId": "titleText",
+          "target": "/data/content/text"
+        }
+      ],
+      "data": {
+        "content": {
+          "kind": "richText",
+          "document": {
+            "type": "document",
+            "blocks": [
+              {
+                "type": "heading",
+                "level": 1,
+                "children": [
+                  { "type": "text", "text": "Sunday Worship", "marks": [] }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "dateEl1",
+      "type": "date",
+      "name": "Publication Date",
+      "width": "100%",
+      "height": "auto",
+      "style": { "align": "center" },
+      "data": {
+        "value": "2026-07-05",
+        "format": "MMMM D, YYYY"
+      }
+    },
+    {
+      "id": "hymnEl1",
+      "type": "music",
+      "name": "Opening Hymn",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "number": "370",
+        "title": "What a Friend We Have in Jesus",
+        "instructions": "Please rise and sing all verses.",
+        "source": "Christian Worship 370",
+        "rightsAssociationReview": {
+          "reviewedSongContentHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "reviewedRightsProjectionHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "reviewTime": "2026-07-01T12:00:00Z"
+        },
+        "rights": [
+          {
+            "creditKey": "credit:11111111-1111-4111-8111-111111111111",
+            "creditProjectionHash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "component": "text",
+            "status": "publicDomain",
+            "workTitle": "What a Friend We Have in Jesus",
+            "contributors": [
+              { "name": "Joseph M. Scriven", "role": "author" }
+            ],
+            "creditRequiredWhen": "never"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scriptureEl1",
+      "type": "text",
+      "name": "Scripture Reading — Verse Structured",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "content": {
+          "kind": "richText",
+          "document": {
+            "type": "document",
+            "blocks": [
+              {
+                "type": "scripture",
+                "structureKind": "verseStructured",
+                "reference": "John 3:16",
+                "canonicalReference": "John.3.16",
+                "translationId": "translation:22222222-2222-4222-8222-222222222222",
+                "translationLabel": "NIV",
+                "verses": [
+                  {
+                    "verseId": "John.3.16",
+                    "label": "16",
+                    "paragraphStart": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life."
+                      }
+                    ]
+                  }
+                ],
+                "importSnapshot": {
+                  "sourceKind": "provider",
+                  "structureKind": "verseStructured",
+                  "displayReference": "John 3:16",
+                  "canonicalReference": "John.3.16",
+                  "translationId": "translation:22222222-2222-4222-8222-222222222222",
+                  "translationLabel": "NIV",
+                  "normalizerId": "cbb-normalizer-v1",
+                  "normalizerVersion": "1.0.0",
+                  "sourceText": "For God so loved the world...",
+                  "sourceTextHash": "sha256:aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+                  "importedFidelityHash": "sha256:bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222",
+                  "rightsProjectionHash": "sha256:cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333",
+                  "providerId": "biblegateway",
+                  "adapterId": "cbb-biblegateway-adapter",
+                  "adapterVersion": "1.0.0",
+                  "requestedReference": "John 3:16",
+                  "requestedTranslationId": "translation:22222222-2222-4222-8222-222222222222",
+                  "retrievalTime": "2026-07-01T10:00:00Z",
+                  "verseBoundaries": [
+                    { "verseId": "John.3.16", "label": "16" }
+                  ]
+                },
+                "importReview": {
+                  "disposition": "changesConfirmed",
+                  "reviewedFidelityHash": "sha256:dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444",
+                  "reviewedRightsProjectionHash": "sha256:eeee5555eeee5555eeee5555eeee5555eeee5555eeee5555eeee5555eeee5555",
+                  "reviewTime": "2026-07-01T10:05:00Z"
+                },
+                "rights": [
+                  {
+                    "creditKey": "credit:33333333-3333-4333-8333-333333333333",
+                    "creditProjectionHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "component": "scriptureTranslation",
+                    "status": "copyrighted",
+                    "workTitle": "New International Version",
+                    "contributors": [
+                      { "name": "Biblica, Inc.", "role": "publisher" }
+                    ],
+                    "creditRequiredWhen": "always",
+                    "requiredCreditLine": "Scripture quotation taken from the Holy Bible, NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "scriptureEl2",
+      "type": "text",
+      "name": "Epistle Reading — Paragraph Only",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "content": {
+          "kind": "richText",
+          "document": {
+            "type": "document",
+            "blocks": [
+              {
+                "type": "scripture",
+                "structureKind": "paragraphOnly",
+                "reference": "Romans 8:1-4",
+                "canonicalReference": "Rom.8.1-Rom.8.4",
+                "translationId": "translation:22222222-2222-4222-8222-222222222222",
+                "translationLabel": "NIV",
+                "paragraphs": [
+                  {
+                    "type": "paragraph",
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "Therefore, there is now no condemnation for those who are in Christ Jesus, because through Christ Jesus the law of the Spirit who gives life has set you free from the law of sin and death."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "For what the law was powerless to do because it was weakened by the flesh, God did by sending his own Son in the likeness of sinful flesh to be a sin offering. And so he condemned sin in the flesh, in order that the righteous requirement of the law might be fully met in us, who do not live according to the flesh but according to the Spirit."
+                      }
+                    ]
+                  }
+                ],
+                "importSnapshot": {
+                  "sourceKind": "paste",
+                  "structureKind": "paragraphOnly",
+                  "displayReference": "Romans 8:1-4",
+                  "translationId": "translation:22222222-2222-4222-8222-222222222222",
+                  "translationLabel": "NIV",
+                  "normalizerId": "cbb-normalizer-v1",
+                  "normalizerVersion": "1.0.0",
+                  "sourceText": "Therefore, there is now no condemnation...",
+                  "sourceTextHash": "sha256:ffff6666ffff6666ffff6666ffff6666ffff6666ffff6666ffff6666ffff6666",
+                  "importedFidelityHash": "sha256:0000777700007777000077770000777700007777000077770000777700007777",
+                  "rightsProjectionHash": "sha256:1111888811118888111188881111888811118888111188881111888811118888",
+                  "paragraphBoundaries": [
+                    { "paragraphIndex": 0, "content": "Therefore, there is now no condemnation..." },
+                    { "paragraphIndex": 1, "content": "For what the law was powerless..." }
+                  ]
+                },
+                "importReview": {
+                  "disposition": "changesConfirmed",
+                  "reviewedFidelityHash": "sha256:2222999922229999222299992222999922229999222299992222999922229999",
+                  "reviewedRightsProjectionHash": "sha256:3333aaaa3333aaaa3333aaaa3333aaaa3333aaaa3333aaaa3333aaaa3333aaaa",
+                  "reviewTime": "2026-07-01T11:00:00Z"
+                },
+                "rights": [
+                  {
+                    "creditKey": "credit:44444444-4444-4444-8444-444444444444",
+                    "creditProjectionHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                    "component": "scriptureTranslation",
+                    "status": "copyrighted",
+                    "workTitle": "New International Version",
+                    "contributors": [
+                      { "name": "Biblica, Inc.", "role": "publisher" }
+                    ],
+                    "creditRequiredWhen": "always",
+                    "requiredCreditLine": "Scripture quotation taken from the Holy Bible, NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "imageEl1",
+      "type": "image",
+      "name": "Church Logo",
+      "width": "2in",
+      "height": "1in",
+      "data": {
+        "assetRef": "asset:44444444-4444-4444-8444-444444444444",
+        "fit": "contain",
+        "focalPoint": { "x": 0.5, "y": 0.5 },
+        "alt": "Lamb of God Lutheran Church logo",
+        "decorative": false
+      }
+    },
+    {
+      "id": "gridEl1",
+      "type": "grid",
+      "name": "Two-Column Layout",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "rows": 1,
+        "columns": 2,
+        "cellPadding": "0.125in",
+        "columnTracks": ["50%", "50%"],
+        "semanticRole": "layout"
+      },
+      "children": [
+        {
+          "id": "gridWrap1",
+          "row": 0,
+          "column": 0,
+          "element": {
+            "id": "gridChildText1",
+            "type": "text",
+            "name": "Left Column",
+            "data": {
+              "content": { "kind": "plain", "text": "Left column content" }
+            }
+          }
+        },
+        {
+          "id": "gridWrap2",
+          "row": 0,
+          "column": 1,
+          "element": {
+            "id": "gridChildText2",
+            "type": "text",
+            "name": "Right Column",
+            "data": {
+              "content": { "kind": "plain", "text": "Right column content" }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stackEl1",
+      "type": "stack",
+      "name": "Vertical Stack",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "direction": "vertical",
+        "gap": "0.25in"
+      },
+      "children": [
+        {
+          "id": "stackWrap1",
+          "index": 0,
+          "element": {
+            "id": "stackChild1",
+            "type": "text",
+            "name": "Stack Item 1",
+            "data": {
+              "content": { "kind": "plain", "text": "First item" }
+            }
+          }
+        },
+        {
+          "id": "stackWrap2",
+          "index": 1,
+          "element": {
+            "id": "stackChild2",
+            "type": "text",
+            "name": "Stack Item 2",
+            "data": {
+              "content": { "kind": "plain", "text": "Second item" }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "canvasEl1",
+      "type": "canvas",
+      "name": "Decorative Canvas",
+      "width": "100%",
+      "height": "2in",
+      "children": [
+        {
+          "id": "canvasWrap1",
+          "x": "0.5in",
+          "y": "0.5in",
+          "element": {
+            "id": "canvasChild1",
+            "type": "text",
+            "name": "Positioned Text",
+            "data": {
+              "content": { "kind": "plain", "text": "Positioned content" }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "childrenSermonEl1",
+      "type": "text",
+      "name": "Children's Sermon Heading",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "content": { "kind": "plain", "text": "Children's Sermon" }
+      }
+    },
+    {
+      "id": "hymnPrototype1",
+      "type": "text",
+      "name": "Hymn Prototype Item",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "content": { "kind": "plain", "text": "Hymn number" }
+      }
+    },
+    {
+      "id": "customEl1",
+      "type": "customInstance",
+      "name": "Children's Sermon Block",
+      "definitionId": "customDef1",
+      "definitionHash": "sha256:4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb",
+      "width": "100%",
+      "breakPolicy": "avoid",
+      "fieldValues": {
+        "sermonTitle": {
+          "value": "The Good Shepherd",
+          "origin": "manual"
+        }
+      }
+    },
+    {
+      "id": "pageBreak1",
+      "type": "pageBreak",
+      "name": "Page Break",
+      "data": { "intent": "flowBreak" }
+    },
+    {
+      "id": "rightsEl1",
+      "type": "rightsAttribution",
+      "name": "Copyrights & Permissions",
+      "data": {
+        "heading": "Copyrights & Permissions",
+        "groupOrder": ["scripture", "music", "other"],
+        "includePublicDomainLines": false
+      }
+    }
+  ]
+}

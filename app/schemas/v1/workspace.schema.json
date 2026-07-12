@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/workspace.schema.json",
+  "title": "CBB Workspace",
+  "description": "Workspace-local registry, resource records, revision state, import provenance, conflict state, installed pack state, Song Library/Scripture catalog records, pack-maintainer drafts, Shared church library connections, and Scripture-provider configuration.",
+  "type": "object",
+  "required": ["version", "kind", "workspaceId"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "workspace" },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Workspace-local unique identifier."
+    },
+    "displayName": { "type": "string" },
+    "bulletins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "templates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "fonts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "songs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "scriptureCatalog": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "resourcePacks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "importProvenance": {
+      "type": "array",
+      "description": "Import provenance and remapping tables (spec.md:194-196, 242-268).",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "installedPackState": {
+      "type": "array",
+      "description": "Installed resource pack state records.",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "workspaceLocks": {
+      "type": "object",
+      "description": "Workspace locks and conflict/recovery records (spec.md:175, 242-268).",
+      "additionalProperties": true
+    },
+    "sharedLibraryConnections": {
+      "type": "array",
+      "description": "Shared church library connection records (spec.md:186-193).",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "scriptureProviderConfig": {
+      "type": "array",
+      "description": "Scripture-provider configuration records (spec.md:186-193).",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    },
+    "packMaintainerDrafts": {
+      "type": "array",
+      "description": "Pack-maintainer draft records (spec.md:175).",
+      "items": { "$ref": "#/$defs/localResourceRecord" }
+    }
+  },
+  "additionalProperties": true,
+  "description": "additionalProperties is true to allow future workspace scope fields (import provenance, pack state, locks, Shared-library connections, Scripture-provider config) as they are defined in subsequent milestones.",
+  "$defs": {
+    "localResourceId": {
+      "description": "Workspace-local resource id. Must not appear in portable document JSON.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "localResourceRecord": {
+      "description": "Workspace-local metadata record for a managed resource.",
+      "type": "object",
+      "required": ["localId", "kind", "displayName", "storagePath", "contentHash", "createdAt", "modifiedAt"],
+      "properties": {
+        "localId": { "$ref": "#/$defs/localResourceId" },
+        "kind": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 },
+        "storagePath": { "type": "string", "minLength": 1, "description": "Relative path under the workspace directory." },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        },
+        "modifiedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        },
+        "lastOpenedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

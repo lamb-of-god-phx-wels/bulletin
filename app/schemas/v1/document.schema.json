@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/document.schema.json",
+  "title": "CBB Document",
+  "description": "Authoritative portable document root for both bulletin and template documents. Used as document.json (bulletins) and template.json (templates).",
+  "type": "object",
+  "required": ["version", "kind", "name", "page", "elements"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Document schema version. Must be 1 for v1 documents."
+    },
+    "kind": {
+      "enum": ["bulletin", "template"],
+      "description": "Bulletin documents and templates use the same layout model; they differ by storage location and workflow."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "Nonempty NFC Unicode display label (trimmed, max 120 scalar values)."
+    },
+    "metadata": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/documentMetadata"
+    },
+    "page": {
+      "$ref": "#/$defs/pageSetup"
+    },
+    "authoringPolicy": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/authoringPolicy",
+      "description": "Top-level authoring policy inherited by nodes that do not override it."
+    },
+    "fontFallbackRefs": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/portableFontId" },
+      "description": "Ordered document font fallback stack. Effective stack: selected fontRef, these fallbacks, bundled Noto Sans, bundled Noto Sans Symbols 2."
+    },
+    "scripturePresentation": {
+      "$ref": "#/$defs/scripturePresentationSettings",
+      "description": "Document-wide formatting authority for Scripture blocks. Missing values use v1 defaults."
+    },
+    "rightsPolicy": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/rightsPolicy"
+    },
+    "publicationContexts": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/publicationContexts"
+    },
+    "fieldContract": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldContract",
+      "description": "Top-level document field contract for manual form filling, custom workflows, and AI-assisted imports."
+    },
+    "fieldValues": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldValues",
+      "description": "Bulletin-only stored field values keyed by field id from the top-level contract."
+    },
+    "fieldReview": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldReviewEntry" },
+      "description": "Bulletin-only portable field review records. Templates must not contain fieldReview."
+    },
+    "contentRules": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/contentRule" },
+      "description": "Closed conditional and repeatable presentation rules. Rule ids are unique within the document's rule namespace."
+    },
+    "contentReview": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/contentReviewEntry" },
+      "description": "Bulletin-only ordered content review records. Templates must not contain contentReview."
+    },
+    "elements": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/element.schema.json#/$defs/nativeElement" },
+      "description": "Normal body flow elements. Order is authoritative for editor, Typst generation, and PDF output."
+    },
+    "pageElements": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/element.schema.json#/$defs/pageLevelWrapper" },
+      "description": "Optional explicit page-level elements (backgrounds, headers, footers, page numbers, decorations)."
+    },
+    "sampleFieldValues": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldValues",
+      "description": "Template-only output-inert sample values for authoring/test preview. Forbidden on bulletins."
+    },
+    "sourceTemplate": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/sourceTemplate",
+      "description": "Bulletin-only portable lineage record from the source template."
+    },
+    "customElementDefinitions": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/customElement.schema.json#/$defs/customElementDefinition" },
+      "description": "Embedded custom element definitions pinned into this portable document. Required for any customInstance element to resolve its definition."
+    },
+    "orphanedFieldValues": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Portable inert map of field values removed or made incompatible by a contract update. Renderer ignores this map."
+    }
+  },
+  "additionalProperties": false,
+  "if": { "properties": { "kind": { "const": "template" } }, "required": ["kind"] },
+  "then": {
+    "description": "Templates must not contain fieldReview or contentReview (spec.md:1611-1612, 1780-1782), and sampleFieldValues is allowed.",
+    "properties": {
+      "fieldReview": false,
+      "contentReview": false
+    }
+  },
+  "else": {
+    "description": "Bulletins must not contain sampleFieldValues (spec.md:1520-1522).",
+    "properties": {
+      "sampleFieldValues": false
+    }
+  },
+  "$defs": {
+    "pageMargins": {
+      "description": "Page margins. Fixed mode uses top/right/bottom/left; mirrored mode uses top/bottom/inner/outer.",
+      "type": "object",
+      "properties": {
+        "top": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "right": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "bottom": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "left": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "inner": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "outer": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" }
+      },
+      "additionalProperties": false
+    },
+    "printSafeInset": {
+      "description": "Readiness-only printer safe review guides (never changes PDF bytes).",
+      "type": "object",
+      "required": ["top", "right", "bottom", "left"],
+      "properties": {
+        "top": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "right": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "bottom": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "left": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" }
+      },
+      "additionalProperties": false
+    },
+    "bookletSafeInset": {
+      "description": "Booklet print safe inset including fold distance.",
+      "type": "object",
+      "required": ["top", "right", "bottom", "left", "fold"],
+      "properties": {
+        "top": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "right": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "bottom": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "left": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "fold": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" }
+      },
+      "additionalProperties": false
+    },
+    "bookletPrintSetup": {
+      "description": "Portable booklet print setup. Required before booklet-print preview, finalization, or export. Forbidden for standard documents.",
+      "type": "object",
+      "required": ["sheetWidth", "sheetHeight", "duplexFlip", "scale", "safeInset"],
+      "properties": {
+        "sheetWidth": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "sheetHeight": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength" },
+        "duplexFlip": { "enum": ["shortEdge", "longEdge"] },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "description": "Decimal scale factor, default 1."
+        },
+        "safeInset": { "$ref": "#/$defs/bookletSafeInset" }
+      },
+      "additionalProperties": false
+    },
+    "finalPageCountRequirement": {
+      "description": "Portable blocking publication constraint on the final PDF page count.",
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["exact"],
+          "properties": {
+            "exact": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "minimum": { "type": "integer", "minimum": 1 },
+            "maximum": { "type": "integer", "minimum": 1 },
+            "multipleOf": { "type": "integer", "minimum": 2 }
+          },
+          "additionalProperties": false,
+          "not": { "required": ["exact"] },
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": { "minimum": { "type": "integer" } },
+              "required": ["minimum"]
+            },
+            {
+              "type": "object",
+              "properties": { "maximum": { "type": "integer" } },
+              "required": ["maximum"]
+            },
+            {
+              "type": "object",
+              "properties": { "multipleOf": { "type": "integer" } },
+              "required": ["multipleOf"]
+            }
+          ]
+        }
+      ]
+    },
+    "pageSetup": {
+      "description": "Page model defining both editor page and Typst PDF page.",
+      "type": "object",
+      "required": ["typstWidth", "typstHeight"],
+      "properties": {
+        "typstWidth": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength",
+          "description": "Canonical persisted physical finished logical-page/panel width."
+        },
+        "typstHeight": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalLength",
+          "description": "Canonical persisted physical finished logical-page/panel height."
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Derived editor dimension in pixels, or legacy persisted editor dimension."
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Derived editor dimension in pixels, or legacy persisted editor dimension."
+        },
+        "layoutIntent": {
+          "enum": ["singlePage", "foldedBooklet"],
+          "description": "singlePage = standard pages. foldedBooklet = folded booklet workflow."
+        },
+        "background": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/colorValue",
+          "description": "PDF/editor page fill color. Default #ffffff."
+        },
+        "marginMode": {
+          "enum": ["fixed", "mirrored"],
+          "description": "Default fixed."
+        },
+        "binding": {
+          "enum": ["left", "right"],
+          "description": "Binding direction for mirrored margins and booklet. Default left."
+        },
+        "margins": { "$ref": "#/$defs/pageMargins" },
+        "printSafeInset": { "$ref": "#/$defs/printSafeInset" },
+        "bookletPrintSetup": { "$ref": "#/$defs/bookletPrintSetup" },
+        "finalPageCountRequirement": { "$ref": "#/$defs/finalPageCountRequirement" }
+      },
+      "additionalProperties": false
+    },
+    "scripturePresentationSettings": {
+      "description": "Document-wide scripture formatting authority. v1 defaults: reference before, verse numbers superscript, publisher paragraphs, 6pt spacing, translation label withReference, no preset.",
+      "type": "object",
+      "properties": {
+        "referencePlacement": { "enum": ["before", "after"] },
+        "verseNumberStyle": { "enum": ["inline", "superscript", "hidden"] },
+        "paragraphPolicy": { "enum": ["publisher", "oneVerse"] },
+        "paragraphSpacing": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$"
+        },
+        "translationLabelPlacement": { "enum": ["withReference", "afterPassage", "hidden"] },
+        "typographyPresetSnapshot": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

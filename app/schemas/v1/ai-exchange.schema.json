@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/ai-exchange.schema.json",
+  "title": "CBB AI Exchange",
+  "description": "File-based AI template contracts and AI import results.",
+  "$defs": {
+    "aiTemplateContract": {
+      "description": "An AI template contract for submitting field-fill requests.",
+      "type": "object",
+      "required": ["version", "kind", "exchangeId", "contractId", "contractVersion", "contractHash", "fields"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "aiTemplateContract" },
+        "exchangeId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "contractId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "contractVersion": { "type": "integer", "minimum": 1 },
+        "contractHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldDefinition" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "aiImportResult": {
+      "description": "AI import result with proposed field values.",
+      "type": "object",
+      "required": ["version", "kind", "exchangeId", "contractId", "contractVersion", "contractHash", "proposedValues"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "aiImportResult" },
+        "exchangeId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "contractId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "contractVersion": { "type": "integer", "minimum": 1 },
+        "contractHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "proposedValues": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldValues"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

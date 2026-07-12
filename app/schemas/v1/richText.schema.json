@@ -1,0 +1,517 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/richText.schema.json",
+  "title": "CBB Rich Text AST",
+  "description": "Structured rich-text AST used by text fields and rich-text template fields, including structured Scripture passages and source snapshots.",
+  "$defs": {
+    "mark": {
+      "description": "v1 inline mark. Only strong and emphasis are allowed. No arbitrary attributes.",
+      "enum": ["strong", "emphasis"]
+    },
+    "textInline": {
+      "description": "A nonempty text leaf with an optional unique marks array.",
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string", "minLength": 1 },
+        "marks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mark" },
+          "uniqueItems": true,
+          "description": "Canonical order: strong then emphasis."
+        }
+      },
+      "additionalProperties": false
+    },
+    "lineBreakInline": {
+      "description": "An explicit line break within the current block.",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "lineBreak" }
+      },
+      "additionalProperties": false
+    },
+    "inline": {
+      "description": "An inline node: text or lineBreak.",
+      "oneOf": [
+        { "$ref": "#/$defs/textInline" },
+        { "$ref": "#/$defs/lineBreakInline" }
+      ]
+    },
+    "paragraph": {
+      "description": "A paragraph block with ordered inline children.",
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/inline" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "heading": {
+      "description": "A heading block with level 1-6 and ordered inline children.",
+      "type": "object",
+      "required": ["type", "level", "children"],
+      "properties": {
+        "type": { "const": "heading" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/inline" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "listItem": {
+      "description": "A list item containing one or more paragraph or nested-list blocks. Lists may nest at most four levels.",
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "listItem" },
+        "children": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/paragraph" },
+              { "$ref": "#/$defs/bulletList" },
+              { "$ref": "#/$defs/orderedList" }
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "bulletList": {
+      "description": "An unordered list of listItem children.",
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "bulletList" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/listItem" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "orderedList": {
+      "description": "An ordered list of listItem children with optional start.",
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "orderedList" },
+        "start": { "type": "integer", "minimum": 1 },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/listItem" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "blockquote": {
+      "description": "A blockquote block containing one or more paragraph or list blocks.",
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "blockquote" },
+        "children": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/paragraph" },
+              { "$ref": "#/$defs/bulletList" },
+              { "$ref": "#/$defs/orderedList" }
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "scriptureFormattingOverride": {
+      "description": "Complete materialized scripture presentation override. When present, every v1 field is required; no partial overrides allowed.",
+      "type": "object",
+      "required": [
+        "referencePlacement", "verseNumberStyle", "paragraphPolicy",
+        "paragraphSpacing", "translationLabelPlacement"
+      ],
+      "properties": {
+        "referencePlacement": { "enum": ["before", "after"] },
+        "verseNumberStyle": { "enum": ["inline", "superscript", "hidden"] },
+        "paragraphPolicy": { "enum": ["publisher", "oneVerse"] },
+        "paragraphSpacing": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$",
+          "description": "Nonnegative physical length for paragraph spacing."
+        },
+        "translationLabelPlacement": { "enum": ["withReference", "afterPassage", "hidden"] },
+        "typographyPresetSnapshot": {
+          "type": "object",
+          "description": "Optional named typography-preset snapshot.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "verseInline": {
+      "description": "Inline content within a verse: text or lineBreak.",
+      "oneOf": [
+        { "$ref": "#/$defs/textInline" },
+        { "$ref": "#/$defs/lineBreakInline" }
+      ]
+    },
+    "verse": {
+      "description": "One verse in a verseStructured scripture block.",
+      "type": "object",
+      "required": ["verseId", "label", "paragraphStart", "children"],
+      "properties": {
+        "verseId": { "type": "string", "minLength": 1, "description": "Canonical verse identifier in OSIS-compatible subset." },
+        "label": { "type": "string", "minLength": 1, "maxLength": 20, "description": "Bounded display label for the verse." },
+        "paragraphStart": { "type": "boolean", "description": "True if this verse begins a publisher paragraph." },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/verseInline" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "scriptureParagraph": {
+      "description": "One paragraph in a paragraphOnly scripture block.",
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/verseInline" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceCatalog": {
+      "description": "Optional closed source-catalog reference for a scripture block.",
+      "type": "object",
+      "required": ["translationId", "catalogRevision", "revisionHash"],
+      "properties": {
+        "translationId": {
+          "type": "string",
+          "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "catalogRevision": { "type": "integer", "minimum": 1 },
+        "revisionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "displayLabel": { "type": "string" },
+        "sourceLabel": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "importReview": {
+      "description": "Optional import review record for a scripture block.",
+      "type": "object",
+      "required": ["disposition", "reviewedFidelityHash", "reviewedRightsProjectionHash", "reviewTime"],
+      "properties": {
+        "disposition": { "const": "changesConfirmed" },
+        "reviewedFidelityHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "reviewedRightsProjectionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "reviewTime": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pasteImportSnapshot": {
+      "description": "Import snapshot from a clipboard paste. When structureKind is verseStructured, canonicalReference is required and verseBoundaries records exact verse boundaries. When paragraphOnly, paragraphBoundaries records paragraph-boundary content.",
+      "type": "object",
+      "required": ["sourceKind", "structureKind", "displayReference", "translationId", "translationLabel", "normalizerId", "normalizerVersion", "sourceText", "sourceTextHash", "importedFidelityHash", "rightsProjectionHash"],
+      "properties": {
+        "sourceKind": { "const": "paste" },
+        "structureKind": { "enum": ["verseStructured", "paragraphOnly"] },
+        "displayReference": { "type": "string" },
+        "canonicalReference": { "type": "string", "minLength": 1 },
+        "translationId": {
+          "type": "string",
+          "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "translationLabel": { "type": "string", "minLength": 1 },
+        "normalizerId": { "type": "string", "minLength": 1 },
+        "normalizerVersion": { "type": "string", "minLength": 1 },
+        "sourceText": { "type": "string" },
+        "sourceTextHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "importedFidelityHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "rightsProjectionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "verseBoundaries": {
+          "type": "array",
+          "description": "Exact verse boundaries for verseStructured snapshots. Required when structureKind is verseStructured.",
+          "items": {
+            "type": "object",
+            "required": ["verseId", "label"],
+            "properties": {
+              "verseId": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "paragraphBoundaries": {
+          "type": "array",
+          "description": "Paragraph boundaries and content for paragraphOnly snapshots. Required when structureKind is paragraphOnly.",
+          "items": {
+            "type": "object",
+            "required": ["paragraphIndex"],
+            "properties": {
+              "paragraphIndex": { "type": "integer", "minimum": 0 },
+              "content": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "sourceLabel": { "type": "string" },
+        "sourceUrl": { "type": "string", "pattern": "^https://" }
+      },
+      "additionalProperties": false,
+      "if": { "properties": { "structureKind": { "const": "verseStructured" } }, "required": ["structureKind"] },
+      "then": {
+        "properties": {
+          "canonicalReference": { "type": "string", "minLength": 1 },
+          "verseBoundaries": { "type": "array", "minItems": 1 }
+        },
+        "required": ["canonicalReference", "verseBoundaries"]
+      },
+      "else": {
+        "properties": {
+          "paragraphBoundaries": { "type": "array", "minItems": 1 }
+        },
+        "required": ["paragraphBoundaries"]
+      }
+    },
+    "providerImportSnapshot": {
+      "description": "Import snapshot from a Scripture provider. When structureKind is verseStructured, canonicalReference is required and verseBoundaries records exact verse boundaries. When paragraphOnly, paragraphBoundaries records paragraph-boundary content.",
+      "type": "object",
+      "required": ["sourceKind", "structureKind", "displayReference", "translationId", "translationLabel", "normalizerId", "normalizerVersion", "sourceText", "sourceTextHash", "importedFidelityHash", "rightsProjectionHash", "providerId", "adapterId", "adapterVersion", "requestedReference", "requestedTranslationId", "retrievalTime"],
+      "properties": {
+        "sourceKind": { "const": "provider" },
+        "structureKind": { "enum": ["verseStructured", "paragraphOnly"] },
+        "displayReference": { "type": "string" },
+        "canonicalReference": { "type": "string", "minLength": 1 },
+        "translationId": {
+          "type": "string",
+          "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "translationLabel": { "type": "string", "minLength": 1 },
+        "normalizerId": { "type": "string", "minLength": 1 },
+        "normalizerVersion": { "type": "string", "minLength": 1 },
+        "sourceText": { "type": "string" },
+        "sourceTextHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "importedFidelityHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "rightsProjectionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "verseBoundaries": {
+          "type": "array",
+          "description": "Exact verse boundaries for verseStructured snapshots. Required when structureKind is verseStructured.",
+          "items": {
+            "type": "object",
+            "required": ["verseId", "label"],
+            "properties": {
+              "verseId": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "paragraphBoundaries": {
+          "type": "array",
+          "description": "Paragraph boundaries and content for paragraphOnly snapshots. Required when structureKind is paragraphOnly.",
+          "items": {
+            "type": "object",
+            "required": ["paragraphIndex"],
+            "properties": {
+              "paragraphIndex": { "type": "integer", "minimum": 0 },
+              "content": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "providerId": { "type": "string", "minLength": 1 },
+        "adapterId": { "type": "string", "minLength": 1 },
+        "adapterVersion": { "type": "string", "minLength": 1 },
+        "requestedReference": { "type": "string", "minLength": 1 },
+        "requestedTranslationId": {
+          "type": "string",
+          "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "retrievalTime": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        },
+        "sourceUrl": { "type": "string", "pattern": "^https://" }
+      },
+      "additionalProperties": false,
+      "if": { "properties": { "structureKind": { "const": "verseStructured" } }, "required": ["structureKind"] },
+      "then": {
+        "properties": {
+          "canonicalReference": { "type": "string", "minLength": 1 },
+          "verseBoundaries": { "type": "array", "minItems": 1 }
+        },
+        "required": ["canonicalReference", "verseBoundaries"]
+      },
+      "else": {
+        "properties": {
+          "paragraphBoundaries": { "type": "array", "minItems": 1 }
+        },
+        "required": ["paragraphBoundaries"]
+      }
+    },
+    "importSnapshot": {
+      "description": "Import source evidence for a scripture block.",
+      "oneOf": [
+        { "$ref": "#/$defs/pasteImportSnapshot" },
+        { "$ref": "#/$defs/providerImportSnapshot" }
+      ]
+    },
+    "verseStructuredImportSnapshot": {
+      "description": "Import snapshot whose structureKind must be verseStructured — mirrors the parent scripture block kind.",
+      "allOf": [
+        { "$ref": "#/$defs/importSnapshot" },
+        { "type": "object", "properties": { "structureKind": { "const": "verseStructured" } }, "required": ["structureKind"] }
+      ]
+    },
+    "paragraphOnlyImportSnapshot": {
+      "description": "Import snapshot whose structureKind must be paragraphOnly — mirrors the parent scripture block kind.",
+      "allOf": [
+        { "$ref": "#/$defs/importSnapshot" },
+        { "type": "object", "properties": { "structureKind": { "const": "paragraphOnly" } }, "required": ["structureKind"] }
+      ]
+    },
+    "verseStructuredScripture": {
+      "description": "A verseStructured scripture block with ordered canonical verses.",
+      "type": "object",
+      "required": ["type", "structureKind", "reference", "canonicalReference", "translationId", "translationLabel", "verses", "rights"],
+      "properties": {
+        "type": { "const": "scripture" },
+        "structureKind": { "const": "verseStructured" },
+        "reference": { "type": "string", "minLength": 1 },
+        "canonicalReference": { "type": "string" },
+        "translationId": {
+          "type": "string",
+          "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "translationLabel": { "type": "string", "minLength": 1 },
+        "sourceCatalog": { "$ref": "#/$defs/sourceCatalog" },
+        "verses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/verse" },
+          "minItems": 1
+        },
+        "formattingOverride": { "$ref": "#/$defs/scriptureFormattingOverride" },
+        "importSnapshot": { "$ref": "#/$defs/verseStructuredImportSnapshot" },
+        "importReview": { "$ref": "#/$defs/importReview" },
+        "rights": {
+          "type": "array",
+          "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/rights.schema.json#/$defs/rightsRecord" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "paragraphOnlyScripture": {
+      "description": "A paragraphOnly scripture block with ordered paragraphs.",
+      "type": "object",
+      "required": ["type", "structureKind", "translationId", "paragraphs", "rights"],
+      "properties": {
+        "type": { "const": "scripture" },
+        "structureKind": { "const": "paragraphOnly" },
+        "reference": { "type": "string" },
+        "canonicalReference": { "type": "string" },
+        "translationId": {
+          "type": "string",
+          "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "translationLabel": { "type": "string" },
+        "sourceCatalog": { "$ref": "#/$defs/sourceCatalog" },
+        "paragraphs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scriptureParagraph" },
+          "minItems": 1
+        },
+        "formattingOverride": { "$ref": "#/$defs/scriptureFormattingOverride" },
+        "importSnapshot": { "$ref": "#/$defs/paragraphOnlyImportSnapshot" },
+        "importReview": { "$ref": "#/$defs/importReview" },
+        "rights": {
+          "type": "array",
+          "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/rights.schema.json#/$defs/rightsRecord" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "scriptureBlock": {
+      "description": "A structured scripture passage block — not an arbitrary nested paragraph container.",
+      "oneOf": [
+        { "$ref": "#/$defs/verseStructuredScripture" },
+        { "$ref": "#/$defs/paragraphOnlyScripture" }
+      ]
+    },
+    "block": {
+      "description": "A rich-text block node.",
+      "oneOf": [
+        { "$ref": "#/$defs/paragraph" },
+        { "$ref": "#/$defs/heading" },
+        { "$ref": "#/$defs/bulletList" },
+        { "$ref": "#/$defs/orderedList" },
+        { "$ref": "#/$defs/blockquote" },
+        { "$ref": "#/$defs/scriptureBlock" }
+      ]
+    },
+    "richTextDocument": {
+      "description": "The v1 rich-text AST root.",
+      "type": "object",
+      "required": ["type", "blocks"],
+      "properties": {
+        "type": { "const": "document" },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/block" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

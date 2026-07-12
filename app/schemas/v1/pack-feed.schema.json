@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/pack-feed.schema.json",
+  "title": "CBB Pack Feed",
+  "description": "Hosted pack-feed head and immutable-release metadata exchanged by a Shared church library provider; network exchange only, never portable document state.",
+  "$defs": {
+    "packRelease": {
+      "description": "Immutable release metadata for a resource pack.",
+      "type": "object",
+      "required": ["version", "kind", "packId", "releaseVersion", "releaseHash", "displayName", "publishedAt"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "packRelease" },
+        "packId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "releaseVersion": { "type": "string", "minLength": 1 },
+        "releaseHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "displayName": { "type": "string", "minLength": 1 },
+        "publishedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "packFeedHead": {
+      "description": "Pack-feed head record listing available releases.",
+      "type": "object",
+      "required": ["version", "kind", "feedId", "releases"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "packFeedHead" },
+        "feedId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "releases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/packRelease" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/scripture-catalog.schema.json",
+  "title": "CBB Scripture Catalog",
+  "description": "Workspace/pack Scripture translation and presentation-preset revision records with portable identity, rights/usage-policy snapshots, provider mappings, redistribution decision, and hashes.",
+  "type": "object",
+  "required": ["version", "kind", "translationId", "displayLabel"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "scriptureCatalogRecord" },
+    "translationId": {
+      "type": "string",
+      "pattern": "^translation:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "catalogRevision": { "type": "integer", "minimum": 1 },
+    "revisionHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "displayLabel": { "type": "string", "minLength": 1 },
+    "abbreviation": { "type": "string" },
+    "sourceLabel": { "type": "string" },
+    "rights": {
+      "type": "array",
+      "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/rights.schema.json#/$defs/rightsRecord" }
+    },
+    "usagePolicySnapshot": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/rights.schema.json#/$defs/usagePolicySnapshot"
+    },
+    "redistributionDecision": {
+      "enum": ["permitted", "prohibited", "unknown"]
+    },
+    "providerMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["providerId", "providerTranslationId"],
+        "properties": {
+          "providerId": { "type": "string", "minLength": 1 },
+          "providerTranslationId": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

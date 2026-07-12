@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/rights.schema.json",
+  "title": "CBB Rights Records",
+  "description": "Shared song-work, rights-record snapshot, publication-credit, congregation-license-display, and generated-rights-block policy primitives.",
+  "$defs": {
+    "contributorRole": {
+      "enum": ["author", "composer", "arranger", "translator", "adapter", "publisher", "other"]
+    },
+    "contributor": {
+      "type": "object",
+      "required": ["name", "role"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "$ref": "#/$defs/contributorRole" }
+      },
+      "additionalProperties": false
+    },
+    "rightsComponent": {
+      "enum": ["text", "tune", "arrangement", "translation", "setting", "recording", "scriptureTranslation", "other"]
+    },
+    "rightsStatus": {
+      "enum": ["copyrighted", "publicDomain", "unknown"]
+    },
+    "creditRequiredWhen": {
+      "enum": ["always", "renderedText", "never"]
+    },
+    "publicationLicenseDisplay": {
+      "description": "User-reviewed publication license display line copied from Church Profile.",
+      "type": "object",
+      "required": ["providerLabel", "displayLine", "sourceDisplayRevisionHash"],
+      "properties": {
+        "providerLabel": { "type": "string", "minLength": 1 },
+        "displayLine": { "type": "string", "minLength": 1 },
+        "sourceDisplayRevisionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "effectiveFrom": {
+          "type": "string",
+          "pattern": "^(?:000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+        },
+        "effectiveThrough": {
+          "type": "string",
+          "pattern": "^(?:000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "usagePolicyConstraint": {
+      "description": "One numeric quotation constraint in a usage policy snapshot. For portionBasisPoints metric, basisMetric and basisUnitCount are additionally required (spec.md:2708-2711).",
+      "type": "object",
+      "required": ["metric", "scope", "limit"],
+      "properties": {
+        "metric": { "enum": ["verses", "words", "passages", "portionBasisPoints"] },
+        "scope": { "enum": ["passage", "bulletin", "translation"] },
+        "limit": { "type": "integer", "minimum": 0 },
+        "basisMetric": { "enum": ["verses", "words"], "description": "Required for portionBasisPoints metric." },
+        "basisUnitCount": { "type": "integer", "minimum": 1, "description": "Exact translation-corpus basis unit count from policy revision. Required for portionBasisPoints metric." }
+      },
+      "additionalProperties": false,
+      "if": { "properties": { "metric": { "const": "portionBasisPoints" } }, "required": ["metric"] },
+      "then": {
+        "properties": {
+          "basisMetric": { "enum": ["verses", "words"] },
+          "basisUnitCount": { "type": "integer", "minimum": 1 }
+        },
+        "required": ["basisMetric", "basisUnitCount"]
+      }
+    },
+    "usagePolicySnapshot": {
+      "description": "Snapshot of provider usage policy for a Scripture translation rights record.",
+      "type": "object",
+      "required": ["providerRuleId", "providerRuleVersion", "applicablePublicationContexts", "policySourceHash", "counterIdVersion"],
+      "properties": {
+        "providerRuleId": { "type": "string", "minLength": 1 },
+        "providerRuleVersion": { "type": "string", "minLength": 1 },
+        "applicablePublicationContexts": {
+          "type": "array",
+          "items": { "enum": ["printedNonsalableChurchBulletin", "digitalNonsalableChurchBulletin"] },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "quotationConstraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/usagePolicyConstraint" }
+        },
+        "requiredPublicationDisclosureLine": { "type": "string", "minLength": 1 },
+        "policySourceHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "counterIdVersion": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "rightsRecord": {
+      "description": "One rights/credit record in a song or scripture element.",
+      "type": "object",
+      "required": [
+        "creditKey", "creditProjectionHash", "component", "status",
+        "creditRequiredWhen", "contributors"
+      ],
+      "properties": {
+        "creditKey": {
+          "type": "string",
+          "pattern": "^credit:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "creditProjectionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "component": { "$ref": "#/$defs/rightsComponent" },
+        "status": { "$ref": "#/$defs/rightsStatus" },
+        "workTitle": { "type": "string" },
+        "edition": { "type": "string" },
+        "arrangement": { "type": "string" },
+        "tune": { "type": "string" },
+        "translationIdentity": { "type": "string" },
+        "contributors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contributor" }
+        },
+        "copyrightYear": { "type": "integer" },
+        "copyrightHolder": { "type": "string" },
+        "administrator": { "type": "string" },
+        "licenseProvider": { "type": "string" },
+        "providerSongId": { "type": "string" },
+        "providerCatalogId": { "type": "string" },
+        "providerReportingId": { "type": "string" },
+        "creditRequiredWhen": { "$ref": "#/$defs/creditRequiredWhen" },
+        "requiredCreditLine": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]+(\\n[^\\r\\n\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]+)*$",
+          "description": "Exact bounded credit line: one or more nonempty publication lines separated only by normalized LF (U+000A). CR and other control chars are invalid. Required when creditRequiredWhen is 'always' or 'renderedText'."
+        },
+        "publicationLicenseDisplay": { "$ref": "#/$defs/publicationLicenseDisplay" },
+        "usagePolicySnapshot": { "$ref": "#/$defs/usagePolicySnapshot" },
+        "metadataSourceHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "retrievalTime": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "creditRequiredWhen": { "enum": ["always", "renderedText"] }
+        },
+        "required": ["creditRequiredWhen"]
+      },
+      "then": {
+        "properties": { "requiredCreditLine": { "type": "string", "minLength": 1 } },
+        "required": ["requiredCreditLine"]
+      }
+    },
+    "rightsAssociationReview": {
+      "description": "Required review record binding song content identity to rights set.",
+      "type": "object",
+      "required": ["reviewedSongContentHash", "reviewedRightsProjectionHash", "reviewTime"],
+      "properties": {
+        "reviewedSongContentHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "reviewedRightsProjectionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "reviewTime": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

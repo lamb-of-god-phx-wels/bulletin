@@ -1,0 +1,9 @@
+{
+  "kind": "bulletin",
+  "name": "Missing Version",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": []
+}

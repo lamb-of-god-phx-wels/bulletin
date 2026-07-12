@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/manifest.schema.json",
+  "title": "CBB Manifest",
+  "description": "Resource pack, project bundle, and template bundle manifests.",
+  "$defs": {
+    "bundleEntry": {
+      "description": "One entry in a portable bundle archive.",
+      "type": "object",
+      "required": ["entryId", "kind", "path", "hash"],
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "kind": { "enum": ["document", "asset", "font", "rights", "pack", "other"] },
+        "path": { "type": "string", "minLength": 1 },
+        "hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "portableAssetId": {
+          "type": "string",
+          "pattern": "^asset:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "portableFontId": {
+          "type": "string",
+          "pattern": "^font:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "bundleManifest": {
+      "description": "Portable bundle manifest (project bundle or template bundle).",
+      "type": "object",
+      "required": ["version", "kind", "bundleId", "displayName", "entries", "hash"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "enum": ["projectBundle", "templateBundle", "resourcePack"] },
+        "bundleId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "displayName": { "type": "string", "minLength": 1 },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/bundleEntry" }
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Node ID",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "1invalid-starts-with-number",
+      "type": "text",
+      "name": "Bad ID",
+      "data": {
+        "content": { "kind": "plain", "text": "Hello" }
+      }
+    }
+  ]
+}

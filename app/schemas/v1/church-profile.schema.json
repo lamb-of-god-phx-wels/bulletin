@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/church-profile.schema.json",
+  "title": "CBB Church Profile",
+  "description": "Workspace-local reusable congregation details, preferred output/Scripture/publication-context defaults, Rights & Licenses display records/policy, brand/library references, schedule, favorites, and spelling dictionary.",
+  "type": "object",
+  "required": ["version", "kind"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "churchProfile" },
+    "congregationName": { "type": "string" },
+    "language": { "type": "string", "description": "Default BCP 47 language tag." },
+    "defaultPublicationContexts": {
+      "type": "array",
+      "items": { "enum": ["printedNonsalableChurchBulletin", "digitalNonsalableChurchBulletin"] },
+      "uniqueItems": true
+    },
+    "defaultUnknownRightsPolicy": { "enum": ["review", "block"] },
+    "schedules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "enabled"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "label": { "type": "string", "minLength": 1 },
+          "enabled": { "type": "boolean" },
+          "dayOfWeek": { "type": "integer", "minimum": 0, "maximum": 6 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

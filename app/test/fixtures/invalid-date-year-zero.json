@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Date Year Zero",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "dateEl1",
+      "type": "date",
+      "name": "Bad Date Year Zero",
+      "data": {
+        "value": "0000-01-01",
+        "format": "MMMM D, YYYY"
+      }
+    }
+  ]
+}

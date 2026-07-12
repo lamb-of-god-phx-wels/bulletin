@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Music Element",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "musicEl1",
+      "type": "music",
+      "name": "Bad Hymn",
+      "data": {
+        "title": "Amazing Grace",
+        "rightsAssociationReview": {
+          "reviewedSongContentHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "reviewedRightsProjectionHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "reviewTime": "2026-07-01T12:00:00Z"
+        }
+      }
+    }
+  ]
+}

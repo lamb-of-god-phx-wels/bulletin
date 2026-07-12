@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/diagnostic-catalog.schema.json",
+  "title": "CBB Diagnostic Catalog",
+  "description": "Bundled versioned stable diagnostic-code meanings, default severity/disposition, locations, recovery actions, and redaction class.",
+  "type": "object",
+  "required": ["version", "kind", "entries"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "diagnosticCatalog" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "title", "defaultSeverity", "redactionClass"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^CBB-[A-Z]+-[0-9]{4}$" },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "defaultSeverity": { "enum": ["error", "warning", "info"] },
+          "defaultDisposition": { "enum": ["blocking", "advisory", "informational"] },
+          "recoveryActions": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "redactionClass": { "enum": ["public", "internal", "private"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

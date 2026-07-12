@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Date Element",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "dateEl1",
+      "type": "date",
+      "name": "Bad Date",
+      "data": {
+        "value": "2026-13-01",
+        "format": "MMMM D, YYYY"
+      }
+    }
+  ]
+}

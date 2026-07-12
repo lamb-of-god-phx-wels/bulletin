@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/weekly-work.schema.json",
+  "title": "CBB Weekly Work",
+  "description": "Private per-bulletin instructions, checklist, rollover decisions, and resume state that never affect rendering.",
+  "type": "object",
+  "required": ["version", "kind", "bulletinLocalId"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "weeklyWork" },
+    "bulletinLocalId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Workspace-local resource id of the associated bulletin."
+    },
+    "privateInstructions": { "type": "string" },
+    "checklistItems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "done"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "label": { "type": "string", "minLength": 1 },
+          "done": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "resumeState": {
+      "type": "object",
+      "description": "Editor resume state (e.g., last selected element). Output-inert.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

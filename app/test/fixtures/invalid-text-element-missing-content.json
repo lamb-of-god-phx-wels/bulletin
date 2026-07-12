@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Text Element",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "textEl1",
+      "type": "text",
+      "name": "Bad Text Element",
+      "data": {}
+    }
+  ]
+}

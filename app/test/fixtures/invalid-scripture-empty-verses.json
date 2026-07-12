@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Scripture",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "textEl1",
+      "type": "text",
+      "name": "Scripture Text",
+      "data": {
+        "content": {
+          "kind": "richText",
+          "document": {
+            "type": "document",
+            "blocks": [
+              {
+                "type": "scripture",
+                "structureKind": "verseStructured",
+                "reference": "John 3:16",
+                "translationId": "translation:22222222-2222-4222-8222-222222222222",
+                "translationLabel": "NIV",
+                "verses": [],
+                "rights": [
+                  {
+                    "creditKey": "credit:33333333-3333-4333-8333-333333333333",
+                    "creditProjectionHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "component": "scriptureTranslation",
+                    "status": "copyrighted",
+                    "contributors": [],
+                    "creditRequiredWhen": "always",
+                    "requiredCreditLine": "NIV Credit"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Additional Property Test",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [],
+  "unknownTopLevelProp": "this should fail"
+}

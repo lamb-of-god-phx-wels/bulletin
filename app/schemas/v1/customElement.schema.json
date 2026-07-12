@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/customElement.schema.json",
+  "title": "CBB Custom Element",
+  "description": "Reusable custom element definitions and custom element instance metadata, reusing element.schema.json.",
+  "$defs": {
+    "customElementDefinition": {
+      "description": "A reusable custom element definition (Saved Section). Contains a field contract, prototype element tree, and portable identity.",
+      "type": "object",
+      "required": ["version", "kind", "id", "name", "fieldContract", "elements"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "kind": { "const": "customElementDefinition" },
+        "id": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId",
+          "description": "Stable portable node id for this custom element definition."
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "category": { "type": "string", "description": "Optional palette grouping such as Liturgy, Music, or Cover." },
+        "fieldContract": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldContract",
+          "description": "Field contract for this custom element definition."
+        },
+        "elements": {
+          "type": "array",
+          "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/element.schema.json#/$defs/nativeElement" },
+          "minItems": 1,
+          "description": "Visual elements that make up this custom element. Bindings on these elements resolve against the instance scope."
+        },
+        "contentRules": {
+          "type": "array",
+          "items": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/contentRule" },
+          "description": "Conditional and repeatable rules scoped to this definition."
+        },
+        "sampleFieldValues": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldValues",
+          "description": "Output-inert sample field values for preview in the custom element editor."
+        },
+        "authoringPolicy": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/authoringPolicy"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "customElementInstance": {
+      "description": "A custom element instance placed in a document. References a definition by its node id and stores field values scoped to this instance.",
+      "type": "object",
+      "required": ["id", "type", "name", "definitionId"],
+      "properties": {
+        "id": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId" },
+        "type": { "const": "customInstance" },
+        "name": { "type": "string", "minLength": 1 },
+        "definitionId": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId",
+          "description": "Node id of the pinned custom element definition."
+        },
+        "definitionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Hash of the pinned definition for staleness detection."
+        },
+        "width": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/elementSize" },
+        "height": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/elementSize" },
+        "breakPolicy": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/breakPolicy" },
+        "margin": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/spacingLength" },
+        "padding": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/spacingLength" },
+        "style": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/style" },
+        "fieldValues": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldValues",
+          "description": "Field values scoped to this instance."
+        },
+        "authoringPolicy": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/authoringPolicy" },
+        "weeklyReview": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/weeklyReview" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

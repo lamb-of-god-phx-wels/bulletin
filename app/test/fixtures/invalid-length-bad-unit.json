@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid Length Unit",
+  "page": {
+    "typstWidth": "7px",
+    "typstHeight": "8.5in"
+  },
+  "elements": []
+}

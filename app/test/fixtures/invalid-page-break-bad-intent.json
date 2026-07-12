@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "bulletin",
+  "name": "Invalid PageBreak",
+  "page": {
+    "typstWidth": "7in",
+    "typstHeight": "8.5in"
+  },
+  "elements": [
+    {
+      "id": "pb1",
+      "type": "pageBreak",
+      "name": "Bad Page Break",
+      "data": {
+        "intent": "forcedBreak"
+      }
+    }
+  ]
+}

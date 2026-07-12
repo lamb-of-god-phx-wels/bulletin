@@ -1,0 +1,312 @@
+{
+  "version": 1,
+  "kind": "template",
+  "name": "Standard Sunday Worship Template",
+  "metadata": {
+    "title": "Standard Sunday Worship Template",
+    "language": "en-US"
+  },
+  "page": {
+    "typstWidth": "5.5in",
+    "typstHeight": "8.5in",
+    "layoutIntent": "foldedBooklet",
+    "background": "#ffffff",
+    "marginMode": "mirrored",
+    "binding": "left",
+    "margins": {
+      "top": "0.5in",
+      "bottom": "0.5in",
+      "inner": "0.75in",
+      "outer": "0.5in"
+    },
+    "bookletPrintSetup": {
+      "sheetWidth": "11in",
+      "sheetHeight": "8.5in",
+      "duplexFlip": "shortEdge",
+      "scale": 1,
+      "safeInset": {
+        "top": "0.125in",
+        "right": "0.125in",
+        "bottom": "0.125in",
+        "left": "0.125in",
+        "fold": "0.0625in"
+      }
+    },
+    "finalPageCountRequirement": {
+      "multipleOf": 4
+    }
+  },
+  "scripturePresentation": {
+    "referencePlacement": "before",
+    "verseNumberStyle": "superscript",
+    "paragraphPolicy": "publisher",
+    "paragraphSpacing": "6pt",
+    "translationLabelPlacement": "withReference"
+  },
+  "rightsPolicy": { "unknownRightsPolicy": "review" },
+  "publicationContexts": [
+    "printedNonsalableChurchBulletin"
+  ],
+  "fieldContract": {
+    "id": "eeee4444-eeee-4eee-8eee-eeee44444444",
+    "version": 1,
+    "name": "Sunday Bulletin Template Fields",
+    "description": "Fields for the standard Sunday worship bulletin template.",
+    "groups": [
+      {
+        "id": "grpService",
+        "label": "Service Details"
+      }
+    ],
+    "fields": [
+      {
+        "id": "publicationDate",
+        "label": "Publication Date",
+        "type": "date",
+        "required": true,
+        "semanticRole": "publicationDate",
+        "groupId": "grpService",
+        "weeklyBehavior": {
+          "rolloverPolicy": "deriveConfirm",
+          "reviewExpectation": "everyBulletin",
+          "derivation": {
+            "kind": "nextScheduledServiceDate"
+          }
+        }
+      },
+      {
+        "id": "serviceLabel",
+        "label": "Service Label",
+        "type": "text",
+        "required": true,
+        "semanticRole": "serviceLabel",
+        "groupId": "grpService",
+        "weeklyBehavior": {
+          "rolloverPolicy": "keep",
+          "reviewExpectation": "whenCarried"
+        }
+      },
+      {
+        "id": "showChildren",
+        "label": "Show Children's Sermon",
+        "type": "boolean",
+        "required": false,
+        "groupId": "grpService",
+        "weeklyBehavior": {
+          "rolloverPolicy": "ask",
+          "reviewExpectation": "everyBulletin"
+        }
+      },
+      {
+        "id": "serviceTheme",
+        "label": "Service Theme",
+        "type": "choice",
+        "required": false,
+        "groupId": "grpService",
+        "constraints": {
+          "choices": [
+            { "id": "ordinary", "label": "Ordinary Time" },
+            { "id": "advent", "label": "Advent" },
+            { "id": "christmas", "label": "Christmas" },
+            { "id": "lent", "label": "Lent" },
+            { "id": "easter", "label": "Easter" }
+          ]
+        },
+        "weeklyBehavior": {
+          "rolloverPolicy": "keep",
+          "reviewExpectation": "whenCarried"
+        }
+      }
+    ],
+    "contractHash": "sha256:ffff5555ffff5555ffff5555ffff5555ffff5555ffff5555ffff5555ffff5555"
+  },
+  "contentRules": [
+    {
+      "kind": "conditional",
+      "id": "ruleShowChildren",
+      "targetNodeId": "childrenSermonEl1",
+      "scope": "document",
+      "fieldId": "showChildren",
+      "condition": {
+        "kind": "booleanEquals",
+        "value": true
+      },
+      "activateLabel": "Show Children's Sermon",
+      "inactiveLabel": "Hide Children's Sermon"
+    },
+    {
+      "kind": "conditional",
+      "id": "ruleAdventTheme",
+      "targetNodeId": "adventBannerEl1",
+      "scope": "document",
+      "fieldId": "serviceTheme",
+      "condition": {
+        "kind": "choiceEquals",
+        "choiceId": "advent"
+      },
+      "activateLabel": "Show Advent Banner",
+      "inactiveLabel": "Hide Advent Banner"
+    },
+    {
+      "kind": "conditional",
+      "id": "ruleNotEasterTheme",
+      "targetNodeId": "ordinaryBannerEl1",
+      "scope": "document",
+      "fieldId": "serviceTheme",
+      "condition": {
+        "kind": "choiceNotEquals",
+        "choiceId": "easter"
+      },
+      "activateLabel": "Show Standard Banner",
+      "inactiveLabel": "Hide Standard Banner"
+    }
+  ],
+  "sampleFieldValues": {
+    "publicationDate": {
+      "value": "2026-07-05",
+      "origin": "manual"
+    },
+    "serviceLabel": {
+      "value": "Sunday Worship",
+      "origin": "manual"
+    },
+    "showChildren": {
+      "value": true,
+      "origin": "manual"
+    },
+    "serviceTheme": {
+      "value": "ordinary",
+      "origin": "manual"
+    }
+  },
+  "customElementDefinitions": [
+    {
+      "version": 1,
+      "kind": "customElementDefinition",
+      "id": "customDef1",
+      "name": "Children's Sermon Block",
+      "description": "A reusable block for the children's sermon section.",
+      "category": "Liturgy",
+      "fieldContract": {
+        "id": "cccc2222-cccc-4ccc-8ccc-cccc22222222",
+        "version": 1,
+        "name": "Children's Sermon Fields",
+        "fields": [
+          {
+            "id": "sermonTitle",
+            "label": "Sermon Title",
+            "type": "text",
+            "required": true
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "defChildTitle1",
+          "type": "text",
+          "name": "Sermon Title Display",
+          "data": {
+            "content": {
+              "kind": "plain",
+              "text": "Children's Sermon"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "elements": [
+    {
+      "id": "titleText1",
+      "type": "text",
+      "name": "Bulletin Title",
+      "width": "100%",
+      "height": "auto",
+      "breakPolicy": "avoid",
+      "margin": "0.25in",
+      "style": {
+        "fontSize": 24,
+        "fontWeight": "bold",
+        "align": "center",
+        "color": "#251d18"
+      },
+      "bindings": [
+        {
+          "id": "serviceLabelBinding",
+          "scope": "document",
+          "fieldId": "serviceLabel",
+          "target": "/data/content/text"
+        }
+      ],
+      "data": {
+        "content": {
+          "kind": "plain",
+          "text": "Sunday Worship"
+        }
+      }
+    },
+    {
+      "id": "dateEl1",
+      "type": "date",
+      "name": "Publication Date",
+      "width": "100%",
+      "height": "auto",
+      "style": { "align": "center" },
+      "data": {
+        "value": "2026-01-01",
+        "format": "MMMM D, YYYY"
+      }
+    },
+    {
+      "id": "adventBannerEl1",
+      "type": "text",
+      "name": "Advent Banner",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "content": { "kind": "plain", "text": "Come, Lord Jesus!" }
+      }
+    },
+    {
+      "id": "ordinaryBannerEl1",
+      "type": "text",
+      "name": "Ordinary Time Banner",
+      "width": "100%",
+      "height": "auto",
+      "data": {
+        "content": { "kind": "plain", "text": "Grace and Peace to You" }
+      }
+    },
+    {
+      "id": "childrenSermonEl1",
+      "type": "customInstance",
+      "name": "Children's Sermon Block",
+      "definitionId": "customDef1",
+      "definitionHash": "sha256:4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb",
+      "width": "100%",
+      "breakPolicy": "avoid",
+      "fieldValues": {
+        "sermonTitle": {
+          "value": "The Good Shepherd",
+          "origin": "manual"
+        }
+      }
+    },
+    {
+      "id": "pageBreak1",
+      "type": "pageBreak",
+      "name": "Page Break",
+      "data": { "intent": "intentionalBlank" }
+    },
+    {
+      "id": "rightsEl1",
+      "type": "rightsAttribution",
+      "name": "Copyrights & Permissions",
+      "data": {
+        "heading": "Copyrights & Permissions",
+        "groupOrder": ["scripture", "music", "other"],
+        "includePublicDomainLines": false
+      }
+    }
+  ]
+}

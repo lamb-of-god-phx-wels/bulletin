@@ -1,0 +1,1190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/element.schema.json",
+  "title": "CBB Element",
+  "description": "Recursive discriminated union for all normal visual elements and container child wrappers.",
+  "$defs": {
+    "nodeId": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId"
+    },
+    "elementSize": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/elementSize"
+    },
+    "spacingLength": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/spacingLength"
+    },
+    "canvasPosition": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/canvasPosition"
+    },
+    "style": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/style"
+    },
+    "authoringPolicy": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/authoringPolicy"
+    },
+    "weeklyReview": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/weeklyReview"
+    },
+    "breakPolicy": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/breakPolicy"
+    },
+    "fieldContract": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldContract"
+    },
+    "fieldValues": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/fieldValues"
+    },
+    "binding": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/binding"
+    },
+    "richTextDocument": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/richText.schema.json#/$defs/richTextDocument"
+    },
+    "rightsRecord": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/rights.schema.json#/$defs/rightsRecord"
+    },
+    "rightsAssociationReview": {
+      "$ref": "https://church-bulletin-builder.local/schema/v1/rights.schema.json#/$defs/rightsAssociationReview"
+    },
+    "baseElementFields": {
+      "description": "Common fields shared by all visual elements.",
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "$ref": "#/$defs/elementSize"
+        },
+        "height": {
+          "$ref": "#/$defs/elementSize"
+        },
+        "breakPolicy": {
+          "$ref": "#/$defs/breakPolicy"
+        },
+        "margin": {
+          "$ref": "#/$defs/spacingLength"
+        },
+        "padding": {
+          "$ref": "#/$defs/spacingLength"
+        },
+        "style": {
+          "$ref": "#/$defs/style"
+        },
+        "fieldContract": {
+          "$ref": "#/$defs/fieldContract"
+        },
+        "fieldValues": {
+          "$ref": "#/$defs/fieldValues"
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          },
+          "description": "Ordered bindings from contract fields to allowlisted content-bearing data leaves."
+        },
+        "authoringPolicy": {
+          "$ref": "#/$defs/authoringPolicy"
+        },
+        "weeklyReview": {
+          "$ref": "#/$defs/weeklyReview"
+        }
+      }
+    },
+    "textElementData": {
+      "description": "Data object for a text element. Canonical content is in content; legacy data.text is migration input only.",
+      "type": "object",
+      "required": [
+        "content"
+      ],
+      "properties": {
+        "content": {
+          "description": "Discriminated content: plain text or rich-text AST.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "text"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "plain"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "document"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "richText"
+                },
+                "document": {
+                  "$ref": "#/$defs/richTextDocument"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "textElement": {
+      "description": "Text element: type 'text', stores content in data.content.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data"
+          ],
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "data": {
+              "$ref": "#/$defs/textElementData"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "imageElementData": {
+      "description": "Data object for an image element.",
+      "type": "object",
+      "required": [
+        "assetRef",
+        "fit"
+      ],
+      "properties": {
+        "assetRef": {
+          "type": "string",
+          "pattern": "^asset:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Portable asset reference: asset:<uuid>."
+        },
+        "fit": {
+          "enum": [
+            "contain",
+            "cover"
+          ]
+        },
+        "focalPoint": {
+          "type": "object",
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "alt": {
+          "type": "string"
+        },
+        "decorative": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "imageElement": {
+      "description": "Image element: type 'image'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data"
+          ],
+          "properties": {
+            "type": {
+              "const": "image"
+            },
+            "data": {
+              "$ref": "#/$defs/imageElementData"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "dateElementData": {
+      "description": "Data object for a date element.",
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^(?:000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$",
+          "description": "Proleptic Gregorian date string YYYY-MM-DD. Years 0001-9999; year 0000 is not valid."
+        },
+        "format": {
+          "type": "string",
+          "description": "App-owned token format, default MMMM D, YYYY."
+        },
+        "locale": {
+          "type": "string",
+          "description": "Optional BCP 47 locale override."
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "suffix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dateElement": {
+      "description": "Date element: type 'date'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data"
+          ],
+          "properties": {
+            "type": {
+              "const": "date"
+            },
+            "data": {
+              "$ref": "#/$defs/dateElementData"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "sourceSong": {
+      "description": "Optional closed sourceSong snapshot for a music element.",
+      "type": "object",
+      "required": [
+        "songRef",
+        "sourceRevision",
+        "sourceHash"
+      ],
+      "properties": {
+        "songRef": {
+          "type": "string",
+          "pattern": "^song:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "sourceRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "displayTitle": {
+          "type": "string"
+        },
+        "displayNumber": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "musicElementData": {
+      "description": "Data object for a music/hymn element.",
+      "type": "object",
+      "required": [
+        "title",
+        "rightsAssociationReview",
+        "rights"
+      ],
+      "properties": {
+        "number": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "richContent": {
+          "$ref": "#/$defs/richTextDocument"
+        },
+        "sourceSong": {
+          "$ref": "#/$defs/sourceSong"
+        },
+        "rightsAssociationReview": {
+          "$ref": "#/$defs/rightsAssociationReview"
+        },
+        "rights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rightsRecord"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "musicElement": {
+      "description": "Music/Hymn element: type 'music'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data"
+          ],
+          "properties": {
+            "type": {
+              "const": "music"
+            },
+            "data": {
+              "$ref": "#/$defs/musicElementData"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "rightsAttributionElementData": {
+      "description": "Data object for a Copyrights and Permissions block element.",
+      "type": "object",
+      "required": [
+        "groupOrder"
+      ],
+      "properties": {
+        "heading": {
+          "type": "string"
+        },
+        "introText": {
+          "type": "string"
+        },
+        "groupOrder": {
+          "description": "No-duplicate permutation of scripture, music, and other.",
+          "type": "array",
+          "items": {
+            "enum": [
+              "scripture",
+              "music",
+              "other"
+            ]
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "sortPolicy": {
+          "description": "Sort policy for attribution entries. v1 only supports firstAppearance (spec.md:2769-2771).",
+          "enum": ["firstAppearance"]
+        },
+        "includePublicDomainLines": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rightsAttributionElement": {
+      "description": "Copyrights and Permissions element: type 'rightsAttribution'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data"
+          ],
+          "properties": {
+            "type": {
+              "const": "rightsAttribution"
+            },
+            "data": {
+              "$ref": "#/$defs/rightsAttributionElementData"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pageBreakElementData": {
+      "description": "Data object for a page break element.",
+      "type": "object",
+      "required": [],
+      "properties": {
+        "intent": {
+          "enum": [
+            "flowBreak",
+            "intentionalBlank"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "pageBreakElement": {
+      "description": "Page break element: type 'pageBreak'. Forces following flow content onto next PDF page.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data"
+          ],
+          "properties": {
+            "type": {
+              "const": "pageBreak"
+            },
+            "data": {
+              "$ref": "#/$defs/pageBreakElementData"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "tableSemantics": {
+      "description": "Required for grid elements with semanticRole 'table'.",
+      "type": "object",
+      "required": [
+        "summary",
+        "headerRows",
+        "headerColumns"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "headerRows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "headerColumns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "gridElementData": {
+      "description": "Data object for a grid layout element.",
+      "type": "object",
+      "required": [
+        "rows",
+        "columns"
+      ],
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cellPadding": {
+          "$ref": "#/$defs/spacingLength"
+        },
+        "rowGap": {
+          "$ref": "#/$defs/spacingLength"
+        },
+        "columnGap": {
+          "$ref": "#/$defs/spacingLength"
+        },
+        "rowTracks": {
+          "type": "array",
+          "items": {
+            "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/trackLength"
+          }
+        },
+        "columnTracks": {
+          "type": "array",
+          "items": {
+            "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/trackLength"
+          }
+        },
+        "semanticRole": {
+          "enum": [
+            "layout",
+            "table"
+          ]
+        },
+        "tableSemantics": {
+          "$ref": "#/$defs/tableSemantics"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gridChildWrapper": {
+      "description": "Grid container child wrapper. Owns zero-based row/column placement. The wrapped element is a native visual element.",
+      "type": "object",
+      "required": [
+        "id",
+        "row",
+        "column",
+        "element"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "authoringPolicy": {
+          "$ref": "#/$defs/authoringPolicy"
+        },
+        "element": {
+          "$ref": "#/$defs/nativeElement"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gridElement": {
+      "description": "Grid layout container element: type 'grid'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data",
+            "children"
+          ],
+          "properties": {
+            "type": {
+              "const": "grid"
+            },
+            "data": {
+              "$ref": "#/$defs/gridElementData"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/gridChildWrapper"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "stackElementData": {
+      "description": "Data object for a stack layout element.",
+      "type": "object",
+      "required": [
+        "direction",
+        "gap"
+      ],
+      "properties": {
+        "direction": {
+          "enum": [
+            "vertical",
+            "horizontal"
+          ]
+        },
+        "gap": {
+          "$ref": "#/$defs/spacingLength"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stackChildWrapper": {
+      "description": "Stack container child wrapper. Owns zero-based index. The wrapped element is a native visual element.",
+      "type": "object",
+      "required": [
+        "id",
+        "index",
+        "element"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "authoringPolicy": {
+          "$ref": "#/$defs/authoringPolicy"
+        },
+        "element": {
+          "$ref": "#/$defs/nativeElement"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stackElement": {
+      "description": "Stack layout container element: type 'stack'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "data",
+            "children"
+          ],
+          "properties": {
+            "type": {
+              "const": "stack"
+            },
+            "data": {
+              "$ref": "#/$defs/stackElementData"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/stackChildWrapper"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "canvasChildWrapper": {
+      "description": "Canvas container child wrapper. Owns x/y absolute placement. The wrapped element is a native visual element.",
+      "type": "object",
+      "required": [
+        "id",
+        "x",
+        "y",
+        "element"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "x": {
+          "$ref": "#/$defs/canvasPosition"
+        },
+        "y": {
+          "$ref": "#/$defs/canvasPosition"
+        },
+        "semanticOrder": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "authoringPolicy": {
+          "$ref": "#/$defs/authoringPolicy"
+        },
+        "element": {
+          "$ref": "#/$defs/nativeElement"
+        }
+      },
+      "additionalProperties": false
+    },
+    "canvasElement": {
+      "description": "Canvas absolute-placement container element: type 'canvas'.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseElementFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "children"
+          ],
+          "properties": {
+            "type": {
+              "const": "canvas"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/canvasChildWrapper"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "nativeElement": {
+      "description": "Any native visual element (discriminated by type), including custom element instances.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/textElement"
+        },
+        {
+          "$ref": "#/$defs/imageElement"
+        },
+        {
+          "$ref": "#/$defs/dateElement"
+        },
+        {
+          "$ref": "#/$defs/musicElement"
+        },
+        {
+          "$ref": "#/$defs/rightsAttributionElement"
+        },
+        {
+          "$ref": "#/$defs/pageBreakElement"
+        },
+        {
+          "$ref": "#/$defs/gridElement"
+        },
+        {
+          "$ref": "#/$defs/stackElement"
+        },
+        {
+          "$ref": "#/$defs/canvasElement"
+        },
+        {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/customElement.schema.json#/$defs/customElementInstance"
+        }
+      ]
+    },
+    "pagePlacementSemantics": {
+      "description": "Semantic metadata for a page-level placement wrapper.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "artifact"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "readingOrder",
+            "order"
+          ],
+          "properties": {
+            "mode": {
+              "const": "content"
+            },
+            "readingOrder": {
+              "enum": [
+                "beforeBody",
+                "afterBody"
+              ]
+            },
+            "order": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "pageTargetMode": {
+      "description": "Page targeting mode for a page-level placement wrapper.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "all",
+                "first",
+                "last",
+                "odd",
+                "even"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "start",
+            "end"
+          ],
+          "properties": {
+            "mode": {
+              "const": "range"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "pages"
+          ],
+          "properties": {
+            "mode": {
+              "const": "pages"
+            },
+            "pages": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "pageContentElement": {
+      "description": "Native element variant allowed inside page-level placement wrappers. Flow-only width, height, margin, and breakPolicy are forbidden.",
+      "type": "object",
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type",
+            "name"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/nodeId"
+            },
+            "type": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "padding": {
+              "$ref": "#/$defs/spacingLength"
+            },
+            "style": {
+              "$ref": "#/$defs/style"
+            },
+            "authoringPolicy": {
+              "$ref": "#/$defs/authoringPolicy"
+            },
+            "weeklyReview": {
+              "$ref": "#/$defs/weeklyReview"
+            },
+            "fieldContract": {
+              "$ref": "#/$defs/fieldContract"
+            },
+            "fieldValues": {
+              "$ref": "#/$defs/fieldValues"
+            },
+            "bindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/binding"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "type": {
+                  "const": "text"
+                },
+                "data": {
+                  "$ref": "#/$defs/textElementData"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "type": {
+                  "const": "image"
+                },
+                "data": {
+                  "$ref": "#/$defs/imageElementData"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "type": {
+                  "const": "date"
+                },
+                "data": {
+                  "$ref": "#/$defs/dateElementData"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "type": {
+                  "const": "music"
+                },
+                "data": {
+                  "$ref": "#/$defs/musicElementData"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "type": {
+                  "const": "rightsAttribution"
+                },
+                "data": {
+                  "$ref": "#/$defs/rightsAttributionElementData"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "data", "children"],
+              "properties": {
+                "type": {
+                  "const": "grid"
+                },
+                "data": {
+                  "$ref": "#/$defs/gridElementData"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/gridChildWrapper"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "data", "children"],
+              "properties": {
+                "type": {
+                  "const": "stack"
+                },
+                "data": {
+                  "$ref": "#/$defs/stackElementData"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/stackChildWrapper"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "children"],
+              "properties": {
+                "type": {
+                  "const": "canvas"
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": false
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/canvasChildWrapper"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pageLevelWrapper": {
+      "description": "Page-level placement wrapper. Lives in the document's pageElements array.",
+      "type": "object",
+      "required": [
+        "id",
+        "purpose",
+        "target",
+        "layer",
+        "region",
+        "anchor",
+        "x",
+        "y",
+        "width",
+        "height",
+        "zIndex",
+        "clipToRegion",
+        "semantic",
+        "element"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "purpose": {
+          "enum": [
+            "background",
+            "header",
+            "footer",
+            "pageNumber",
+            "decoration"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/pageTargetMode"
+        },
+        "layer": {
+          "enum": [
+            "background",
+            "underlay",
+            "overlay"
+          ]
+        },
+        "region": {
+          "enum": [
+            "page",
+            "content",
+            "topMargin",
+            "bottomMargin",
+            "leftMargin",
+            "rightMargin"
+          ]
+        },
+        "anchor": {
+          "enum": [
+            "topLeft",
+            "topCenter",
+            "topRight",
+            "centerLeft",
+            "center",
+            "centerRight",
+            "bottomLeft",
+            "bottomCenter",
+            "bottomRight"
+          ]
+        },
+        "x": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalOrRelativeLength"
+        },
+        "y": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/physicalOrRelativeLength"
+        },
+        "width": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/pageElementSize"
+        },
+        "height": {
+          "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/pageElementSize"
+        },
+        "zIndex": {
+          "type": "integer",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "clipToRegion": {
+          "type": "boolean"
+        },
+        "semantic": {
+          "$ref": "#/$defs/pagePlacementSemantics"
+        },
+        "element": {
+          "$ref": "#/$defs/pageContentElement"
+        },
+        "authoringPolicy": {
+          "$ref": "#/$defs/authoringPolicy"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

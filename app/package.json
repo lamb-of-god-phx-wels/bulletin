@@ -1,0 +1,24 @@
+{
+  "name": "@cbb/root",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/services",
+    "packages/workers",
+    "packages/shell",
+    "packages/ui"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}

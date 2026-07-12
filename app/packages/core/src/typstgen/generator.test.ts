@@ -15,7 +15,18 @@ import {
   type HashJsonObject,
 } from "../hashes/index.js";
 import { projectResolvedTree } from "../resolve/projection.js";
-import { generateTypst } from "./generator.js";
+import {
+  BUNDLED_NOTO_SANS_FAMILY,
+  BUNDLED_NOTO_SANS_FONT_REF,
+  BUNDLED_NOTO_SANS_SYMBOLS_2_FAMILY,
+  BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+} from "./bundledFonts.js";
+import { generateTypst as generateTypstCore } from "./generator.js";
+import type {
+  TypstGenerationInput,
+  TypstGenerationOptions,
+  TypstGenerationResult,
+} from "./types.js";
 
 function directNode(
   resolvedId: string,
@@ -52,9 +63,15 @@ const PROJECTION_BASE: Omit<RenderProjection, "elements" | "pageElements"> = {
     paragraphSpacing: "6pt",
     translationLabelPlacement: "withReference",
   },
-  fontFallbackRefs: [],
+  fontFallbackRefs: [
+    BUNDLED_NOTO_SANS_FONT_REF,
+    BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+  ],
   rightsContributions: [],
-  referencedFonts: [],
+  referencedFonts: [
+    { fontRef: BUNDLED_NOTO_SANS_FONT_REF },
+    { fontRef: BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF },
+  ],
   referencedAssets: [],
 };
 
@@ -84,13 +101,51 @@ function inputFor(
 
 const HASH = hexToSha256Hash("a".repeat(64));
 
+const MANDATORY_FONT_BINDINGS = {
+  [BUNDLED_NOTO_SANS_FONT_REF]: { familyName: BUNDLED_NOTO_SANS_FAMILY },
+  [BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF]: {
+    familyName: BUNDLED_NOTO_SANS_SYMBOLS_2_FAMILY,
+  },
+} as const;
+
+function generate(
+  input: TypstGenerationInput,
+  options: TypstGenerationOptions = {},
+): TypstGenerationResult {
+  return generateTypstCore(input, {
+    ...options,
+    fonts: { ...MANDATORY_FONT_BINDINGS, ...options.fonts },
+  });
+}
+
 function projectionRenderHash(projection: RenderProjection): string {
   return renderInputHash({
     projection: createSanitizedRenderProjection(
       projection as unknown as HashJsonObject,
     ),
     assets: [],
-    fonts: [],
+    fonts: [
+      {
+        fontRef: BUNDLED_NOTO_SANS_FONT_REF,
+        familyDigest: HASH,
+        selectedFaces: [{
+          faceId: "test-noto-regular",
+          faceHash: HASH,
+          faceIndex: 0,
+          embedding: "subset",
+        }],
+      },
+      {
+        fontRef: BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+        familyDigest: HASH,
+        selectedFaces: [{
+          faceId: "test-symbols-regular",
+          faceHash: HASH,
+          faceIndex: 0,
+          embedding: "subset",
+        }],
+      },
+    ],
     tools: [{ toolId: "typstgen", version: "test", toolHash: HASH }],
     locale: {
       languageTag: projection.locale,
@@ -106,6 +161,31 @@ function projectionRenderHash(projection: RenderProjection): string {
 }
 
 describe("generateTypst", () => {
+  it("fails closed without the materialized release font contract", () => {
+    const input = inputFor([]);
+    expect(() => generateTypstCore(input)).toThrow(/no verified build font binding/);
+    expect(() =>
+      generateTypstCore(input, {
+        fonts: {
+          ...MANDATORY_FONT_BINDINGS,
+          [BUNDLED_NOTO_SANS_FONT_REF]: { familyName: "Same-name substitute" },
+        },
+      }),
+    ).toThrow(/must bind to Noto Sans/);
+    expect(() =>
+      generateTypstCore(
+        {
+          ...input,
+          projection: {
+            ...input.projection,
+            fontFallbackRefs: [],
+          },
+        },
+        { fonts: MANDATORY_FONT_BINDINGS },
+      ),
+    ).toThrow(/projection must end with/);
+  });
+
   it("is byte-stable and never interpolates user markup as source", () => {
     const input = inputFor([
       directNode("title", {
@@ -119,8 +199,8 @@ describe("generateTypst", () => {
       }),
     ]);
 
-    const first = generateTypst(input);
-    const second = generateTypst(input);
+    const first = generate(input);
+    const second = generate(input);
     expect(first).toEqual(second);
     expect(first.source).toContain('#text("#panic(\\"owned\\") [] $x$")');
     expect(first.source).not.toContain('[#panic("owned")]');
@@ -144,22 +224,22 @@ describe("generateTypst", () => {
       title: "English Bulletin",
       locale: "en-US",
     });
-    const germanResult = generateTypst(german);
+    const germanResult = generate(german);
 
     expect(germanResult.source).toContain(
       '#set document(title: "Gemeinde #panic(\\"not source\\")")',
     );
     expect(germanResult.source).toContain(
-      '#set text(top-edge: "ascender", bottom-edge: "descender")',
+      '#set text(font: ("Noto Sans", "Noto Sans Symbols 2"), top-edge: "ascender", bottom-edge: "descender")',
     );
     expect(germanResult.source).toContain('#set text(lang: "de", region: "DE")');
     expect(germanResult.findings).toEqual([]);
-    expect(germanResult.source).not.toBe(generateTypst(english).source);
+    expect(germanResult.source).not.toBe(generate(english).source);
     expect(projectionRenderHash(german.projection)).not.toBe(
       projectionRenderHash(english.projection),
     );
 
-    const unsupported = generateTypst(
+    const unsupported = generate(
       inputFor([body], [], { locale: "sr-Latn-RS" }),
     );
     expect(unsupported.source).not.toContain("sr-Latn-RS");
@@ -183,13 +263,13 @@ describe("generateTypst", () => {
       },
     });
     const input = inputFor([image]);
-    const missing = generateTypst(input);
+    const missing = generate(input);
     expect(missing.source).toContain("Missing image");
     expect(missing.findings).toContainEqual(
       expect.objectContaining({ code: "CBB-ASSET-0001", resolvedId: "logo" })
     );
 
-    const bound = generateTypst(input, {
+    const bound = generate(input, {
       assets: {
         "asset:11111111-1111-4111-8111-111111111111": {
           relativePath: "assets/logo.svg",
@@ -202,7 +282,7 @@ describe("generateTypst", () => {
 
   it("keeps a draft image representation but warns when alt text is missing", () => {
     const assetRef = "asset:11111111-1111-4111-8111-111111111111";
-    const result = generateTypst(
+    const result = generate(
       inputFor([
         directNode("draftImage", {
           type: "image",
@@ -251,7 +331,7 @@ describe("generateTypst", () => {
         },
       ],
     });
-    const result = generateTypst(inputFor([grid]));
+    const result = generate(inputFor([grid]));
     expect(result.source).toContain("#grid(columns: (1fr,) * 2");
     expect(result.source).toContain("grid.cell(x: 0, y: 0, breakable: false)");
     expect(result.sourceMap.entries.map((entry) => entry.resolvedId)).toEqual([
@@ -297,7 +377,7 @@ describe("generateTypst", () => {
         },
       ],
     });
-    const source = generateTypst(inputFor([autoGrid, fixedGrid, horizontal])).source;
+    const source = generate(inputFor([autoGrid, fixedGrid, horizontal])).source;
     expect(source).toContain("columns: (1fr,) * 3, rows: (auto,) * 2");
     expect(source).toContain("columns: (1fr,) * 2, rows: (1fr,) * 2");
     expect(source).toContain("#grid(columns: (1fr,) * 2, column-gutter: 6pt");
@@ -351,7 +431,7 @@ describe("generateTypst", () => {
         { ...second, semanticOrder: 0 },
       ],
     });
-    const findings = generateTypst(inputFor([table, canvas])).findings;
+    const findings = generate(inputFor([table, canvas])).findings;
     expect(findings).toContainEqual(
       expect.objectContaining({
         code: "CBB-PDF-0002",
@@ -376,7 +456,7 @@ describe("generateTypst", () => {
       ],
     });
     expect(
-      generateTypst(inputFor([identityCanvas])).findings.some(
+      generate(inputFor([identityCanvas])).findings.some(
         (finding) => finding.kind === "unsupportedCanvasSemantics",
       ),
     ).toBe(false);
@@ -395,12 +475,12 @@ describe("generateTypst", () => {
       type: "text",
       data: { content: { kind: "plain", text: "After" } },
     });
-    const middle = generateTypst(inputFor([before, blank, after]));
+    const middle = generate(inputFor([before, blank, after]));
     expect(middle.source).toContain(
       "#pagebreak(weak: true)\n#pagebreak()\n"
     );
 
-    const trailing = generateTypst(inputFor([before, blank]));
+    const trailing = generate(inputFor([before, blank]));
     expect(trailing.source).toContain("#pagebreak(weak: true)\n");
     expect(trailing.source).not.toContain(
       "#pagebreak(weak: true)\n#pagebreak()\n"
@@ -416,7 +496,7 @@ describe("generateTypst", () => {
     const projectedBody = input.projection.elements[0];
     if (projectedBody?.type !== "text") throw new Error("test fixture drift");
     expect(() =>
-      generateTypst({
+      generate({
         ...input,
         projection: {
           ...input.projection,
@@ -459,7 +539,7 @@ describe("generateTypst", () => {
     const projectedPage = withPage.projection.pageElements[0];
     if (projectedPage === undefined) throw new Error("test fixture drift");
     expect(() =>
-      generateTypst({
+      generate({
         ...withPage,
         projection: {
           ...withPage.projection,
@@ -500,21 +580,21 @@ describe("generateTypst", () => {
     expect(canonicalStringify(implicit.projection)).toBe(
       canonicalStringify(explicit.projection),
     );
-    expect(generateTypst(implicit).source).toBe(generateTypst(explicit).source);
+    expect(generate(implicit).source).toBe(generate(explicit).source);
     expect(projectionRenderHash(implicit.projection)).toBe(
       projectionRenderHash(explicit.projection),
     );
     // Default alignment must not wrap block-level content in Typst `align`.
     // That wrapper collapses the measured height of nested blocks and lets the
     // next body element paint over them in a real PDF.
-    const implicitSource = generateTypst(implicit).source;
+    const implicitSource = generate(implicit).source;
     expect(implicitSource).toContain("#set text(");
     expect(implicitSource).not.toContain("#align(left)[");
     expect(implicitSource).not.toContain("#text(font:");
     expect(implicitSource).not.toContain("above: 0pt");
     expect(implicitSource).not.toContain("below: 0pt");
 
-    const bottomAligned = generateTypst(
+    const bottomAligned = generate(
       inputFor([
         directNode("fixed", {
           type: "text",
@@ -526,7 +606,7 @@ describe("generateTypst", () => {
     );
     expect(bottomAligned.source).toContain("#align(left + bottom)[");
 
-    const justifiedBottom = generateTypst(
+    const justifiedBottom = generate(
       inputFor([
         directNode("justifiedFixed", {
           type: "text",
@@ -608,7 +688,7 @@ describe("generateTypst", () => {
     expect(canonicalStringify(implicit.projection)).toBe(
       canonicalStringify(explicit.projection),
     );
-    expect(generateTypst(implicit).source).toBe(generateTypst(explicit).source);
+    expect(generate(implicit).source).toBe(generate(explicit).source);
     expect(projectionRenderHash(implicit.projection)).toBe(
       projectionRenderHash(explicit.projection),
     );
@@ -635,7 +715,7 @@ describe("generateTypst", () => {
       [],
       { rightsContributions: [contribution] },
     );
-    const result = generateTypst(input);
+    const result = generate(input);
     expect(result.source).toContain(
       '#text("First exact line.")#linebreak()#text("Second exact line.")',
     );
@@ -653,7 +733,7 @@ describe("generateTypst", () => {
       requiredCreditLineApplies: true,
       requiredCreditLine: "Required credit.",
     };
-    const result = generateTypst(
+    const result = generate(
       inputFor(
         [
           directNode("bodyOnly", {
@@ -713,7 +793,7 @@ describe("generateTypst", () => {
       0,
       { fontWeight: "bold", color: "#251d18", align: "right" },
     );
-    const result = generateTypst(
+    const result = generate(
       inputFor([], [underlay, background, pageNumber], {
         page: {
           ...PROJECTION_BASE.page,
@@ -765,7 +845,7 @@ describe("generateTypst", () => {
       semantic: { mode: "content", readingOrder: "afterBody", order: 0 },
       element: pageNode,
     };
-    expect(generateTypst(inputFor([], [meaningful])).findings).toContainEqual(
+    expect(generate(inputFor([], [meaningful])).findings).toContainEqual(
       expect.objectContaining({
         code: "CBB-PDF-0002",
         severity: "error",
@@ -802,7 +882,7 @@ describe("generateTypst", () => {
       semantic: { mode: "artifact" },
       element: image,
     };
-    const result = generateTypst(inputFor([], [pageImage]), {
+    const result = generate(inputFor([], [pageImage]), {
       assets: {
         "asset:11111111-1111-4111-8111-111111111111": {
           relativePath: "assets/cover.svg",
@@ -845,7 +925,7 @@ describe("generateTypst", () => {
           },
         ],
       });
-    const measured = generateTypst(inputFor([canvasWith(fixedChild)]));
+    const measured = generate(inputFor([canvasWith(fixedChild)]));
     expect(measured.source).toContain("calc.max(0pt, (12pt + 24pt))");
     expect(measured.findings).toEqual([]);
 
@@ -853,7 +933,7 @@ describe("generateTypst", () => {
       type: "text",
       data: { content: { kind: "plain", text: "Natural height" } },
     });
-    expect(generateTypst(inputFor([canvasWith(naturalChild)])).findings).toContainEqual(
+    expect(generate(inputFor([canvasWith(naturalChild)])).findings).toContainEqual(
       expect.objectContaining({
         code: "CBB-LAYOUT-0003",
         severity: "error",
@@ -864,7 +944,7 @@ describe("generateTypst", () => {
   });
 
   it("fails closed for avoid fragmentation without a measured pagination plan", () => {
-    const result = generateTypst(
+    const result = generate(
       inputFor([
         directNode("avoidText", {
           type: "text",
@@ -893,7 +973,7 @@ describe("generateTypst", () => {
       typographyPresetSnapshot: { preset: "unmapped" },
     };
     expect(
-      generateTypst(
+      generate(
         inputFor([], [], { scripturePresentation: presentation }),
       ).findings,
     ).toContainEqual(

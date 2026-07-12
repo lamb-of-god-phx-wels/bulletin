@@ -1,4 +1,14 @@
 export { DATE_FORMATTER_VERSION, formatIsoDate } from "./date.js";
+export {
+  BUNDLED_NOTO_SANS_FAMILY,
+  BUNDLED_NOTO_SANS_FONT_REF,
+  BUNDLED_NOTO_SANS_SYMBOLS_2_FAMILY,
+  BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+  MANDATORY_BUNDLED_FONTS,
+  MANDATORY_BUNDLED_FONT_REFS,
+  assertMaterializedMandatoryBundledFonts,
+  hasMaterializedMandatoryBundledFonts,
+} from "./bundledFonts.js";
 export { assertSafeBuildRelativePath, typstStringLiteral } from "./escape.js";
 export { generateTypst } from "./generator.js";
 export { generateRightsBlock } from "./rights.js";
@@ -18,10 +28,7 @@ export type {
   TypstGenerationOptions,
   TypstGenerationResult,
 } from "./types.js";
-export {
-  TYPST_BUNDLED_DEFAULT_FONT_FAMILY,
-  TYPST_GENERATOR_VERSION,
-} from "./types.js";
+export { TYPST_GENERATOR_VERSION } from "./types.js";
 export {
   rationalFromJsonNumber,
   typstColor,

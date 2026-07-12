@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cbb/core": "*"
+    "@cbb/core": "*",
+    "@cbb/workers": "*"
   }
 }

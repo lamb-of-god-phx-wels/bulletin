@@ -18,6 +18,10 @@ import {
   projectResolvedTree,
 } from "../resolve/projection.js";
 import { formatIsoDate } from "./date.js";
+import {
+  MANDATORY_BUNDLED_FONTS,
+  assertMaterializedMandatoryBundledFonts,
+} from "./bundledFonts.js";
 import { assertSafeBuildRelativePath, typstStringLiteral } from "./escape.js";
 import { renderRichTextDocument } from "./richText.js";
 import {
@@ -30,7 +34,6 @@ import {
 } from "./sourceBuilder.js";
 import {
   TYPST_GENERATOR_VERSION,
-  TYPST_BUNDLED_DEFAULT_FONT_FAMILY,
   type TypstGenerationFinding,
   type TypstGenerationInput,
   type TypstGenerationOptions,
@@ -116,9 +119,27 @@ function fontFamilies(
 
   if (style?.fontRef !== undefined) addRef(style.fontRef);
   for (const fontRef of context.input.projection.fontFallbackRefs) addRef(fontRef);
-  const bundled = safeFamilyName(TYPST_BUNDLED_DEFAULT_FONT_FAMILY);
-  if (!families.includes(bundled)) families.push(bundled);
   return families;
+}
+
+function mandatoryBundledFontFamilies(
+  options: TypstGenerationOptions,
+): readonly string[] {
+  return MANDATORY_BUNDLED_FONTS.map(({ fontRef, familyName }) => {
+    const binding = options.fonts?.[fontRef];
+    if (binding === undefined) {
+      throw new TypeError(
+        `generateTypst: no verified build font binding exists for mandatory ${fontRef}`,
+      );
+    }
+    const boundFamily = safeFamilyName(binding.familyName);
+    if (boundFamily !== familyName) {
+      throw new TypeError(
+        `generateTypst: mandatory ${fontRef} must bind to ${familyName}`,
+      );
+    }
+    return boundFamily;
+  });
 }
 
 function textStyleSet(
@@ -853,6 +874,7 @@ function marginProjection(page: RenderPageProjection): string {
 }
 
 function emitPreamble(context: EmitContext): void {
+  const mandatoryFamilies = mandatoryBundledFontFamilies(context.options);
   const background = context.input.tree.pageElements.filter(
     (entry) => entry.layer === "background" || entry.layer === "underlay"
   );
@@ -867,7 +889,7 @@ function emitPreamble(context: EmitContext): void {
   // beyond a bottom-anchored authoritative placement box and be clipped at the
   // page edge. Use full font extents so matching page anchors contain text.
   context.builder.append(
-    '#set text(top-edge: "ascender", bottom-edge: "descender")\n',
+    `#set text(font: (${mandatoryFamilies.map(typstStringLiteral).join(", ")}), top-edge: "ascender", bottom-edge: "descender")\n`,
   );
   const locale = typstTextLocale(context.input.projection.locale);
   if (locale !== undefined) {
@@ -1111,6 +1133,8 @@ export function generateTypst(
   options: TypstGenerationOptions = {}
 ): TypstGenerationResult {
   assertProjectionMatchesTree(input);
+  assertMaterializedMandatoryBundledFonts(input.projection, "generateTypst");
+  mandatoryBundledFontFamilies(options);
   const context: EmitContext = {
     input,
     options,

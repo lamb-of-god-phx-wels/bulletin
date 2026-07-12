@@ -3,6 +3,10 @@
   "$id": "https://church-bulletin-builder.local/schema/v1/settings.schema.json",
   "title": "CBB Settings",
   "description": "Discriminated versioned application-global and workspace editor/export preferences; per-connection choices live only in their connection records.",
+  "oneOf": [
+    { "$ref": "#/$defs/globalSettings" },
+    { "$ref": "#/$defs/workspaceSettings" }
+  ],
   "$defs": {
     "globalSettings": {
       "description": "Application-global preferences.",

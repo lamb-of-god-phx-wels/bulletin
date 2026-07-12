@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/workspace-lock.schema.json",
+  "title": "CBB Workspace Lock",
+  "type": "object",
+  "required": [
+    "version",
+    "kind",
+    "workspaceId",
+    "instanceId",
+    "pid",
+    "hostUserDiscriminator",
+    "appVersion",
+    "processStartedAt",
+    "acquiredAt",
+    "heartbeatAt"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "workspaceLock" },
+    "workspaceId": { "$ref": "workspace.schema.json#/properties/workspaceId" },
+    "instanceId": { "$ref": "workspace.schema.json#/$defs/localResourceId" },
+    "pid": { "type": "integer", "minimum": 1 },
+    "hostUserDiscriminator": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "appVersion": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "processStartedAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" },
+    "acquiredAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" },
+    "heartbeatAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" }
+  },
+  "additionalProperties": false
+}

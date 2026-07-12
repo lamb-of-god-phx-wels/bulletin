@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/trusted-components.schema.json",
+  "title": "CBB Signed Trusted Component Manifest",
+  "description": "Signed release-local identities for executables, bundled fonts, schemas, locale data, and starter resources. Paths are fixed safe relative package paths and never supplied by build requests.",
+  "type": "object",
+  "required": ["version", "kind", "signingKeyId", "components", "signature"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "trustedComponentManifest" },
+    "signingKeyId": { "$ref": "#/$defs/token" },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "#/$defs/component" }
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$",
+      "description": "Canonical base64 encoding of a 64-byte Ed25519 signature over RFC 8785 canonical manifest content with this field omitted."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "componentRole": {
+      "enum": [
+        "typstCli",
+        "bookletCompositor",
+        "pdfUaValidator",
+        "bundledFontFace",
+        "schemaCatalog",
+        "localeData",
+        "genericStarterSet"
+      ]
+    },
+    "safeRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!.*\\.\\.)(?:[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?/)*[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "component": {
+      "type": "object",
+      "required": [
+        "role",
+        "id",
+        "version",
+        "platform",
+        "arch",
+        "relativePath",
+        "hash",
+        "byteSize"
+      ],
+      "properties": {
+        "role": { "$ref": "#/$defs/componentRole" },
+        "id": { "$ref": "#/$defs/token" },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+:-]{0,127}$"
+        },
+        "platform": { "enum": ["linux", "win32"] },
+        "arch": { "enum": ["x64", "arm64"] },
+        "relativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "hash": { "$ref": "#/$defs/sha256" },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

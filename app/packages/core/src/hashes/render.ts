@@ -25,11 +25,71 @@ import {
   compareUtf16,
   HashInputError,
 } from "./validation.js";
+import { MANDATORY_BUNDLED_FONT_REFS } from "../typstgen/bundledFonts.js";
 
 const PORTABLE_ASSET_RE =
   /^asset:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PORTABLE_FONT_RE =
   /^font:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function assertMandatoryBundledFontClosure(
+  projection: HashJsonObject,
+  path: string,
+): void {
+  const rawRefs = projection["fontFallbackRefs"];
+  if (!Array.isArray(rawRefs)) {
+    throw new HashInputError(
+      `${path}.fontFallbackRefs`,
+      "materialized release-owned bundled font fallbacks are required",
+    );
+  }
+  if (new Set(rawRefs).size !== rawRefs.length) {
+    throw new HashInputError(
+      `${path}.fontFallbackRefs`,
+      "materialized font fallbacks must not contain duplicate refs",
+    );
+  }
+  const rawReferenced = projection["referencedFonts"];
+  if (!Array.isArray(rawReferenced)) {
+    throw new HashInputError(
+      `${path}.referencedFonts`,
+      "the materialized font reference closure is required",
+    );
+  }
+  const referencedRefs = rawReferenced.map((entry) =>
+    typeof entry === "object" && entry !== null && !Array.isArray(entry)
+      ? (entry as HashJsonObject)["fontRef"]
+      : undefined,
+  );
+  if (new Set(referencedRefs).size !== referencedRefs.length) {
+    throw new HashInputError(
+      `${path}.referencedFonts`,
+      "materialized font reference closure must not contain duplicate refs",
+    );
+  }
+  const start = rawRefs.length - MANDATORY_BUNDLED_FONT_REFS.length;
+  if (start < 0) {
+    throw new HashInputError(
+      `${path}.fontFallbackRefs`,
+      "Noto Sans and Noto Sans Symbols 2 fallbacks are required",
+    );
+  }
+  for (const [index, expected] of MANDATORY_BUNDLED_FONT_REFS.entries()) {
+    const actualIndex = start + index;
+    if (rawRefs[actualIndex] !== expected || rawRefs.indexOf(expected) !== actualIndex) {
+      throw new HashInputError(
+        `${path}.fontFallbackRefs`,
+        "must end with exactly one release-owned Noto Sans and Noto Sans Symbols 2 fallback",
+      );
+    }
+    if (!referencedRefs.includes(expected)) {
+      throw new HashInputError(
+        `${path}.referencedFonts`,
+        "materialized font reference closure must include every bundled fallback",
+      );
+    }
+  }
+}
 
 /**
  * Persisted/editor fields that must never leak into an output-only render
@@ -513,6 +573,7 @@ export function renderInputHash(
   );
   const projection = asHashJsonObject(record["projection"], "$render.projection");
   assertSafeProjectionFields(projection, "$render.projection");
+  assertMandatoryBundledFontClosure(projection, "$render.projection");
 
   const assets = normalizeAssets(input.assets);
   const fonts = normalizeFonts(input.fonts);

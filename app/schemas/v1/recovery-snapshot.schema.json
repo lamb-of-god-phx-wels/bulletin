@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/recovery-snapshot.schema.json",
+  "title": "CBB Document Recovery Snapshot",
+  "type": "object",
+  "required": [
+    "version",
+    "kind",
+    "workspaceId",
+    "localResourceId",
+    "resourceKind",
+    "editGeneration",
+    "baseRevisionToken",
+    "documentHash",
+    "oldestUnsavedEditAt",
+    "createdAt",
+    "document"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "documentRecoverySnapshot" },
+    "workspaceId": { "$ref": "workspace.schema.json#/properties/workspaceId" },
+    "localResourceId": { "$ref": "workspace.schema.json#/$defs/localResourceId" },
+    "resourceKind": { "enum": ["bulletin", "template"] },
+    "editGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "baseRevisionToken": { "$ref": "common.schema.json#/$defs/sha256Hash" },
+    "documentHash": { "$ref": "common.schema.json#/$defs/sha256Hash" },
+    "oldestUnsavedEditAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" },
+    "createdAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" },
+    "document": { "$ref": "document.schema.json" }
+  },
+  "additionalProperties": false
+}

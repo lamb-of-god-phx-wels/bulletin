@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/conflict-record.schema.json",
+  "title": "CBB Document Conflict Capture",
+  "type": "object",
+  "required": [
+    "version",
+    "kind",
+    "conflictId",
+    "workspaceId",
+    "localResourceId",
+    "resourceKind",
+    "createdAt",
+    "baseHash",
+    "diskHash",
+    "oursHash",
+    "diskValidation"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "documentConflict" },
+    "conflictId": { "$ref": "workspace.schema.json#/$defs/localResourceId" },
+    "workspaceId": { "$ref": "workspace.schema.json#/properties/workspaceId" },
+    "localResourceId": { "$ref": "workspace.schema.json#/$defs/localResourceId" },
+    "resourceKind": { "enum": ["bulletin", "template"] },
+    "createdAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" },
+    "baseHash": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/$defs/sha256Hash" },
+        { "type": "null" }
+      ]
+    },
+    "diskHash": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/$defs/sha256Hash" },
+        { "type": "null" }
+      ]
+    },
+    "oursHash": { "$ref": "common.schema.json#/$defs/sha256Hash" },
+    "diskValidation": { "enum": ["valid", "invalid", "missing"] }
+  },
+  "additionalProperties": false
+}

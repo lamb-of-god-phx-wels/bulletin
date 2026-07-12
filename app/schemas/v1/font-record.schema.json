@@ -2,64 +2,113 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://church-bulletin-builder.local/schema/v1/font-record.schema.json",
   "title": "CBB Font Record",
-  "description": "Workspace-local managed font family/face metadata, immutable hashes, validation, licensing, and portability state.",
+  "description": "Workspace-local metadata for one immutable managed font-family revision. Face files live at the fixed faces/<faceId> location below localId.",
   "type": "object",
-  "required": ["version", "kind", "localId", "portableFontId", "familyDigest", "displayName", "faces"],
+  "required": [
+    "version",
+    "kind",
+    "localId",
+    "portableFontId",
+    "familyDigest",
+    "displayName",
+    "typstFamilyName",
+    "redistributionAsserted",
+    "exportable",
+    "pdfEmbeddingPermitted",
+    "pdfSubsettingPermitted",
+    "validationState",
+    "faces"
+  ],
   "properties": {
     "version": { "type": "integer", "const": 1 },
     "kind": { "const": "fontRecord" },
-    "localId": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    "localId": { "$ref": "#/$defs/localResourceId" },
+    "portableFontId": { "$ref": "#/$defs/portableFontRef" },
+    "familyDigest": { "$ref": "#/$defs/sha256" },
+    "displayName": { "$ref": "#/$defs/boundedText" },
+    "originalName": { "$ref": "#/$defs/boundedText" },
+    "familyName": { "$ref": "#/$defs/boundedText" },
+    "internalName": { "$ref": "#/$defs/boundedText" },
+    "postScriptName": { "$ref": "#/$defs/boundedText" },
+    "typstFamilyName": {
+      "$ref": "#/$defs/boundedText",
+      "description": "Validated internal family selector exposed inside the isolated build root."
     },
-    "portableFontId": {
-      "type": "string",
-      "pattern": "^font:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "familyDigest": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$",
-      "description": "sha256 over RFC 8785 canonical array of face records sorted by face id."
-    },
-    "displayName": { "type": "string", "minLength": 1 },
-    "familyName": { "type": "string" },
-    "internalName": { "type": "string" },
-    "postScriptName": { "type": "string" },
-    "licenseId": { "type": "string" },
+    "licenseId": { "$ref": "#/$defs/opaqueToken" },
+    "licenseTextRef": { "$ref": "#/$defs/opaqueToken" },
     "redistributionAsserted": { "type": "boolean" },
     "exportable": { "type": "boolean" },
     "pdfEmbeddingPermitted": { "type": "boolean" },
     "pdfSubsettingPermitted": { "type": "boolean" },
-    "validationState": { "enum": ["validated", "unvalidated", "failed"] },
-    "validatingAppVersion": { "type": "string" },
-    "validatingTypstVersion": { "type": "string" },
-    "unicodeCoverageSummary": { "type": "string" },
+    "validationState": { "enum": ["pending", "validated", "failed"] },
+    "validatingAppVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "validatingTypstVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "unicodeCoverageSummary": { "type": "string", "maxLength": 4096 },
     "faces": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["faceId", "faceIndex", "format", "weight", "style", "hash", "byteSize"],
-        "properties": {
-          "faceId": { "type": "string", "minLength": 1 },
-          "faceIndex": { "type": "integer", "minimum": 0 },
-          "format": { "enum": ["ttf", "otf", "woff", "woff2"] },
-          "weight": { "type": "integer", "minimum": 100, "maximum": 900 },
-          "style": { "enum": ["normal", "italic", "oblique"] },
-          "stretch": { "type": "number", "exclusiveMinimum": 0 },
-          "variableAxisCoordinates": {
-            "type": "object",
-            "additionalProperties": { "type": "number" }
-          },
-          "hash": {
-            "type": "string",
-            "pattern": "^sha256:[0-9a-f]{64}$"
-          },
-          "byteSize": { "type": "integer", "minimum": 0 }
-        },
-        "additionalProperties": false
-      },
-      "minItems": 1
+      "items": { "$ref": "#/$defs/face" },
+      "minItems": 1,
+      "maxItems": 256
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "localResourceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "portableFontRef": {
+      "type": "string",
+      "pattern": "^font:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "boundedText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069]+$"
+    },
+    "faceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "description": "Opaque path-safe face identifier; separators and dot segments are impossible."
+    },
+    "opaqueToken": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$",
+      "description": "Opaque metadata identity, never a filesystem path."
+    },
+    "face": {
+      "type": "object",
+      "required": [
+        "faceId",
+        "faceIndex",
+        "format",
+        "weight",
+        "style",
+        "stretch",
+        "hash",
+        "byteSize"
+      ],
+      "properties": {
+        "faceId": { "$ref": "#/$defs/faceId" },
+        "faceIndex": { "type": "integer", "minimum": 0 },
+        "format": { "enum": ["ttf", "otf", "woff", "woff2"] },
+        "weight": { "type": "integer", "minimum": 100, "maximum": 900 },
+        "style": { "enum": ["normal", "italic", "oblique"] },
+        "stretch": { "type": "number", "exclusiveMinimum": 0 },
+        "variableAxisCoordinates": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[ -~]{4}$" },
+          "additionalProperties": { "type": "number" }
+        },
+        "hash": { "$ref": "#/$defs/sha256" },
+        "byteSize": { "type": "integer", "minimum": 1, "maximum": 52428800 }
+      },
+      "additionalProperties": false
+    }
+  }
 }

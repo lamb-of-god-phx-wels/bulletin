@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://church-bulletin-builder.local/schema/v1/save-journal.schema.json",
+  "title": "CBB Journaled Document Save",
+  "type": "object",
+  "required": [
+    "version",
+    "kind",
+    "transactionId",
+    "workspaceId",
+    "resourceKind",
+    "localResourceId",
+    "documentPath",
+    "state",
+    "baseDocumentHash",
+    "newDocumentHash",
+    "baseRegistryHash",
+    "newRegistryHash",
+    "beforeResource",
+    "afterResource",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "const": "documentSaveJournal" },
+    "transactionId": { "$ref": "workspace.schema.json#/$defs/localResourceId" },
+    "workspaceId": { "$ref": "workspace.schema.json#/properties/workspaceId" },
+    "resourceKind": { "enum": ["bulletin", "template"] },
+    "localResourceId": { "$ref": "workspace.schema.json#/$defs/localResourceId" },
+    "documentPath": {
+      "type": "string",
+      "pattern": "^(bulletins|templates)/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/(document|template)\\.json$"
+    },
+    "state": { "enum": ["prepared", "documentReplaced", "committed", "rolledBack"] },
+    "baseDocumentHash": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/$defs/sha256Hash" },
+        { "type": "null" }
+      ]
+    },
+    "newDocumentHash": { "$ref": "common.schema.json#/$defs/sha256Hash" },
+    "baseRegistryHash": { "$ref": "common.schema.json#/$defs/sha256Hash" },
+    "newRegistryHash": { "$ref": "common.schema.json#/$defs/sha256Hash" },
+    "beforeResource": {
+      "oneOf": [
+        { "$ref": "workspace.schema.json#/$defs/localResourceRecord" },
+        { "type": "null" }
+      ]
+    },
+    "afterResource": { "$ref": "workspace.schema.json#/$defs/localResourceRecord" },
+    "createdAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" },
+    "updatedAt": { "$ref": "common.schema.json#/$defs/rfc3339Timestamp" }
+  },
+  "additionalProperties": false
+}

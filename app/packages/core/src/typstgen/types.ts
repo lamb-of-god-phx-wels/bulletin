@@ -63,7 +63,4 @@ export interface TypstGenerationResult {
   readonly findings: readonly TypstGenerationFinding[];
 }
 
-export const TYPST_GENERATOR_VERSION = "cbb-typstgen-v1" as const;
-
-/** Pinned app-owned fallback included in the generator version identity. */
-export const TYPST_BUNDLED_DEFAULT_FONT_FAMILY = "Libertinus Serif" as const;
+export const TYPST_GENERATOR_VERSION = "cbb-typstgen-v2" as const;

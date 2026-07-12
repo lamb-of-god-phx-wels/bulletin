@@ -11,6 +11,10 @@ import type {
 import type { RichTextDocument } from "../richtext/index.js";
 import { resolveDocument } from "../resolve/index.js";
 import {
+  BUNDLED_NOTO_SANS_FONT_REF,
+  BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+} from "../typstgen/bundledFonts.js";
+import {
   canonicalRevisionToken,
   createSanitizedRenderProjection,
   fieldContractHash,
@@ -35,14 +39,22 @@ const H_D = `sha256:${"d".repeat(64)}` as Sha256Hash;
 const ASSET_A = "asset:11111111-1111-4111-8111-111111111111";
 const ASSET_B = "asset:22222222-2222-4222-8222-222222222222";
 const FONT_A = "font:33333333-3333-4333-8333-333333333333";
+const BUNDLED_FONT_REFS = [
+  BUNDLED_NOTO_SANS_FONT_REF,
+  BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+] as const;
 
 function projection(...texts: readonly string[]): SanitizedRenderProjection {
   return createSanitizedRenderProjection({
     page: { height: "11in", width: "8.5in" },
     locale: "en-US",
     body: texts.map((text) => ({ type: "text", text })),
+    fontFallbackRefs: BUNDLED_FONT_REFS,
     referencedAssets: [{ assetRef: ASSET_A }, { assetRef: ASSET_B }],
-    referencedFonts: [{ fontRef: FONT_A }],
+    referencedFonts: [
+      { fontRef: FONT_A },
+      ...BUNDLED_FONT_REFS.map((fontRef) => ({ fontRef })),
+    ],
   });
 }
 
@@ -79,6 +91,26 @@ function baseRenderInput(
             variationAxes: { wght: 700 },
           },
         ],
+      },
+      {
+        fontRef: BUNDLED_NOTO_SANS_FONT_REF,
+        familyDigest: H_A,
+        selectedFaces: [{
+          faceId: "noto-test-regular",
+          faceHash: H_C,
+          faceIndex: 0,
+          embedding: "subset",
+        }],
+      },
+      {
+        fontRef: BUNDLED_NOTO_SANS_SYMBOLS_2_FONT_REF,
+        familyDigest: H_B,
+        selectedFaces: [{
+          faceId: "symbols-test-regular",
+          faceHash: H_D,
+          faceIndex: 0,
+          embedding: "subset",
+        }],
       },
     ],
     tools: [
@@ -353,12 +385,14 @@ describe("sanitized render projection", () => {
     const first = createSanitizedRenderProjection({
       page: { width: "8.5in", height: "11in" },
       body: [],
+      fontFallbackRefs: BUNDLED_FONT_REFS,
       referencedAssets: [{ assetRef: ASSET_A }, { assetRef: ASSET_B }],
-      referencedFonts: [{ fontRef: FONT_A }],
+      referencedFonts: [{ fontRef: FONT_A }, ...BUNDLED_FONT_REFS.map((fontRef) => ({ fontRef }))],
     });
     const second = createSanitizedRenderProjection({
-      referencedFonts: [{ fontRef: FONT_A }],
+      referencedFonts: [{ fontRef: FONT_A }, ...BUNDLED_FONT_REFS.map((fontRef) => ({ fontRef }))],
       referencedAssets: [{ assetRef: ASSET_A }, { assetRef: ASSET_B }],
+      fontFallbackRefs: BUNDLED_FONT_REFS,
       body: [],
       page: { height: "11in", width: "8.5in" },
     });
@@ -399,6 +433,24 @@ describe("sanitized render projection", () => {
 });
 
 describe("renderInputHash", () => {
+  it("rejects projections without the exact release-owned bundled fallback tail", () => {
+    const input = baseRenderInput();
+    expect(() => renderInputHash({
+      ...input,
+      projection: createSanitizedRenderProjection({
+        ...input.projection,
+        fontFallbackRefs: [],
+      }),
+    })).toThrow(/bundled font fallbacks|Noto Sans/);
+    expect(() => renderInputHash({
+      ...input,
+      projection: createSanitizedRenderProjection({
+        ...input.projection,
+        fontFallbackRefs: [...BUNDLED_FONT_REFS].reverse(),
+      }),
+    })).toThrow(/must end with exactly one/);
+  });
+
   it("preserves authoritative render array order", () => {
     expect(renderInputHash(baseRenderInput(projection("Alpha", "Beta")))).not.toBe(
       renderInputHash(baseRenderInput(projection("Beta", "Alpha"))),
@@ -478,6 +530,8 @@ describe("renderInputHash", () => {
           { type: "image", assetRef: ASSET_A },
           { type: "text", style: { fontRef: FONT_A }, text: "Hello" },
         ],
+        fontFallbackRefs: BUNDLED_FONT_REFS,
+        referencedFonts: BUNDLED_FONT_REFS.map((fontRef) => ({ fontRef })),
       }),
     );
     expect(() => renderInputHash({ ...input, assets: [] })).toThrow(
@@ -492,7 +546,8 @@ describe("renderInputHash", () => {
     const input = baseRenderInput(
       createSanitizedRenderProjection({
         referencedAssets: [{ assetRef: ASSET_A }],
-        referencedFonts: [{ fontRef: FONT_A }],
+        fontFallbackRefs: BUNDLED_FONT_REFS,
+        referencedFonts: [{ fontRef: FONT_A }, ...BUNDLED_FONT_REFS.map((fontRef) => ({ fontRef }))],
       }),
     );
     expect(() => renderInputHash(input)).toThrow(/outside the resolved reference closure/);
@@ -509,7 +564,12 @@ describe("renderInputHash", () => {
         value.assetRef === ASSET_A ? asset(ASSET_A, H_D) : value,
       ),
     })).not.toBe(original);
-    expect(renderInputHash({ ...input, fonts: [{ ...font, familyDigest: H_D }] })).not.toBe(original);
+    expect(renderInputHash({
+      ...input,
+      fonts: input.fonts.map((value) =>
+        value.fontRef === font.fontRef ? { ...font, familyDigest: H_D } : value,
+      ),
+    })).not.toBe(original);
     expect(
       renderInputHash({
         ...input,

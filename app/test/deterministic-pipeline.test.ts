@@ -208,7 +208,7 @@ describe("deterministic document pipeline", () => {
     }).toEqual({
       fixtureHash: "sha256:d796d03a4246ba6b9d4f37be505542d037652c82fd9775dbda7990949bd9b086",
       projectionHash: "sha256:ebf753ae135f91069784c7c544bef4b4d5f98dad50a3fcbf5676678b9c77c4a6",
-      sourceHash: "sha256:985329e1736faf259cb220e97995875f5f5e18a1bc5632e11c94d48f109494b2",
+      sourceHash: "sha256:c8aaeea67c0ccaf7762f01523f1d257e7a461cf570fe15f28bcf5be1cdf14930",
       renderHash: "sha256:6126338880ffc8bfa426b9b2c99c25f26094a351fd559938b1fa554d14748b20",
     });
   });

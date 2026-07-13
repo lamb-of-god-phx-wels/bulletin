@@ -45,6 +45,14 @@ export type {
 } from "./types.js";
 
 export { MARK_ORDER, SCRIPTURE_FORMATTING_DEFAULTS } from "./types.js";
+export {
+  scriptureTypographyPresetId,
+  scriptureTypographyPresetSnapshot,
+} from "./scriptureTypography.js";
+export type {
+  ScriptureTypographyPresetId,
+  SupportedScriptureTypographySnapshot,
+} from "./scriptureTypography.js";
 
 // Normalization.
 export { normalize } from "./normalize.js";

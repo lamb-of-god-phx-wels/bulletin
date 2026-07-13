@@ -10,6 +10,7 @@ import type {
   RenderPageProjection,
   RenderProjection,
   ResolvedElement,
+  ResolvedImageElement,
   ResolvedInline,
   ResolvedPageElement,
   ResolvedRenderTree,
@@ -18,7 +19,7 @@ import type {
   ResolvedRightsContribution,
   ResolvedTextContent,
 } from "../document/resolvedTypes.js";
-import type { ImageElementData, StyleObject } from "../document/types.js";
+import type { StyleObject } from "../document/types.js";
 
 /**
  * Materialize the v1 visual defaults at the render-projection boundary.
@@ -51,7 +52,7 @@ export function materializeResolvedStyle(
   };
 }
 
-function projectImageData(data: ImageElementData): ImageElementData {
+function projectImageData(data: ResolvedImageElement["data"]): ResolvedImageElement["data"] {
   return {
     assetRef: data.assetRef,
     fit: data.fit,

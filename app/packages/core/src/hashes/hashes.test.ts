@@ -8,6 +8,7 @@ import type {
   FieldDefinition,
   NativeElement,
 } from "../document/types.js";
+import { customElementDefinitionHash } from "../document/customDefinitions.js";
 import type { RichTextDocument } from "../richtext/index.js";
 import { resolveDocument } from "../resolve/index.js";
 import {
@@ -132,7 +133,7 @@ function baseRenderInput(
 
 function baseDocument(): CbbDocument {
   return {
-    version: 1,
+    version: 2,
     kind: "bulletin",
     name: "July 12 Bulletin",
     metadata: {
@@ -295,7 +296,8 @@ function scriptureDocumentFixture(): RichTextDocument {
   const reading = baseDocument().elements[1];
   if (
     reading?.type !== "text" ||
-    reading.data.content.kind !== "richText"
+    reading.data.content?.kind !== "richText" ||
+    reading.data.content.document === undefined
   ) {
     throw new Error("scripture fixture missing");
   }
@@ -749,7 +751,7 @@ describe("document readiness projection", () => {
 
   it("projects complete active field and content review context without inert binding leakage", () => {
     const document: CbbDocument = {
-      version: 1,
+      version: 2,
       kind: "bulletin",
       name: "Review context",
       page: { typstWidth: "8.5in", typstHeight: "11in" },
@@ -1179,10 +1181,11 @@ describe("document readiness projection", () => {
   });
 
   it("projects Scripture readiness after custom-instance local binding", () => {
-    const definition: CustomElementDefinition = {
+    const definitionRevision = {
       version: 1,
       kind: "customElementDefinition",
       id: "readingDefinition",
+      definitionVersion: 1,
       name: "Reading definition",
       fieldContract: {
         id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -1213,6 +1216,10 @@ describe("document readiness projection", () => {
           data: { content: { kind: "plain", text: "stale literal" } },
         },
       ],
+    } as const;
+    const definition: CustomElementDefinition = {
+      ...definitionRevision,
+      definitionHash: customElementDefinitionHash(definitionRevision),
     };
     const document: CbbDocument = {
       ...baseDocument(),
@@ -1223,6 +1230,8 @@ describe("document readiness projection", () => {
           type: "customInstance",
           name: "Reading instance",
           definitionId: definition.id,
+          definitionVersion: definition.definitionVersion,
+          definitionHash: definition.definitionHash,
           fieldValues: {
             passage: { value: scriptureDocumentFixture(), origin: "manual" },
           },

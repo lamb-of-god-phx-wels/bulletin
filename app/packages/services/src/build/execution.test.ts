@@ -137,6 +137,7 @@ function sandbox(waitForAbort = false): IsolatedTypstSandboxPort {
       pageCount: 1,
       pdfVersion: "1.7",
       magicVerified: true,
+      navigationMap: { version: 1, entries: [] },
     }),
     terminate: vi.fn(async () => undefined),
     cleanup: vi.fn(async () => undefined),

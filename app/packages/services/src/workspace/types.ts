@@ -105,12 +105,84 @@ export interface CreateWorkspaceInput {
   readonly churchProfile?: ChurchProfile;
 }
 
-export interface WorkspaceSettings {
+export type ApplicationTheme = "system" | "light" | "dark";
+export type EditorViewMode = "page" | "contiguous";
+export type PageViewPresentation = "single" | "facing";
+export type PreviewZoomDefault = "fitPage" | "fitWidth" | number;
+
+/**
+ * Output-inert editor, preview, export-name, and local-time preferences shared
+ * by application defaults and optional workspace overrides.
+ *
+ * Every member is optional: absence is the inheritance signal and must never
+ * be materialized into portable document JSON merely because it was read.
+ */
+export interface UserPreferenceDefaults {
+  readonly viewMode?: EditorViewMode;
+  readonly pagePresentation?: PageViewPresentation;
+  readonly previewZoom?: PreviewZoomDefault;
+  readonly marginGuides?: boolean;
+  readonly livePreview?: boolean;
+  readonly technicalPdfDetails?: boolean;
+  readonly canvasSnap?: boolean;
+  /** Positive physical length. This legacy M3 name is canonical for v1. */
+  readonly snapGridSize?: string;
+  readonly exportFilenamePattern?: string;
+  readonly offlineSpellcheck?: boolean;
+  readonly displayTimeZone?: string;
+}
+
+/** Application-global settings and defaults stored outside the workspace. */
+export interface GlobalSettings extends UserPreferenceDefaults {
+  readonly version: 1;
+  readonly kind: "globalSettings";
+  /** Optional for compatibility with settings written before the M4 contract. */
+  readonly scope?: "application";
+  /** Application UI locale; the legacy M3 property name remains canonical. */
+  readonly defaultLanguage?: string;
+  readonly theme?: ApplicationTheme;
+  /** Legacy application preference retained without changing its semantics. */
+  readonly telemetryEnabled?: boolean;
+}
+
+/** Workspace-local optional overrides plus the existing M3 build preferences. */
+export interface WorkspaceSettings extends UserPreferenceDefaults {
   readonly version: 1;
   readonly kind: "workspaceSettings";
+  /** Optional for compatibility with settings written before the M4 contract. */
+  readonly scope?: "workspace";
   readonly defaultExportFormat?: "readerOrder" | "bookletTwoUp";
-  readonly snapGridSize?: string;
+  /** Legacy M3 preview raster resolution, distinct from previewZoom. */
   readonly previewResolution?: number;
+  /**
+   * Output-inert local navigation metadata. Local resource ids are forbidden
+   * from portable bulletin/template JSON and live only in workspace state.
+   */
+  readonly sourceTemplateLinks?: readonly {
+    readonly bulletinLocalResourceId: string;
+    readonly templateLocalResourceId: string;
+  }[];
+  /** Output-inert resumable state for this bulletin library's optional setup. */
+  readonly firstRun?: {
+    readonly version: 1;
+    readonly disposition: "inProgress" | "completed" | "skipped";
+    readonly step?: 0 | 1 | 2;
+    readonly churchName?: string;
+    readonly mailingAddress?: string;
+    readonly locationAddress?: string;
+    readonly phone?: string;
+    readonly email?: string;
+    readonly website?: string;
+    readonly preferredOutput?: "fullSheet" | "foldedBooklet" | "other";
+    readonly starterId?:
+      | "simple-service"
+      | "folded-letter"
+      | "announcements"
+      | "blank-accessible";
+    readonly createPracticeBulletin?: boolean;
+    readonly tourCompleted?: boolean;
+    readonly tourBulletinLocalResourceId?: string;
+  };
 }
 
 export interface ChurchProfileSchedule {
@@ -123,6 +195,15 @@ export interface ChurchProfileSchedule {
 export interface ChurchProfile {
   readonly version: 1;
   readonly kind: "churchProfile";
+  readonly churchName?: string;
+  readonly mailingAddress?: string;
+  readonly locationAddress?: string;
+  readonly phone?: string;
+  readonly email?: string;
+  readonly website?: string;
+  readonly defaultServiceLabel?: string;
+  readonly logo?: string;
+  /** Legacy onboarding property; never exposed as a field-contract profileKey. */
   readonly congregationName?: string;
   readonly language?: string;
   readonly defaultPublicationContexts?: readonly (
@@ -130,6 +211,8 @@ export interface ChurchProfile {
     | "digitalNonsalableChurchBulletin"
   )[];
   readonly defaultUnknownRightsPolicy?: "review" | "block";
+  /** Sorted, unique NFC lowercase words accepted by offline spellcheck. */
+  readonly spellingDictionary?: readonly string[];
   readonly schedules?: readonly ChurchProfileSchedule[];
 }
 

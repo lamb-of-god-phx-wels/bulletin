@@ -134,9 +134,20 @@ describe("workspace onboarding and preferences", () => {
     const settings: WorkspaceSettings = {
       version: 1,
       kind: "workspaceSettings",
+      scope: "workspace",
+      viewMode: "page",
+      pagePresentation: "facing",
+      previewZoom: "fitWidth",
+      marginGuides: true,
+      livePreview: true,
+      technicalPdfDetails: false,
+      canvasSnap: true,
       defaultExportFormat: "bookletTwoUp",
       snapGridSize: "0.125in",
       previewResolution: 144,
+      exportFilenamePattern: "{date:YYYY-MM-DD} {name}.pdf",
+      offlineSpellcheck: true,
+      displayTimeZone: "America/Phoenix",
     };
     const churchProfile: ChurchProfile = {
       version: 1,
@@ -144,6 +155,7 @@ describe("workspace onboarding and preferences", () => {
       congregationName: "Lamb of God",
       language: "en-US",
       defaultPublicationContexts: ["printedNonsalableChurchBulletin"],
+      spellingDictionary: ["amen", "kyrie"],
       schedules: [{
         id: "00000000-0000-4000-8000-000000000099",
         label: "Sunday",
@@ -216,6 +228,10 @@ describe("workspace onboarding and preferences", () => {
       kind: "workspaceSettings",
       defaultExportFormat: "readerOrder",
       previewResolution: 192,
+      sourceTemplateLinks: [{
+        bulletinLocalResourceId: "10000000-0000-4000-8000-000000000001",
+        templateLocalResourceId: "10000000-0000-4000-8000-000000000002",
+      }],
     };
     const saved = await preferences.saveSettings({
       session,
@@ -231,6 +247,31 @@ describe("workspace onboarding and preferences", () => {
     });
     expect(stale.status).toBe("conflicted");
     expect(JSON.parse(await readFile(join(root, WORKSPACE_SETTINGS_PATH), "utf8"))).toEqual(updated);
+    await session.lease.release();
+  });
+
+  it("fails closed for out-of-range or cross-scope M4 preferences", async () => {
+    const root = await newRoot();
+    const created = await createAt(root);
+    const session = editable(created.result);
+    const preferences = new WorkspacePreferencesService(created.ports, created.schemas);
+    const loaded = await preferences.loadSettings(session);
+    if (loaded.status !== "loaded") throw new Error("settings should load");
+    const before = await readFile(join(root, WORKSPACE_SETTINGS_PATH), "utf8");
+
+    for (const value of [
+      { version: 1, kind: "workspaceSettings", previewZoom: 201 },
+      { version: 1, kind: "workspaceSettings", snapGridSize: "0in" },
+      { version: 1, kind: "workspaceSettings", theme: "dark" },
+    ] as const) {
+      const result = await preferences.saveSettings({
+        session,
+        value: value as unknown as WorkspaceSettings,
+        baseHash: loaded.hash,
+      });
+      expect(result.status).toBe("failed");
+      expect(await readFile(join(root, WORKSPACE_SETTINGS_PATH), "utf8")).toBe(before);
+    }
     await session.lease.release();
   });
 

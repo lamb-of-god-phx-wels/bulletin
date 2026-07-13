@@ -84,6 +84,8 @@ export type ResolveFindingKind =
   | "repeatItemIdsInvalid"
   | "expandedNodeLimitExceeded"
   | "customDefinitionMissing"
+  | "customDefinitionPinMissing"
+  | "customDefinitionVersionMismatch"
   | "customDefinitionHashMismatch"
   | "customDefinitionCycle"
   | "customDefinitionDepthExceeded";
@@ -107,7 +109,7 @@ export interface ResolveOptions {
   readonly maxExpandedNodes?: number;
   /** Nested custom-definition expansion bound. Defaults to 32. */
   readonly maxCustomDepth?: number;
-  /** Enabled by default. Useful only for editing incomplete draft fixtures. */
+  /** @deprecated Current definition pins are always enforced fail closed. */
   readonly verifyDefinitionHashes?: boolean;
 }
 

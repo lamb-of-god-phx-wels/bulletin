@@ -117,7 +117,7 @@ describe("fromJson / toJson round-trip", () => {
     const raw = loadFixture("minimal-bulletin.json");
     const doc = fromJson(raw, catalog);
     expect(doc.kind).toBe("bulletin");
-    expect(doc.version).toBe(1);
+    expect(doc.version).toBe(2);
     expect(Array.isArray(doc.elements)).toBe(true);
   });
 
@@ -134,7 +134,7 @@ describe("fromJson / toJson round-trip", () => {
     expect(doc.kind).toBe("template");
   });
 
-  it("minimal-bulletin: toJson -> canonicalStringify is byte-stable on re-parse", () => {
+  it("purely migrates minimal v1 input and is byte-stable after normalization", () => {
     const raw = loadFixture("minimal-bulletin.json");
     const rawStr = canonicalStringify(raw as Record<string, unknown>);
 
@@ -142,10 +142,12 @@ describe("fromJson / toJson round-trip", () => {
     const json = toJson(doc);
     const roundTrip = canonicalStringify(json);
 
-    expect(roundTrip).toBe(rawStr);
+    expect(canonicalStringify(raw as Record<string, unknown>)).toBe(rawStr);
+    expect(roundTrip).not.toBe(rawStr);
+    expect(canonicalStringify(toJson(fromJson(json, catalog)))).toBe(roundTrip);
   });
 
-  it("full-featured-bulletin: toJson -> canonicalStringify is byte-stable on re-parse", () => {
+  it("purely migrates a full v1 bulletin and is stable after normalization", () => {
     const raw = loadFixture("full-featured-bulletin.json");
     const rawStr = canonicalStringify(raw as Record<string, unknown>);
 
@@ -153,10 +155,12 @@ describe("fromJson / toJson round-trip", () => {
     const json = toJson(doc);
     const roundTrip = canonicalStringify(json);
 
-    expect(roundTrip).toBe(rawStr);
+    expect(canonicalStringify(raw as Record<string, unknown>)).toBe(rawStr);
+    expect(roundTrip).not.toBe(rawStr);
+    expect(canonicalStringify(toJson(fromJson(json, catalog)))).toBe(roundTrip);
   });
 
-  it("full-featured-template: toJson -> canonicalStringify is byte-stable on re-parse", () => {
+  it("purely migrates a full v1 template and is stable after normalization", () => {
     const raw = loadFixture("full-featured-template.json");
     const rawStr = canonicalStringify(raw as Record<string, unknown>);
 
@@ -164,7 +168,9 @@ describe("fromJson / toJson round-trip", () => {
     const json = toJson(doc);
     const roundTrip = canonicalStringify(json);
 
-    expect(roundTrip).toBe(rawStr);
+    expect(canonicalStringify(raw as Record<string, unknown>)).toBe(rawStr);
+    expect(roundTrip).not.toBe(rawStr);
+    expect(canonicalStringify(toJson(fromJson(json, catalog)))).toBe(roundTrip);
   });
 
   it("throws DocumentValidationError on missing version", () => {
@@ -188,6 +194,69 @@ describe("fromJson / toJson round-trip", () => {
     expect(err).toBeDefined();
     expect(err!.errors.length).toBeGreaterThan(0);
     expect(err!.errors[0]?.message).toBeTruthy();
+  });
+
+  it("accepts omitted required literals only when a binding supplies the target", () => {
+    const contract = {
+      id: "99999999-9999-4999-8999-999999999999",
+      version: 1,
+      name: "Weekly fields",
+      fields: [
+        { id: "message", label: "Message", type: "text", required: true },
+        { id: "focalX", label: "Focal X", type: "number", required: true },
+      ],
+    };
+    const bound = {
+      version: 1,
+      kind: "template",
+      name: "Bound text",
+      page: { typstWidth: "7in", typstHeight: "8.5in" },
+      fieldContract: contract,
+      elements: [{
+        id: "text",
+        type: "text",
+        name: "Text",
+        data: { content: { kind: "plain" } },
+        bindings: [{
+          id: "message-binding",
+          scope: "document",
+          fieldId: "message",
+          target: "/data/content/text",
+          fallback: "Welcome",
+        }],
+      }, {
+        id: "image",
+        type: "image",
+        name: "Image",
+        data: {
+          assetRef: "asset:44444444-4444-4444-8444-444444444444",
+          fit: "cover",
+          focalPoint: { y: 0.5 },
+        },
+        bindings: [{
+          id: "focal-binding",
+          scope: "document",
+          fieldId: "focalX",
+          target: "/data/focalPoint/x",
+          fallback: 0.5,
+        }],
+      }],
+    };
+    expect(fromJson(bound, catalog).elements).toHaveLength(2);
+    const unbound = structuredClone(bound);
+    delete (unbound.elements[0] as { bindings?: unknown }).bindings;
+    expect(() => fromJson(unbound, catalog)).toThrow(DocumentValidationError);
+    const unboundFocal = structuredClone(bound);
+    delete (unboundFocal.elements[1] as { bindings?: unknown }).bindings;
+    expect(() => fromJson(unboundFocal, catalog)).toThrow(DocumentValidationError);
+
+    const musicDocument = loadFixture("full-featured-bulletin.json") as {
+      elements: Array<{ type?: string; data?: { title?: string } }>;
+    };
+    const music = musicDocument.elements.find((element) => element.type === "music");
+    if (music?.data === undefined) throw new Error("music fixture missing");
+    delete music.data.title;
+    expect(() => fromJson(musicDocument, catalog)).not.toThrow();
   });
 });
 

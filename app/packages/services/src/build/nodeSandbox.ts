@@ -10,6 +10,7 @@ import {
   linuxRuntimeCommand,
   linuxRuntimeMountArguments,
   linuxResourceBrokerArguments,
+  runBoundedLinuxProcess,
   verifyLinuxRuntimeClosure,
   verifyLinuxResourceBroker,
   type PinnedPdfRuntimeComponent,
@@ -25,10 +26,13 @@ import type {
   StagedByteIdentity,
   TrustedTypstRequirement,
   VerifiedPdfOutput,
+  VerifiedPdfNavigationMap,
 } from "./runner.js";
 
 const READ_CHUNK_BYTES = 64 * 1024;
 const MAX_PROCESS_OUTPUT_BYTES = 1024 * 1024;
+const MAX_NAVIGATION_OUTPUT_BYTES = 32 * 1024 * 1024;
+const MAX_NAVIGATION_ENTRIES = 50_000;
 const MAX_COMPONENT_BYTES = 1024 * 1024 * 1024;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const HASH = /^sha256:[0-9a-f]{64}$/u;
@@ -37,6 +41,60 @@ const ASSET_ALIAS = /^assets\/a[0-9]{4}\.(?:png|jpg|svg|pdf|bin)$/u;
 const FONT_ALIAS = /^fonts\/f[0-9]{4}-[0-9]{4}\.(?:ttf|otf|woff|woff2)$/u;
 const TYPST_RUNTIME_MANIFEST_NAME = "cbb-typst-runtime.json";
 const TYPST_RUNTIME_MANIFEST_KIND = "cbbTypstRuntimeClosure";
+const SOURCE_ID = /^[A-Za-z][A-Za-z0-9_-]*$/u;
+const SOURCE_REGION = new Set(["body", "page-background", "page-foreground"]);
+
+function exactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  return value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype &&
+    Reflect.ownKeys(value).length === keys.length &&
+    Reflect.ownKeys(value).every((key) => typeof key === "string" && keys.includes(key));
+}
+
+function parseNavigationMap(bytes: Uint8Array, pageCount: number): VerifiedPdfNavigationMap {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    fail("outputVerificationFailed");
+  }
+  if (!Array.isArray(raw) || raw.length > MAX_NAVIGATION_ENTRIES) {
+    fail("outputVerificationFailed");
+  }
+  const seen = new Set<string>();
+  const entries = raw.map((item) => {
+    if (!exactRecord(item, ["resolvedId", "sourceElementId", "region", "page"])) {
+      fail("outputVerificationFailed");
+    }
+    const resolvedId = item["resolvedId"];
+    const sourceElementId = item["sourceElementId"];
+    const region = item["region"];
+    const page = item["page"];
+    if (
+      typeof resolvedId !== "string" || resolvedId.length < 1 || resolvedId.length > 512 ||
+      typeof sourceElementId !== "string" || !SOURCE_ID.test(sourceElementId) ||
+      typeof region !== "string" || !SOURCE_REGION.has(region) ||
+      !Number.isSafeInteger(page) || Number(page) < 1 || Number(page) > pageCount
+    ) fail("outputVerificationFailed");
+    const key = `${resolvedId}\u0000${sourceElementId}\u0000${region}\u0000${String(page)}`;
+    if (seen.has(key)) fail("outputVerificationFailed");
+    seen.add(key);
+    return Object.freeze({
+      resolvedId,
+      sourceElementId,
+      region: region as "body" | "page-background" | "page-foreground",
+      pageNumber: Number(page),
+    });
+  }).sort((left, right) =>
+    left.pageNumber - right.pageNumber ||
+    left.region.localeCompare(right.region) ||
+    left.resolvedId.localeCompare(right.resolvedId) ||
+    left.sourceElementId.localeCompare(right.sourceElementId)
+  );
+  return Object.freeze({ version: 1, entries: Object.freeze(entries) });
+}
 
 export type NodeTypstSandboxErrorKind =
   | "invalidConfiguration"
@@ -575,12 +633,70 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
   async verifyPdf(root: BuildRootHandle): Promise<VerifiedPdfOutput> {
     const entry = this.entry(root);
     try {
+      const [, executionBroker] = await Promise.all([
+        assertLinuxRuntimeClosureCurrent(this.runtime),
+        stableFileIdentity(this.options.executionBroker.path, MAX_COMPONENT_BYTES),
+      ]);
+      if (executionBroker.hash !== this.options.executionBroker.hash) {
+        fail("componentVerificationFailed");
+      }
       const bytes = await stableRead(join(entry.path, "output.pdf"), MAX_COMPONENT_BYTES);
       const observed = await this.options.pdfs.verify(new Uint8Array(bytes));
       validateObservedPdf(observed);
       if (observed.byteSize !== bytes.byteLength || observed.hash !== hashBytes(bytes)) {
         fail("outputVerificationFailed");
       }
+      const queryArguments = [
+        "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
+        "--tmpfs", "/",
+        ...linuxRuntimeMountArguments(this.runtime),
+        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+        "--bind", entry.path, "/build",
+        "--tmpfs", "/packages", "--tmpfs", "/cache", "--chdir", "/build",
+        "--clearenv",
+        "--setenv", "SOURCE_DATE_EPOCH", "0",
+        "--setenv", "TZ", "UTC",
+        "--setenv", "LANG", "C.UTF-8",
+        "--",
+        ...linuxRuntimeCommand(this.runtime, this.options.typst.path, [
+          "query",
+          "--root", "/build",
+          "--font-path", "/build/fonts",
+          "--ignore-system-fonts",
+          "--ignore-embedded-fonts",
+          "--package-path", "/packages",
+          "--package-cache-path", "/cache",
+          "--creation-timestamp", "0",
+          "--jobs", "1",
+          "--diagnostic-format", "short",
+          "/build/main.typ",
+          "<cbb-located>",
+          "--field", "value",
+          "--format", "json",
+        ]),
+      ];
+      const query = await runBoundedLinuxProcess({
+        executable: this.options.executionBroker.path,
+        arguments: linuxResourceBrokerArguments(
+          queryArguments,
+          LINUX_RESOURCE_LIMITS.typst,
+          {
+            scratchPath: entry.path,
+            outputPath: entry.path,
+            runtimeClosure: {
+              manifestPath: this.runtime.manifestPath,
+              manifestHash: this.runtime.manifestHash,
+            },
+          },
+        ),
+        timeoutMs: LINUX_RESOURCE_LIMITS.typst.cpuSeconds * 1_000 + 5_000,
+        maximumOutputBytes: MAX_NAVIGATION_OUTPUT_BYTES,
+      });
+      if (
+        query.code !== 0 || query.signal !== null || query.timedOut ||
+        query.overLimit || query.terminationFailed
+      ) fail("outputVerificationFailed");
+      const navigationMap = parseNavigationMap(query.stdout, observed.pageCount);
       const handle = await this.options.outputHandles.registerVerifiedPdf(entry.buildId, {
         hash: observed.hash,
         byteSize: observed.byteSize,
@@ -594,6 +710,7 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
         pageCount: observed.pageCount,
         pdfVersion: observed.pdfVersion,
         magicVerified: true,
+        navigationMap,
       };
     } catch (error) {
       if (error instanceof NodeTypstSandboxError) throw error;

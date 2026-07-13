@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createSchemaCatalog,
+  fromJson,
   hashCanonical,
   type SchemaObject,
 } from "../packages/core/src/index.js";
@@ -62,6 +63,15 @@ function compileEvidence() {
     typstRelativePath: `artifacts/${UUID_B}/${UUID_A}.typ`,
     typstHash: HASH_B,
     generatorVersion: "cbb-typstgen-v1",
+    navigationMap: {
+      version: 1,
+      entries: [{
+        resolvedId: "title/repeat/1",
+        sourceElementId: "title",
+        pageNumber: 1,
+        region: "body",
+      }],
+    },
     pdf: {
       relativePath: `artifacts/${UUID_B}/${UUID_A}.pdf`,
       hash: HASH_A,
@@ -102,6 +112,32 @@ describe("M3 persisted contracts", () => {
         outputForm: "bookletTwoUp",
       }).valid,
     ).toBe(false);
+  });
+
+  it("validates closed PDF source-navigation evidence", () => {
+    const succeeded = {
+      ...queuedPreview(),
+      status: "succeeded",
+      startedAt: NOW,
+      completedAt: NOW,
+      outputEvidence: compileEvidence(),
+    };
+    expect(schemas.validateAgainst(ARTIFACT_SCHEMA, succeeded).valid).toBe(true);
+    expect(schemas.validateAgainst(ARTIFACT_SCHEMA, {
+      ...succeeded,
+      outputEvidence: {
+        ...compileEvidence(),
+        navigationMap: {
+          version: 1,
+          entries: [{
+            resolvedId: "title",
+            sourceElementId: "../title",
+            pageNumber: 0,
+            region: "host-path",
+          }],
+        },
+      },
+    }).valid).toBe(false);
   });
 
   it("requires final candidates to have final readiness evidence and no watermark", () => {
@@ -164,6 +200,7 @@ describe("M3 persisted contracts", () => {
   });
 
   it("binds recovery snapshots to exact document bytes and edit evidence", () => {
+    const document = fromJson(FIXTURE, schemas);
     const snapshot = {
       version: 1,
       kind: "documentRecoverySnapshot",
@@ -172,10 +209,10 @@ describe("M3 persisted contracts", () => {
       resourceKind: "bulletin",
       editGeneration: 1,
       baseRevisionToken: HASH_A,
-      documentHash: hashCanonical(FIXTURE),
+      documentHash: hashCanonical(document),
       oldestUnsavedEditAt: NOW,
       createdAt: NOW,
-      document: FIXTURE,
+      document,
     };
     expect(schemas.validateAgainst(RECOVERY_SCHEMA, snapshot).valid).toBe(true);
     expect(

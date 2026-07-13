@@ -124,6 +124,50 @@ export type FieldType =
   | "array"
   | "object";
 
+/** Church Profile values that may populate text fields during weekly setup. */
+export const CHURCH_PROFILE_TEXT_FIELD_KEYS = [
+  "churchName",
+  "mailingAddress",
+  "locationAddress",
+  "phone",
+  "email",
+  "website",
+  "defaultServiceLabel",
+] as const;
+
+/** Church Profile values that may populate asset-reference fields. */
+export const CHURCH_PROFILE_ASSET_FIELD_KEYS = ["logo"] as const;
+
+/** Closed v1 Church Profile key vocabulary exposed to field contracts. */
+export const CHURCH_PROFILE_FIELD_KEYS = [
+  ...CHURCH_PROFILE_TEXT_FIELD_KEYS,
+  ...CHURCH_PROFILE_ASSET_FIELD_KEYS,
+] as const;
+
+export type ChurchProfileTextFieldKey =
+  (typeof CHURCH_PROFILE_TEXT_FIELD_KEYS)[number];
+export type ChurchProfileAssetFieldKey =
+  (typeof CHURCH_PROFILE_ASSET_FIELD_KEYS)[number];
+export type ChurchProfileFieldKey = (typeof CHURCH_PROFILE_FIELD_KEYS)[number];
+
+export function isChurchProfileFieldKey(value: unknown): value is ChurchProfileFieldKey {
+  return typeof value === "string" &&
+    (CHURCH_PROFILE_FIELD_KEYS as readonly string[]).includes(value);
+}
+
+/** Whether a persisted profile key may populate a field of this type. */
+export function churchProfileKeyAcceptsFieldType(
+  profileKey: unknown,
+  fieldType: FieldType,
+): profileKey is ChurchProfileFieldKey {
+  if (typeof profileKey !== "string") return false;
+  if (fieldType === "text") {
+    return (CHURCH_PROFILE_TEXT_FIELD_KEYS as readonly string[]).includes(profileKey);
+  }
+  return fieldType === "assetRef" &&
+    (CHURCH_PROFILE_ASSET_FIELD_KEYS as readonly string[]).includes(profileKey);
+}
+
 export type SemanticRole = "publicationDate" | "serviceLabel";
 export type RolloverPolicy = "clear" | "keep" | "ask" | "deriveConfirm";
 export type ReviewExpectation = "everyBulletin" | "whenCarried" | "none";
@@ -169,7 +213,7 @@ export interface FieldDefinition {
   readonly constraints?: FieldConstraints;
   readonly semanticRole?: SemanticRole;
   readonly weeklyBehavior?: WeeklyBehavior;
-  readonly profileKey?: string;
+  readonly profileKey?: ChurchProfileFieldKey;
   readonly aiInstructions?: string;
   /** Required when type is "array". */
   readonly itemField?: FieldDefinition;
@@ -484,11 +528,11 @@ export interface BaseElementFields {
 // ---------------------------------------------------------------------------
 
 export type TextContent =
-  | { readonly kind: "plain"; readonly text: string }
-  | { readonly kind: "richText"; readonly document: RichTextDocument };
+  | { readonly kind: "plain"; readonly text?: string }
+  | { readonly kind: "richText"; readonly document?: RichTextDocument };
 
 export interface TextElementData {
-  readonly content: TextContent;
+  readonly content?: TextContent;
 }
 
 export interface TextElement extends BaseElementFields {
@@ -501,12 +545,12 @@ export interface TextElement extends BaseElementFields {
 // ---------------------------------------------------------------------------
 
 export interface FocalPoint {
-  readonly x: number;
-  readonly y: number;
+  readonly x?: number;
+  readonly y?: number;
 }
 
 export interface ImageElementData {
-  readonly assetRef: PortableAssetRefString;
+  readonly assetRef?: PortableAssetRefString;
   readonly fit: "contain" | "cover";
   readonly focalPoint?: FocalPoint;
   readonly alt?: string;
@@ -523,7 +567,7 @@ export interface ImageElement extends BaseElementFields {
 // ---------------------------------------------------------------------------
 
 export interface DateElementData {
-  readonly value: IsoDateString;
+  readonly value?: IsoDateString;
   readonly format?: string;
   readonly locale?: string;
   readonly prefix?: string;
@@ -627,7 +671,7 @@ export interface RightsAssociationReview {
 
 export interface MusicElementData {
   readonly number?: string;
-  readonly title: string;
+  readonly title?: string;
   readonly instructions?: string;
   readonly source?: string;
   readonly richContent?: RichTextDocument;
@@ -757,7 +801,10 @@ export interface CustomElementInstance {
   readonly type: "customInstance";
   readonly name: string;
   readonly definitionId: NodeId;
-  readonly definitionHash?: Sha256HashString;
+  /** Positive revision of the exact embedded definition this instance pins. */
+  readonly definitionVersion: number;
+  /** Canonical hash of the exact embedded definition revision. */
+  readonly definitionHash: Sha256HashString;
   readonly width?: ElementSize;
   readonly height?: ElementSize;
   readonly breakPolicy?: "auto" | "avoid";
@@ -870,9 +917,14 @@ export interface PageLevelWrapper {
 // ---------------------------------------------------------------------------
 
 export interface CustomElementDefinition {
+  /** Persisted shape version for the definition record itself. */
   readonly version: 1;
   readonly kind: "customElementDefinition";
   readonly id: NodeId;
+  /** Positive semantic revision, independent of the record shape version. */
+  readonly definitionVersion: number;
+  /** Canonical self-hash projected without this field. */
+  readonly definitionHash: Sha256HashString;
   readonly name: string;
   readonly description?: string;
   readonly category?: string;
@@ -888,7 +940,8 @@ export interface CustomElementDefinition {
 // ---------------------------------------------------------------------------
 
 export interface CbbDocument {
-  readonly version: 1;
+  /** Current normalized document shape. Raw v1 input is migrated before use. */
+  readonly version: 2;
   readonly kind: "bulletin" | "template";
   readonly name: string;
   readonly metadata?: DocumentMetadata;

@@ -41,6 +41,10 @@ const CHECKPOINT_MAX_BYTES = 5 * 1024 * 1024;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const CHECKPOINT_TEMP = /^\.checkpoint-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/u;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 export class RecoverySnapshotStorageError extends Error {
   constructor(message: string) {
     super(message);
@@ -66,6 +70,8 @@ export interface RecoverySnapshotCandidate {
 export interface CanonicalRecoveryEvidence {
   readonly document: CbbDocument;
   readonly revisionToken: CanonicalRevisionToken;
+  /** Exact pre-normalization source when revisionToken belongs to legacy bytes. */
+  readonly sourceDocument?: unknown;
 }
 
 export interface RecoverySnapshotDiscovery {
@@ -913,22 +919,33 @@ export class NodeRecoverySnapshotStore implements RecoverySnapshotPort {
   }
 
   private validateRecord(value: unknown): RecoverySnapshotRecord {
+    const sourceDocument = isRecord(value) ? value["document"] : undefined;
+    let document: CbbDocument | undefined;
+    let structuralValue = value;
+    if (sourceDocument !== undefined) {
+      try {
+        document = fromJson(sourceDocument, this.options.catalog);
+        structuralValue = { ...value as Record<string, unknown>, document };
+      } catch {
+        // Preserve the closed schema's diagnostic for malformed snapshot data.
+      }
+    }
     const structural = this.options.catalog.validateAgainst(
       RECOVERY_SNAPSHOT_SCHEMA_ID,
-      value,
+      structuralValue,
     );
     if (!structural.valid) {
       throw new RecoverySnapshotStorageError(
         `Recovery snapshot schema validation failed: ${structural.errors[0]?.message ?? "invalid snapshot"}`,
       );
     }
-    const record = value as RecoverySnapshotRecord;
+    const record = structuralValue as RecoverySnapshotRecord;
     this.validateLocalId(record.localResourceId);
     validateGeneration(record.editGeneration);
     if (record.workspaceId !== this.options.workspaceId) {
       throw new RecoverySnapshotStorageError("Recovery snapshot belongs to another workspace");
     }
-    const document = fromJson(record.document, this.options.catalog);
+    document ??= fromJson(record.document, this.options.catalog);
     const semantic = validateDocumentSemantics(document);
     if (!semantic.valid) {
       throw new RecoverySnapshotStorageError(
@@ -938,19 +955,24 @@ export class NodeRecoverySnapshotStore implements RecoverySnapshotPort {
     if (document.kind !== record.resourceKind) {
       throw new RecoverySnapshotStorageError("Recovery document kind does not match its record");
     }
-    if (canonicalRevisionToken(document) !== record.documentHash) {
+    if (canonicalRevisionToken(sourceDocument) !== record.documentHash) {
       throw new RecoverySnapshotStorageError("Recovery document hash binding is invalid");
     }
-    return record;
+    return record.document === document ? record : { ...record, document };
   }
 
   private validateEvidence(evidence: CanonicalRecoveryEvidence): void {
-    const document = fromJson(evidence.document, this.options.catalog);
+    const sourceDocument = evidence.sourceDocument ?? evidence.document;
+    const document = fromJson(sourceDocument, this.options.catalog);
+    const suppliedDocument = fromJson(evidence.document, this.options.catalog);
     const semantic = validateDocumentSemantics(document);
     if (!semantic.valid) {
       throw new RecoverySnapshotStorageError("Canonical document evidence is semantically invalid");
     }
-    if (canonicalRevisionToken(document) !== evidence.revisionToken) {
+    if (
+      canonicalRevisionToken(sourceDocument) !== evidence.revisionToken ||
+      canonicalRevisionToken(document) !== canonicalRevisionToken(suppliedDocument)
+    ) {
       throw new RecoverySnapshotStorageError("Canonical revision evidence is hash-mismatched");
     }
   }

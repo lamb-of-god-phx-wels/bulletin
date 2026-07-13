@@ -101,6 +101,7 @@ function pdf(overrides: Partial<VerifiedPdfOutput> = {}): VerifiedPdfOutput {
     pageCount: 1,
     pdfVersion: "1.7",
     magicVerified: true,
+    navigationMap: { version: 1, entries: [] },
     ...overrides,
   };
 }
@@ -380,6 +381,43 @@ describe("isolated Typst runner", () => {
             stagingEntries: [],
           },
         }),
+        TOOL,
+        sandbox(),
+        timer,
+        { async persistCompile() {} },
+      ),
+    ).resolves.toMatchObject({ kind: "invalidRequest" });
+    const dimensionMismatch = {
+      ...CLOSURE,
+      assets: [{
+        assetRef: "asset:11111111-1111-4111-8111-111111111111",
+        binaryHash: `sha256:${"d".repeat(64)}` as const,
+        mediaType: "image/png",
+      }],
+      assetBindings: {
+        "asset:11111111-1111-4111-8111-111111111111": {
+          relativePath: "assets/a0000.png",
+          canonicalRasterDimensions: { pixelWidth: 1200, pixelHeight: 800 },
+        },
+      },
+      stagingEntries: [{
+        kind: "asset" as const,
+        assetRef: "asset:11111111-1111-4111-8111-111111111111" as never,
+        locator: {
+          kind: "assetCanonical" as const,
+          localId: "11111111-1111-4111-8111-111111111111" as never,
+        },
+        relativePath: "assets/a0000.png",
+        hash: `sha256:${"d".repeat(64)}` as const,
+        byteSize: 1,
+        mediaType: "image/png",
+        canonicalRasterDimensions: { pixelWidth: 1200, pixelHeight: 801 },
+      }],
+      totals: { ...CLOSURE.totals, assetCount: 1, assetBytes: 1 },
+    };
+    await expect(
+      runIsolatedTypstCompile(
+        request({ resources: dimensionMismatch }),
         TOOL,
         sandbox(),
         timer,

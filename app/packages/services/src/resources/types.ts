@@ -152,6 +152,11 @@ export interface AssetStagingEntry {
   readonly hash: Sha256Hash;
   readonly byteSize: number;
   readonly mediaType: string;
+  /** Present only for canonical PNG/JPEG bytes whose dimensions were verified. */
+  readonly canonicalRasterDimensions?: {
+    readonly pixelWidth: number;
+    readonly pixelHeight: number;
+  };
 }
 
 export interface FontFaceStagingEntry {
@@ -185,7 +190,13 @@ export interface VerifiedResourceClosure {
   readonly assets: readonly VerifiedAssetIdentity[];
   readonly fonts: readonly VerifiedFontIdentity[];
   readonly assetBindings: Readonly<
-    Record<string, { readonly relativePath: string }>
+    Record<string, {
+      readonly relativePath: string;
+      readonly canonicalRasterDimensions?: {
+        readonly pixelWidth: number;
+        readonly pixelHeight: number;
+      };
+    }>
   >;
   readonly fontBindings: Readonly<
     Record<string, { readonly familyName: string }>

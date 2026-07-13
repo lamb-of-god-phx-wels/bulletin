@@ -24,11 +24,13 @@ import {
 } from "./bundledFonts.js";
 import { assertSafeBuildRelativePath, typstStringLiteral } from "./escape.js";
 import { renderRichTextDocument } from "./richText.js";
+import { scriptureTypographyPresetId } from "../richtext/scriptureTypography.js";
 import {
   generateRightsBlock,
   type GeneratedRightsBlock,
 } from "./rights.js";
 import {
+  INTENTIONAL_BLANK_NAVIGATION_RESOLVED_ID,
   TypstSourceBuilder,
   type SourceRegion,
 } from "./sourceBuilder.js";
@@ -334,27 +336,60 @@ function emitImage(
     (node.element.height !== undefined && node.element.height !== "auto");
   if (fillWidth) args.push("width: 100%");
   if (fillHeight) args.push("height: 100%");
-  if (
+  const needsPositionedCover =
     data.fit === "cover" &&
     data.focalPoint !== undefined &&
-    (data.focalPoint.x !== 0.5 || data.focalPoint.y !== 0.5)
-  ) {
-    // Typst's image element supports centered cover cropping but exposes no
-    // crop-position parameter. Do not silently produce the wrong crop.
+    (data.focalPoint.x !== 0.5 || data.focalPoint.y !== 0.5) &&
+    fillWidth &&
+    fillHeight;
+  if (needsPositionedCover && binding.canonicalRasterDimensions === undefined) {
     addFinding(context, {
       code: "CBB-LAYOUT-0003",
       severity: "error",
       kind: "unsupportedImageFocalPoint",
       message:
-        "This Typst version cannot honor a non-centered cover focal point.",
+        "A non-centered cover focal point requires verified canonical raster dimensions.",
       resolvedId: node.resolvedId,
     });
   }
-  args.push(
+  const altArgument =
     data.decorative === true
       ? "alt: none"
-      : `alt: ${typstStringLiteral(data.alt ?? "")}`
-  );
+      : `alt: ${typstStringLiteral(data.alt ?? "")}`;
+  args.push(altArgument);
+  if (needsPositionedCover && binding.canonicalRasterDimensions !== undefined) {
+    const { pixelWidth, pixelHeight } = binding.canonicalRasterDimensions;
+    if (
+      !Number.isSafeInteger(pixelWidth) || pixelWidth < 1 || pixelWidth > 32_768 ||
+      !Number.isSafeInteger(pixelHeight) || pixelHeight < 1 || pixelHeight > 32_768
+    ) {
+      throw new TypeError("Verified canonical raster dimensions are invalid");
+    }
+    const focalX = data.focalPoint?.x ?? 0.5;
+    const focalY = data.focalPoint?.y ?? 0.5;
+    context.builder.append(
+      `#layout(cbb_target => {\n` +
+      `  let cbb_source_aspect = ${pixelWidth} / ${pixelHeight}\n` +
+      `  let cbb_target_aspect = cbb_target.width / cbb_target.height\n` +
+      `  let cbb_rendered_width = if cbb_source_aspect > cbb_target_aspect { cbb_target.height * cbb_source_aspect } else { cbb_target.width }\n` +
+      `  let cbb_rendered_height = if cbb_source_aspect > cbb_target_aspect { cbb_target.height } else { cbb_target.width / cbb_source_aspect }\n` +
+      `  let cbb_overflow_x = if cbb_rendered_width > cbb_target.width { cbb_rendered_width - cbb_target.width } else { 0pt }\n` +
+      `  let cbb_overflow_y = if cbb_rendered_height > cbb_target.height { cbb_rendered_height - cbb_target.height } else { 0pt }\n` +
+      `  let cbb_candidate_x = cbb_rendered_width * ${String(focalX)} - cbb_target.width / 2\n` +
+      `  let cbb_candidate_y = cbb_rendered_height * ${String(focalY)} - cbb_target.height / 2\n` +
+      `  let cbb_origin_x = if cbb_candidate_x < 0pt { 0pt } else if cbb_candidate_x > cbb_overflow_x { cbb_overflow_x } else { cbb_candidate_x }\n` +
+      `  let cbb_origin_y = if cbb_candidate_y < 0pt { 0pt } else if cbb_candidate_y > cbb_overflow_y { cbb_overflow_y } else { cbb_candidate_y }\n` +
+      `  let cbb_offset_x = -cbb_origin_x\n` +
+      `  let cbb_offset_y = -cbb_origin_y\n` +
+      `  block(width: cbb_target.width, height: cbb_target.height, clip: true)[\n` +
+      `    #place(top + left, dx: cbb_offset_x, dy: cbb_offset_y)[\n` +
+      `      #image(${typstStringLiteral(binding.relativePath)}, width: cbb_rendered_width, height: cbb_rendered_height, fit: "stretch", ${altArgument})\n` +
+      `    ]\n` +
+      `  ]\n` +
+      `})`,
+    );
+    return;
+  }
   context.builder.append(`#image(${args.join(", ")})`);
 }
 
@@ -663,7 +698,11 @@ function emitNodeExpression(
   region: SourceRegion,
   options: NodeEmitOptions = {},
 ): void {
-  context.builder.mapped(node.resolvedId, region, () => {
+  context.builder.mapped(
+    node.resolvedId,
+    node.provenance.sourceElementId,
+    region,
+    () => {
     const { element } = node;
     if (element.type === "pageBreak") {
       context.builder.append("pagebreak()");
@@ -693,7 +732,8 @@ function emitNodeExpression(
       }
     });
     context.builder.append("]");
-  });
+    },
+  );
 }
 
 function targetExpression(pageElement: ResolvedPageElement): string {
@@ -828,6 +868,7 @@ function emitPageLayer(
   for (const { entry } of ordered) {
     context.builder.mapped(
       entry.resolvedId,
+      entry.provenance.sourceElementId,
       name === "background" ? "page-background" : "page-foreground",
       () => {
         context.builder.append(`  if ${targetExpression(entry)} {\n`);
@@ -836,6 +877,11 @@ function emitPageLayer(
         );
         context.builder.append(
           `    cbb_page_content += place(top + left, dx: cbb_region.x, dy: cbb_region.y, block(width: cbb_region.width, height: cbb_region.height, clip: ${entry.clipToRegion ? "true" : "false"})[#place(${anchorExpression(entry.anchor)}, dx: ${typstLength(entry.x, "physical-or-relative")}, dy: ${typstLength(entry.y, "physical-or-relative")})[#block(width: ${typstLength(entry.width, "page-element-size")}, height: ${typstLength(entry.height, "page-element-size")}, clip: true)[`,
+        );
+        context.builder.navigationMarker(
+          entry.resolvedId,
+          entry.provenance.sourceElementId,
+          name === "background" ? "page-background" : "page-foreground",
         );
         emitNodeExpression(
           context,
@@ -849,7 +895,8 @@ function emitPageLayer(
           },
         );
         context.builder.append("]]])\n  }\n");
-      }
+      },
+      false,
     );
   }
   context.builder.append("  cbb_page_content\n}\n");
@@ -882,6 +929,9 @@ function emitPreamble(context: EmitContext): void {
     (entry) => entry.layer === "overlay"
   );
   context.builder.append(`// Generated by ${TYPST_GENERATOR_VERSION}. Do not edit.\n`);
+  context.builder.append(
+    "#show <cbb-source>: it => context [#metadata((..it.value, page: here().page())) <cbb-located>]\n",
+  );
   context.builder.append(
     `#set document(title: ${typstStringLiteral(context.input.projection.title)})\n`,
   );
@@ -919,7 +969,8 @@ function emitPreamble(context: EmitContext): void {
 function presentationHasUnsupportedTypography(
   presentation: EffectiveScripturePresentation,
 ): boolean {
-  return presentation.typographyPresetSnapshot !== undefined;
+  return presentation.typographyPresetSnapshot !== undefined &&
+    scriptureTypographyPresetId(presentation.typographyPresetSnapshot) === undefined;
 }
 
 function richTextBlockHasUnsupportedTypography(
@@ -1148,16 +1199,36 @@ export function generateTypst(
   for (const [index, node] of input.tree.elements.entries()) {
     if (node.element.type === "pageBreak") {
       const intent = node.element.data.intent ?? "flowBreak";
-      context.builder.mapped(node.resolvedId, "body", () => {
+      context.builder.mapped(
+        node.resolvedId,
+        node.provenance.sourceElementId,
+        "body",
+        () => {
         if (intent === "flowBreak") {
           context.builder.append("#pagebreak()\n");
         } else {
           context.builder.append("#pagebreak(weak: true)\n");
+          context.builder.navigationMarker(
+            node.resolvedId,
+            node.provenance.sourceElementId,
+            "body",
+          );
+          context.builder.navigationMarker(
+            INTENTIONAL_BLANK_NAVIGATION_RESOLVED_ID,
+            node.provenance.sourceElementId,
+            "body",
+          );
+          // Metadata is layout-invisible and does not itself materialize a
+          // physical trailing page. This zero-size anchor has no PDF marks but
+          // makes the intentional page exist before the following strong break.
+          context.builder.append("#box(width: 0pt, height: 0pt)[]\n");
           if (index < input.tree.elements.length - 1) {
             context.builder.append("#pagebreak()\n");
           }
         }
-      });
+        },
+        intent === "flowBreak",
+      );
       continue;
     }
     emitNodeExpression(context, node, "body");

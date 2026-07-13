@@ -1,7 +1,18 @@
+import { typstStringLiteral } from "./escape.js";
+
+/** Cannot collide with a persisted/resolved node id (those never contain `$` or `:`). */
+export const INTENTIONAL_BLANK_NAVIGATION_RESOLVED_ID =
+  "$cbb:intentional-blank" as const;
+
+export function isIntentionalBlankNavigationResolvedId(value: string): boolean {
+  return value === INTENTIONAL_BLANK_NAVIGATION_RESOLVED_ID;
+}
+
 export type SourceRegion = "body" | "page-background" | "page-foreground";
 
 export interface TypstSourceMapEntry {
   readonly resolvedId: string;
+  readonly sourceElementId: string;
   readonly region: SourceRegion;
   readonly startByte: number;
   readonly endByte: number;
@@ -41,20 +52,40 @@ export class TypstSourceBuilder {
 
   mapped(
     resolvedId: string,
+    sourceElementId: string,
     region: SourceRegion,
-    emit: (builder: TypstSourceBuilder) => void
+    emit: (builder: TypstSourceBuilder) => void,
+    includeNavigationMarker = true,
   ): void {
     const startByte = this.#byteOffset;
     const startLine = this.#line;
+    if (includeNavigationMarker) {
+      this.navigationMarker(resolvedId, sourceElementId, region);
+    }
     emit(this);
     this.#entries.push({
       resolvedId,
+      sourceElementId,
       region,
       startByte,
       endByte: this.#byteOffset,
       startLine,
       endLine: this.#line,
     });
+  }
+
+  /**
+   * Emit invisible, queryable layout metadata. A trusted post-compile Typst
+   * query turns these identities into physical PDF page locations.
+   */
+  navigationMarker(
+    resolvedId: string,
+    sourceElementId: string,
+    region: SourceRegion,
+  ): void {
+    this.append(
+      `#metadata((resolvedId: ${typstStringLiteral(resolvedId)}, sourceElementId: ${typstStringLiteral(sourceElementId)}, region: ${typstStringLiteral(region)})) <cbb-source>\n`,
+    );
   }
 
   build(): { readonly source: string; readonly sourceMap: TypstSourceMap } {

@@ -167,6 +167,7 @@ function sandbox(result: "succeeded" | "failed"): IsolatedTypstSandboxPort {
       pageCount: 1,
       pdfVersion: "1.7",
       magicVerified: true,
+      navigationMap: { version: 1, entries: [] },
     }),
     terminate: async () => undefined,
     cleanup: async () => undefined,

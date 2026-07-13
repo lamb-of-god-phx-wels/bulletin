@@ -2,6 +2,7 @@ import type { Sha256Hash } from "@cbb/core";
 import type {
   BuildOutputHandle,
   CompileArtifactSinkPort,
+  VerifiedPdfNavigationMap,
 } from "../build/runner.js";
 
 export type ArtifactKind = "preview" | "draft" | "finalCandidate" | "importedDiagnostic";
@@ -66,6 +67,7 @@ export interface ArtifactCompileEvidence {
   readonly typstRelativePath: string;
   readonly typstHash: Sha256Hash;
   readonly generatorVersion: string;
+  readonly navigationMap?: VerifiedPdfNavigationMap;
   readonly pdf: ArtifactPdfEvidence;
   readonly resources: ArtifactResourceClosure;
 }
@@ -222,6 +224,7 @@ export interface CompileArtifactInstallRequest {
   readonly expectedPdf: Omit<ArtifactPdfEvidence, "relativePath">;
   readonly renderProjectionHash: Sha256Hash;
   readonly generatorVersion: string;
+  readonly navigationMap: VerifiedPdfNavigationMap;
   readonly resources: ArtifactResourceClosure;
 }
 

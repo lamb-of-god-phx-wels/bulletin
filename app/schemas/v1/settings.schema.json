@@ -8,32 +8,199 @@
     { "$ref": "#/$defs/workspaceSettings" }
   ],
   "$defs": {
+    "uiLanguage": {
+      "description": "Bundled application UI locale. Availability is checked against the installed locale catalog.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$"
+    },
+    "theme": {
+      "enum": ["system", "light", "dark"]
+    },
+    "viewMode": {
+      "enum": ["page", "contiguous"]
+    },
+    "pagePresentation": {
+      "enum": ["single", "facing"]
+    },
+    "previewZoom": {
+      "description": "Output-inert default PDF preview zoom.",
+      "oneOf": [
+        { "enum": ["fitPage", "fitWidth"] },
+        { "type": "integer", "minimum": 25, "maximum": 200 }
+      ]
+    },
+    "snapGridSize": {
+      "description": "Positive physical canvas-snap interval. Legacy field name retained as the canonical v1 name.",
+      "type": "string",
+      "pattern": "^(?:(?:0*[1-9][0-9]*)(?:\\.[0-9]+)?|0+\\.0*[1-9][0-9]*)(?:pt|in|cm|mm)$"
+    },
+    "exportFilenamePattern": {
+      "description": "Output filename pattern; path separators and control characters are forbidden.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[^\\u0000-\\u001F\\u007F/\\\\]+$"
+    },
+    "displayTimeZone": {
+      "description": "IANA time-zone identifier. Runtime validation checks membership in the host's bundled time-zone data.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9._+-]*(?:/[A-Za-z][A-Za-z0-9._+-]*)*$"
+    },
+    "firstRun": {
+      "description": "Output-inert resumable state for the optional first-run setup in this bulletin library.",
+      "type": "object",
+      "required": ["version", "disposition"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "disposition": { "enum": ["inProgress", "completed", "skipped"] },
+        "step": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "churchName": { "$ref": "#/$defs/firstRunText" },
+        "mailingAddress": { "$ref": "#/$defs/firstRunText" },
+        "locationAddress": { "$ref": "#/$defs/firstRunText" },
+        "phone": { "$ref": "#/$defs/firstRunText" },
+        "email": { "$ref": "#/$defs/firstRunText" },
+        "website": { "$ref": "#/$defs/firstRunText" },
+        "logo": { "$ref": "#/$defs/portableAssetRef" },
+        "preferredOutput": { "enum": ["fullSheet", "foldedBooklet", "other"] },
+        "starterId": { "enum": ["simple-service", "folded-letter", "announcements", "blank-accessible"] },
+        "createPracticeBulletin": { "type": "boolean" },
+        "tourCompleted": { "type": "boolean" },
+        "tourBulletinLocalResourceId": { "$ref": "https://church-bulletin-builder.local/schema/v1/workspace.schema.json#/$defs/localResourceId" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "disposition": { "const": "inProgress" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "properties": { "tourCompleted": {} }, "required": ["tourCompleted"] },
+                { "properties": { "tourBulletinLocalResourceId": {} }, "required": ["tourBulletinLocalResourceId"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "disposition": { "enum": ["completed", "skipped"] } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "properties": { "step": {} }, "required": ["step"] },
+                { "properties": { "churchName": {} }, "required": ["churchName"] },
+                { "properties": { "mailingAddress": {} }, "required": ["mailingAddress"] },
+                { "properties": { "locationAddress": {} }, "required": ["locationAddress"] },
+                { "properties": { "phone": {} }, "required": ["phone"] },
+                { "properties": { "email": {} }, "required": ["email"] },
+                { "properties": { "website": {} }, "required": ["website"] },
+                { "properties": { "logo": {} }, "required": ["logo"] },
+                { "properties": { "createPracticeBulletin": {} }, "required": ["createPracticeBulletin"] }
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "firstRunText": {
+      "description": "Bounded, trimmed setup text persisted only inside the current workspace.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]+$"
+    },
+    "portableAssetRef": {
+      "description": "Portable managed-image reference; filesystem paths and workspace-local ids are forbidden.",
+      "type": "string",
+      "pattern": "^asset:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sourceTemplateLink": {
+      "description": "Workspace-only creation-template navigation metadata; these local ids never enter portable documents.",
+      "type": "object",
+      "required": ["bulletinLocalResourceId", "templateLocalResourceId"],
+      "properties": {
+        "bulletinLocalResourceId": { "$ref": "https://church-bulletin-builder.local/schema/v1/workspace.schema.json#/$defs/localResourceId" },
+        "templateLocalResourceId": { "$ref": "https://church-bulletin-builder.local/schema/v1/workspace.schema.json#/$defs/localResourceId" }
+      },
+      "additionalProperties": false
+    },
     "globalSettings": {
-      "description": "Application-global preferences.",
+      "description": "Application-global preferences and defaults. Every preference is optional so an absent value inherits the application default.",
       "type": "object",
       "required": ["version", "kind"],
       "properties": {
         "version": { "type": "integer", "const": 1 },
         "kind": { "const": "globalSettings" },
-        "theme": { "enum": ["light", "dark", "system"] },
-        "defaultLanguage": { "type": "string" },
-        "telemetryEnabled": { "type": "boolean" }
+        "scope": {
+          "const": "application",
+          "description": "Spec-facing scope discriminator; optional for compatibility with pre-M4 settings."
+        },
+        "theme": { "$ref": "#/$defs/theme" },
+        "defaultLanguage": {
+          "$ref": "#/$defs/uiLanguage",
+          "description": "Application UI language. The legacy property name remains canonical in v1."
+        },
+        "viewMode": { "$ref": "#/$defs/viewMode" },
+        "pagePresentation": { "$ref": "#/$defs/pagePresentation" },
+        "previewZoom": { "$ref": "#/$defs/previewZoom" },
+        "marginGuides": { "type": "boolean" },
+        "livePreview": { "type": "boolean" },
+        "technicalPdfDetails": { "type": "boolean" },
+        "canvasSnap": { "type": "boolean" },
+        "snapGridSize": { "$ref": "#/$defs/snapGridSize" },
+        "exportFilenamePattern": { "$ref": "#/$defs/exportFilenamePattern" },
+        "offlineSpellcheck": { "type": "boolean" },
+        "displayTimeZone": { "$ref": "#/$defs/displayTimeZone" },
+        "telemetryEnabled": {
+          "type": "boolean",
+          "description": "Legacy application preference retained for backward compatibility."
+        }
       },
       "additionalProperties": false
     },
     "workspaceSettings": {
-      "description": "Workspace-level editor and export preferences.",
+      "description": "Optional workspace overrides for editor, preview, export, and display-time-zone defaults. Missing properties inherit application settings.",
       "type": "object",
       "required": ["version", "kind"],
       "properties": {
         "version": { "type": "integer", "const": 1 },
         "kind": { "const": "workspaceSettings" },
-        "defaultExportFormat": { "enum": ["readerOrder", "bookletTwoUp"] },
-        "snapGridSize": {
-          "type": "string",
-          "pattern": "^[0-9]+(\\.[0-9]+)?(pt|in|cm|mm)$"
+        "scope": {
+          "const": "workspace",
+          "description": "Spec-facing scope discriminator; optional for compatibility with pre-M4 settings."
         },
-        "previewResolution": { "type": "integer", "minimum": 72 }
+        "viewMode": { "$ref": "#/$defs/viewMode" },
+        "pagePresentation": { "$ref": "#/$defs/pagePresentation" },
+        "previewZoom": { "$ref": "#/$defs/previewZoom" },
+        "marginGuides": { "type": "boolean" },
+        "livePreview": { "type": "boolean" },
+        "technicalPdfDetails": { "type": "boolean" },
+        "canvasSnap": { "type": "boolean" },
+        "snapGridSize": { "$ref": "#/$defs/snapGridSize" },
+        "exportFilenamePattern": { "$ref": "#/$defs/exportFilenamePattern" },
+        "offlineSpellcheck": { "type": "boolean" },
+        "displayTimeZone": { "$ref": "#/$defs/displayTimeZone" },
+        "defaultExportFormat": { "enum": ["readerOrder", "bookletTwoUp"] },
+        "previewResolution": {
+          "type": "integer",
+          "minimum": 72,
+          "description": "Legacy M3 preview raster-resolution preference, distinct from previewZoom."
+        },
+        "sourceTemplateLinks": {
+          "type": "array",
+          "maxItems": 20000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sourceTemplateLink" }
+        },
+        "firstRun": { "$ref": "#/$defs/firstRun" }
       },
       "additionalProperties": false
     }

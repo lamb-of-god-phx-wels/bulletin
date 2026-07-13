@@ -7,6 +7,7 @@ import type {
 } from "../document/resolvedTypes.js";
 import { typstStringLiteral } from "./escape.js";
 import { typstLength } from "./values.js";
+import { scriptureTypographyPresetId } from "../richtext/scriptureTypography.js";
 
 function renderInline(node: ResolvedInline): string {
   if (node.type === "lineBreak") return "#linebreak()";
@@ -97,7 +98,11 @@ function renderScripture(block: ResolvedScriptureBlock): string {
     const reference = referenceLine(block, block.presentation);
     if (reference !== undefined) parts.push(reference);
   }
-  return `#quote(block: true)[${parts.join("#parbreak()")}]`;
+  const quote = `#quote(block: true)[${parts.join("#parbreak()")}]`;
+  const preset = scriptureTypographyPresetId(block.presentation.typographyPresetSnapshot);
+  if (preset === "readable") return `#text(size: 1.05em)[${quote}]`;
+  if (preset === "compact") return `#text(size: 0.92em)[${quote}]`;
+  return quote;
 }
 
 function renderListItem(block: ResolvedRichTextBlock): string {

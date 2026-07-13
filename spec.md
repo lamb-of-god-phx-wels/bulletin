@@ -1468,7 +1468,7 @@ Every project has this top-level shape:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "kind": "bulletin",
   "name": "07 05 2026",
   "metadata": {
@@ -1491,6 +1491,9 @@ Every project has this top-level shape:
   "elements": []
 }
 ```
+
+The root `version` identifies the document-envelope format. It is independent of
+custom-element `definitionVersion` values and field-contract `version` values.
 
 The `kind` field is either `bulletin` or `template`. Bulletins and templates use
 the same layout model; they differ by storage location and user workflow.
@@ -6298,18 +6301,35 @@ requests, sample AI data imports, and asset metadata useful for AI selection.
 ## Custom Elements And Bindings
 
 Custom-element definitions are reusable versioned visual definitions. A
-definition contains portable `definitionId`, positive `definitionVersion`,
-canonical `definitionHash`, user-facing name, shared `fieldContract`, native
-visual `elements` with bindings, optional default placement, and schema-valid
-preview field values. Its v1 `breakModel` is the constant `verticalStack`, so
-multiple definition roots have the vertical-stack pagination rule; a fixed-height
-or `avoid` instance can still suppress those descendant breaks as specified.
+definition contains a stable portable `id` (referenced as `definitionId` by
+instances), positive `definitionVersion`, canonical `definitionHash`,
+user-facing name, shared `fieldContract`, native visual `elements` with
+bindings, optional default placement, and schema-valid preview field values.
+The canonical hash covers the complete definition revision, including its
+semantic version and exact nested-definition pins, and excludes only the
+`definitionHash` field itself. Its v1 `breakModel` is the constant
+`verticalStack`, so multiple definition roots have the vertical-stack pagination
+rule; a fixed-height or `avoid` instance can still suppress those descendant
+breaks as specified.
 
 A custom-element instance remains one native `type: "custom"` visual element. It
 stores a pinned definition id/version/hash and scoped `fieldValues` using the
 shared field-value records. The referenced definition revision is an embedded
 portable document definition or an explicit bundle/pack dependency; it is never
 resolved by display name or silently switched to the latest workspace revision.
+
+New definitions begin at semantic revision 1. Finalizing one editing transaction
+increments an existing definition exactly once when its output-affecting meaning
+changes, recomputes its self-hash, and cascades the same single increment through
+every ancestor whose nested pin consequently changes. Field-value edits on body
+or page-level instances do not revise their target definitions. Every persisted
+instance must carry the target definition's exact id, version, and hash.
+
+The current document envelope is version 2. Version 1 documents normalize
+purely in memory to version 2 by finalizing embedded definitions dependency-first
+and repinning all nested, body, and page-level instances; only an explicit save
+persists that result. Current-version documents are never repaired during open:
+missing, stale, or mismatched revision evidence fails closed.
 
 Bindings inside the definition use the shared binding model and default to the
 instance's field scope. Effective values follow field value, contract default,

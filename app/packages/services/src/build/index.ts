@@ -33,6 +33,9 @@ export type {
   TypstRunnerFailureKind,
   TypstRunnerResult,
   VerifiedPdfOutput,
+  VerifiedPdfNavigationEntry,
+  VerifiedPdfNavigationMap,
+  VerifiedPdfSourceRegion,
 } from "./runner.js";
 export {
   BuildOrchestrator,

@@ -74,8 +74,14 @@ async function readDiskDocument(
   }
   const bytes = await ports.fileSystem.readFileNoFollow(path, MAX_DOCUMENT_BYTES);
   try {
-    const document = validateDocument(decodeJson(bytes), catalog);
-    return { bytes, document, hash: canonicalToken(document), validation: "valid" };
+    const sourceDocument = decodeJson(bytes);
+    const document = validateDocument(sourceDocument, catalog);
+    return {
+      bytes,
+      document,
+      hash: canonicalToken(sourceDocument),
+      validation: "valid",
+    };
   } catch {
     return { bytes, document: null, hash: null, validation: "invalid" };
   }
@@ -227,17 +233,25 @@ export class DocumentPersistenceService {
       if ((request.baseDocument === null) !== (request.baseRevisionToken === null)) {
         throw new Error("Base document and revision token must both be present or both be null");
       }
-      if (
-        request.baseDocument !== null &&
-        canonicalToken(validateDocument(request.baseDocument, this.catalog)) !== request.baseRevisionToken
-      ) {
-        throw new Error("Base document does not match its revision token");
-      }
+      const baseDocument = request.baseDocument === null
+        ? null
+        : validateDocument(request.baseDocument, this.catalog);
 
       const documentPath = canonicalDocumentPath(request.resourceKind, request.localResourceId);
       await assertManagedPathHasNoSymlink(this.ports.fileSystem, root, documentPath);
       const absoluteDocumentPath = resolveWorkspacePath(root, documentPath);
       const disk = await readDiskDocument(absoluteDocumentPath, this.ports, this.catalog);
+      const beforeResource = findResource(
+        registry,
+        request.resourceKind,
+        request.localResourceId,
+      ) ?? null;
+      if (
+        (request.baseRevisionToken === null && beforeResource !== null) ||
+        (request.baseRevisionToken !== null && beforeResource?.contentHash !== request.baseRevisionToken)
+      ) {
+        throw new Error("Workspace registry metadata disagrees with the authoritative document base");
+      }
       const optimisticMatch = disk.validation === "valid"
         ? disk.hash === request.baseRevisionToken
         : disk.validation === "missing" && request.baseRevisionToken === null;
@@ -247,7 +261,7 @@ export class DocumentPersistenceService {
           registry,
           resourceKind: request.resourceKind,
           localResourceId: request.localResourceId,
-          baseDocument: request.baseDocument,
+          baseDocument,
           baseHash: request.baseRevisionToken,
           diskBytes: disk.bytes,
           diskHash: disk.hash,
@@ -272,13 +286,15 @@ export class DocumentPersistenceService {
           })],
         };
       }
-
-      const beforeResource = findResource(registry, request.resourceKind, request.localResourceId) ?? null;
       if (
-        (request.baseRevisionToken === null && beforeResource !== null) ||
-        (request.baseRevisionToken !== null && beforeResource?.contentHash !== request.baseRevisionToken)
+        baseDocument !== null &&
+        canonicalToken(baseDocument) !== request.baseRevisionToken &&
+        (
+          disk.document === null ||
+          canonicalToken(disk.document) !== canonicalToken(baseDocument)
+        )
       ) {
-        throw new Error("Workspace registry metadata disagrees with the authoritative document base");
+        throw new Error("Base document does not match its source-bound revision token");
       }
       const now = this.ports.clock.now().toISOString();
       const afterResource = {
@@ -367,7 +383,7 @@ export class DocumentPersistenceService {
           registry,
           resourceKind: request.resourceKind,
           localResourceId: request.localResourceId,
-          baseDocument: request.baseDocument,
+          baseDocument,
           baseHash: request.baseRevisionToken,
           diskBytes: latestDisk.bytes,
           diskHash: latestDisk.hash,

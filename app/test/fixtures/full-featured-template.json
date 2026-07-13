@@ -282,7 +282,7 @@
       "type": "customInstance",
       "name": "Children's Sermon Block",
       "definitionId": "customDef1",
-      "definitionHash": "sha256:4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb4444bbbb",
+      "definitionHash": "sha256:cdcdf08957cc210213299517a90cd10ff52071e3d24b46eb4aae1145a1582366",
       "width": "100%",
       "breakPolicy": "avoid",
       "fieldValues": {

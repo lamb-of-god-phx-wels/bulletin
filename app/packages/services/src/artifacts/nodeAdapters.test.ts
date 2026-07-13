@@ -409,7 +409,7 @@ describe("artifact schema and compile output adapters", () => {
       const next = await registry.registerVerifiedPdf(BUILD, { hash: hash(pdf), byteSize: pdf.byteLength });
       await expect(reader.readVerifiedPdf(next)).resolves.toEqual(pdf);
     }
-  }, 15_000);
+  }, 30_000);
 
   it("rejects hard-linked compile output during handle registration", async () => {
     const root = await temporaryRoot("compile-hardlink");

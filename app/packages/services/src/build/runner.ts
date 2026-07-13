@@ -45,6 +45,21 @@ export interface VerifiedPdfOutput {
   readonly pageCount: number;
   readonly pdfVersion: string;
   readonly magicVerified: true;
+  readonly navigationMap: VerifiedPdfNavigationMap;
+}
+
+export type VerifiedPdfSourceRegion = "body" | "page-background" | "page-foreground";
+
+export interface VerifiedPdfNavigationEntry {
+  readonly resolvedId: string;
+  readonly sourceElementId: string;
+  readonly pageNumber: number;
+  readonly region: VerifiedPdfSourceRegion;
+}
+
+export interface VerifiedPdfNavigationMap {
+  readonly version: 1;
+  readonly entries: readonly VerifiedPdfNavigationEntry[];
 }
 
 /**
@@ -121,6 +136,7 @@ const SAFE_ASSET_ALIAS = /^assets\/a[0-9]{4}\.(?:png|jpg|svg|pdf|bin)$/;
 const SAFE_FONT_ALIAS = /^fonts\/f[0-9]{4}-[0-9]{4}\.(?:ttf|otf|woff|woff2)$/;
 const MAX_ARTIFACT_BYTES = 1024 * 1024 * 1024;
 const MAX_PAGES = 1_000;
+const MAX_NAVIGATION_ENTRIES = 50_000;
 const ABANDON_GRACE_MS = 1_000;
 
 function failure<Result>(
@@ -187,7 +203,20 @@ function validateResourceClosure(resources: VerifiedResourceClosure): void {
       entry.mediaType === asset.mediaType
     );
     const binding = resources.assetBindings[asset.assetRef];
-    if (entries.length !== 1 || binding?.relativePath !== entries[0]?.relativePath) {
+    const entry = entries[0];
+    const bindingDimensions = binding?.canonicalRasterDimensions;
+    const stagedDimensions = entry?.canonicalRasterDimensions;
+    const dimensionsValid = bindingDimensions === undefined
+      ? stagedDimensions === undefined
+      : stagedDimensions !== undefined &&
+        Number.isSafeInteger(bindingDimensions.pixelWidth) &&
+        bindingDimensions.pixelWidth >= 1 && bindingDimensions.pixelWidth <= 32_768 &&
+        Number.isSafeInteger(bindingDimensions.pixelHeight) &&
+        bindingDimensions.pixelHeight >= 1 && bindingDimensions.pixelHeight <= 32_768 &&
+        bindingDimensions.pixelWidth === stagedDimensions.pixelWidth &&
+        bindingDimensions.pixelHeight === stagedDimensions.pixelHeight &&
+        (entry?.mediaType === "image/png" || entry?.mediaType === "image/jpeg");
+    if (entries.length !== 1 || binding?.relativePath !== entry?.relativePath || !dimensionsValid) {
       throw new TypeError("Asset identity is not bound to exactly one staged resource");
     }
   }
@@ -227,6 +256,19 @@ function validateResourceClosure(resources: VerifiedResourceClosure): void {
 }
 
 function validPdf(output: VerifiedPdfOutput): boolean {
+  const navigation = output.navigationMap;
+  const navigationValid = navigation !== null &&
+    typeof navigation === "object" &&
+    navigation.version === 1 &&
+    Array.isArray(navigation.entries) &&
+    navigation.entries.length <= MAX_NAVIGATION_ENTRIES &&
+    navigation.entries.every((entry) =>
+      entry !== null && typeof entry === "object" &&
+      typeof entry.resolvedId === "string" && entry.resolvedId.length > 0 && entry.resolvedId.length <= 512 &&
+      typeof entry.sourceElementId === "string" && /^[A-Za-z][A-Za-z0-9_-]*$/u.test(entry.sourceElementId) &&
+      Number.isSafeInteger(entry.pageNumber) && entry.pageNumber >= 1 && entry.pageNumber <= output.pageCount &&
+      ["body", "page-background", "page-foreground"].includes(entry.region)
+    );
   return (
     output.magicVerified === true &&
     SHA256.test(output.hash) &&
@@ -236,7 +278,8 @@ function validPdf(output: VerifiedPdfOutput): boolean {
     Number.isSafeInteger(output.pageCount) &&
     output.pageCount > 0 &&
     output.pageCount <= MAX_PAGES &&
-    /^[0-9]+\.[0-9]+$/.test(output.pdfVersion)
+    /^[0-9]+\.[0-9]+$/.test(output.pdfVersion) &&
+    navigationValid
   );
 }
 

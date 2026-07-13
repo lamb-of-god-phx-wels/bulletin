@@ -10,6 +10,7 @@ import type {
   TextElement,
 } from "./types.js";
 import { DOCUMENT_LIMITS } from "./types.js";
+import { customElementDefinitionHash } from "./customDefinitions.js";
 import { validateDocumentSemantics } from "./semantic.js";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
@@ -40,13 +41,20 @@ function contract(
 
 function document(overrides: Partial<CbbDocument> = {}): CbbDocument {
   return {
-    version: 1,
+    version: 2,
     kind: "bulletin",
     name: "Semantic test",
     page: { typstWidth: "8.5in", typstHeight: "11in" },
     elements: [],
     ...overrides,
   };
+}
+
+function definitionRevision(
+  input: Omit<CustomElementDefinition, "definitionVersion" | "definitionHash">,
+): CustomElementDefinition {
+  const revision = { ...input, definitionVersion: 1 };
+  return { ...revision, definitionHash: customElementDefinitionHash(revision) };
 }
 
 function placement(
@@ -90,7 +98,7 @@ describe("validateDocumentSemantics", () => {
         itemField: { id: "item", label: "Item", type: "text", required: true },
       },
     ]);
-    const definition: CustomElementDefinition = {
+    const definition = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "calloutDefinition",
@@ -113,7 +121,7 @@ describe("validateDocumentSemantics", () => {
         },
       ],
       sampleFieldValues: { label: { value: "Preview", origin: "manual" } },
-    };
+    });
     const boundHeading: TextElement = {
       ...text("boundHeading"),
       bindings: [
@@ -130,6 +138,8 @@ describe("validateDocumentSemantics", () => {
       type: "customInstance",
       name: "Callout",
       definitionId: "calloutDefinition",
+      definitionVersion: definition.definitionVersion,
+      definitionHash: definition.definitionHash,
       fieldValues: { label: { value: "Welcome", origin: "manual" } },
     };
     const doc = document({
@@ -225,14 +235,14 @@ describe("validateDocumentSemantics", () => {
         children: [{ id: `deepWrapper${depth}`, index: 0, element: nested }],
       };
     }
-    const definition: CustomElementDefinition = {
+    const definition = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "deepDefinition",
       name: "Deep",
       fieldContract: contract([]),
       elements: [nested, text("sharedNode")],
-    };
+    });
     const invalidDocument = document({
       elements: [text("sharedNode")],
       customElementDefinitions: [definition],
@@ -248,7 +258,7 @@ describe("validateDocumentSemantics", () => {
   });
 
   it("counts embedded definition trees against the persisted-node hard cap", () => {
-    const definition: CustomElementDefinition = {
+    const definition = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "largeDefinition",
@@ -258,7 +268,7 @@ describe("validateDocumentSemantics", () => {
         { length: DOCUMENT_LIMITS.PERSISTED_VISUAL_NODES_CAP },
         (_, index) => text(`largeNode${index}`),
       ),
-    };
+    });
 
     expect(codes(document({ customElementDefinitions: [definition] }))).toContain("CBB-DOC-0101");
   });
@@ -364,29 +374,33 @@ describe("validateDocumentSemantics", () => {
   });
 
   it("rejects missing custom definitions and definition dependency cycles", () => {
-    const definitionA: CustomElementDefinition = {
+    const definitionA = {
       version: 1,
       kind: "customElementDefinition",
       id: "definitionA",
+      definitionVersion: 1,
+      definitionHash: HASH,
       name: "A",
       fieldContract: contract([]),
       elements: [
-        { id: "useB", type: "customInstance", name: "B", definitionId: "definitionB" },
+        { id: "useB", type: "customInstance", name: "B", definitionId: "definitionB", definitionVersion: 1, definitionHash: HASH },
       ],
-    };
-    const definitionB: CustomElementDefinition = {
+    } as unknown as CustomElementDefinition;
+    const definitionB = {
       version: 1,
       kind: "customElementDefinition",
       id: "definitionB",
+      definitionVersion: 1,
+      definitionHash: HASH,
       name: "B",
       fieldContract: contract([], { id: UUID_B }),
       elements: [
-        { id: "useA", type: "customInstance", name: "A", definitionId: "definitionA" },
+        { id: "useA", type: "customInstance", name: "A", definitionId: "definitionA", definitionVersion: 1, definitionHash: HASH },
       ],
-    };
+    } as unknown as CustomElementDefinition;
     const result = validateDocumentSemantics(document({
       elements: [
-        { id: "missingUse", type: "customInstance", name: "Missing", definitionId: "notThere" },
+        { id: "missingUse", type: "customInstance", name: "Missing", definitionId: "notThere", definitionVersion: 1, definitionHash: HASH },
       ],
       customElementDefinitions: [definitionA, definitionB],
     }));
@@ -457,6 +471,68 @@ describe("validateDocumentSemantics", () => {
       expect.objectContaining({ code: "CBB-FIELD-0101", instancePath: "/fieldValues/publication/value" }),
       expect.objectContaining({ code: "CBB-FIELD-0101", instancePath: "/fieldValues/items/itemIds/1" }),
       expect.objectContaining({ code: "CBB-FIELD-0101", instancePath: "/fieldValues/unknown" }),
+    ]));
+  });
+
+  it("enforces the closed Church Profile key and field-type matrix", () => {
+    const valid = document({
+      fieldContract: contract([
+        {
+          id: "church",
+          label: "Church",
+          type: "text",
+          required: false,
+          profileKey: "churchName",
+        },
+        {
+          id: "logo",
+          label: "Logo",
+          type: "assetRef",
+          required: false,
+          profileKey: "logo",
+        },
+      ]),
+    });
+    expect(validateDocumentSemantics(valid)).toEqual({ valid: true, findings: [] });
+
+    const invalidFields = [
+      {
+        id: "choice",
+        label: "Choice",
+        type: "choice",
+        required: false,
+        profileKey: "churchName",
+      },
+      {
+        id: "textLogo",
+        label: "Text logo",
+        type: "text",
+        required: false,
+        profileKey: "logo",
+      },
+      {
+        id: "removedLanguage",
+        label: "Language",
+        type: "text",
+        required: false,
+        profileKey: "language",
+      },
+    ] as unknown as readonly FieldDefinition[];
+    expect(validateDocumentSemantics(document({
+      fieldContract: contract(invalidFields),
+    })).findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "CBB-FIELD-0100",
+        instancePath: "/fieldContract/fields/0/profileKey",
+      }),
+      expect.objectContaining({
+        code: "CBB-FIELD-0100",
+        instancePath: "/fieldContract/fields/1/profileKey",
+      }),
+      expect.objectContaining({
+        code: "CBB-FIELD-0100",
+        instancePath: "/fieldContract/fields/2/profileKey",
+      }),
     ]));
   });
 
@@ -726,7 +802,7 @@ describe("validateDocumentSemantics", () => {
       fieldContract: contract([{ id: "known", label: "Known", type: "text", required: true }]),
       fieldValues: { known: { value: "yes", origin: "manual" } },
     };
-    const definition: CustomElementDefinition = {
+    const definition = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "reviewDefinition",
@@ -736,7 +812,7 @@ describe("validateDocumentSemantics", () => {
         { id: UUID_B },
       ),
       elements: [text("reviewDefinitionText")],
-    };
+    });
     const result = validateDocumentSemantics(document({
       elements: [
         owned,
@@ -746,6 +822,8 @@ describe("validateDocumentSemantics", () => {
           type: "customInstance",
           name: "Review instance",
           definitionId: "reviewDefinition",
+          definitionVersion: definition.definitionVersion,
+          definitionHash: definition.definitionHash,
         },
       ],
       customElementDefinitions: [definition],
@@ -763,6 +841,74 @@ describe("validateDocumentSemantics", () => {
       expect.objectContaining({ code: "CBB-FIELD-0101", instancePath: "/fieldReview/2/target" }),
       expect.objectContaining({ code: "CBB-FIELD-0101", instancePath: "/fieldReview/4/target" }),
     ]);
+  });
+
+  it("requires exactly one compatible binding for omitted required content leaves", () => {
+    const fields = contract([
+      { id: "message", label: "Message", type: "text", required: true },
+      { id: "flag", label: "Flag", type: "boolean", required: false },
+    ]);
+    const omitted = (bindings: TextElement["bindings"]): TextElement => ({
+      id: "boundText",
+      type: "text",
+      name: "Bound text",
+      data: { content: { kind: "plain" } },
+      ...(bindings === undefined ? {} : { bindings }),
+    });
+    const validBinding = {
+      id: "messageBinding",
+      scope: "document" as const,
+      fieldId: "message",
+      target: "/data/content/text",
+      fallback: "Welcome",
+    };
+    expect(validateDocumentSemantics(document({
+      fieldContract: fields,
+      elements: [omitted([validBinding])],
+    }))).toEqual({ valid: true, findings: [] });
+
+    const legacy = text("legacy", "Legacy display");
+    expect(validateDocumentSemantics(document({
+      fieldContract: fields,
+      elements: [{ ...legacy, bindings: [validBinding] }],
+    }))).toEqual({ valid: true, findings: [] });
+
+    const unbound = validateDocumentSemantics(document({
+      fieldContract: fields,
+      elements: [omitted(undefined)],
+    }));
+    expect(unbound.findings).toContainEqual(expect.objectContaining({
+      code: "CBB-FIELD-0102",
+      instancePath: "/elements/0/data/content/text",
+    }));
+
+    const incompatible = validateDocumentSemantics(document({
+      fieldContract: fields,
+      elements: [omitted([{ ...validBinding, fieldId: "flag" }])],
+    }));
+    expect(incompatible.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ instancePath: "/elements/0/bindings/0/target" }),
+      expect.objectContaining({ instancePath: "/elements/0/data/content/text" }),
+    ]));
+
+    const overlapping = validateDocumentSemantics(document({
+      fieldContract: fields,
+      elements: [omitted([
+        validBinding,
+        {
+          ...validBinding,
+          id: "wholeContentBinding",
+          target: "/data/content",
+        },
+      ])],
+    }));
+    expect(overlapping.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        instancePath: "/elements/0/bindings/1/target",
+        message: expect.stringMatching(/overlaps/u),
+      }),
+      expect.objectContaining({ instancePath: "/elements/0/data/content/text" }),
+    ]));
   });
 
   it("requires rights group order to be an exact permutation", () => {

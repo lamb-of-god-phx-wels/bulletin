@@ -46,6 +46,9 @@ export type {
   AuthoringPolicy,
   // Field contracts
   FieldType,
+  ChurchProfileTextFieldKey,
+  ChurchProfileAssetFieldKey,
+  ChurchProfileFieldKey,
   SemanticRole,
   RolloverPolicy,
   ReviewExpectation,
@@ -149,16 +152,32 @@ export type {
   CbbDocument,
 } from "./types.js";
 
-export { DOCUMENT_LIMITS } from "./types.js";
+export {
+  CHURCH_PROFILE_TEXT_FIELD_KEYS,
+  CHURCH_PROFILE_ASSET_FIELD_KEYS,
+  CHURCH_PROFILE_FIELD_KEYS,
+  churchProfileKeyAcceptsFieldType,
+  isChurchProfileFieldKey,
+  DOCUMENT_LIMITS,
+} from "./types.js";
 
 // ---- parse ----------------------------------------------------------------
 export type { } from "./parse.js";
 export {
   DOCUMENT_SCHEMA_ID,
   DocumentValidationError,
+  DocumentMigrationError,
   fromJson,
+  normalizeDocumentForCurrentUse,
   toJson,
 } from "./parse.js";
+
+// ---- custom-definition revisions ----------------------------------------
+export type { CustomDefinitionRevisionSet } from "./customDefinitions.js";
+export {
+  customElementDefinitionHash,
+  finalizeCustomDefinitionRevisions,
+} from "./customDefinitions.js";
 
 // ---- semantic validation -------------------------------------------------
 export { validateDocumentSemantics } from "./semantic.js";

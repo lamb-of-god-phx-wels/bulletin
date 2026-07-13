@@ -13,7 +13,11 @@ export { assertSafeBuildRelativePath, typstStringLiteral } from "./escape.js";
 export { generateTypst } from "./generator.js";
 export { generateRightsBlock } from "./rights.js";
 export { renderRichTextBlock, renderRichTextDocument } from "./richText.js";
-export { TypstSourceBuilder } from "./sourceBuilder.js";
+export {
+  INTENTIONAL_BLANK_NAVIGATION_RESOLVED_ID,
+  TypstSourceBuilder,
+  isIntentionalBlankNavigationResolvedId,
+} from "./sourceBuilder.js";
 export type {
   SourceRegion,
   TypstSourceMap,

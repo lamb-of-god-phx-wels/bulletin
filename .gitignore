@@ -21,4 +21,5 @@ assets/church/information.md
 # App monorepo
 node_modules/
 app/**/dist/
+app/renderer/
 app/**/*.tsbuildinfo

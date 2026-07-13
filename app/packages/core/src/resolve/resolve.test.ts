@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canonicalStringify, hashCanonical } from "../canonical/index.js";
+import { canonicalStringify } from "../canonical/index.js";
+import { customElementDefinitionHash } from "../document/customDefinitions.js";
 import type {
   Binding,
   CbbDocument,
@@ -41,13 +42,20 @@ function documentWith(
   overrides: Partial<CbbDocument> = {},
 ): CbbDocument {
   return {
-    version: 1,
+    version: 2,
     kind: "bulletin",
     name: "Bulletin",
     page: { typstWidth: "5.5in", typstHeight: "8.5in" },
     elements,
     ...overrides,
   };
+}
+
+function definitionRevision(
+  input: Omit<CustomElementDefinition, "definitionVersion" | "definitionHash">,
+): CustomElementDefinition {
+  const revision = { ...input, definitionVersion: 1 };
+  return { ...revision, definitionHash: customElementDefinitionHash(revision) };
 }
 
 function projectedPlainTexts(document: CbbDocument): readonly string[] {
@@ -163,6 +171,114 @@ describe("field resolution and bindings", () => {
     expect(resolved?.type).toBe("image");
     if (resolved?.type === "image") expect(resolved.data.alt).toBeUndefined();
     expect(result.findings).toEqual([]);
+  });
+
+  it("materializes bound-only required Text, Date, Image, and Hymn leaves before rendering", () => {
+    const fields: FieldDefinition[] = [
+      { id: "message", label: "Message", type: "text", required: true },
+      { id: "date", label: "Date", type: "date", required: true },
+      { id: "image", label: "Image", type: "assetRef", required: true },
+      { id: "title", label: "Title", type: "text", required: true },
+    ];
+    const bind = (id: string, fieldId: string, target: string): Binding => ({
+      id,
+      scope: "document",
+      fieldId,
+      target,
+    });
+    const result = resolveDocument(documentWith([
+      {
+        id: "text",
+        type: "text",
+        name: "Text",
+        data: { content: { kind: "plain" } },
+        bindings: [bind("textBinding", "message", "/data/content/text")],
+      },
+      {
+        id: "date",
+        type: "date",
+        name: "Date",
+        data: {},
+        bindings: [bind("dateBinding", "date", "/data/value")],
+      },
+      {
+        id: "image",
+        type: "image",
+        name: "Image",
+        data: { fit: "contain" },
+        bindings: [bind("imageBinding", "image", "/data/assetRef")],
+      },
+      {
+        id: "music",
+        type: "music",
+        name: "Hymn",
+        data: {
+          rightsAssociationReview: {
+            reviewedSongContentHash: `sha256:${"a".repeat(64)}`,
+            reviewedRightsProjectionHash: `sha256:${"b".repeat(64)}`,
+            reviewTime: "2026-07-13T12:00:00Z",
+          },
+          rights: [],
+        },
+        bindings: [bind("titleBinding", "title", "/data/title")],
+      },
+    ], {
+      fieldContract: contract(fields),
+      fieldValues: {
+        message: { value: "Resolved text", origin: "manual" },
+        date: { value: "2026-07-13", origin: "manual" },
+        image: {
+          value: "asset:44444444-4444-4444-8444-444444444444",
+          origin: "manual",
+        },
+        title: { value: "Resolved hymn", origin: "manual" },
+      },
+    }));
+    expect(result.findings).toEqual([]);
+    expect(result.projection.elements.map((element) => {
+      if (element.type === "text" && element.data.content.kind === "plain") {
+        return element.data.content.text;
+      }
+      if (element.type === "date") return element.data.value;
+      if (element.type === "image") return element.data.assetRef;
+      if (element.type === "music") return element.data.title;
+      return undefined;
+    })).toEqual([
+      "Resolved text",
+      "2026-07-13",
+      "asset:44444444-4444-4444-8444-444444444444",
+      "Resolved hymn",
+    ]);
+  });
+
+  it("materializes the centered default for an unbound focal-point axis", () => {
+    const image = (id: string, fieldId: string, target: string): NativeElement => ({
+      id,
+      type: "image",
+      name: id,
+      data: {
+        assetRef: "asset:44444444-4444-4444-8444-444444444444",
+        fit: "cover",
+      },
+      bindings: [{ id: `${id}Binding`, scope: "document", fieldId, target }],
+    });
+    const result = resolveDocument(documentWith([
+      image("xImage", "x", "/data/focalPoint/x"),
+      image("yImage", "y", "/data/focalPoint/y"),
+    ], {
+      fieldContract: contract([
+        { id: "x", label: "X", type: "number", required: true },
+        { id: "y", label: "Y", type: "number", required: true },
+      ]),
+      fieldValues: {
+        x: { value: 0.2, origin: "manual" },
+        y: { value: 0.8, origin: "manual" },
+      },
+    }));
+    expect(result.findings).toEqual([]);
+    expect(result.projection.elements.map((element) =>
+      element.type === "image" ? element.data.focalPoint : undefined
+    )).toEqual([{ x: 0.2, y: 0.5 }, { x: 0.5, y: 0.8 }]);
   });
 
   it("rejects unknown rich-text field nodes instead of silently dropping them", () => {
@@ -772,7 +888,7 @@ describe("repeat expansion", () => {
 
 describe("custom elements", () => {
   it("expands nested definitions with instance-scoped values and composable provenance", () => {
-    const inner: CustomElementDefinition = {
+    const inner = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "innerDef",
@@ -790,9 +906,8 @@ describe("custom elements", () => {
           },
         ]),
       ],
-    };
-    const innerHash = hashCanonical(inner);
-    const outer: CustomElementDefinition = {
+    });
+    const outer = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "outerDef",
@@ -804,11 +919,12 @@ describe("custom elements", () => {
           type: "customInstance",
           name: "Nested",
           definitionId: "innerDef",
-          definitionHash: innerHash,
+          definitionVersion: inner.definitionVersion,
+          definitionHash: inner.definitionHash,
           fieldValues: { label: { value: "Nested value", origin: "manual" } },
         },
       ],
-    };
+    });
     const result = resolveDocument(
       documentWith(
         [
@@ -817,7 +933,8 @@ describe("custom elements", () => {
             type: "customInstance",
             name: "Outer instance",
             definitionId: "outerDef",
-            definitionHash: hashCanonical(outer),
+            definitionVersion: outer.definitionVersion,
+            definitionHash: outer.definitionHash,
           },
         ],
         { customElementDefinitions: [outer, inner] },
@@ -842,19 +959,26 @@ describe("custom elements", () => {
   it("reports missing, hash-mismatched, and cyclic definitions", () => {
     const missing = resolveDocument(
       documentWith([
-        { id: "missing", type: "customInstance", name: "Missing", definitionId: "none" },
+        {
+          id: "missing",
+          type: "customInstance",
+          name: "Missing",
+          definitionId: "none",
+          definitionVersion: 1,
+          definitionHash: `sha256:${"0".repeat(64)}`,
+        },
       ]),
     );
     expect(missing.findings[0]?.kind).toBe("customDefinitionMissing");
 
-    const plainDefinition: CustomElementDefinition = {
+    const plainDefinition = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "plain",
       name: "Plain",
       fieldContract: contract([]),
       elements: [text("inside", "Inside")],
-    };
+    });
     const mismatch = resolveDocument(
       documentWith(
         [
@@ -863,6 +987,7 @@ describe("custom elements", () => {
             type: "customInstance",
             name: "Bad hash",
             definitionId: "plain",
+            definitionVersion: plainDefinition.definitionVersion,
             definitionHash: `sha256:${"0".repeat(64)}`,
           },
         ],
@@ -871,10 +996,11 @@ describe("custom elements", () => {
     );
     expect(mismatch.findings[0]?.kind).toBe("customDefinitionHashMismatch");
 
-    const cyclic: CustomElementDefinition = {
+    const cyclicDraft = {
       version: 1,
       kind: "customElementDefinition",
       id: "cycle",
+      definitionVersion: 1,
       name: "Cycle",
       fieldContract: contract([]),
       elements: [
@@ -883,8 +1009,14 @@ describe("custom elements", () => {
           type: "customInstance",
           name: "Self",
           definitionId: "cycle",
+          definitionVersion: 1,
+          definitionHash: `sha256:${"0".repeat(64)}`,
         },
       ],
+    } as const;
+    const cyclic: CustomElementDefinition = {
+      ...cyclicDraft,
+      definitionHash: customElementDefinitionHash(cyclicDraft),
     };
     const cycle = resolveDocument(
       documentWith(
@@ -894,25 +1026,26 @@ describe("custom elements", () => {
             type: "customInstance",
             name: "Cycle root",
             definitionId: "cycle",
-            definitionHash: hashCanonical(cyclic),
+            definitionVersion: cyclic.definitionVersion,
+            definitionHash: cyclic.definitionHash,
           },
         ],
         { customElementDefinitions: [cyclic] },
       ),
     );
-    expect(cycle.findings[0]?.kind).toBe("customDefinitionCycle");
+    expect(cycle.findings[0]?.kind).toBe("customDefinitionHashMismatch");
   });
 
   it("enforces the custom expansion depth bound", () => {
-    const leaf: CustomElementDefinition = {
+    const leaf = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "depthLeaf",
       name: "Leaf",
       fieldContract: contract([]),
       elements: [text("depthText", "Depth")],
-    };
-    const outer: CustomElementDefinition = {
+    });
+    const outer = definitionRevision({
       version: 1,
       kind: "customElementDefinition",
       id: "depthOuter",
@@ -924,10 +1057,11 @@ describe("custom elements", () => {
           type: "customInstance",
           name: "Nested",
           definitionId: leaf.id,
-          definitionHash: hashCanonical(leaf),
+          definitionVersion: leaf.definitionVersion,
+          definitionHash: leaf.definitionHash,
         },
       ],
-    };
+    });
     const result = resolveDocument(
       documentWith(
         [
@@ -936,7 +1070,8 @@ describe("custom elements", () => {
             type: "customInstance",
             name: "Root",
             definitionId: outer.id,
-            definitionHash: hashCanonical(outer),
+            definitionVersion: outer.definitionVersion,
+            definitionHash: outer.definitionHash,
           },
         ],
         { customElementDefinitions: [outer, leaf] },

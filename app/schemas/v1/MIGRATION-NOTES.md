@@ -9,6 +9,26 @@ reference for the migration engine (Milestone M3).
 
 ---
 
+## Current document normalization (v1 to v2)
+
+The current document envelope is version 2. Opening a version 1 document runs a
+pure, in-memory normalization: embedded custom-element definitions receive
+`definitionVersion: 1` and a canonical self-hash, and every nested, body, and
+page-level custom instance is repinned to the exact definition id, version, and
+hash. Definitions are finalized dependency-first so parent hashes cover the
+final pins of definitions they embed. An optional legacy instance hash must
+match its embedded legacy definition; otherwise migration fails rather than
+inventing provenance.
+
+Normalization does not mutate or persist the source. Only an explicit save
+writes version 2, and normalizing the result again is an identity operation.
+Version 2 input is never repaired or downgraded: missing or mismatched revision
+evidence fails schema, semantic, or resolution validation. The definition
+record's schema shape remains version 1; `definitionVersion` is the independent
+semantic revision of that reusable definition.
+
+---
+
 ## Field-by-field migration table
 
 ### imageElement

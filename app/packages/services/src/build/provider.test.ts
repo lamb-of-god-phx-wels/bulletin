@@ -56,7 +56,7 @@ const TOOL: PinnedToolIdentity = Object.freeze({
 });
 
 const DOCUMENT: CbbDocument = Object.freeze({
-  version: 1,
+  version: 2,
   kind: "bulletin",
   name: "Deterministic provider fixture",
   metadata: { title: "Sunday Worship", language: "en-US" },

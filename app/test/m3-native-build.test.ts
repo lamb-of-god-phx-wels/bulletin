@@ -371,6 +371,8 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
     });
     const source = [
       '#set text(font: ("Noto Sans", "Noto Sans Symbols 2"))',
+      '#show <cbb-source>: it => context [#metadata((..it.value, page: here().page())) <cbb-located>]',
+      '#metadata((resolvedId: "nativeTitle", sourceElementId: "nativeTitle", region: "body")) <cbb-source>',
       "= Native M3 build",
       "Offline, deterministic, and isolated.",
     ].join("\n");
@@ -401,13 +403,25 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
             pdfHash: hashBytes(pdfBytes),
             byteSize: pdfBytes.byteLength,
             pageCount: evidence.pdf.pageCount,
+            navigationMap: evidence.pdf.navigationMap,
           });
         },
       },
     );
     expect(result).toMatchObject({
       status: "succeeded",
-      artifact: { pageCount: 1 },
+      artifact: {
+        pageCount: 1,
+        navigationMap: {
+          version: 1,
+          entries: [{
+            resolvedId: "nativeTitle",
+            sourceElementId: "nativeTitle",
+            pageNumber: 1,
+            region: "body",
+          }],
+        },
+      },
     });
     } finally {
       await rm(parent, { recursive: true, force: true });

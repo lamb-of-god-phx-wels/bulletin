@@ -205,7 +205,15 @@ describe("generateTypst", () => {
     expect(first.source).toContain('#text("#panic(\\"owned\\") [] $x$")');
     expect(first.source).not.toContain('[#panic("owned")]');
     expect(first.source).toContain('#text("July 5, 2026")');
+    expect(first.source).toContain(
+      '#metadata((resolvedId: "title", sourceElementId: "title", region: "body")) <cbb-source>',
+    );
+    expect(first.source).toContain("<cbb-located>");
     expect(first.sourceMap.entries.map((entry) => entry.resolvedId)).toEqual([
+      "title",
+      "date",
+    ]);
+    expect(first.sourceMap.entries.map((entry) => entry.sourceElementId)).toEqual([
       "title",
       "date",
     ]);
@@ -462,7 +470,7 @@ describe("generateTypst", () => {
     ).toBe(false);
   });
 
-  it("gives intentional blanks exactly one intervening page break", () => {
+  it("gives intentional blanks exactly one intervening page break and a post-layout marker", () => {
     const before = directNode("before", {
       type: "text",
       data: { content: { kind: "plain", text: "Before" } },
@@ -477,13 +485,32 @@ describe("generateTypst", () => {
     });
     const middle = generate(inputFor([before, blank, after]));
     expect(middle.source).toContain(
-      "#pagebreak(weak: true)\n#pagebreak()\n"
+      '#pagebreak(weak: true)\n#metadata((resolvedId: "blank", sourceElementId: "blank", region: "body")) <cbb-source>\n#metadata((resolvedId: "$cbb:intentional-blank", sourceElementId: "blank", region: "body")) <cbb-source>\n#box(width: 0pt, height: 0pt)[]\n#pagebreak()\n'
+    );
+    expect(middle.source.indexOf('resolvedId: "blank"')).toBeGreaterThan(
+      middle.source.indexOf("#pagebreak(weak: true)"),
     );
 
     const trailing = generate(inputFor([before, blank]));
     expect(trailing.source).toContain("#pagebreak(weak: true)\n");
     expect(trailing.source).not.toContain(
-      "#pagebreak(weak: true)\n#pagebreak()\n"
+      '<cbb-source>\n#pagebreak()\n'
+    );
+
+    const leading = generate(inputFor([blank, after]));
+    expect(leading.source).toContain(
+      '#pagebreak(weak: true)\n#metadata((resolvedId: "blank", sourceElementId: "blank", region: "body")) <cbb-source>\n#metadata((resolvedId: "$cbb:intentional-blank", sourceElementId: "blank", region: "body")) <cbb-source>\n#box(width: 0pt, height: 0pt)[]\n#pagebreak()\n',
+    );
+
+    const secondBlank = directNode("blankSecond", {
+      type: "pageBreak",
+      data: { intent: "intentionalBlank" },
+    });
+    const consecutive = generate(inputFor([before, blank, secondBlank, after]));
+    expect(consecutive.source.match(/#pagebreak\(weak: true\)/gu)).toHaveLength(2);
+    expect(consecutive.source.match(/resolvedId: "\$cbb:intentional-blank"/gu)).toHaveLength(2);
+    expect(consecutive.source).toContain(
+      'resolvedId: "$cbb:intentional-blank", sourceElementId: "blankSecond", region: "body"',
     );
   });
 
@@ -855,7 +882,7 @@ describe("generateTypst", () => {
     );
   });
 
-  it("fills authoritative image boxes and blocks unsupported cover focal crops", () => {
+  it("fills authoritative image boxes and blocks focal crops without verified raster dimensions", () => {
     const image = directNode("cover", {
       type: "image",
       data: {
@@ -898,6 +925,49 @@ describe("generateTypst", () => {
         kind: "unsupportedImageFocalPoint",
         resolvedId: "cover",
       }),
+    );
+  });
+
+  it("emits deterministic edge-positioned cover crops for verified canonical rasters", () => {
+    const assetRef = "asset:11111111-1111-4111-8111-111111111111";
+    const image = directNode("cover", {
+      type: "image",
+      width: "2in",
+      height: "1in",
+      data: {
+        assetRef,
+        fit: "cover",
+        focalPoint: { x: 0, y: 1 },
+        alt: "Wide cover image",
+      },
+    });
+    const result = generate(inputFor([image]), {
+      assets: {
+        [assetRef]: {
+          relativePath: "assets/cover.png",
+          canonicalRasterDimensions: { pixelWidth: 600, pixelHeight: 900 },
+        },
+      },
+    });
+    expect(result.findings).not.toContainEqual(expect.objectContaining({
+      kind: "unsupportedImageFocalPoint",
+    }));
+    expect(result.source).toContain("let cbb_source_aspect = 600 / 900");
+    expect(result.source).toContain(
+      "let cbb_candidate_x = cbb_rendered_width * 0 - cbb_target.width / 2",
+    );
+    expect(result.source).toContain(
+      "let cbb_candidate_y = cbb_rendered_height * 1 - cbb_target.height / 2",
+    );
+    expect(result.source).toContain(
+      "let cbb_origin_x = if cbb_candidate_x < 0pt { 0pt } else if cbb_candidate_x > cbb_overflow_x { cbb_overflow_x } else { cbb_candidate_x }",
+    );
+    expect(result.source).toContain("let cbb_offset_x = -cbb_origin_x");
+    expect(result.source).toContain(
+      '#image("assets/cover.png", width: cbb_rendered_width, height: cbb_rendered_height, fit: "stretch", alt: "Wide cover image")',
+    );
+    expect(result.source).not.toContain(
+      '#image("assets/cover.png", fit: "cover", width: 100%, height: 100%',
     );
   });
 
@@ -983,5 +1053,14 @@ describe("generateTypst", () => {
         kind: "unsupportedTypographyPreset",
       }),
     );
+  });
+
+  it("accepts the closed rendered Scripture typography snapshots", () => {
+    const presentation: EffectiveScripturePresentation = {
+      ...PROJECTION_BASE.scripturePresentation,
+      typographyPresetSnapshot: { preset: "readable", version: 1 },
+    };
+    expect(generate(inputFor([], [], { scripturePresentation: presentation })).findings)
+      .not.toContainEqual(expect.objectContaining({ kind: "unsupportedTypographyPreset" }));
   });
 });

@@ -1,4 +1,3 @@
-import { hashCanonical } from "../canonical/index.js";
 import type {
   Binding,
   CbbDocument,
@@ -15,6 +14,7 @@ import type {
   RepeatRule,
 } from "../document/types.js";
 import { DOCUMENT_LIMITS } from "../document/types.js";
+import { customElementDefinitionHash } from "../document/customDefinitions.js";
 import type {
   EffectiveScripturePresentation,
   ResolvedElement,
@@ -108,7 +108,6 @@ interface Runtime {
   readonly presentation: EffectiveScripturePresentation;
   readonly maxExpandedNodes: number;
   readonly maxCustomDepth: number;
-  readonly verifyDefinitionHashes: boolean;
   nodeCount: number;
   aborted: boolean;
 }
@@ -412,6 +411,20 @@ function materializedValue(
     : { kind: "plain", text: value };
 }
 
+function initializeBindingContainerDefaults(
+  current: Record<string, unknown>,
+  target: string,
+): Record<string, unknown> | undefined {
+  if (
+    (target === "/data/focalPoint/x" || target === "/data/focalPoint/y") &&
+    current["type"] === "image" &&
+    readPointer(current, "/data/focalPoint") === undefined
+  ) {
+    return writePointer(current, "/data/focalPoint", { x: 0.5, y: 0.5 });
+  }
+  return current;
+}
+
 function applyOrdinaryBindings(
   element: NativeElement,
   context: ResolveContext,
@@ -484,8 +497,9 @@ function applyOrdinaryBindings(
       }
       continue;
     }
-    const written = writePointer(
-      current,
+    const initialized = initializeBindingContainerDefaults(current, binding.target);
+    const written = initialized === undefined ? undefined : writePointer(
+      initialized,
       binding.target,
       materializedValue(
         effective.value,
@@ -584,8 +598,9 @@ function applyItemBindings(
         }
         continue;
       }
-      const written = writePointer(
-        current,
+      const initialized = initializeBindingContainerDefaults(current, binding.target);
+      const written = initialized === undefined ? undefined : writePointer(
+        initialized,
         binding.target,
         materializedValue(value, definition.type, target.wrapsTextContent === true),
       );
@@ -1034,22 +1049,73 @@ function buildResolvedElement(
 ): ResolvedElement | undefined {
   const base = flowProperties(element);
   if (element.type === "text") {
+    const content = element.data.content;
+    if (
+      content === undefined ||
+      (content.kind === "plain" && content.text === undefined) ||
+      (content.kind === "richText" && content.document === undefined)
+    ) {
+      addFinding(runtime, {
+        kind: "fieldValueMissing",
+        path: `${context.path}/data/content`,
+        nodeId: element.id,
+        message: "Text content remained unresolved after applying bindings",
+      });
+      return undefined;
+    }
     return {
       ...base,
       type: "text",
       data: {
         content: resolveTextContent(
-          element.data.content,
+          content,
           runtime.presentation,
           runtime.rightsContributions,
         ),
       },
     };
   }
-  if (element.type === "image" || element.type === "date" || element.type === "rightsAttribution" || element.type === "pageBreak") {
+  if (element.type === "image") {
+    if (
+      element.data.assetRef === undefined ||
+      (element.data.focalPoint !== undefined &&
+        (element.data.focalPoint.x === undefined || element.data.focalPoint.y === undefined))
+    ) {
+      addFinding(runtime, {
+        kind: "fieldValueMissing",
+        path: `${context.path}/data`,
+        nodeId: element.id,
+        message: "Image content remained unresolved after applying bindings",
+      });
+      return undefined;
+    }
+    return { ...base, type: "image", data: element.data } as ResolvedElement;
+  }
+  if (element.type === "date") {
+    if (element.data.value === undefined) {
+      addFinding(runtime, {
+        kind: "fieldValueMissing",
+        path: `${context.path}/data/value`,
+        nodeId: element.id,
+        message: "Date content remained unresolved after applying bindings",
+      });
+      return undefined;
+    }
+    return { ...base, type: "date", data: element.data } as ResolvedElement;
+  }
+  if (element.type === "rightsAttribution" || element.type === "pageBreak") {
     return { ...base, type: element.type, data: element.data } as ResolvedElement;
   }
   if (element.type === "music") {
+    if (element.data.title === undefined) {
+      addFinding(runtime, {
+        kind: "fieldValueMissing",
+        path: `${context.path}/data/title`,
+        nodeId: element.id,
+        message: "Song title remained unresolved after applying bindings",
+      });
+      return undefined;
+    }
     const nestedRights: ResolvedRightsContribution[] = [];
     const richContent = element.data.richContent === undefined
       ? undefined
@@ -1181,11 +1247,45 @@ function expandCustom(
     });
     return [];
   }
+  const rawInstance = instance as unknown as Readonly<Record<string, unknown>>;
+  const pinnedVersion = rawInstance["definitionVersion"];
+  const pinnedHash = rawInstance["definitionHash"];
   if (
-    runtime.verifyDefinitionHashes &&
-    instance.definitionHash !== undefined &&
-    hashCanonical(definition) !== instance.definitionHash
+    !Number.isSafeInteger(definition.definitionVersion) ||
+    definition.definitionVersion < 1 ||
+    customElementDefinitionHash(definition) !== definition.definitionHash
   ) {
+    addFinding(runtime, {
+      kind: "customDefinitionHashMismatch",
+      path: context.path,
+      nodeId: instance.id,
+      message: `Custom definition "${instance.definitionId}" has invalid revision evidence`,
+    });
+    return [];
+  }
+  if (
+    !Number.isSafeInteger(pinnedVersion) ||
+    (pinnedVersion as number) < 1 ||
+    typeof pinnedHash !== "string"
+  ) {
+    addFinding(runtime, {
+      kind: "customDefinitionPinMissing",
+      path: context.path,
+      nodeId: instance.id,
+      message: `Custom instance "${instance.id}" lacks a complete definition pin`,
+    });
+    return [];
+  }
+  if (pinnedVersion !== definition.definitionVersion) {
+    addFinding(runtime, {
+      kind: "customDefinitionVersionMismatch",
+      path: context.path,
+      nodeId: instance.id,
+      message: `Pinned revision for custom definition "${instance.definitionId}" does not match`,
+    });
+    return [];
+  }
+  if (pinnedHash !== definition.definitionHash) {
     addFinding(runtime, {
       kind: "customDefinitionHashMismatch",
       path: context.path,
@@ -1446,7 +1546,6 @@ export function resolveDocument(
     presentation,
     maxExpandedNodes,
     maxCustomDepth,
-    verifyDefinitionHashes: options.verifyDefinitionHashes ?? true,
     nodeCount: 0,
     aborted: false,
   };

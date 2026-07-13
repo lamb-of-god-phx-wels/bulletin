@@ -14,6 +14,7 @@ import {
   canonicalJsonBytes,
   canonicalRevisionToken,
   createSchemaCatalog,
+  fromJson,
   parseLocalResourceId,
   parseWorkspaceId,
   type CanonicalRevisionToken,
@@ -68,10 +69,14 @@ function ids(start = 1): IdPort {
   };
 }
 
-function fixture(): CbbDocument {
+function legacyFixture(): unknown {
   return JSON.parse(
     readFileSync(resolve(process.cwd(), "test/fixtures/full-featured-bulletin.json"), "utf8"),
-  ) as CbbDocument;
+  );
+}
+
+function fixture(): CbbDocument {
+  return fromJson(legacyFixture(), catalog());
 }
 
 function documentAt(generation: number): CbbDocument {
@@ -127,6 +132,31 @@ describe("NodeRecoverySnapshotStore", () => {
     expect(listed.map((candidate) => candidate.record.editGeneration)).toEqual([1, 2, 3]);
     expect(listed.every((candidate) => candidate.relativePath ===
       `transactions/recovery/${LOCAL_ID}/${candidate.record.editGeneration}.json`)).toBe(true);
+  });
+
+  it("normalizes a legacy snapshot while retaining its exact source document hash", async () => {
+    const h = await harness();
+    const sourceDocument = legacyFixture();
+    const sourceRevisionToken = canonicalRevisionToken(sourceDocument);
+    const legacyRecord = {
+      ...record(1),
+      document: sourceDocument,
+      documentHash: sourceRevisionToken,
+    };
+    await mkdir(resourceDirectory(h.root));
+    await writeFile(
+      join(resourceDirectory(h.root), "1.json"),
+      canonicalJsonBytes(legacyRecord),
+    );
+
+    const listed = await h.store.listValidSnapshots(LOCAL_ID);
+    expect(listed[0]?.record.document.version).toBe(2);
+    expect(listed[0]?.record.documentHash).toBe(sourceRevisionToken);
+    await expect(h.store.discoverNewerSnapshots(LOCAL_ID, {
+      document: fixture(),
+      revisionToken: sourceRevisionToken,
+      sourceDocument,
+    })).resolves.toMatchObject({ validSnapshots: [{ record: { documentHash: sourceRevisionToken } }] });
   });
 
   it("returns only newer content-different candidates and never changes canonical disk", async () => {

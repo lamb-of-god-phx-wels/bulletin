@@ -8,8 +8,8 @@
   "properties": {
     "version": {
       "type": "integer",
-      "const": 1,
-      "description": "Document schema version. Must be 1 for v1 documents."
+      "const": 2,
+      "description": "Current normalized document schema version. Historical version 1 is migrated before current-schema validation and editor use."
     },
     "kind": {
       "enum": ["bulletin", "template"],

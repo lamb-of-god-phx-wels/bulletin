@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalRevisionToken,
   createSchemaCatalog,
+  fromJson,
   parseLocalResourceId,
   parseWorkspaceId,
   type CanonicalRevisionToken,
@@ -123,10 +124,31 @@ class PlannedRecovery implements RecoverySnapshotPort {
 
 const INITIAL_HASH = `sha256:${"a".repeat(64)}` as CanonicalRevisionToken;
 
+const RECOVERY_SCHEMA_NAMES = [
+  "common.schema.json",
+  "richText.schema.json",
+  "rights.schema.json",
+  "element.schema.json",
+  "customElement.schema.json",
+  "document.schema.json",
+  "workspace.schema.json",
+  "recovery-snapshot.schema.json",
+] as const;
+
+function recoveryCatalog() {
+  const schemaDirectory = resolve(process.cwd(), "schemas/v1");
+  const schemas = new Map<string, SchemaObject>();
+  for (const name of RECOVERY_SCHEMA_NAMES) {
+    const schema = JSON.parse(readFileSync(join(schemaDirectory, name), "utf8")) as SchemaObject;
+    schemas.set(schema.$id, schema);
+  }
+  return createSchemaCatalog(schemas);
+}
+
 function fixture(): CbbDocument {
-  return JSON.parse(
+  return fromJson(JSON.parse(
     readFileSync(resolve(process.cwd(), "test/fixtures/full-featured-bulletin.json"), "utf8"),
-  ) as CbbDocument;
+  ), recoveryCatalog());
 }
 
 function changed(document: CbbDocument, suffix: string): CbbDocument {
@@ -396,22 +418,7 @@ describe("AutosaveController", () => {
     const snapshot = h.recovery.snapshots[0] as RecoverySnapshotRecord;
     expect(snapshot.documentHash).toBe(canonicalRevisionToken(snapshot.document));
 
-    const schemaDirectory = resolve(process.cwd(), "schemas/v1");
-    const schemas = new Map<string, SchemaObject>();
-    for (const name of [
-      "common.schema.json",
-      "richText.schema.json",
-      "rights.schema.json",
-      "element.schema.json",
-      "customElement.schema.json",
-      "document.schema.json",
-      "workspace.schema.json",
-      "recovery-snapshot.schema.json",
-    ]) {
-      const schema = JSON.parse(readFileSync(join(schemaDirectory, name), "utf8")) as SchemaObject;
-      schemas.set(schema.$id, schema);
-    }
-    const catalog = createSchemaCatalog(schemas);
+    const catalog = recoveryCatalog();
     const schemaId =
       "https://church-bulletin-builder.local/schema/v1/recovery-snapshot.schema.json";
     expect(catalog.validateAgainst(schemaId, snapshot).valid).toBe(true);

@@ -104,4 +104,46 @@ describe("renderRichTextDocument", () => {
     expect(source).not.toContain("#strong");
     expect(source).not.toContain("#parbreak()");
   });
+
+  it("renders the closed supported Scripture typography presets", () => {
+    const base = {
+      type: "scripture" as const,
+      structureKind: "paragraphOnly" as const,
+      reference: "Psalm 23",
+      translationLabel: "",
+      paragraphs: [{
+        type: "paragraph" as const,
+        children: [{ type: "text" as const, text: "The Lord is my shepherd." }],
+      }],
+      presentation: {
+        referencePlacement: "before" as const,
+        verseNumberStyle: "hidden" as const,
+        paragraphPolicy: "publisher" as const,
+        paragraphSpacing: "6pt",
+        translationLabelPlacement: "hidden" as const,
+      },
+    };
+    const readable = renderRichTextDocument({
+      type: "document",
+      blocks: [{
+        ...base,
+        presentation: {
+          ...base.presentation,
+          typographyPresetSnapshot: { preset: "readable", version: 1 },
+        },
+      }],
+    });
+    const compact = renderRichTextDocument({
+      type: "document",
+      blocks: [{
+        ...base,
+        presentation: {
+          ...base.presentation,
+          typographyPresetSnapshot: { preset: "compact", version: 1 },
+        },
+      }],
+    });
+    expect(readable).toContain("#text(size: 1.05em)");
+    expect(compact).toContain("#text(size: 0.92em)");
+  });
 });

@@ -1,11 +1,13 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  canonicalRevisionToken,
   canonicalStringify,
   createSchemaCatalog,
+  fromJson,
   parseLocalResourceId,
   type CbbDocument,
   type IdPort,
@@ -99,10 +101,14 @@ function ports(input: {
   };
 }
 
-function fixture(): CbbDocument {
+function legacyFixture(): unknown {
   return JSON.parse(
     readFileSync(resolve(process.cwd(), "test/fixtures/full-featured-bulletin.json"), "utf8"),
-  ) as CbbDocument;
+  );
+}
+
+function fixture(): CbbDocument {
+  return fromJson(legacyFixture(), schemaCatalog());
 }
 
 async function createEditable(input?: { clock?: ClockPort; ids?: IdPort }) {
@@ -313,6 +319,55 @@ describe("durable workspace and persistence vertical slice", () => {
       storagePath: `bulletins/${localId}/document.json`,
     });
     expect(readdirSync(join(created.root, "transactions", "save"))).toEqual([]);
+    await created.session.lease.release();
+  });
+
+  it("keeps a legacy source token authoritative until an explicit v2 save", async () => {
+    const created = await createEditable();
+    const persistence = new DocumentPersistenceService(created.servicePorts, created.catalog);
+    const localId = parseLocalResourceId("10000000-0000-4000-8000-000000000009");
+    const sourceDocument = legacyFixture();
+    const sourceRevisionToken = canonicalRevisionToken(sourceDocument);
+    const currentDocument = fromJson(sourceDocument, created.catalog);
+    const documentPath = `bulletins/${localId}/document.json`;
+    const registry = {
+      ...created.session.registry,
+      bulletins: [{
+        localId,
+        kind: "bulletin" as const,
+        displayName: currentDocument.name,
+        storagePath: documentPath,
+        contentHash: sourceRevisionToken,
+        createdAt: "2026-07-12T10:00:00.000Z",
+        modifiedAt: "2026-07-12T12:00:00.000Z",
+      }],
+    };
+    await writeFile(
+      join(created.root, WORKSPACE_REGISTRY_PATH),
+      canonicalStringify(registry),
+    );
+    await mkdir(join(created.root, "bulletins", localId), { recursive: true });
+    await writeFile(
+      join(created.root, documentPath),
+      canonicalStringify(sourceDocument),
+    );
+
+    const edited = { ...currentDocument, name: "Explicitly migrated bulletin" };
+    const saved = await persistence.save({
+      session: created.session,
+      resourceKind: "bulletin",
+      localResourceId: localId,
+      displayName: edited.name,
+      document: edited,
+      baseDocument: currentDocument,
+      baseRevisionToken: sourceRevisionToken,
+    });
+
+    expect(saved.status).toBe("saved");
+    const disk = JSON.parse(await readFile(join(created.root, documentPath), "utf8"));
+    expect(disk).toMatchObject({ version: 2, name: edited.name });
+    expect(saved.status === "saved" ? saved.revisionToken : undefined)
+      .toBe(canonicalRevisionToken(edited));
     await created.session.lease.release();
   });
 

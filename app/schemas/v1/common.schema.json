@@ -254,6 +254,24 @@
         "choice", "assetRef", "array", "object"
       ]
     },
+    "churchProfileTextFieldKey": {
+      "description": "Closed v1 Church Profile keys compatible with text fields.",
+      "enum": [
+        "churchName", "mailingAddress", "locationAddress", "phone",
+        "email", "website", "defaultServiceLabel"
+      ]
+    },
+    "churchProfileAssetFieldKey": {
+      "description": "Closed v1 Church Profile keys compatible with assetRef fields.",
+      "enum": ["logo"]
+    },
+    "churchProfileFieldKey": {
+      "description": "Closed v1 Church Profile key vocabulary exposed to field contracts.",
+      "oneOf": [
+        { "$ref": "#/$defs/churchProfileTextFieldKey" },
+        { "$ref": "#/$defs/churchProfileAssetFieldKey" }
+      ]
+    },
     "semanticRole": {
       "description": "v1 semantic roles: publicationDate on a date field, serviceLabel on text/choice.",
       "enum": ["publicationDate", "serviceLabel"]
@@ -331,7 +349,7 @@
         "constraints": { "$ref": "#/$defs/fieldConstraints" },
         "semanticRole": { "$ref": "#/$defs/semanticRole" },
         "weeklyBehavior": { "$ref": "#/$defs/weeklyBehavior" },
-        "profileKey": { "type": "string", "description": "Closed Church Profile key whose value type must be compatible with this field." },
+        "profileKey": { "$ref": "#/$defs/churchProfileFieldKey", "description": "Closed Church Profile key whose value type must be compatible with this field." },
         "aiInstructions": { "type": "string", "description": "Instructions to AI helper for filling this field." },
         "itemField": {
           "$ref": "#/$defs/fieldDefinition",
@@ -344,6 +362,22 @@
         }
       },
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["profileKey"],
+            "properties": { "profileKey": { "$ref": "#/$defs/churchProfileTextFieldKey" } }
+          },
+          "then": { "properties": { "type": { "const": "text" } } }
+        },
+        {
+          "if": {
+            "required": ["profileKey"],
+            "properties": { "profileKey": { "$ref": "#/$defs/churchProfileAssetFieldKey" } }
+          },
+          "then": { "properties": { "type": { "const": "assetRef" } } }
+        }
+      ],
       "if": { "properties": { "type": { "const": "array" } }, "required": ["type"] },
       "then": {
         "description": "Array fields must declare itemField.",

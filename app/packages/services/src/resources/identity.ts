@@ -22,6 +22,9 @@ export function resourceClosureExecutionHash(
           hash: entry.hash,
           byteSize: entry.byteSize,
           mediaType: entry.mediaType,
+          ...(entry.canonicalRasterDimensions === undefined
+            ? {}
+            : { canonicalRasterDimensions: entry.canonicalRasterDimensions }),
         }
       : {
           kind: entry.kind,

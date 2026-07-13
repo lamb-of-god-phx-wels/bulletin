@@ -107,9 +107,6 @@
     "textElementData": {
       "description": "Data object for a text element. Canonical content is in content; legacy data.text is migration input only.",
       "type": "object",
-      "required": [
-        "content"
-      ],
       "properties": {
         "content": {
           "description": "Discriminated content: plain text or rich-text AST.",
@@ -117,8 +114,7 @@
             {
               "type": "object",
               "required": [
-                "kind",
-                "text"
+                "kind"
               ],
               "properties": {
                 "kind": {
@@ -133,8 +129,7 @@
             {
               "type": "object",
               "required": [
-                "kind",
-                "document"
+                "kind"
               ],
               "properties": {
                 "kind": {
@@ -172,6 +167,48 @@
               "$ref": "#/$defs/textElementData"
             }
           }
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["content"],
+                  "properties": {
+                    "content": {
+                      "type": "object",
+                      "oneOf": [
+                        { "type": "object", "required": ["kind", "text"], "properties": { "kind": { "type": "string", "const": "plain" }, "text": { "type": "string" } } },
+                        { "type": "object", "required": ["kind", "document"], "properties": { "kind": { "type": "string", "const": "richText" }, "document": { "$ref": "#/$defs/richTextDocument" } } }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["bindings"],
+              "properties": {
+                "bindings": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "required": ["target"],
+                    "properties": {
+                      "target": {
+                        "type": "string",
+                        "enum": ["/data/content", "/data/content/text", "/data/content/document"]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
       ],
       "unevaluatedProperties": false
@@ -180,7 +217,6 @@
       "description": "Data object for an image element.",
       "type": "object",
       "required": [
-        "assetRef",
         "fit"
       ],
       "properties": {
@@ -197,10 +233,6 @@
         },
         "focalPoint": {
           "type": "object",
-          "required": [
-            "x",
-            "y"
-          ],
           "properties": {
             "x": {
               "type": "number",
@@ -245,6 +277,94 @@
               "$ref": "#/$defs/imageElementData"
             }
           }
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            { "type": "object", "properties": { "data": { "type": "object", "required": ["assetRef"], "properties": { "assetRef": { "type": "string" } } } } },
+            {
+              "type": "object",
+              "required": ["bindings"],
+              "properties": {
+                "bindings": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "required": ["target"],
+                    "properties": { "target": { "type": "string", "const": "/data/assetRef" } }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "focalPoint": {
+                      "type": "object",
+                      "required": ["x"],
+                      "properties": { "x": { "type": "number" } }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["bindings"],
+              "properties": {
+                "bindings": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "required": ["target"],
+                    "properties": { "target": { "type": "string", "const": "/data/focalPoint/x" } }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "focalPoint": {
+                      "type": "object",
+                      "required": ["y"],
+                      "properties": { "y": { "type": "number" } }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["bindings"],
+              "properties": {
+                "bindings": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "required": ["target"],
+                    "properties": { "target": { "type": "string", "const": "/data/focalPoint/y" } }
+                  }
+                }
+              }
+            }
+          ]
         }
       ],
       "unevaluatedProperties": false
@@ -252,9 +372,6 @@
     "dateElementData": {
       "description": "Data object for a date element.",
       "type": "object",
-      "required": [
-        "value"
-      ],
       "properties": {
         "value": {
           "type": "string",
@@ -299,6 +416,26 @@
               "$ref": "#/$defs/dateElementData"
             }
           }
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            { "type": "object", "properties": { "data": { "type": "object", "required": ["value"], "properties": { "value": { "type": "string" } } } } },
+            {
+              "type": "object",
+              "required": ["bindings"],
+              "properties": {
+                "bindings": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "required": ["target"],
+                    "properties": { "target": { "type": "string", "const": "/data/value" } }
+                  }
+                }
+              }
+            }
+          ]
         }
       ],
       "unevaluatedProperties": false
@@ -337,7 +474,6 @@
       "description": "Data object for a music/hymn element.",
       "type": "object",
       "required": [
-        "title",
         "rightsAssociationReview",
         "rights"
       ],
@@ -395,6 +531,26 @@
               "$ref": "#/$defs/musicElementData"
             }
           }
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            { "type": "object", "properties": { "data": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string" } } } } },
+            {
+              "type": "object",
+              "required": ["bindings"],
+              "properties": {
+                "bindings": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "required": ["target"],
+                    "properties": { "target": { "type": "string", "const": "/data/title" } }
+                  }
+                }
+              }
+            }
+          ]
         }
       ],
       "unevaluatedProperties": false

@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-Specification work for the **Church Bulletin Builder**: an offline-first, GUI-first desktop app that lets non-technical church volunteers build weekly bulletins. Layout/content state lives in JSON, Typst source is generated deterministically from that JSON, and PDFs are compiled locally with a bundled Typst CLI.
+Specification and implementation work for the **Church Bulletin Builder**: an offline-first, GUI-first desktop app that lets non-technical church volunteers build weekly bulletins. Layout/content state lives in JSON, Typst source is generated deterministically from that JSON, and PDFs are compiled locally with a bundled Typst CLI.
 
-The current `typst` branch contains **no application code** — it is in the spec-refinement phase (nail down `spec.md` before architecture, planning, and implementation). The deliverables here are documents and JSON Schemas.
+The `app/` workspace implements Milestones 1–4: the document and schema core,
+durable local services and isolated build pipeline, Electron shell, accessible
+desktop editor, and no-code template authoring. Milestone 5 weekly publication,
+library, history, backup, and release-packaging work remains. The specification,
+architecture, plans, and JSON Schemas remain authoritative alongside the app.
 
 ## Key Files
 

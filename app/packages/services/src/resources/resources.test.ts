@@ -310,6 +310,39 @@ describe("verified resource closure", () => {
     expect(JSON.stringify(first)).not.toContain("/home/");
   });
 
+  it("binds verified canonical dimensions only for supported raster assets", async () => {
+    const raster = asset(1, { width: 1200, height: 800 });
+    const vector = asset(2, {
+      mediaType: "image/svg+xml",
+      width: 640,
+      height: 480,
+      canonicalHash: H2,
+    });
+    const closure = await resolveVerifiedResourceClosure({
+      projection: projection([1, 2], []),
+      index: buildIndex([vector, raster], []),
+      verifier: new ExactVerifier(),
+    });
+
+    expect(closure.assetBindings[assetRef(1)]).toEqual({
+      relativePath: "assets/a0000.png",
+      canonicalRasterDimensions: { pixelWidth: 1200, pixelHeight: 800 },
+    });
+    expect(closure.assetBindings[assetRef(2)]).toEqual({
+      relativePath: "assets/a0001.svg",
+    });
+    expect(closure.stagingEntries).toContainEqual(expect.objectContaining({
+      kind: "asset",
+      assetRef: assetRef(1),
+      canonicalRasterDimensions: { pixelWidth: 1200, pixelHeight: 800 },
+    }));
+    expect(closure.stagingEntries).toContainEqual(expect.not.objectContaining({
+      kind: "asset",
+      assetRef: assetRef(2),
+      canonicalRasterDimensions: expect.anything(),
+    }));
+  });
+
   it("selects all immutable faces and records full versus subset embedding", async () => {
     const faces = [
       face("bold", { weight: 700, hash: H3 }),

@@ -8,7 +8,15 @@
   "properties": {
     "version": { "type": "integer", "const": 1 },
     "kind": { "const": "churchProfile" },
-    "congregationName": { "type": "string" },
+    "churchName": { "type": "string", "description": "Canonical congregation name offered to compatible text fields." },
+    "mailingAddress": { "type": "string" },
+    "locationAddress": { "type": "string" },
+    "phone": { "type": "string" },
+    "email": { "type": "string" },
+    "website": { "type": "string" },
+    "defaultServiceLabel": { "type": "string" },
+    "logo": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/portableAssetId" },
+    "congregationName": { "type": "string", "description": "Legacy onboarding value retained for workspace compatibility; not a mappable profileKey." },
     "language": { "type": "string", "description": "Default BCP 47 language tag." },
     "defaultPublicationContexts": {
       "type": "array",
@@ -16,6 +24,18 @@
       "uniqueItems": true
     },
     "defaultUnknownRightsPolicy": { "enum": ["review", "block"] },
+    "spellingDictionary": {
+      "description": "Canonical NFC, lowercase words accepted by the workspace-local offline spellchecker.",
+      "type": "array",
+      "maxItems": 4096,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^[\\p{L}\\p{M}]+(?:['’‐-―-][\\p{L}\\p{M}]+)*$"
+      }
+    },
     "schedules": {
       "type": "array",
       "items": {

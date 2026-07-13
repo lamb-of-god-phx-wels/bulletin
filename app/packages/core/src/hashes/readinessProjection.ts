@@ -294,7 +294,13 @@ function collectElementReadiness(
     output.weeklyReviews.push({ path, expectation: element.weeklyReview });
   }
 
-  if (element.type === "text" && element.data.content.kind === "richText") {
+  if (element.type === "text" && element.data.content?.kind === "richText") {
+    if (element.data.content.document === undefined) {
+      throw new HashInputError(
+        `${path}/data/content/document`,
+        "expected resolved rich-text content",
+      );
+    }
     collectRichTextDocumentReadiness(
       element.data.content.document,
       `${path}/data/content/document`,

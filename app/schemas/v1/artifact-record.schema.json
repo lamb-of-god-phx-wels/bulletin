@@ -308,8 +308,33 @@
         "typstRelativePath": { "$ref": "#/$defs/artifactTypstRelativePath" },
         "typstHash": { "$ref": "#/$defs/sha256" },
         "generatorVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "navigationMap": { "$ref": "#/$defs/pdfNavigationMap" },
         "pdf": { "$ref": "#/$defs/pdfEvidence" },
         "resources": { "$ref": "#/$defs/resourceClosure" }
+      },
+      "additionalProperties": false
+    },
+    "pdfNavigationEntry": {
+      "type": "object",
+      "required": ["resolvedId", "sourceElementId", "pageNumber", "region"],
+      "properties": {
+        "resolvedId": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "sourceElementId": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId" },
+        "pageNumber": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "region": { "enum": ["body", "page-background", "page-foreground"] }
+      },
+      "additionalProperties": false
+    },
+    "pdfNavigationMap": {
+      "type": "object",
+      "required": ["version", "entries"],
+      "properties": {
+        "version": { "type": "integer", "const": 1 },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pdfNavigationEntry" },
+          "maxItems": 50000
+        }
       },
       "additionalProperties": false
     },

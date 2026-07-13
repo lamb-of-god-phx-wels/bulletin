@@ -24,6 +24,29 @@ const HASH = /^sha256:[0-9a-f]{64}$/u;
 const UTC = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z$/u;
 const DIAGNOSTIC = /^CBB-[A-Z]+-[0-9]{4}$/u;
 const MAX_ARTIFACT_BYTES = 1024 * 1024 * 1024;
+const SOURCE_NODE_ID = /^[A-Za-z][A-Za-z0-9_-]*$/u;
+const NAVIGATION_REGIONS = new Set(["body", "page-background", "page-foreground"]);
+
+function validateNavigationMap(
+  map: CompileArtifactInstallRequest["navigationMap"],
+  pageCount: number,
+): void {
+  if (
+    map === null || typeof map !== "object" || map.version !== 1 ||
+    !Array.isArray(map.entries) || map.entries.length > 50_000
+  ) throw new ArtifactStoreError("invalidEvidence", "PDF navigation evidence is invalid.");
+  const seen = new Set<string>();
+  for (const entry of map.entries) {
+    const key = `${entry.resolvedId}\u0000${entry.sourceElementId}\u0000${entry.region}\u0000${entry.pageNumber}`;
+    if (
+      typeof entry.resolvedId !== "string" || entry.resolvedId.length < 1 || entry.resolvedId.length > 512 ||
+      !SOURCE_NODE_ID.test(entry.sourceElementId) ||
+      !Number.isSafeInteger(entry.pageNumber) || entry.pageNumber < 1 || entry.pageNumber > pageCount ||
+      !NAVIGATION_REGIONS.has(entry.region) || seen.has(key)
+    ) throw new ArtifactStoreError("invalidEvidence", "PDF navigation evidence is invalid.");
+    seen.add(key);
+  }
+}
 
 export type ArtifactStoreErrorKind =
   | "invalidRecord"
@@ -235,6 +258,9 @@ function validateRecordInvariants(record: ArtifactRecord): void {
       !HASH.test(evidence.renderProjectionHash) ||
       evidence.generatorVersion.length === 0
     ) throw new ArtifactStoreError("invalidEvidence", "Compile ownership evidence is invalid.");
+    if (evidence.navigationMap !== undefined) {
+      validateNavigationMap(evidence.navigationMap, evidence.pdf.pageCount);
+    }
   } else if (evidence.mode === "compose") {
     if (
       record.outputForm !== "bookletTwoUp" ||
@@ -484,6 +510,7 @@ export class ImmutableArtifactStore {
     if (metadata.outputForm !== "readerOrder") {
       throw new ArtifactStoreError("invalidEvidence", "Compile artifacts must be reader-order output.");
     }
+    validateNavigationMap(request.navigationMap, request.expectedPdf.pageCount);
     if ((await this.hash(request.source)) !== request.sourceHash) {
       throw new ArtifactStoreError("byteVerificationFailed", "Generated Typst hash changed before install.");
     }
@@ -499,6 +526,7 @@ export class ImmutableArtifactStore {
         typstRelativePath: relativePath(metadata, "typ"),
         typstHash: request.sourceHash,
         generatorVersion: request.generatorVersion,
+        navigationMap: request.navigationMap,
         pdf: { ...request.expectedPdf, relativePath: relativePath(metadata, "pdf") },
         resources: request.resources,
       },
@@ -801,6 +829,7 @@ export class ImmutableArtifactStore {
           },
           renderProjectionHash: binding.renderProjectionHash,
           generatorVersion: binding.generatorVersion,
+          navigationMap: evidence.pdf.navigationMap,
           resources: binding.resources,
         });
       },

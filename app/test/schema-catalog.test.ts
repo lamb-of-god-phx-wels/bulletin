@@ -9,6 +9,11 @@ import { resolve, join } from "node:path";
 import Ajv, { type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { describe, it, expect, beforeAll } from "vitest";
+import {
+  customElementDefinitionHash,
+  normalizeDocumentForCurrentUse,
+  type CustomElementDefinition,
+} from "../packages/core/src/document/index.js";
 
 const SCHEMAS_DIR = resolve(__dirname, "../schemas/v1");
 const FIXTURES_DIR = resolve(__dirname, "fixtures");
@@ -156,6 +161,193 @@ function getDocumentValidator(): ValidateFunction {
   return validate;
 }
 
+function getSettingsValidator(): ValidateFunction {
+  const id =
+    "https://church-bulletin-builder.local/schema/v1/settings.schema.json";
+  const validate = ajv.getSchema(id);
+  if (!validate) {
+    throw new Error(`settings.schema.json not found in Ajv`);
+  }
+  return validate;
+}
+
+function getChurchProfileValidator(): ValidateFunction {
+  const id =
+    "https://church-bulletin-builder.local/schema/v1/church-profile.schema.json";
+  const validate = ajv.getSchema(id);
+  if (!validate) {
+    throw new Error("church-profile.schema.json not found in Ajv");
+  }
+  return validate;
+}
+
+describe("v1 application and workspace settings", () => {
+  it("preserves the pre-M4 minimal variants as inheritance-only settings", () => {
+    const validate = getSettingsValidator();
+    expect(validate({ version: 1, kind: "globalSettings" })).toBe(true);
+    expect(validate({ version: 1, kind: "workspaceSettings" })).toBe(true);
+  });
+
+  it("accepts the complete application defaults with the spec-facing scope", () => {
+    const validate = getSettingsValidator();
+    expect(validate({
+      version: 1,
+      kind: "globalSettings",
+      scope: "application",
+      defaultLanguage: "en-US",
+      theme: "system",
+      viewMode: "page",
+      pagePresentation: "facing",
+      previewZoom: "fitPage",
+      marginGuides: true,
+      livePreview: true,
+      technicalPdfDetails: false,
+      canvasSnap: true,
+      snapGridSize: "0.125in",
+      exportFilenamePattern: "{date:YYYY-MM-DD} {name}.pdf",
+      offlineSpellcheck: true,
+      displayTimeZone: "America/Phoenix",
+      telemetryEnabled: false,
+    })).toBe(true);
+  });
+
+  it("accepts complete workspace overrides alongside the existing M3 fields", () => {
+    const validate = getSettingsValidator();
+    expect(validate({
+      version: 1,
+      kind: "workspaceSettings",
+      scope: "workspace",
+      viewMode: "contiguous",
+      pagePresentation: "single",
+      previewZoom: 125,
+      marginGuides: false,
+      livePreview: false,
+      technicalPdfDetails: true,
+      canvasSnap: false,
+      snapGridSize: "9pt",
+      exportFilenamePattern: "{name} {date:YYYY-MM-DD}.pdf",
+      offlineSpellcheck: false,
+      displayTimeZone: "UTC",
+      defaultExportFormat: "bookletTwoUp",
+      previewResolution: 144,
+      sourceTemplateLinks: [{
+        bulletinLocalResourceId: "10000000-0000-4000-8000-000000000001",
+        templateLocalResourceId: "10000000-0000-4000-8000-000000000002",
+      }],
+    })).toBe(true);
+  });
+
+  it("accepts the exact explicit-zoom boundaries and sub-unit positive snap sizes", () => {
+    const validate = getSettingsValidator();
+    expect(validate({ version: 1, kind: "workspaceSettings", previewZoom: 25 })).toBe(true);
+    expect(validate({ version: 1, kind: "workspaceSettings", previewZoom: 200 })).toBe(true);
+    expect(validate({
+      version: 1,
+      kind: "workspaceSettings",
+      snapGridSize: "0.0001in",
+    })).toBe(true);
+  });
+
+  it("accepts bounded workspace-local first-run progress for restart recovery", () => {
+    const validate = getSettingsValidator();
+    expect(validate({
+      version: 1,
+      kind: "workspaceSettings",
+      firstRun: {
+        version: 1,
+        disposition: "inProgress",
+        step: 1,
+        churchName: "Lamb of God",
+        mailingAddress: "2210 E. Indian School Road",
+        locationAddress: "2210 E. Indian School Road",
+        phone: "602-555-0100",
+        email: "office@example.test",
+        website: "https://example.test",
+        preferredOutput: "foldedBooklet",
+        starterId: "folded-letter",
+        createPracticeBulletin: true,
+      },
+    })).toBe(true);
+  });
+
+  it.each([
+    ["mismatched application scope", { version: 1, kind: "globalSettings", scope: "workspace" }],
+    ["workspace theme override", { version: 1, kind: "workspaceSettings", theme: "dark" }],
+    ["zoom below 25 percent", { version: 1, kind: "workspaceSettings", previewZoom: 24 }],
+    ["zoom above 200 percent", { version: 1, kind: "workspaceSettings", previewZoom: 201 }],
+    ["fractional explicit zoom", { version: 1, kind: "workspaceSettings", previewZoom: 99.5 }],
+    ["zero snap interval", { version: 1, kind: "workspaceSettings", snapGridSize: "0in" }],
+    ["unitless-leading decimal", { version: 1, kind: "workspaceSettings", snapGridSize: ".5in" }],
+    ["path-like time zone", { version: 1, kind: "workspaceSettings", displayTimeZone: "../Phoenix" }],
+    ["path separator in filename pattern", { version: 1, kind: "workspaceSettings", exportFilenamePattern: "../{name}.pdf" }],
+    ["unbounded locale string", { version: 1, kind: "globalSettings", defaultLanguage: "not_a_locale" }],
+    ["connection preference leakage", { version: 1, kind: "workspaceSettings", checkOnOpen: true }],
+    ["unbounded first-run profile text", {
+      version: 1,
+      kind: "workspaceSettings",
+      firstRun: { version: 1, disposition: "inProgress", churchName: "x".repeat(121) },
+    }],
+    ["control text in a first-run address", {
+      version: 1,
+      kind: "workspaceSettings",
+      firstRun: { version: 1, disposition: "inProgress", mailingAddress: "unsafe\naddress" },
+    }],
+    ["draft answers on a completed first run", {
+      version: 1,
+      kind: "workspaceSettings",
+      firstRun: { version: 1, disposition: "completed", step: 2, churchName: "Not a draft" },
+    }],
+    ["path-bearing source template link", {
+      version: 1,
+      kind: "workspaceSettings",
+      sourceTemplateLinks: [{
+        bulletinLocalResourceId: "10000000-0000-4000-8000-000000000001",
+        templateLocalResourceId: "/tmp/template.json",
+      }],
+    }],
+    ["source template link with an extra portable field", {
+      version: 1,
+      kind: "workspaceSettings",
+      sourceTemplateLinks: [{
+        bulletinLocalResourceId: "10000000-0000-4000-8000-000000000001",
+        templateLocalResourceId: "10000000-0000-4000-8000-000000000002",
+        sourceDocument: { kind: "template" },
+      }],
+    }],
+  ])("rejects %s", (_label, value) => {
+    const validate = getSettingsValidator();
+    expect(validate(value)).toBe(false);
+  });
+});
+
+describe("v1 Church Profile mappable values", () => {
+  it("accepts the canonical text values and portable logo reference", () => {
+    const validate = getChurchProfileValidator();
+    expect(validate({
+      version: 1,
+      kind: "churchProfile",
+      churchName: "Lamb of God",
+      mailingAddress: "2210 E. Indian School Road",
+      locationAddress: "2210 E. Indian School Road",
+      phone: "602-555-0100",
+      email: "office@example.test",
+      website: "https://example.test",
+      defaultServiceLabel: "Sunday Worship",
+      logo: "asset:44444444-4444-4444-8444-444444444444",
+      language: "en-US",
+    })).toBe(true);
+  });
+
+  it("rejects a non-portable logo reference", () => {
+    const validate = getChurchProfileValidator();
+    expect(validate({
+      version: 1,
+      kind: "churchProfile",
+      logo: "/tmp/church-logo.png",
+    })).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 3. Valid fixture documents must pass
 // ---------------------------------------------------------------------------
@@ -163,7 +355,9 @@ function getDocumentValidator(): ValidateFunction {
 describe("valid fixtures pass document schema", () => {
   it("minimal-bulletin.json is valid", () => {
     const validate = getDocumentValidator();
-    const doc = loadJson(join(FIXTURES_DIR, "minimal-bulletin.json"));
+    const doc = normalizeDocumentForCurrentUse(
+      loadJson(join(FIXTURES_DIR, "minimal-bulletin.json")),
+    );
     const result = validate(doc);
     if (!result) {
       console.error("Validation errors:", validate.errors);
@@ -173,7 +367,9 @@ describe("valid fixtures pass document schema", () => {
 
   it("full-featured-bulletin.json is valid", () => {
     const validate = getDocumentValidator();
-    const doc = loadJson(join(FIXTURES_DIR, "full-featured-bulletin.json"));
+    const doc = normalizeDocumentForCurrentUse(
+      loadJson(join(FIXTURES_DIR, "full-featured-bulletin.json")),
+    );
     const result = validate(doc);
     if (!result) {
       console.error("Validation errors:", JSON.stringify(validate.errors, null, 2));
@@ -183,7 +379,9 @@ describe("valid fixtures pass document schema", () => {
 
   it("full-featured-template.json is valid", () => {
     const validate = getDocumentValidator();
-    const doc = loadJson(join(FIXTURES_DIR, "full-featured-template.json"));
+    const doc = normalizeDocumentForCurrentUse(
+      loadJson(join(FIXTURES_DIR, "full-featured-template.json")),
+    );
     const result = validate(doc);
     if (!result) {
       console.error("Validation errors:", JSON.stringify(validate.errors, null, 2));
@@ -406,6 +604,42 @@ describe("common.schema.json primitives", () => {
     it("rejects font: prefix", () => {
       const v = getCommonDef("portableAssetId");
       expect(v("font:44444444-4444-4444-8444-444444444444")).toBe(false);
+    });
+  });
+
+  describe("Church Profile field mappings", () => {
+    it("closes the mappable key vocabulary and excludes language", () => {
+      const v = getCommonDef("churchProfileFieldKey");
+      for (const key of [
+        "churchName",
+        "mailingAddress",
+        "locationAddress",
+        "phone",
+        "email",
+        "website",
+        "defaultServiceLabel",
+        "logo",
+      ]) {
+        expect(v(key), key).toBe(true);
+      }
+      expect(v("language")).toBe(false);
+      expect(v("congregationName")).toBe(false);
+    });
+
+    it("allows text keys only on text fields and logo only on assetRef fields", () => {
+      const v = getCommonDef("fieldDefinition");
+      const field = {
+        id: "profileValue",
+        label: "Profile value",
+        required: false,
+      };
+      expect(v({ ...field, type: "text", profileKey: "churchName" })).toBe(true);
+      expect(v({ ...field, type: "text", profileKey: "defaultServiceLabel" })).toBe(true);
+      expect(v({ ...field, type: "assetRef", profileKey: "logo" })).toBe(true);
+      expect(v({ ...field, type: "choice", profileKey: "churchName" })).toBe(false);
+      expect(v({ ...field, type: "text", profileKey: "logo" })).toBe(false);
+      expect(v({ ...field, type: "assetRef", profileKey: "website" })).toBe(false);
+      expect(v({ ...field, type: "text", profileKey: "language" })).toBe(false);
     });
   });
 
@@ -1148,7 +1382,7 @@ describe("document.schema.json page model", () => {
   it("accepts mirrored margins with inner/outer", () => {
     const validate = getDocumentValidator();
     expect(validate({
-      version: 1,
+      version: 2,
       kind: "bulletin",
       name: "Mirrored Margins",
       page: {
@@ -1170,7 +1404,7 @@ describe("document.schema.json page model", () => {
   it("accepts finalPageCountRequirement with exact", () => {
     const validate = getDocumentValidator();
     expect(validate({
-      version: 1,
+      version: 2,
       kind: "bulletin",
       name: "Exact Pages",
       page: {
@@ -1186,7 +1420,7 @@ describe("document.schema.json page model", () => {
   it("accepts finalPageCountRequirement with multipleOf", () => {
     const validate = getDocumentValidator();
     expect(validate({
-      version: 1,
+      version: 2,
       kind: "bulletin",
       name: "Multiple Of Pages",
       page: {
@@ -1250,9 +1484,9 @@ describe("Issue-20: full-featured-bulletin.json feature coverage", () => {
   let doc: Record<string, unknown>;
 
   beforeAll(() => {
-    doc = loadJson(
+    doc = normalizeDocumentForCurrentUse(loadJson(
       join(FIXTURES_DIR, "full-featured-bulletin.json")
-    ) as Record<string, unknown>;
+    )) as Record<string, unknown>;
   });
 
   it("fixture validates against document schema", () => {
@@ -1614,9 +1848,9 @@ describe("Issue-20: full-featured-template.json feature coverage", () => {
   let doc: Record<string, unknown>;
 
   beforeAll(() => {
-    doc = loadJson(
+    doc = normalizeDocumentForCurrentUse(loadJson(
       join(FIXTURES_DIR, "full-featured-template.json")
-    ) as Record<string, unknown>;
+    )) as Record<string, unknown>;
   });
 
   it("fixture validates against document schema", () => {
@@ -2132,6 +2366,49 @@ describe("Issue-20: customElement.schema.json coverage", () => {
     return v;
   }
 
+  const definitionRevision = {
+    version: 1 as const,
+    kind: "customElementDefinition" as const,
+    id: "customDef1",
+    definitionVersion: 1,
+    name: "Announcement Block",
+    fieldContract: {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      version: 1,
+      name: "Fields",
+      fields: [
+        { id: "text", label: "Text", type: "text" as const, required: true },
+      ],
+    },
+    elements: [
+      {
+        id: "annText1",
+        type: "text" as const,
+        name: "Text",
+        data: { content: { kind: "plain" as const, text: "Announcement" } },
+      },
+    ],
+    contentRules: [
+      {
+        kind: "conditional" as const,
+        id: "rLocal",
+        targetNodeId: "annText1",
+        scope: "document" as const,
+        fieldId: "text",
+        condition: { kind: "booleanEquals" as const, value: true },
+        activateLabel: "Show",
+        inactiveLabel: "Hide",
+      },
+    ],
+    sampleFieldValues: {
+      text: { value: "Sample text", origin: "manual" as const },
+    },
+  } satisfies Omit<CustomElementDefinition, "definitionHash">;
+  const pinnedDefinition: CustomElementDefinition = {
+    ...definitionRevision,
+    definitionHash: customElementDefinitionHash(definitionRevision),
+  };
+
   describe("customElementInstance", () => {
     it("accepts a valid customInstance with all optional fields", () => {
       const v = getCustomValidator("customElementInstance");
@@ -2140,8 +2417,9 @@ describe("Issue-20: customElement.schema.json coverage", () => {
           id: "customEl1",
           type: "customInstance",
           name: "Children's Sermon",
-          definitionId: "customDef1",
-          definitionHash: "sha256:" + "a".repeat(64),
+          definitionId: pinnedDefinition.id,
+          definitionVersion: pinnedDefinition.definitionVersion,
+          definitionHash: pinnedDefinition.definitionHash,
           width: "100%",
           breakPolicy: "avoid",
           margin: "0.25in",
@@ -2159,7 +2437,9 @@ describe("Issue-20: customElement.schema.json coverage", () => {
           id: "customEl1",
           type: "customInstance",
           name: "My Custom",
-          definitionId: "customDef1",
+          definitionId: pinnedDefinition.id,
+          definitionVersion: pinnedDefinition.definitionVersion,
+          definitionHash: pinnedDefinition.definitionHash,
         })
       ).toBe(true);
     });
@@ -2167,7 +2447,13 @@ describe("Issue-20: customElement.schema.json coverage", () => {
     it("rejects customInstance missing definitionId", () => {
       const v = getCustomValidator("customElementInstance");
       expect(
-        v({ id: "customEl1", type: "customInstance", name: "Missing" })
+        v({
+          id: "customEl1",
+          type: "customInstance",
+          name: "Missing",
+          definitionVersion: pinnedDefinition.definitionVersion,
+          definitionHash: pinnedDefinition.definitionHash,
+        })
       ).toBe(false);
     });
 
@@ -2178,7 +2464,9 @@ describe("Issue-20: customElement.schema.json coverage", () => {
           id: "customEl1",
           type: "custom",
           name: "Wrong",
-          definitionId: "def1",
+          definitionId: pinnedDefinition.id,
+          definitionVersion: pinnedDefinition.definitionVersion,
+          definitionHash: pinnedDefinition.definitionHash,
         })
       ).toBe(false);
     });
@@ -2187,47 +2475,7 @@ describe("Issue-20: customElement.schema.json coverage", () => {
   describe("customElementDefinition", () => {
     it("accepts definition with contentRules and sampleFieldValues", () => {
       const v = getCustomValidator("customElementDefinition");
-      expect(
-        v({
-          version: 1,
-          kind: "customElementDefinition",
-          id: "def1",
-          name: "Announcement Block",
-          fieldContract: {
-            id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-            version: 1,
-            name: "Fields",
-            fields: [
-              { id: "text", label: "Text", type: "text", required: true },
-            ],
-          },
-          elements: [
-            {
-              id: "annText1",
-              type: "text",
-              name: "Text",
-              data: {
-                content: { kind: "plain", text: "Announcement" },
-              },
-            },
-          ],
-          contentRules: [
-            {
-              kind: "conditional",
-              id: "rLocal",
-              targetNodeId: "annText1",
-              scope: "document",
-              fieldId: "text",
-              condition: { kind: "booleanEquals", value: true },
-              activateLabel: "Show",
-              inactiveLabel: "Hide",
-            },
-          ],
-          sampleFieldValues: {
-            text: { value: "Sample text", origin: "manual" },
-          },
-        })
-      ).toBe(true);
+      expect(v(pinnedDefinition)).toBe(true);
     });
 
     it("rejects definition with empty elements array (minItems: 1)", () => {

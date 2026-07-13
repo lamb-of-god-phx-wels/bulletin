@@ -211,12 +211,12 @@ export function bindingTargetSpec(
       return { acceptedTypes: ["text", "richText"], optional: false, wrapsTextContent: true };
     }
     if (pointer === "/data/content/text") {
-      return element.data.content.kind === "plain"
+      return element.data.content?.kind === "plain"
         ? { acceptedTypes: ["text", "choice"], optional: false }
         : undefined;
     }
     if (pointer === "/data/content/document") {
-      return element.data.content.kind === "richText"
+      return element.data.content?.kind === "richText"
         ? { acceptedTypes: ["richText"], optional: false }
         : undefined;
     }

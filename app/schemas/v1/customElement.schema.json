@@ -7,13 +7,23 @@
     "customElementDefinition": {
       "description": "A reusable custom element definition (Saved Section). Contains a field contract, prototype element tree, and portable identity.",
       "type": "object",
-      "required": ["version", "kind", "id", "name", "fieldContract", "elements"],
+      "required": ["version", "kind", "id", "definitionVersion", "definitionHash", "name", "fieldContract", "elements"],
       "properties": {
         "version": { "type": "integer", "const": 1 },
         "kind": { "const": "customElementDefinition" },
         "id": {
           "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId",
           "description": "Stable portable node id for this custom element definition."
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Positive semantic revision of this definition, independent of the record format version."
+        },
+        "definitionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Canonical hash of this exact definition revision, excluding only this self-hash field."
         },
         "name": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
@@ -47,7 +57,7 @@
     "customElementInstance": {
       "description": "A custom element instance placed in a document. References a definition by its node id and stores field values scoped to this instance.",
       "type": "object",
-      "required": ["id", "type", "name", "definitionId"],
+      "required": ["id", "type", "name", "definitionId", "definitionVersion", "definitionHash"],
       "properties": {
         "id": { "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId" },
         "type": { "const": "customInstance" },
@@ -55,6 +65,11 @@
         "definitionId": {
           "$ref": "https://church-bulletin-builder.local/schema/v1/common.schema.json#/$defs/nodeId",
           "description": "Node id of the pinned custom element definition."
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Positive revision of the exact pinned definition."
         },
         "definitionHash": {
           "type": "string",

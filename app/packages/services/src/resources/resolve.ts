@@ -332,7 +332,13 @@ export async function resolveVerifiedResourceClosure(
   const assets: VerifiedAssetIdentity[] = [];
   const fonts: VerifiedFontIdentity[] = [];
   const stagingEntries: ResourceStagingEntry[] = [];
-  const assetBindings: Record<string, { readonly relativePath: string }> = {};
+  const assetBindings: Record<string, {
+    readonly relativePath: string;
+    readonly canonicalRasterDimensions?: {
+      readonly pixelWidth: number;
+      readonly pixelHeight: number;
+    };
+  }> = {};
   const fontBindings: Record<string, { readonly familyName: string }> = {};
   const warnings: ResourceClosureWarning[] = [];
 
@@ -356,6 +362,12 @@ export async function resolveVerifiedResourceClosure(
       record.portableAssetId,
     );
     const relativePath = `assets/a${padded(assetIndex)}.${assetExtension(record.mediaType)}`;
+    const rasterDimensions =
+      (record.mediaType === "image/png" || record.mediaType === "image/jpeg") &&
+      Number.isSafeInteger(record.width) && Number(record.width) >= 1 && Number(record.width) <= 32_768 &&
+      Number.isSafeInteger(record.height) && Number(record.height) >= 1 && Number(record.height) <= 32_768
+        ? Object.freeze({ pixelWidth: Number(record.width), pixelHeight: Number(record.height) })
+        : undefined;
     assets.push(Object.freeze({
       assetRef: record.portableAssetId,
       binaryHash: record.canonicalHash,
@@ -369,9 +381,13 @@ export async function resolveVerifiedResourceClosure(
       hash: record.canonicalHash,
       byteSize: record.byteSize,
       mediaType: record.mediaType,
+      ...(rasterDimensions === undefined ? {} : { canonicalRasterDimensions: rasterDimensions }),
     });
     stagingEntries.push(stagingEntry);
-    assetBindings[record.portableAssetId] = Object.freeze({ relativePath });
+    assetBindings[record.portableAssetId] = Object.freeze({
+      relativePath,
+      ...(rasterDimensions === undefined ? {} : { canonicalRasterDimensions: rasterDimensions }),
+    });
     warning(warnings, "assetFileBytes", record.byteSize, RESOURCE_CLOSURE_LIMITS.assetFileBytesWarning, record.portableAssetId);
   }
 

@@ -7,6 +7,15 @@ import type { TypstSourceMap } from "./sourceBuilder.js";
 export interface TypstAssetBinding {
   /** App-controlled path below the isolated build root. */
   readonly relativePath: string;
+  /**
+   * Dimensions verified from the canonical raster bytes during quarantine.
+   * Vector/PDF/unknown assets deliberately omit this field: generated focal
+   * cropping must never guess an aspect ratio.
+   */
+  readonly canonicalRasterDimensions?: {
+    readonly pixelWidth: number;
+    readonly pixelHeight: number;
+  };
 }
 
 export interface TypstFontBinding {

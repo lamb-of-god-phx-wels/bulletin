@@ -19,6 +19,7 @@ import type {
   StagedByteIdentity,
   TrustedTypstRequirement,
   VerifiedPdfOutput,
+  VerifiedPdfNavigationMap,
 } from "../build/runner.js";
 import type { ResourceStagingBytePort } from "../build/nodeSandbox.js";
 
@@ -31,6 +32,34 @@ const ASSET_ALIAS = /^assets\/a[0-9]{4}\.(?:png|jpg|svg|pdf|bin)$/u;
 const FONT_ALIAS = /^fonts\/f[0-9]{4}-[0-9]{4}\.(?:ttf|otf|woff|woff2)$/u;
 const DIAGNOSTIC = /^CBB-[A-Z]+-[0-9]{4}$/u;
 const MAX_BYTES = 1024 * 1024 * 1024;
+const MAX_NAVIGATION_ENTRIES = 50_000;
+const SOURCE_ID = /^[A-Za-z][A-Za-z0-9_-]*$/u;
+
+function parseNavigationMap(value: unknown, pageCount: number): VerifiedPdfNavigationMap {
+  const map = exact(value, ["version", "entries"]);
+  if (map["version"] !== 1 || !Array.isArray(map["entries"]) ||
+    map["entries"].length > MAX_NAVIGATION_ENTRIES) fail("outputRejected");
+  const seen = new Set<string>();
+  const entries = map["entries"].map((raw) => {
+    const entry = exact(raw, ["resolvedId", "sourceElementId", "pageNumber", "region"]);
+    if (
+      typeof entry["resolvedId"] !== "string" || entry["resolvedId"].length < 1 || entry["resolvedId"].length > 512 ||
+      typeof entry["sourceElementId"] !== "string" || !SOURCE_ID.test(entry["sourceElementId"]) ||
+      !Number.isSafeInteger(entry["pageNumber"]) || Number(entry["pageNumber"]) < 1 || Number(entry["pageNumber"]) > pageCount ||
+      !["body", "page-background", "page-foreground"].includes(String(entry["region"]))
+    ) fail("outputRejected");
+    const key = `${entry["resolvedId"]}\u0000${entry["sourceElementId"]}\u0000${entry["region"]}\u0000${entry["pageNumber"]}`;
+    if (seen.has(key)) fail("outputRejected");
+    seen.add(key);
+    return Object.freeze({
+      resolvedId: entry["resolvedId"],
+      sourceElementId: entry["sourceElementId"],
+      pageNumber: Number(entry["pageNumber"]),
+      region: entry["region"] as "body" | "page-background" | "page-foreground",
+    });
+  });
+  return Object.freeze({ version: 1, entries: Object.freeze(entries) });
+}
 
 export interface WindowsSandboxInputCapabilityRequest {
   readonly version: 1;
@@ -255,7 +284,7 @@ export class NodeWindowsOfflineTypstSandbox implements IsolatedTypstSandboxPort 
       payload: Object.freeze({ version: 1, root }),
     }), [
       "version", "kind", "root", "output", "hash", "byteSize", "pageCount",
-      "pdfVersion", "magicVerified",
+      "pdfVersion", "magicVerified", "navigationMap",
     ]);
     if (
       result["version"] !== 1 || result["kind"] !== "windowsVerifiedBuildPdf" ||
@@ -267,6 +296,7 @@ export class NodeWindowsOfflineTypstSandbox implements IsolatedTypstSandboxPort 
       Number(result["pageCount"]) > 1_000 ||
       typeof result["pdfVersion"] !== "string" || !/^(?:1\.[0-7]|2\.0)$/u.test(result["pdfVersion"])
     ) fail("outputRejected");
+    const navigationMap = parseNavigationMap(result["navigationMap"], Number(result["pageCount"]));
     return {
       handle: result["output"] as BuildOutputHandle,
       hash: result["hash"] as Sha256Hash,
@@ -274,6 +304,7 @@ export class NodeWindowsOfflineTypstSandbox implements IsolatedTypstSandboxPort 
       pageCount: Number(result["pageCount"]),
       pdfVersion: result["pdfVersion"],
       magicVerified: true,
+      navigationMap,
     };
   }
 

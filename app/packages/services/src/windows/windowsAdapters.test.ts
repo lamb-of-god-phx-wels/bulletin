@@ -92,6 +92,7 @@ class FakeBroker implements WindowsSandboxBrokerPort {
           pageCount: 1,
           pdfVersion: "1.7",
           magicVerified: true,
+          navigationMap: { version: 1, entries: [] },
         };
       case "terminateBuild":
         return { version: 1, kind: "windowsBuildTerminated", root: payload["root"] };

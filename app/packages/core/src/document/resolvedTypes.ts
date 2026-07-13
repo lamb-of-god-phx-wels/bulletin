@@ -215,12 +215,15 @@ export interface ResolvedTextElement extends ResolvedFlowProperties {
 
 export interface ResolvedImageElement extends ResolvedFlowProperties {
   readonly type: "image";
-  readonly data: ImageElementData;
+  readonly data: Omit<ImageElementData, "assetRef" | "focalPoint"> & {
+    readonly assetRef: PortableAssetRefString;
+    readonly focalPoint?: { readonly x: number; readonly y: number };
+  };
 }
 
 export interface ResolvedDateElement extends ResolvedFlowProperties {
   readonly type: "date";
-  readonly data: DateElementData;
+  readonly data: Omit<DateElementData, "value"> & { readonly value: string };
 }
 
 export interface ResolvedMusicElement extends ResolvedFlowProperties {

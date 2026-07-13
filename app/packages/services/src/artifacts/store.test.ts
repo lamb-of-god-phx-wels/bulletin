@@ -208,6 +208,7 @@ async function compile(
     expectedPdf: expectedPdf(),
     renderProjectionHash: hash("projection"),
     generatorVersion: "cbb-typstgen-v1",
+    navigationMap: { version: 1, entries: [] },
     resources: EMPTY_RESOURCES,
   });
 }
@@ -264,6 +265,7 @@ describe("ImmutableArtifactStore", () => {
       mode: "compile",
       typstRelativePath: `artifacts/${BULLETIN}/${BUILD_A}.typ`,
       typstHash: hash(SOURCE),
+      navigationMap: { version: 1, entries: [] },
       pdf: { relativePath: `artifacts/${BULLETIN}/${BUILD_A}.pdf`, hash: hash(PDF) },
     });
     expect(await store.readArtifact(BULLETIN, BUILD_A)).toEqual(record);
@@ -271,6 +273,29 @@ describe("ImmutableArtifactStore", () => {
     await expect(compile(store)).rejects.toMatchObject({ kind: "immutableCollision" });
     expect(storage.text(BUILD_A, "typ")).toBe(decoder.decode(SOURCE));
     expect(storage.text(BUILD_A, "pdf")).toBe(decoder.decode(PDF));
+  });
+
+  it("rejects navigation entries outside the verified PDF page range", async () => {
+    const { store } = harness();
+    await expect(store.persistCompile({
+      metadata: metadata(BUILD_A),
+      source: SOURCE,
+      sourceHash: hash(SOURCE),
+      pdfBytes: PDF,
+      expectedPdf: expectedPdf(),
+      renderProjectionHash: hash("projection"),
+      generatorVersion: "cbb-typstgen-v1",
+      navigationMap: {
+        version: 1,
+        entries: [{
+          resolvedId: "title",
+          sourceElementId: "title",
+          pageNumber: 2,
+          region: "body",
+        }],
+      },
+      resources: EMPTY_RESOURCES,
+    })).rejects.toMatchObject({ kind: "invalidEvidence" });
   });
 
   it("persists non-success lifecycle records with no owned outputs", async () => {
@@ -496,6 +521,7 @@ describe("ImmutableArtifactStore", () => {
         pageCount: 1,
         pdfVersion: "1.7",
         magicVerified: true,
+        navigationMap: { version: 1, entries: [] },
       },
       tool: {
         toolId: "typst",

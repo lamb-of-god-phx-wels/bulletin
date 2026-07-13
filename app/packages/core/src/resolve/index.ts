@@ -8,6 +8,7 @@ export type {
   ResolvedReadinessSource,
 } from "./types.js";
 export { resolveDocument } from "./resolve.js";
+export { validateFieldValue } from "./field.js";
 export {
   materializeResolvedStyle,
   projectResolvedElement,

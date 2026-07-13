@@ -21,19 +21,24 @@ import type {
   PageLevelWrapper,
   RepeatRule,
 } from "./types.js";
-import { DOCUMENT_LIMITS } from "./types.js";
+import {
+  churchProfileKeyAcceptsFieldType,
+  DOCUMENT_LIMITS,
+} from "./types.js";
 import {
   isSafeFieldPattern,
   matchesSafeFieldPattern,
 } from "./safePattern.js";
 import { isRichTextDocument } from "../richtext/index.js";
 import { resolveEffectiveField } from "../resolve/field.js";
+import { customElementDefinitionHash } from "./customDefinitions.js";
 
 const CODE = {
   duplicateNode: "CBB-DOC-0100",
   nodeLimit: "CBB-DOC-0101",
   customReference: "CBB-DOC-0102",
   customCycle: "CBB-DOC-0103",
+  customPin: "CBB-DOC-0104",
   pageBreak: "CBB-LAYOUT-0100",
   containerDepth: "CBB-LAYOUT-0101",
   stack: "CBB-LAYOUT-0102",
@@ -82,6 +87,8 @@ interface ValueStoreInfo {
 
 interface CustomUse {
   readonly definitionId: string;
+  readonly definitionVersion: unknown;
+  readonly definitionHash: unknown;
   readonly path: string;
   readonly scopeKey: string;
 }
@@ -273,6 +280,11 @@ class DocumentSemanticValidator {
       const definition = this.document.customElementDefinitions?.[index] as CustomElementDefinition;
       const path = `/customElementDefinitions/${index}`;
       const scopeKey = `definition:${index}`;
+      if (!Number.isSafeInteger(definition.definitionVersion) || definition.definitionVersion < 1) {
+        this.add(CODE.customPin, `${path}/definitionVersion`, "Definition revision must be a positive safe integer.");
+      } else if (customElementDefinitionHash(definition) !== definition.definitionHash) {
+        this.add(CODE.customPin, `${path}/definitionHash`, "Definition self-hash does not match its canonical revision.");
+      }
       this.registerNode({
         id: definition.id,
         path,
@@ -439,15 +451,37 @@ class DocumentSemanticValidator {
       );
     }
     if ("bindings" in element && element.bindings !== undefined) {
+      const priorTargets: { readonly target: string; readonly path: string }[] = [];
       for (let index = 0; index < element.bindings.length; index++) {
+        const binding = element.bindings[index] as Binding;
+        const segments = decodePointer(binding.target);
+        const overlap = priorTargets.find((prior) => {
+          const priorSegments = decodePointer(prior.target);
+          if (segments === undefined || priorSegments === undefined) return false;
+          const shared = Math.min(segments.length, priorSegments.length);
+          return segments.slice(0, shared).every((segment, offset) =>
+            segment === priorSegments[offset]);
+        });
+        if (overlap !== undefined) {
+          this.add(
+            CODE.binding,
+            `${path}/bindings/${index}/target`,
+            `Binding target "${binding.target}" overlaps ${overlap.path}.`,
+          );
+        }
+        priorTargets.push({
+          target: binding.target,
+          path: `${path}/bindings/${index}/target`,
+        });
         this.validateBinding(
-          element.bindings[index] as Binding,
+          binding,
           `${path}/bindings/${index}`,
           element,
           bindingContract,
         );
       }
     }
+    this.validateRequiredLiteralBindings(element, path, bindingContract);
 
     if (element.type === "customInstance") {
       const target = this.definitionsById.get(element.definitionId);
@@ -459,7 +493,9 @@ class DocumentSemanticValidator {
       }
       this.customUses.push({
         definitionId: element.definitionId,
-        path: `${path}/definitionId`,
+        definitionVersion: (element as unknown as Record<string, unknown>)["definitionVersion"],
+        definitionHash: (element as unknown as Record<string, unknown>)["definitionHash"],
+        path,
         scopeKey,
       });
       if (element.fieldValues !== undefined) {
@@ -824,6 +860,16 @@ class DocumentSemanticValidator {
         this.semanticRoles.set(field.semanticRole, `${path}/semanticRole`);
       }
     }
+    if (
+      field.profileKey !== undefined &&
+      !churchProfileKeyAcceptsFieldType(field.profileKey, field.type)
+    ) {
+      this.add(
+        CODE.contract,
+        `${path}/profileKey`,
+        "Church Profile value is incompatible with this field type.",
+      );
+    }
     const weeklyBehavior = field.weeklyBehavior;
     if (weeklyBehavior?.derivation !== undefined && field.type !== "date") {
       this.add(CODE.contract, `${path}/weeklyBehavior/derivation`, "Date derivation is legal only on date fields.");
@@ -1125,6 +1171,60 @@ class DocumentSemanticValidator {
     }
   }
 
+  private validateRequiredLiteralBindings(
+    element: NativeElement,
+    path: string,
+    localContract: ContractInfo | undefined,
+  ): void {
+    const hasOneValidBinding = (...targets: readonly string[]): boolean => {
+      if (element.type === "customInstance") return false;
+      const candidates = (element.bindings ?? []).filter((binding) =>
+        targets.includes(binding.target));
+      if (candidates.length !== 1) return false;
+      const binding = candidates[0] as Binding;
+      const contract = binding.scope === "document" ? this.documentContract : localContract;
+      const field = contract?.fields.get(binding.fieldId)?.definition;
+      const target = this.bindingTargetInfo(element, binding.target);
+      return field !== undefined && target?.acceptedTypes.includes(field.type) === true;
+    };
+    const missing = (literalPath: string, ...targets: readonly string[]): void => {
+      if (!hasOneValidBinding(...targets)) {
+        this.add(
+          CODE.binding,
+          `${path}${literalPath}`,
+          `Required content at "${literalPath}" needs a matching binding when its literal is omitted.`,
+        );
+      }
+    };
+
+    if (element.type === "text") {
+      const content = element.data.content;
+      if (content === undefined) missing("/data/content", "/data/content");
+      else if (content.kind === "plain" && content.text === undefined) {
+        missing("/data/content/text", "/data/content", "/data/content/text");
+      } else if (content.kind === "richText" && content.document === undefined) {
+        missing("/data/content/document", "/data/content", "/data/content/document");
+      }
+      return;
+    }
+    if (element.type === "image") {
+      if (element.data.assetRef === undefined) missing("/data/assetRef", "/data/assetRef");
+      if (element.data.focalPoint?.x === undefined && element.data.focalPoint !== undefined) {
+        missing("/data/focalPoint/x", "/data/focalPoint/x");
+      }
+      if (element.data.focalPoint?.y === undefined && element.data.focalPoint !== undefined) {
+        missing("/data/focalPoint/y", "/data/focalPoint/y");
+      }
+      return;
+    }
+    if (element.type === "date" && element.data.value === undefined) {
+      missing("/data/value", "/data/value");
+    }
+    if (element.type === "music" && element.data.title === undefined) {
+      missing("/data/title", "/data/title");
+    }
+  }
+
   private registerBindingId(id: string, path: string): void {
     const prior = this.bindingIds.get(id);
     if (prior !== undefined) {
@@ -1146,10 +1246,10 @@ class DocumentSemanticValidator {
         if (joined === "/data/content") {
           return { acceptedTypes: ["text", "richText"] };
         }
-        if (joined === "/data/content/text" && element.data.content.kind === "plain") {
+        if (joined === "/data/content/text" && element.data.content?.kind === "plain") {
           return { acceptedTypes: ["text", "choice"] };
         }
-        if (joined === "/data/content/document" && element.data.content.kind === "richText") {
+        if (joined === "/data/content/document" && element.data.content?.kind === "richText") {
           return { acceptedTypes: ["richText"] };
         }
         if (
@@ -1204,13 +1304,23 @@ class DocumentSemanticValidator {
     for (const use of this.customUses) {
       const target = this.definitionsById.get(use.definitionId);
       if (target === undefined) {
-        this.add(CODE.customReference, use.path, `Custom definition "${use.definitionId}" does not exist.`);
+        this.add(CODE.customReference, `${use.path}/definitionId`, `Custom definition "${use.definitionId}" does not exist.`);
         continue;
+      }
+      if (!Number.isSafeInteger(use.definitionVersion) || (use.definitionVersion as number) < 1) {
+        this.add(CODE.customPin, `${use.path}/definitionVersion`, "Custom instance lacks a positive pinned definition revision.");
+      } else if (use.definitionVersion !== target.definition.definitionVersion) {
+        this.add(CODE.customPin, `${use.path}/definitionVersion`, `Pinned revision for custom definition "${use.definitionId}" does not match.`);
+      }
+      if (typeof use.definitionHash !== "string") {
+        this.add(CODE.customPin, `${use.path}/definitionHash`, "Custom instance lacks a pinned definition hash.");
+      } else if (use.definitionHash !== target.definition.definitionHash) {
+        this.add(CODE.customPin, `${use.path}/definitionHash`, `Pinned hash for custom definition "${use.definitionId}" does not match.`);
       }
       if (!use.scopeKey.startsWith("definition:")) continue;
       const source = Number(use.scopeKey.slice("definition:".length));
       const edges = graph.get(source) ?? [];
-      edges.push({ target: target.index, path: use.path });
+      edges.push({ target: target.index, path: `${use.path}/definitionId` });
       graph.set(source, edges);
     }
     for (const edges of graph.values()) {

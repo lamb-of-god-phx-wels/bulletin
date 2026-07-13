@@ -108,6 +108,14 @@ async function verifiedReceipt(
     },
     { raceTimeout: async (work) => ({ kind: "completed", value: await work }) },
     {
+      verifyAndRehashInput: async (verification) => ({
+        version: 1,
+        requestId: verification.requestId,
+        operation: verification.operation,
+        input: verification.input,
+        hash: hashBytes(value),
+        byteSize: value.byteLength,
+      }),
       verifyAndRehash: async (verification) => ({
         version: 1,
         requestId: verification.requestId,
@@ -117,6 +125,8 @@ async function verifiedReceipt(
         byteSize: value.byteLength,
         mediaType,
       }),
+      cleanupInput: async () => undefined,
+      discardOutput: async () => undefined,
     },
   );
   if (broker.status !== "succeeded") throw new Error("Test quarantine receipt failed");

@@ -60,3 +60,44 @@ export type {
   TrustedBuildProvenance,
   TrustedBuildWatermark,
 } from "./orchestrator.js";
+export {
+  NodeOfflineTypstSandbox,
+  NodeTypstSandboxError,
+} from "./nodeSandbox.js";
+export type {
+  CompileOutputHandlePort,
+  NodeOfflineTypstSandboxOptions,
+  NodeTypstSandboxErrorKind,
+  ResourceStagingBytePort,
+  TrustedExecutableIdentity,
+} from "./nodeSandbox.js";
+export {
+  createNodeResourceStagingBytePort,
+} from "./nodeResourceBytes.js";
+export {
+  DeterministicBuildProvider,
+  DeterministicBuildProviderError,
+} from "./provider.js";
+export type {
+  DeterministicBuildProviderOptions,
+  TrustedBuildArtifactPolicyPort,
+  TrustedDocumentBuildSnapshot,
+  TrustedDocumentBuildSnapshotPort,
+  TrustedProjectionResourcePort,
+} from "./provider.js";
+export {
+  IsolatedBuildExecution,
+  nodeBuildRunnerTimer,
+} from "./execution.js";
+export type {
+  BuildExecutionSinkPort,
+  IsolatedBuildExecutionOptions,
+} from "./execution.js";
+export {
+  createSignedNodeOfflineTypstSandbox,
+  createSignedNodePdfInfoInspector,
+} from "./signedRuntime.js";
+export type {
+  SignedNodeOfflineTypstSandboxOptions,
+  SignedNodePdfInfoInspectorOptions,
+} from "./signedRuntime.js";

@@ -1,7 +1,10 @@
-import type { Sha256Hash } from "@cbb/core";
+import type { PortableFontRef, Sha256Hash } from "@cbb/core";
 
 export const TRUSTED_COMPONENT_ROLES = [
+  "executionBroker",
+  "quarantineWorker",
   "typstCli",
+  "pdfInspector",
   "bookletCompositor",
   "pdfUaValidator",
   "bundledFontFace",
@@ -14,6 +17,30 @@ export type TrustedComponentRole = (typeof TRUSTED_COMPONENT_ROLES)[number];
 export type TrustedComponentPlatform = "linux" | "win32";
 export type TrustedComponentArch = "x64" | "arm64";
 
+/**
+ * Signed identity of the application release that owns a component manifest.
+ * The sequence is monotonic within one application/profile lineage; runtime
+ * verification still requires every field to equal the installed app's
+ * independently configured expectation.
+ */
+export interface TrustedComponentReleaseIdentity {
+  readonly applicationId: string;
+  readonly releaseId: string;
+  readonly releaseSequence: number;
+  readonly profile: string;
+}
+
+export interface TrustedBundledFontFaceBinding {
+  readonly portableFontRef: PortableFontRef;
+  readonly familyName: string;
+  readonly faceId: string;
+  readonly faceIndex: number;
+  readonly format: "ttf" | "otf" | "woff" | "woff2";
+  readonly weight: number;
+  readonly style: "normal" | "italic" | "oblique";
+  readonly stretch: number;
+}
+
 export interface TrustedComponentManifestEntry {
   readonly role: TrustedComponentRole;
   readonly id: string;
@@ -23,12 +50,15 @@ export interface TrustedComponentManifestEntry {
   readonly relativePath: string;
   readonly hash: Sha256Hash;
   readonly byteSize: number;
+  /** Required only for bundledFontFace; binds signed bytes to the portable catalog. */
+  readonly fontFaceBinding?: TrustedBundledFontFaceBinding;
 }
 
 export interface TrustedComponentManifestContent {
   readonly version: 1;
   readonly kind: "trustedComponentManifest";
   readonly signingKeyId: string;
+  readonly release: TrustedComponentReleaseIdentity;
   readonly components: readonly TrustedComponentManifestEntry[];
 }
 
@@ -68,6 +98,7 @@ export interface TrustedComponentIdentity {
   readonly arch: TrustedComponentArch;
   readonly hash: Sha256Hash;
   readonly byteSize: number;
+  readonly fontFaceBinding?: TrustedBundledFontFaceBinding;
 }
 
 export interface VerifiedTrustedComponent extends TrustedComponentIdentity {
@@ -79,10 +110,77 @@ export interface TrustedComponentSelectionRequest {
   readonly id: string;
 }
 
+export const TRUSTED_COMPONENT_EXECUTION_OPERATIONS = [
+  "quarantineExecute",
+  "typstCompile",
+  "pdfInspect",
+] as const;
+
+export type TrustedComponentExecutionOperation =
+  (typeof TRUSTED_COMPONENT_EXECUTION_OPERATIONS)[number];
+
+export const TRUSTED_COMPONENT_EXECUTION_LIMITS = Object.freeze({
+  quarantineExecute: Object.freeze({ maximumRuntimeMs: 120_000 }),
+  typstCompile: Object.freeze({ maximumRuntimeMs: 120_000 }),
+  pdfInspect: Object.freeze({ maximumRuntimeMs: 30_000 }),
+} as const satisfies Readonly<
+  Record<TrustedComponentExecutionOperation, { readonly maximumRuntimeMs: number }>
+>);
+
+export interface TrustedComponentExecutionRequest {
+  readonly operation: TrustedComponentExecutionOperation;
+  readonly broker: TrustedComponentLocator;
+  readonly target: TrustedComponentLocator;
+}
+
+declare const componentOperationPayloadBrand: unique symbol;
+
+/**
+ * An operation-specific handle minted by the privileged native adapter.
+ * It contains no argv, environment, executable path, build root, or output
+ * destination. The adapter performs the runtime ownership check.
+ */
+export type TrustedComponentOperationPayload = Readonly<{
+  readonly token: string;
+  readonly operation: TrustedComponentExecutionOperation;
+  readonly timeoutMs: number;
+  readonly [componentOperationPayloadBrand]: true;
+}>;
+
+declare const componentExecutionGrantBrand: unique symbol;
+
+/** Runtime-minted, path-free authorization for one closed native operation. */
+export type TrustedComponentExecutionGrant = Readonly<{
+  readonly token: string;
+  readonly operation: TrustedComponentExecutionOperation;
+  readonly broker: TrustedComponentIdentity;
+  readonly target: TrustedComponentIdentity;
+  readonly [componentExecutionGrantBrand]: true;
+}>;
+
+export interface TrustedComponentExecutionInvocation {
+  readonly grant: TrustedComponentExecutionGrant;
+  readonly payload: TrustedComponentOperationPayload;
+}
+
+export interface TrustedComponentExecutionAuthority {
+  /** Re-verifies broker and target bytes and rejects forged/role-confused locators. */
+  authorize(
+    request: TrustedComponentExecutionRequest,
+  ): Promise<TrustedComponentExecutionGrant>;
+  /**
+   * Consume a runtime-owned grant exactly once. Component bytes are verified
+   * again immediately before the privileged closed-operation adapter runs.
+   */
+  invoke(request: TrustedComponentExecutionInvocation): Promise<void>;
+}
+
 export interface TrustedComponentRegistry {
   readonly manifestHash: Sha256Hash;
   readonly signingKeyId: string;
+  readonly release: TrustedComponentReleaseIdentity;
   readonly components: readonly TrustedComponentIdentity[];
+  readonly execution: TrustedComponentExecutionAuthority;
   /** Re-verifies bytes immediately before returning an opaque locator. */
   resolve(
     request: TrustedComponentSelectionRequest,
@@ -94,15 +192,21 @@ export type TrustedComponentErrorKind =
   | "unknownSigningKey"
   | "invalidSigningKey"
   | "invalidSignature"
+  | "releaseMismatch"
   | "platformMismatch"
   | "duplicateComponent"
   | "duplicatePath"
   | "nonCanonicalOrder"
   | "resourceLimitExceeded"
+  | "requiredReleaseSet"
+  | "invalidFontBinding"
   | "invalidAppRoot"
   | "componentVerificationFailed"
   | "unknownComponent"
-  | "invalidSelection";
+  | "invalidSelection"
+  | "invalidExecutionGrant"
+  | "executionUnavailable"
+  | "executionFailed";
 
 export class TrustedComponentError extends Error {
   readonly code = "CBB-PACKAGE-0001" as const;

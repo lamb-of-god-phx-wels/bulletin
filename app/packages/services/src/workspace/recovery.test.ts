@@ -66,6 +66,31 @@ describe("composite workspace startup recovery", () => {
     expect(recoverStartup).not.toHaveBeenCalled();
   });
 
+  it("stops before generic transactions after an ambiguous service-specific recovery", async () => {
+    const recoverStartup = vi.fn();
+    const additional: StartupRecoveryPort = {
+      async recover(_root, registry) {
+        return { status: "readOnly", registry, diagnostics: [] };
+      },
+    };
+    const composite = new CompositeWorkspaceStartupRecovery(
+      {
+        async recover() {
+          return { status: "ok", registry: BASE, diagnostics: [] };
+        },
+      },
+      () => ({ recoverStartup }),
+      { async reload() { return RELOADED; } },
+      ids,
+      [additional],
+    );
+
+    await expect(composite.recover("/workspace", BASE)).resolves.toMatchObject({
+      status: "readOnly",
+    });
+    expect(recoverStartup).not.toHaveBeenCalled();
+  });
+
   it("opens read-only and does not reload after ambiguous generic recovery", async () => {
     const reload = vi.fn(async () => RELOADED);
     const composite = new CompositeWorkspaceStartupRecovery(

@@ -2,6 +2,7 @@ import { createPublicKey, verify as verifySignature } from "node:crypto";
 import {
   canonicalJsonBytes,
   hashBytes,
+  isPortableFontRef,
 } from "@cbb/core";
 import type { Sha256Hash } from "@cbb/core";
 import {
@@ -9,10 +10,12 @@ import {
   TrustedComponentError,
 } from "./types.js";
 import type {
+  TrustedBundledFontFaceBinding,
   TrustedComponentArch,
   TrustedComponentManifestContent,
   TrustedComponentManifestEntry,
   TrustedComponentPlatform,
+  TrustedComponentReleaseIdentity,
   TrustedComponentRole,
   TrustedPublicKeyRegistry,
   VerifiedTrustedComponentManifest,
@@ -24,6 +27,7 @@ const VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9_.+:-]{0,127}$/u;
 const PATH_SEGMENT_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$/u;
 const SIGNATURE_RE = /^[A-Za-z0-9+/]{86}==$/u;
 const WINDOWS_DEVICE_RE = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu;
+const FACE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -34,6 +38,9 @@ export const TRUSTED_COMPONENT_LIMITS = Object.freeze({
   maximumPathDepth: 16,
   maximumPathLength: 1_024,
   roleByteCaps: Object.freeze({
+    executionBroker: 500 * MIB,
+    quarantineWorker: 500 * MIB,
+    pdfInspector: 500 * MIB,
     typstCli: 500 * MIB,
     bookletCompositor: 500 * MIB,
     pdfUaValidator: 1 * GIB,
@@ -145,11 +152,54 @@ export function trustedComponentPathSegments(value: unknown): readonly string[] 
   return Object.freeze(segments);
 }
 
+function normalizeFontFaceBinding(
+  raw: unknown,
+  subject: string,
+): TrustedBundledFontFaceBinding {
+  if (!plainRecord(raw)) fail("invalidFontBinding", subject);
+  exactKeys(
+    raw,
+    ["portableFontRef", "familyName", "faceId", "faceIndex", "format", "weight", "style", "stretch"],
+    ["portableFontRef", "familyName", "faceId", "faceIndex", "format", "weight", "style", "stretch"],
+  );
+  if (
+    typeof raw["portableFontRef"] !== "string" ||
+    !isPortableFontRef(raw["portableFontRef"]) ||
+    typeof raw["familyName"] !== "string" ||
+    raw["familyName"].length < 1 ||
+    [...raw["familyName"]].length > 512 ||
+    raw["familyName"].normalize("NFC") !== raw["familyName"] ||
+    /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u.test(raw["familyName"]) ||
+    typeof raw["faceId"] !== "string" ||
+    !FACE_ID_RE.test(raw["faceId"]) ||
+    !Number.isSafeInteger(raw["faceIndex"]) ||
+    (raw["faceIndex"] as number) < 0 ||
+    !["ttf", "otf", "woff", "woff2"].includes(String(raw["format"])) ||
+    !Number.isInteger(raw["weight"]) ||
+    (raw["weight"] as number) < 100 ||
+    (raw["weight"] as number) > 900 ||
+    !["normal", "italic", "oblique"].includes(String(raw["style"])) ||
+    typeof raw["stretch"] !== "number" ||
+    !Number.isFinite(raw["stretch"]) ||
+    (raw["stretch"] as number) <= 0
+  ) fail("invalidFontBinding", subject);
+  return Object.freeze({
+    portableFontRef: raw["portableFontRef"],
+    familyName: raw["familyName"],
+    faceId: raw["faceId"],
+    faceIndex: raw["faceIndex"],
+    format: raw["format"],
+    weight: raw["weight"],
+    style: raw["style"],
+    stretch: raw["stretch"],
+  }) as TrustedBundledFontFaceBinding;
+}
+
 function normalizeEntry(raw: unknown): TrustedComponentManifestEntry {
   if (!plainRecord(raw)) fail("invalidManifest");
   exactKeys(
     raw,
-    ["role", "id", "version", "platform", "arch", "relativePath", "hash", "byteSize"],
+    ["role", "id", "version", "platform", "arch", "relativePath", "hash", "byteSize", "fontFaceBinding"],
     ["role", "id", "version", "platform", "arch", "relativePath", "hash", "byteSize"],
   );
   if (!isRole(raw["role"])) fail("invalidManifest");
@@ -168,6 +218,13 @@ function normalizeEntry(raw: unknown): TrustedComponentManifestEntry {
     fail("resourceLimitExceeded", `${raw["role"]}:${raw["id"]}`);
   }
   const byteSize = raw["byteSize"] as number;
+  const subject = String(raw["role"]) + ":" + String(raw["id"]);
+  const fontFaceBinding = raw["role"] === "bundledFontFace"
+    ? normalizeFontFaceBinding(raw["fontFaceBinding"], subject)
+    : undefined;
+  if (raw["role"] !== "bundledFontFace" && Object.hasOwn(raw, "fontFaceBinding")) {
+    fail("invalidFontBinding", subject);
+  }
   return Object.freeze({
     role: raw["role"],
     id: raw["id"],
@@ -177,15 +234,51 @@ function normalizeEntry(raw: unknown): TrustedComponentManifestEntry {
     relativePath,
     hash: raw["hash"] as Sha256Hash,
     byteSize,
+    ...(fontFaceBinding !== undefined ? { fontFaceBinding } : {}),
   });
+}
+
+function normalizeReleaseIdentity(raw: unknown): TrustedComponentReleaseIdentity {
+  if (!plainRecord(raw)) fail("invalidManifest", "release");
+  exactKeys(
+    raw,
+    ["applicationId", "releaseId", "releaseSequence", "profile"],
+    ["applicationId", "releaseId", "releaseSequence", "profile"],
+  );
+  if (
+    typeof raw["applicationId"] !== "string" ||
+    !TOKEN_RE.test(raw["applicationId"]) ||
+    typeof raw["releaseId"] !== "string" ||
+    !VERSION_RE.test(raw["releaseId"]) ||
+    !Number.isSafeInteger(raw["releaseSequence"]) ||
+    (raw["releaseSequence"] as number) < 1 ||
+    typeof raw["profile"] !== "string" ||
+    !TOKEN_RE.test(raw["profile"])
+  ) fail("invalidManifest", "release");
+  return Object.freeze({
+    applicationId: raw["applicationId"],
+    releaseId: raw["releaseId"],
+    releaseSequence: raw["releaseSequence"],
+    profile: raw["profile"],
+  }) as TrustedComponentReleaseIdentity;
+}
+
+function sameReleaseIdentity(
+  left: TrustedComponentReleaseIdentity,
+  right: TrustedComponentReleaseIdentity,
+): boolean {
+  return left.applicationId === right.applicationId &&
+    left.releaseId === right.releaseId &&
+    left.releaseSequence === right.releaseSequence &&
+    left.profile === right.profile;
 }
 
 function normalizeContent(raw: unknown): TrustedComponentManifestContent {
   if (!plainRecord(raw)) fail("invalidManifest");
   exactKeys(
     raw,
-    ["version", "kind", "signingKeyId", "components"],
-    ["version", "kind", "signingKeyId", "components"],
+    ["version", "kind", "signingKeyId", "release", "components"],
+    ["version", "kind", "signingKeyId", "release", "components"],
   );
   if (raw["version"] !== 1 || raw["kind"] !== "trustedComponentManifest") fail("invalidManifest");
   if (typeof raw["signingKeyId"] !== "string" || !TOKEN_RE.test(raw["signingKeyId"])) fail("invalidManifest");
@@ -223,6 +316,7 @@ function normalizeContent(raw: unknown): TrustedComponentManifestContent {
     version: 1,
     kind: "trustedComponentManifest",
     signingKeyId: raw["signingKeyId"],
+    release: normalizeReleaseIdentity(raw["release"]),
     components: Object.freeze(components),
   });
 }
@@ -242,11 +336,13 @@ function decodeSignature(value: unknown): Uint8Array {
 export interface VerifyTrustedComponentManifestOptions {
   readonly manifest: unknown;
   readonly trustedKeys: TrustedPublicKeyRegistry;
+  /** Independently configured by the installed application, never copied from the manifest. */
+  readonly expectedRelease: TrustedComponentReleaseIdentity;
   readonly expectedPlatform: TrustedComponentPlatform;
   readonly expectedArch: TrustedComponentArch;
 }
 
-/** Validate the closed manifest, verify its Ed25519 signature, and pin platform. */
+/** Validate/signature-check the manifest, then pin exact release, platform, and architecture. */
 export function verifyTrustedComponentManifest(
   options: VerifyTrustedComponentManifestOptions,
 ): VerifiedTrustedComponentManifest {
@@ -254,13 +350,14 @@ export function verifyTrustedComponentManifest(
   if (!plainRecord(raw)) fail("invalidManifest");
   exactKeys(
     raw,
-    ["version", "kind", "signingKeyId", "components", "signature"],
-    ["version", "kind", "signingKeyId", "components", "signature"],
+    ["version", "kind", "signingKeyId", "release", "components", "signature"],
+    ["version", "kind", "signingKeyId", "release", "components", "signature"],
   );
   const content = normalizeContent({
     version: raw["version"],
     kind: raw["kind"],
     signingKeyId: raw["signingKeyId"],
+    release: raw["release"],
     components: raw["components"],
   });
   const signature = decodeSignature(raw["signature"]);
@@ -287,6 +384,16 @@ export function verifyTrustedComponentManifest(
     fail("invalidSigningKey", content.signingKeyId);
   }
   if (!valid) fail("invalidSignature", content.signingKeyId);
+
+  let expectedRelease: TrustedComponentReleaseIdentity;
+  try {
+    expectedRelease = normalizeReleaseIdentity(options.expectedRelease);
+  } catch {
+    fail("releaseMismatch", "expectedRelease");
+  }
+  if (!sameReleaseIdentity(content.release, expectedRelease)) {
+    fail("releaseMismatch", content.release.releaseId);
+  }
 
   for (const component of content.components) {
     if (

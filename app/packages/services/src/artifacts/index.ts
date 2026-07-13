@@ -4,16 +4,29 @@ export {
   queryArtifactCurrency,
 } from "./store.js";
 export {
+  BuildArtifactBridgeError,
+  createImmutableBuildArtifactBridge,
+} from "./buildBridge.js";
+export type {
+  BuildArtifactBridgeClockPort,
+  BuildArtifactPersistencePort,
+  ImmutableBuildArtifactBridge,
+  ImmutableBuildArtifactBridgeOptions,
+} from "./buildBridge.js";
+export {
   ARTIFACT_RECORD_SCHEMA_ID,
   NodeArtifactAdapterError,
+  NodeArtifactStartupRecovery,
   NodeCompileOutputHandleRegistry,
   createArtifactRecordSchemaValidator,
   createNodeArtifactPdfValidator,
   createNodeArtifactRecordValidator,
   createNodeArtifactStoragePort,
   createNodeCompileOutputReader,
+  recoverNodeArtifactInstalls,
 } from "./nodeAdapters.js";
 export type {
+  NodeArtifactInstallRecoveryResult,
   NodeArtifactAdapterFailureKind,
   NodeArtifactPdfValidatorOptions,
   PdfInspectorIdentity,
@@ -28,6 +41,9 @@ export type {
   ArtifactCurrencyResult,
   ArtifactExecutionMode,
   ArtifactHashPort,
+  ArtifactInstallJournal,
+  ArtifactInstallJournalOwnedByte,
+  ArtifactInstallJournalPort,
   ArtifactKind,
   ArtifactLocator,
   ArtifactOutputEvidence,
@@ -57,3 +73,11 @@ export type {
   RevalidateArtifactInstallRequest,
   SuccessfulArtifactMetadata,
 } from "./types.js";
+export {
+  NodePdfInfoInspector,
+  NodePdfInfoInspectorError,
+} from "./nodePdfInfoInspector.js";
+export type {
+  NodePdfInfoInspectorErrorKind,
+  NodePdfInfoInspectorOptions,
+} from "./nodePdfInfoInspector.js";

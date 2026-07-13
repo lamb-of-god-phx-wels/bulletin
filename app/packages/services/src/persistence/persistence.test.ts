@@ -160,7 +160,6 @@ describe("durable workspace and persistence vertical slice", () => {
     await created.session.lease.release();
     await expect(readFile(join(created.root, WORKSPACE_LOCK_PATH), "utf8")).rejects.toThrow();
   });
-
   it("requires an exact user-confirmed observation before replacing a stale lock", async () => {
     const oldClock = new MutableClock(new Date("2026-07-12T12:00:00.000Z"));
     const created = await createEditable({ clock: oldClock });
@@ -630,3 +629,26 @@ describe("durable workspace and persistence vertical slice", () => {
     }
   });
 });
+  it("releases an acquired lease when startup recovery throws", async () => {
+    const created = await createEditable();
+    await created.session.lease.release();
+
+    const faultPorts = ports({ ids: idPort(700), processStatus: "liveMatch" });
+    const failed = await new WorkspaceService(
+      faultPorts,
+      created.catalog,
+      { async recover() { throw new Error("injected startup recovery failure"); } },
+      "0.0.0-test",
+    ).open(created.root);
+    expect(failed.status).toBe("failed");
+
+    const reopenPorts = ports({ ids: idPort(800), processStatus: "liveMatch" });
+    const reopened = await new WorkspaceService(
+      reopenPorts,
+      created.catalog,
+      new SaveJournalRecoveryService(reopenPorts, created.catalog),
+      "0.0.0-test",
+    ).open(created.root);
+    expect(reopened.status).toBe("editable");
+    if (reopened.status === "editable") await reopened.session.lease.release();
+  });

@@ -216,6 +216,23 @@ describe("isolated Typst runner", () => {
     expect(cleanup).toHaveBeenCalledWith(ROOT);
   });
 
+  it("fails closed when the sandbox cannot authoritatively remove its build root", async () => {
+    const persistCompile = vi.fn(async () => ({ artifactId: "must-not-escape" }));
+    const result = await runIsolatedTypstCompile(
+      request(),
+      TOOL,
+      sandbox({ async cleanup() { throw new Error("root remains owned"); } }),
+      timer,
+      { persistCompile },
+    );
+    expect(persistCompile).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      status: "failed",
+      kind: "cleanupFailed",
+      code: "CBB-SECURITY-0001",
+    });
+  });
+
   it("rejects staging mismatches and invalid PDF evidence without persisting", async () => {
     const persistCompile = vi.fn(async () => undefined);
     await expect(

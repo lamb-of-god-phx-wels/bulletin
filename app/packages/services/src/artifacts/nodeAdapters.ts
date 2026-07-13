@@ -5,6 +5,7 @@ import {
   lstat,
   mkdir,
   open,
+  readdir,
   realpath,
   unlink,
 } from "node:fs/promises";
@@ -17,13 +18,25 @@ import {
 } from "node:path";
 import {
   canonicalJsonBytes,
+  canonicalStringify,
   hashBytes,
+  isCanonicalUuid,
+  type IdPort,
   type SchemaCatalog,
   type Sha256Hash,
 } from "@cbb/core";
 import type { BuildOutputHandle } from "../build/runner.js";
 import { decodeCanonicalJson } from "../ports/index.js";
+import { serviceDiagnostic } from "../workspace/diagnostics.js";
+import { ARTIFACT_INSTALL_JOURNAL_DIRECTORY } from "../workspace/paths.js";
 import type {
+  StartupRecoveryPort,
+  StartupRecoveryResult,
+  WorkspaceRegistry,
+} from "../workspace/types.js";
+import type {
+  ArtifactInstallJournal,
+  ArtifactInstallJournalPort,
   ArtifactPdfValidatorPort,
   ArtifactRecord,
   ArtifactRecordLocator,
@@ -47,7 +60,10 @@ const MAX_ARTIFACT_BYTES = 1024 * 1024 * 1024;
 const MAX_PDF_PAGES = 1_000;
 const MAX_PDF_STANDARDS = 32;
 const MAX_OUTPUT_HANDLES = 4_096;
+const MAX_INSTALL_JOURNALS = 200_000;
+const MAX_INSTALL_JOURNAL_BYTES = 32 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
+const INSTALL_JOURNAL_NAME = /^([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.json$/u;
 
 export type NodeArtifactAdapterFailureKind =
   | "storageBoundaryRejected"
@@ -439,8 +455,133 @@ function artifactSegments(
   return ["artifacts", locator.bulletinLocalId, `${locator.buildId}.${extension}`];
 }
 
-class NodeArtifactStorage implements ArtifactStoragePort {
+function journalName(
+  record: Pick<ArtifactRecord, "bulletinLocalId" | "buildId">,
+): string {
+  if (!validateUuid(record.bulletinLocalId) || !validateUuid(record.buildId)) {
+    throw storageFailure();
+  }
+  return `${record.bulletinLocalId}-${record.buildId}.json`;
+}
+
+function journalSegments(
+  record: Pick<ArtifactRecord, "bulletinLocalId" | "buildId">,
+): readonly string[] {
+  return [...ARTIFACT_INSTALL_JOURNAL_DIRECTORY.split("/"), journalName(record)];
+}
+
+function expectedOwnedBytes(record: ArtifactRecord): ReadonlyMap<"typ" | "pdf", Sha256Hash> {
+  const expected = new Map<"typ" | "pdf", Sha256Hash>();
+  const evidence = record.outputEvidence;
+  if (record.status !== "succeeded" || evidence === undefined) return expected;
+  if (evidence.mode === "compile") {
+    expected.set("typ", evidence.typstHash);
+    expected.set("pdf", evidence.pdf.hash);
+  } else if (evidence.mode === "compose") {
+    expected.set("pdf", evidence.pdf.hash);
+  }
+  return expected;
+}
+
+async function validateInstallJournal(
+  value: unknown,
+  records: ArtifactRecordValidatorPort,
+): Promise<ArtifactInstallJournal> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw storageFailure();
+  const raw = value as Record<string, unknown>;
+  const keys = Reflect.ownKeys(raw);
+  if (
+    keys.length !== 4 ||
+    keys.some((key) => typeof key !== "string" || !["version", "kind", "record", "ownedBytes"].includes(key)) ||
+    raw["version"] !== 1 ||
+    raw["kind"] !== "artifactInstallJournal" ||
+    !Array.isArray(raw["ownedBytes"]) ||
+    raw["ownedBytes"].length > 2 ||
+    !await records.validate(raw["record"])
+  ) throw storageFailure();
+  const record = raw["record"] as ArtifactRecord;
+  validateRecordLocator({
+    kind: "artifactRecord",
+    bulletinLocalId: record.bulletinLocalId,
+    buildId: record.buildId,
+  });
+  const expected = expectedOwnedBytes(record);
+  const observed = new Map<"typ" | "pdf", { readonly hash: Sha256Hash; readonly byteSize: number }>();
+  let previous = "";
+  for (const item of raw["ownedBytes"] as unknown[]) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) throw storageFailure();
+    const entry = item as Record<string, unknown>;
+    if (
+      Reflect.ownKeys(entry).length !== 3 ||
+      Reflect.ownKeys(entry).some((key) => typeof key !== "string" || !["extension", "hash", "byteSize"].includes(key)) ||
+      (entry["extension"] !== "typ" && entry["extension"] !== "pdf") ||
+      entry["extension"] <= previous ||
+      typeof entry["hash"] !== "string" ||
+      !SHA256.test(entry["hash"]) ||
+      !Number.isSafeInteger(entry["byteSize"]) ||
+      (entry["byteSize"] as number) < 1 ||
+      (entry["byteSize"] as number) > MAX_ARTIFACT_BYTES
+    ) throw storageFailure();
+    previous = entry["extension"];
+    observed.set(entry["extension"], {
+      hash: entry["hash"] as Sha256Hash,
+      byteSize: entry["byteSize"] as number,
+    });
+  }
+  if (
+    observed.size !== expected.size ||
+    [...expected].some(([extension, hash]) => observed.get(extension)?.hash !== hash)
+  ) throw storageFailure();
+  return value as ArtifactInstallJournal;
+}
+
+class NodeArtifactInstallJournalStorage implements ArtifactInstallJournalPort {
   public constructor(private readonly root: FixedRoot) {}
+
+  public async begin(journal: ArtifactInstallJournal): Promise<void> {
+    try {
+      const bytes = canonicalJsonBytes(journal);
+      if (bytes.byteLength > MAX_INSTALL_JOURNAL_BYTES) throw storageFailure();
+      const segments = journalSegments(journal.record);
+      await this.root.ensureDirectoryChain(segments.slice(0, -1));
+      const created = await durableCreateExclusive(
+        this.root.resolve(...segments),
+        this.root.resolve(...segments.slice(0, -1)),
+        bytes,
+        MAX_INSTALL_JOURNAL_BYTES,
+      );
+      if (!created) throw storageFailure();
+    } catch {
+      throw storageFailure();
+    }
+  }
+
+  public async finish(journal: ArtifactInstallJournal): Promise<void> {
+    try {
+      const expected = canonicalJsonBytes(journal);
+      const segments = journalSegments(journal.record);
+      if (!await this.root.assertDirectoryChain(segments.slice(0, -1))) return;
+      const path = this.root.resolve(...segments);
+      const observed = await readStableFile(path, MAX_INSTALL_JOURNAL_BYTES);
+      if (observed === undefined) return;
+      if (!equalBytes(observed.bytes, expected)) throw storageFailure();
+      if (!await removeExactFile(
+        path,
+        this.root.resolve(...segments.slice(0, -1)),
+        observed.identity,
+      )) throw storageFailure();
+    } catch {
+      throw storageFailure();
+    }
+  }
+}
+
+class NodeArtifactStorage implements ArtifactStoragePort {
+  public readonly installJournal: ArtifactInstallJournalPort;
+
+  public constructor(private readonly root: FixedRoot) {
+    this.installJournal = new NodeArtifactInstallJournalStorage(root);
+  }
 
   private async read(
     locator: ArtifactRecordLocator | ArtifactOwnedByteLocator,
@@ -563,6 +704,187 @@ class NodeArtifactStorage implements ArtifactStoragePort {
   }
 }
 
+export interface NodeArtifactInstallRecoveryResult {
+  readonly finalized: number;
+  readonly rolledBack: number;
+  readonly discardedIncompleteIntents: number;
+}
+
+async function hasArtifactResidue(
+  storage: ArtifactStoragePort,
+  bulletinLocalId: string,
+  buildId: string,
+): Promise<boolean> {
+  if (await storage.readRecord({ kind: "artifactRecord", bulletinLocalId, buildId }) !== undefined) {
+    return true;
+  }
+  for (const extension of ["typ", "pdf"] as const) {
+    if (await storage.readOwnedByte({
+      kind: "artifactOwnedByte",
+      bulletinLocalId,
+      buildId,
+      extension,
+    }) !== undefined) return true;
+  }
+  return false;
+}
+
+async function assertOwnedBytes(
+  storage: ArtifactStoragePort,
+  journal: ArtifactInstallJournal,
+  remove: boolean,
+): Promise<void> {
+  const expected = new Map(journal.ownedBytes.map((entry) => [entry.extension, entry]));
+  for (const extension of ["typ", "pdf"] as const) {
+    const locator: ArtifactOwnedByteLocator = {
+      kind: "artifactOwnedByte",
+      bulletinLocalId: journal.record.bulletinLocalId,
+      buildId: journal.record.buildId,
+      extension,
+    };
+    const bytes = await storage.readOwnedByte(locator);
+    const identity = expected.get(extension);
+    if (identity === undefined) {
+      if (bytes !== undefined) throw storageFailure();
+      continue;
+    }
+    if (bytes === undefined) {
+      if (remove) continue;
+      throw storageFailure();
+    }
+    if (
+      bytes.byteLength !== identity.byteSize ||
+      hashBytes(bytes) !== identity.hash
+    ) throw storageFailure();
+    if (remove && !await storage.deleteOwnedByteIfHash(locator, identity.hash)) {
+      throw storageFailure();
+    }
+  }
+}
+
+/**
+ * Resolve every write-ahead artifact intent before workspace services become
+ * available. An exact record commits its exact bytes; without the record only
+ * exact journal-owned bytes may be removed. Contradictory evidence is preserved
+ * and rejected rather than guessed at.
+ */
+export async function recoverNodeArtifactInstalls(
+  workspaceRoot: string,
+  records: ArtifactRecordValidatorPort,
+): Promise<NodeArtifactInstallRecoveryResult> {
+  const root = await FixedRoot.create(workspaceRoot);
+  const storage = new NodeArtifactStorage(root);
+  const journalStorage = storage.installJournal;
+  const directorySegments = ARTIFACT_INSTALL_JOURNAL_DIRECTORY.split("/");
+  if (!await root.assertDirectoryChain(directorySegments)) {
+    return { finalized: 0, rolledBack: 0, discardedIncompleteIntents: 0 };
+  }
+  const directory = root.resolve(...directorySegments);
+  const entries = await readdir(directory, { withFileTypes: true });
+  if (entries.length > MAX_INSTALL_JOURNALS) throw storageFailure();
+  entries.sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0);
+  let finalized = 0;
+  let rolledBack = 0;
+  let discardedIncompleteIntents = 0;
+
+  for (const entry of entries) {
+    const match = INSTALL_JOURNAL_NAME.exec(entry.name);
+    if (match?.[1] === undefined || match[2] === undefined || !entry.isFile() || entry.isSymbolicLink()) {
+      throw storageFailure();
+    }
+    const path = root.resolve(...directorySegments, entry.name);
+    const read = await readStableFile(path, MAX_INSTALL_JOURNAL_BYTES);
+    if (read === undefined) throw storageFailure();
+    let journal: ArtifactInstallJournal;
+    try {
+      journal = await validateInstallJournal(decodeCanonicalJson(read.bytes), records);
+    } catch {
+      if (await hasArtifactResidue(storage, match[1], match[2])) throw storageFailure();
+      if (!await removeExactFile(path, directory, read.identity)) throw storageFailure();
+      discardedIncompleteIntents += 1;
+      continue;
+    }
+    if (
+      journal.record.bulletinLocalId !== match[1] ||
+      journal.record.buildId !== match[2]
+    ) throw storageFailure();
+
+    const locator: ArtifactRecordLocator = {
+      kind: "artifactRecord",
+      bulletinLocalId: journal.record.bulletinLocalId,
+      buildId: journal.record.buildId,
+    };
+    const recordSegments = artifactSegments(locator);
+    const recordDirectorySegments = recordSegments.slice(0, -1);
+    const durableRecord = await root.assertDirectoryChain(recordDirectorySegments)
+      ? await readStableFile(root.resolve(...recordSegments), MAX_RECORD_BYTES)
+      : undefined;
+    if (durableRecord === undefined) {
+      await assertOwnedBytes(storage, journal, true);
+      await journalStorage.finish(journal);
+      rolledBack += 1;
+      continue;
+    }
+    const expectedRecord = canonicalJsonBytes(journal.record);
+    if (!equalBytes(durableRecord.bytes, expectedRecord)) {
+      const exactInterruptedPrefix = durableRecord.bytes.byteLength < expectedRecord.byteLength &&
+        equalBytes(durableRecord.bytes, expectedRecord.subarray(0, durableRecord.bytes.byteLength));
+      if (!exactInterruptedPrefix || !await removeExactFile(
+        root.resolve(...recordSegments),
+        root.resolve(...recordDirectorySegments),
+        durableRecord.identity,
+      )) throw storageFailure();
+      await assertOwnedBytes(storage, journal, true);
+      await journalStorage.finish(journal);
+      rolledBack += 1;
+      continue;
+    }
+    const parsedRecord = decodeCanonicalJson(durableRecord.bytes);
+    if (!await records.validate(parsedRecord) || canonicalStringify(parsedRecord) !== canonicalStringify(journal.record)) {
+      throw storageFailure();
+    }
+    await assertOwnedBytes(storage, journal, false);
+    await journalStorage.finish(journal);
+    finalized += 1;
+  }
+  if (!await root.assertDirectoryChain(directorySegments)) throw storageFailure();
+  return { finalized, rolledBack, discardedIncompleteIntents };
+}
+
+/** Workspace startup adapter that turns artifact ambiguity into read-only mode. */
+export class NodeArtifactStartupRecovery implements StartupRecoveryPort {
+  public constructor(
+    private readonly records: ArtifactRecordValidatorPort,
+    private readonly ids: IdPort,
+  ) {}
+
+  public async recover(
+    root: string,
+    registry: WorkspaceRegistry,
+  ): Promise<StartupRecoveryResult> {
+    try {
+      await recoverNodeArtifactInstalls(root, this.records);
+      return { status: "ok", registry, diagnostics: [] };
+    } catch {
+      const correlationId = this.ids.randomUuid();
+      if (!isCanonicalUuid(correlationId)) {
+        throw new TypeError("Id port returned an invalid artifact recovery correlation id");
+      }
+      return {
+        status: "readOnly",
+        registry,
+        diagnostics: [serviceDiagnostic({
+          code: "CBB-SAVE-0001",
+          correlationId,
+          operation: "recover-artifact-install",
+          userSummary: "An interrupted PDF build could not be recovered safely.",
+          recoveryActions: ["cancel"],
+        })],
+      };
+    }
+  }
+}
+
 /** Construct a fixed-layout, immutable artifact store rooted at one trusted workspace. */
 export async function createNodeArtifactStoragePort(
   workspaceRoot: string,
@@ -665,6 +987,7 @@ export class NodeCompileOutputHandleRegistry {
       if (typeof handle !== "string" || !OUTPUT_HANDLE.test(handle)) throw outputFailure();
       const entry = this.#entries.get(handle);
       if (entry === undefined) throw outputFailure();
+      this.#entries.delete(handle);
       if (!await this.root.assertDirectoryChain([entry.buildId])) throw outputFailure();
       const observed = await readStableFile(entry.path, entry.byteSize);
       if (

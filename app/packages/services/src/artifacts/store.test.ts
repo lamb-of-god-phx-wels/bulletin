@@ -122,6 +122,13 @@ class MemoryArtifactStorage implements ArtifactStoragePort {
   }
 }
 
+class JournaledMemoryArtifactStorage extends MemoryArtifactStorage {
+  public readonly installJournal = {
+    begin: async () => { this.events.push("journal:begin"); },
+    finish: async () => { this.events.push("journal:finish"); },
+  };
+}
+
 class PdfValidator implements ArtifactPdfValidatorPort {
   public calls = 0;
   public failAtCall: number | undefined;
@@ -206,6 +213,46 @@ async function compile(
 }
 
 describe("ImmutableArtifactStore", () => {
+  it("publishes write-ahead intent before bytes and removes it after the record commit marker", async () => {
+    const storage = new JournaledMemoryArtifactStorage();
+    const store = new ImmutableArtifactStore({
+      storage,
+      pdfs: new PdfValidator(),
+      hashes: { digest: (value) => hash(value) },
+      records: { validate: () => true },
+    });
+
+    await compile(store);
+
+    expect(storage.events).toEqual([
+      "journal:begin",
+      "install:typ",
+      "install:pdf",
+      "install:record",
+      "journal:finish",
+    ]);
+  });
+
+  it("removes write-ahead intent only after exact partial-output rollback", async () => {
+    const storage = new JournaledMemoryArtifactStorage();
+    storage.failByteExtension = "pdf";
+    const store = new ImmutableArtifactStore({
+      storage,
+      pdfs: new PdfValidator(),
+      hashes: { digest: (value) => hash(value) },
+      records: { validate: () => true },
+    });
+
+    await expect(compile(store)).rejects.toThrow("simulated pdf install failure");
+
+    expect(storage.events).toEqual([
+      "journal:begin",
+      "install:typ",
+      "delete:typ",
+      "journal:finish",
+    ]);
+  });
+
   it("installs compile .typ and .pdf immutably, verifies them, and writes the record last", async () => {
     const { store, storage } = harness();
     const record = await compile(store);

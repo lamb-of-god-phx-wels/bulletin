@@ -12,7 +12,8 @@
   ],
   "scripts": {
     "typecheck": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:m3-native:linux": "CBB_RUN_NATIVE_M3=1 vitest run test/m3-native-build.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

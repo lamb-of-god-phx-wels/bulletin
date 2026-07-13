@@ -99,6 +99,8 @@ export type TrustedBuildProjectionRequest =
 export interface TrustedBuildProjectionProviderPort {
   /** Load the named snapshot, resolve/project/hash it, then generate Typst. */
   prepare(request: TrustedBuildProjectionRequest): Promise<PreparedBuildProjection>;
+  /** Idempotently discard an opaque projection that will not be executed. */
+  release(projectionHandle: string): Promise<void> | void;
 }
 
 export interface BuildIdPort {
@@ -512,6 +514,7 @@ export class BuildOrchestrator {
           savedInputs: { ...saved, saveState: "clean" },
         });
         if (!exactInputs(prepared.provenance, saved)) {
+          await this.releaseProjection(prepared.provenance.projectionHandle);
           throw new BuildOrchestratorError("projectionNotExact", "CBB-SAVE-0002", "Manual projection does not match the exact clean save");
         }
         const request: ManualBuildRequest = {
@@ -578,7 +581,13 @@ export class BuildOrchestrator {
     } catch {
       throw new BuildOrchestratorError("projectionFailed", "CBB-BUILD-0001", "Trusted build projection preparation failed");
     }
-    const prepared = validatePreparedProjection(raw, request.localResourceId);
+    let prepared: { readonly source: string; readonly provenance: TrustedBuildProvenance };
+    try {
+      prepared = validatePreparedProjection(raw, request.localResourceId);
+    } catch (error) {
+      await this.releaseRawProjection(raw);
+      throw error;
+    }
     if (request.kind === "manual") {
       const metadata = prepared.provenance.artifactMetadata;
       const invalidDraft = request.artifactKind === "draft" &&
@@ -590,6 +599,7 @@ export class BuildOrchestrator {
           metadata.readinessProfile === "draft"
         );
       if (invalidDraft || invalidFinal) {
+        await this.releaseProjection(prepared.provenance.projectionHandle);
         throw new BuildOrchestratorError(
           "projectionNotExact",
           "CBB-BUILD-0001",
@@ -610,6 +620,7 @@ export class BuildOrchestrator {
     try {
       await this.ports.artifacts.record({ type: "queued", request, provenance: payload.provenance });
     } catch {
+      await this.releaseProjection(payload.provenance.projectionHandle);
       throw new BuildOrchestratorError("statusPersistenceFailed", "CBB-BUILD-0001", "Build queued status could not be recorded");
     }
     this.seenBuildIds.add(request.buildId);
@@ -619,6 +630,7 @@ export class BuildOrchestrator {
       effects = await this.transition({ type: "enqueue", request });
     } catch (error) {
       this.payloads.delete(request.buildId);
+      await this.releaseProjection(payload.provenance.projectionHandle);
       throw error;
     }
     return {
@@ -641,6 +653,24 @@ export class BuildOrchestrator {
 
   private provenanceFor(buildId: string): TrustedBuildProvenance | undefined {
     return this.payloads.get(buildId)?.provenance;
+  }
+
+  private async releaseRawProjection(raw: unknown): Promise<void> {
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return;
+    const descriptor = Object.getOwnPropertyDescriptor(raw, "projectionHandle");
+    if (
+      descriptor === undefined || !("value" in descriptor) ||
+      typeof descriptor.value !== "string" || !PROJECTION_HANDLE.test(descriptor.value)
+    ) return;
+    await this.releaseProjection(descriptor.value);
+  }
+
+  private async releaseProjection(projectionHandle: string): Promise<void> {
+    try {
+      await this.ports.projections.release(projectionHandle);
+    } catch {
+      // Release is cleanup only; the prepared snapshot remains capacity-bounded.
+    }
   }
 
   private async applyEffect(effect: BuildQueueEffect): Promise<void> {
@@ -676,6 +706,9 @@ export class BuildOrchestrator {
             provenance,
           });
         }
+        if (provenance !== undefined) {
+          await this.releaseProjection(provenance.projectionHandle);
+        }
         this.payloads.delete(effect.buildId);
         return;
       }
@@ -683,6 +716,7 @@ export class BuildOrchestrator {
         const provenance = this.provenanceFor(effect.buildId);
         if (provenance !== undefined) {
           await this.safeStatus({ type: "enqueueIgnored", buildId: effect.buildId, provenance });
+          await this.releaseProjection(provenance.projectionHandle);
         }
         this.payloads.delete(effect.buildId);
         return;

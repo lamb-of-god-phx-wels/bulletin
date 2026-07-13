@@ -1,9 +1,10 @@
-import { hashBytes } from "@cbb/core";
+import { canonicalJsonBytes, hashBytes } from "@cbb/core";
 import type { SchemaCatalog, Sha256Hash } from "@cbb/core";
 import {
   link,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   symlink,
@@ -20,11 +21,14 @@ import {
   createNodeArtifactPdfValidator,
   createNodeArtifactStoragePort,
   createNodeCompileOutputReader,
+  recoverNodeArtifactInstalls,
   type PdfInspectorIdentity,
   type PinnedPdfInspectorPort,
 } from "./nodeAdapters.js";
 import type {
   ArtifactOwnedByteLocator,
+  ArtifactInstallJournal,
+  ArtifactRecordValidatorPort,
   ArtifactRecord,
   ArtifactRecordLocator,
 } from "./types.js";
@@ -85,7 +89,177 @@ function record(): ArtifactRecord {
   };
 }
 
+function successfulCompileRecord(source: Uint8Array, pdf: Uint8Array): ArtifactRecord {
+  return {
+    ...record(),
+    status: "succeeded",
+    startedAt: "2026-07-12T12:00:00.500Z",
+    completedAt: "2026-07-12T12:00:01Z",
+    diagnosticCodes: [],
+    outputEvidence: {
+      mode: "compile",
+      renderProjectionHash: hash("projection"),
+      typstRelativePath: `artifacts/${BULLETIN}/${BUILD}.typ`,
+      typstHash: hash(source),
+      generatorVersion: "cbb-typstgen-v1",
+      pdf: {
+        relativePath: `artifacts/${BULLETIN}/${BUILD}.pdf`,
+        hash: hash(pdf),
+        byteSize: pdf.byteLength,
+        pageCount: 1,
+        pdfVersion: "1.7",
+      },
+      resources: { assets: [], fontFaces: [] },
+    },
+  };
+}
+
+const acceptRecords: ArtifactRecordValidatorPort = {
+  validate(value) {
+    return value !== null && typeof value === "object" &&
+      (value as { readonly kind?: unknown }).kind === "artifactRecord";
+  },
+};
+
+function installJournal(
+  artifact: ArtifactRecord,
+  source: Uint8Array,
+  pdf: Uint8Array,
+): ArtifactInstallJournal {
+  return {
+    version: 1,
+    kind: "artifactInstallJournal",
+    record: artifact,
+    ownedBytes: [
+      { extension: "pdf", hash: hash(pdf), byteSize: pdf.byteLength },
+      { extension: "typ", hash: hash(source), byteSize: source.byteLength },
+    ],
+  };
+}
+
 describe("Node artifact storage adapter", () => {
+  it("rolls back exact pre-commit output after a simulated crash", async () => {
+    const root = await temporaryRoot("artifact-crash-rollback");
+    const storage = await createNodeArtifactStoragePort(root);
+    const source = bytes("#text(\"partial\")");
+    const pdf = bytes("%PDF-1.7\npartial\n%%EOF\n");
+    const artifact = successfulCompileRecord(source, pdf);
+    const journal = installJournal(artifact, source, pdf);
+    expect(storage.installJournal).toBeDefined();
+    await storage.installJournal!.begin(journal);
+    await storage.installOwnedByteExclusive({
+      kind: "artifactOwnedByte",
+      bulletinLocalId: BULLETIN,
+      buildId: BUILD,
+      extension: "typ",
+    }, source);
+
+    await expect(recoverNodeArtifactInstalls(root, acceptRecords)).resolves.toEqual({
+      finalized: 0,
+      rolledBack: 1,
+      discardedIncompleteIntents: 0,
+    });
+    expect(await storage.readOwnedByte({
+      kind: "artifactOwnedByte",
+      bulletinLocalId: BULLETIN,
+      buildId: BUILD,
+      extension: "typ",
+    })).toBeUndefined();
+    expect(await readdir(join(root, "transactions", "artifacts"))).toEqual([]);
+  });
+
+  it("finalizes a fully committed crash residue without deleting live bytes", async () => {
+    const root = await temporaryRoot("artifact-crash-finalize");
+    const storage = await createNodeArtifactStoragePort(root);
+    const source = bytes("#text(\"complete\")");
+    const pdf = bytes("%PDF-1.7\ncomplete\n%%EOF\n");
+    const artifact = successfulCompileRecord(source, pdf);
+    const journal = installJournal(artifact, source, pdf);
+    await storage.installJournal!.begin(journal);
+    for (const [extension, value] of [["typ", source], ["pdf", pdf]] as const) {
+      await storage.installOwnedByteExclusive({
+        kind: "artifactOwnedByte",
+        bulletinLocalId: BULLETIN,
+        buildId: BUILD,
+        extension,
+      }, value);
+    }
+    await storage.installRecordExclusive(RECORD_LOCATOR, artifact);
+
+    await expect(recoverNodeArtifactInstalls(root, acceptRecords)).resolves.toEqual({
+      finalized: 1,
+      rolledBack: 0,
+      discardedIncompleteIntents: 0,
+    });
+    expect(await storage.readRecord(RECORD_LOCATOR)).toEqual(artifact);
+    expect(await storage.readOwnedByte(PDF_LOCATOR)).toEqual(pdf);
+    expect(await readdir(join(root, "transactions", "artifacts"))).toEqual([]);
+  });
+
+  it("removes an exact interrupted metadata prefix and rolls back its complete outputs", async () => {
+    const root = await temporaryRoot("artifact-crash-record-prefix");
+    const storage = await createNodeArtifactStoragePort(root);
+    const source = bytes("#text(\"metadata crash\")");
+    const pdf = bytes("%PDF-1.7\nmetadata crash\n%%EOF\n");
+    const artifact = successfulCompileRecord(source, pdf);
+    await storage.installJournal!.begin(installJournal(artifact, source, pdf));
+    for (const [extension, value] of [["typ", source], ["pdf", pdf]] as const) {
+      await storage.installOwnedByteExclusive({
+        kind: "artifactOwnedByte",
+        bulletinLocalId: BULLETIN,
+        buildId: BUILD,
+        extension,
+      }, value);
+    }
+    const recordBytes = canonicalJsonBytes(artifact);
+    await writeFile(
+      join(root, "artifacts", BULLETIN, `${BUILD}.json`),
+      recordBytes.subarray(0, Math.floor(recordBytes.byteLength / 2)),
+    );
+
+    await expect(recoverNodeArtifactInstalls(root, acceptRecords)).resolves.toEqual({
+      finalized: 0,
+      rolledBack: 1,
+      discardedIncompleteIntents: 0,
+    });
+    expect(await storage.readRecord(RECORD_LOCATOR)).toBeUndefined();
+    expect(await storage.readOwnedByte(PDF_LOCATOR)).toBeUndefined();
+  });
+
+  it("discards an incomplete intent only when no artifact residue exists", async () => {
+    const root = await temporaryRoot("artifact-incomplete-intent");
+    const journalDirectory = join(root, "transactions", "artifacts");
+    await mkdir(journalDirectory, { recursive: true });
+    await writeFile(join(journalDirectory, `${BULLETIN}-${BUILD}.json`), "{\"kind\":");
+
+    await expect(recoverNodeArtifactInstalls(root, acceptRecords)).resolves.toEqual({
+      finalized: 0,
+      rolledBack: 0,
+      discardedIncompleteIntents: 1,
+    });
+    expect(await readdir(journalDirectory)).toEqual([]);
+  });
+
+  it("preserves and rejects contradictory crash residue", async () => {
+    const root = await temporaryRoot("artifact-crash-ambiguous");
+    const storage = await createNodeArtifactStoragePort(root);
+    const source = bytes("#text(\"expected\")");
+    const pdf = bytes("%PDF-1.7\nexpected\n%%EOF\n");
+    const artifact = successfulCompileRecord(source, pdf);
+    await storage.installJournal!.begin(installJournal(artifact, source, pdf));
+    await storage.installOwnedByteExclusive({
+      kind: "artifactOwnedByte",
+      bulletinLocalId: BULLETIN,
+      buildId: BUILD,
+      extension: "typ",
+    }, bytes("changed after journal"));
+
+    await expect(recoverNodeArtifactInstalls(root, acceptRecords)).rejects.toMatchObject({
+      kind: "storageBoundaryRejected",
+    });
+    expect(await readdir(join(root, "transactions", "artifacts"))).toHaveLength(1);
+  });
+
   it("derives the fixed path, creates durably and never overwrites", async () => {
     const root = await temporaryRoot("artifact-storage");
     const storage = await createNodeArtifactStoragePort(root);
@@ -206,7 +380,7 @@ describe("artifact schema and compile output adapters", () => {
     expect(calls).toEqual([ARTIFACT_RECORD_SCHEMA_ID, ARTIFACT_RECORD_SCHEMA_ID]);
   });
 
-  it("reads only registered fixed-layout output handles and detects later tampering", async () => {
+  it("reads registered fixed-layout output handles exactly once", async () => {
     const root = await temporaryRoot("compile-outputs");
     await mkdir(join(root, BUILD));
     const pdf = bytes("%PDF-1.7\ncompile output\n%%EOF\n");
@@ -229,8 +403,13 @@ describe("artifact schema and compile output adapters", () => {
       code: "CBB-SECURITY-0001",
       kind: "compileOutputRejected",
     });
-    expect(registry.revoke(handle)).toBe(true);
-  });
+    expect(registry.revoke(handle)).toBe(false);
+    await writeFile(path, pdf);
+    for (let index = 0; index < 4_097; index += 1) {
+      const next = await registry.registerVerifiedPdf(BUILD, { hash: hash(pdf), byteSize: pdf.byteLength });
+      await expect(reader.readVerifiedPdf(next)).resolves.toEqual(pdf);
+    }
+  }, 15_000);
 
   it("rejects hard-linked compile output during handle registration", async () => {
     const root = await temporaryRoot("compile-hardlink");

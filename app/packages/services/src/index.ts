@@ -47,3 +47,5 @@ export * from "./components/index.js";
 export * from "./build/index.js";
 export * from "./artifacts/index.js";
 export * from "./history/retentionGraph.js";
+export * from "./history/retentionProjection.js";
+export * from "./history/nodeRetention.js";

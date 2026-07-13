@@ -78,6 +78,14 @@ async function verifiedSvgReceipt(bytes: Uint8Array): Promise<VerifiedQuarantine
     },
     { raceTimeout: async (work) => ({ kind: "completed", value: await work }) },
     {
+      verifyAndRehashInput: async (verification) => ({
+        version: 1,
+        requestId: verification.requestId,
+        operation: verification.operation,
+        input: verification.input,
+        hash,
+        byteSize: bytes.byteLength,
+      }),
       verifyAndRehash: async (verification) => ({
         version: 1,
         requestId: verification.requestId,
@@ -87,6 +95,8 @@ async function verifiedSvgReceipt(bytes: Uint8Array): Promise<VerifiedQuarantine
         byteSize: bytes.byteLength,
         mediaType: "image/svg+xml",
       }),
+      cleanupInput: async () => undefined,
+      discardOutput: async () => undefined,
     },
   );
   if (result.status !== "succeeded") throw new Error("SVG quarantine verification failed");

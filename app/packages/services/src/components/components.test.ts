@@ -14,7 +14,12 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { canonicalJsonBytes, hashBytes } from "@cbb/core";
+import {
+  BUNDLED_NOTO_SANS_FAMILY,
+  BUNDLED_NOTO_SANS_FONT_REF,
+  canonicalJsonBytes,
+  hashBytes,
+} from "@cbb/core";
 import {
   createNodeTrustedComponentRegistry,
   trustedComponentSigningBytes,
@@ -24,10 +29,17 @@ import type {
   SignedTrustedComponentManifest,
   TrustedComponentManifestContent,
   TrustedComponentManifestEntry,
+  TrustedComponentReleaseIdentity,
   TrustedPublicKeyRegistry,
 } from "./index.js";
 
 const roots: string[] = [];
+const TEST_RELEASE: TrustedComponentReleaseIdentity = Object.freeze({
+  applicationId: "church-bulletin-builder",
+  releaseId: "1.2.3-test.4",
+  releaseSequence: 42,
+  profile: "m3-v1",
+});
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -73,17 +85,33 @@ function entry(
     hash: hashBytes(bytes),
     byteSize: bytes.byteLength,
     ...overrides,
+    ...(overrides.role === "bundledFontFace" && overrides.fontFaceBinding === undefined
+      ? {
+          fontFaceBinding: {
+            portableFontRef: BUNDLED_NOTO_SANS_FONT_REF,
+            familyName: BUNDLED_NOTO_SANS_FAMILY,
+            faceId: "regular",
+            faceIndex: 0,
+            format: "ttf" as const,
+            weight: 400,
+            style: "normal" as const,
+            stretch: 1,
+          },
+        }
+      : {}),
   };
 }
 
 function content(
   components: readonly TrustedComponentManifestEntry[],
   signingKeyId = "release-key-1",
+  release: TrustedComponentReleaseIdentity = TEST_RELEASE,
 ): TrustedComponentManifestContent {
   return {
     version: 1,
     kind: "trustedComponentManifest",
     signingKeyId,
+    release,
     components,
   };
 }
@@ -119,6 +147,7 @@ function verifyOptions(manifest: unknown, registry: TrustedPublicKeyRegistry) {
   return {
     manifest,
     trustedKeys: registry,
+    expectedRelease: TEST_RELEASE,
     expectedPlatform: "linux" as const,
     expectedArch: "x64" as const,
   };
@@ -146,6 +175,12 @@ describe("trusted component manifest signatures", () => {
         id: "typst",
         role: "typstCli",
       }],
+      release: {
+        profile: "m3-v1",
+        releaseSequence: 42,
+        releaseId: "1.2.3-test.4",
+        applicationId: "church-bulletin-builder",
+      },
       signingKeyId: "release-key-1",
       kind: "trustedComponentManifest",
       version: 1,
@@ -165,7 +200,11 @@ describe("trusted component manifest signatures", () => {
     const keys = signingFixture();
     const manifest = signContent(content([entry(bytes)]), keys.privateKey);
     expect(verifyTrustedComponentManifest(verifyOptions(manifest, keys.registry)))
-      .toMatchObject({ signingKeyId: "release-key-1", components: [{ id: "typst" }] });
+      .toMatchObject({
+        signingKeyId: "release-key-1",
+        release: TEST_RELEASE,
+        components: [{ id: "typst" }],
+      });
 
     const tampered = {
       ...manifest,
@@ -181,6 +220,29 @@ describe("trusted component manifest signatures", () => {
       { ...manifest, signature: Buffer.alloc(64, 9).toString("base64") },
       keys.registry,
     ))).toThrowError(expect.objectContaining({ kind: "invalidSignature" }));
+  });
+
+  it("rejects validly signed manifests outside the exact installed release lineage", () => {
+    const bytes = new TextEncoder().encode("trusted bytes");
+    const keys = signingFixture();
+    for (const release of [
+      { ...TEST_RELEASE, applicationId: "another-application" },
+      { ...TEST_RELEASE, releaseId: "1.2.2" },
+      { ...TEST_RELEASE, releaseSequence: TEST_RELEASE.releaseSequence - 1 },
+      { ...TEST_RELEASE, profile: "m4-v1" },
+    ] satisfies TrustedComponentReleaseIdentity[]) {
+      const manifest = signContent(content([entry(bytes)], "release-key-1", release), keys.privateKey);
+      expect(() => verifyTrustedComponentManifest(verifyOptions(manifest, keys.registry)))
+        .toThrowError(expect.objectContaining({ kind: "releaseMismatch" }));
+    }
+
+    const manifest = signContent(content([entry(bytes)]), keys.privateKey);
+    const tampered = {
+      ...manifest,
+      release: { ...manifest.release, releaseSequence: manifest.release.releaseSequence + 1 },
+    };
+    expect(() => verifyTrustedComponentManifest(verifyOptions(tampered, keys.registry)))
+      .toThrowError(expect.objectContaining({ kind: "invalidSignature" }));
   });
 
   it("rejects unknown/non-Ed25519 keys and signed entries for another platform", () => {
@@ -259,6 +321,7 @@ describe("Node trusted component registry", () => {
       appRoot: root,
       manifest,
       trustedKeys: keys.registry,
+      expectedRelease: TEST_RELEASE,
       expectedPlatform: "linux",
       expectedArch: "x64",
     });
@@ -272,6 +335,8 @@ describe("Node trusted component registry", () => {
       locator: { token: "trusted-component:0000" },
     });
     expect(Object.isFrozen(registry)).toBe(true);
+    expect(registry.release).toEqual(TEST_RELEASE);
+    expect(Object.isFrozen(registry.release)).toBe(true);
     expect(Object.isFrozen(registry.components)).toBe(true);
     expect(Object.isFrozen(selected)).toBe(true);
     const serialized = JSON.stringify({ registry, selected });
@@ -289,6 +354,7 @@ describe("Node trusted component registry", () => {
       appRoot: root,
       manifest: signContent(content([component]), keys.privateKey),
       trustedKeys: keys.registry,
+      expectedRelease: TEST_RELEASE,
       expectedPlatform: "linux",
       expectedArch: "x64",
     });
@@ -307,6 +373,7 @@ describe("Node trusted component registry", () => {
       appRoot: root,
       manifest,
       trustedKeys: keys.registry,
+      expectedRelease: TEST_RELEASE,
       expectedPlatform: "linux",
       expectedArch: "x64",
     }), "componentVerificationFailed");
@@ -316,6 +383,7 @@ describe("Node trusted component registry", () => {
       appRoot: root,
       manifest,
       trustedKeys: keys.registry,
+      expectedRelease: TEST_RELEASE,
       expectedPlatform: "linux",
       expectedArch: "x64",
     });
@@ -344,6 +412,7 @@ describe("Node trusted component registry", () => {
         appRoot: root,
         manifest: signContent(content([component]), keys.privateKey),
         trustedKeys: keys.registry,
+        expectedRelease: TEST_RELEASE,
         expectedPlatform: "linux" as const,
         expectedArch: "x64" as const,
       };
@@ -369,6 +438,7 @@ describe("Node trusted component registry", () => {
       appRoot: root,
       manifest: undefined,
       trustedKeys: keys.registry,
+      expectedRelease: TEST_RELEASE,
       expectedPlatform: "linux",
       expectedArch: "x64",
     }), "invalidManifest");
@@ -379,6 +449,7 @@ describe("Node trusted component registry", () => {
       appRoot: join(root, "missing-private-root"),
       manifest,
       trustedKeys: keys.registry,
+      expectedRelease: TEST_RELEASE,
       expectedPlatform: "linux",
       expectedArch: "x64",
     }), "invalidAppRoot");

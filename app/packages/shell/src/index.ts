@@ -7,3 +7,5 @@
  */
 
 export const SHELL_PACKAGE_NAME = "@cbb/shell" as const;
+
+export * from "./composition.js";

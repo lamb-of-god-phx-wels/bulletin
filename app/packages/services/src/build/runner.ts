@@ -103,7 +103,8 @@ export type TypstRunnerFailureKind =
   | "timedOut"
   | "canceled"
   | "invalidPdf"
-  | "artifactPersistenceFailed";
+  | "artifactPersistenceFailed"
+  | "cleanupFailed";
 
 export type TypstRunnerResult<Result> =
   | { readonly status: "succeeded"; readonly artifact: Result }
@@ -285,7 +286,8 @@ export async function runIsolatedTypstCompile<Result>(
 
   let root: BuildRootHandle | undefined;
   let abortListener: (() => void) | undefined;
-  try {
+  const execute = async (): Promise<TypstRunnerResult<Result>> => {
+    try {
     root = await sandbox.createBuildRoot(request.buildId);
     if (isAborted(signal)) {
       await sandbox.terminate(root).catch(() => undefined);
@@ -346,12 +348,21 @@ export async function runIsolatedTypstCompile<Result>(
     } catch {
       return failure("artifactPersistenceFailed", "CBB-BUILD-0001");
     }
-  } catch {
-    return failure("stagingFailed", "CBB-SECURITY-0001");
-  } finally {
-    if (signal !== undefined && abortListener !== undefined) {
-      signal.removeEventListener("abort", abortListener);
+    } catch {
+      return failure("stagingFailed", "CBB-SECURITY-0001");
+    } finally {
+      if (signal !== undefined && abortListener !== undefined) {
+        signal.removeEventListener("abort", abortListener);
+      }
     }
-    if (root !== undefined) await sandbox.cleanup(root).catch(() => undefined);
+  };
+  const result = await execute();
+  if (root !== undefined) {
+    try {
+      await sandbox.cleanup(root);
+    } catch {
+      return failure("cleanupFailed", "CBB-SECURITY-0001");
+    }
   }
+  return result;
 }

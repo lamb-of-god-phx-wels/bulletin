@@ -28,6 +28,7 @@ import type {
   OpenWorkspaceOptions,
   OpenWorkspaceResult,
   StartupRecoveryPort,
+  WorkspaceLease,
 } from "./types.js";
 
 function decodeJson(bytes: Uint8Array): unknown {
@@ -136,6 +137,7 @@ export class WorkspaceService {
 
   async open(root: string, options: OpenWorkspaceOptions = {}): Promise<OpenWorkspaceResult> {
     const correlationId = this.ports.ids.randomUuid();
+    let acquiredLease: WorkspaceLease | undefined;
     try {
       if (!isCanonicalUuid(correlationId)) throw new Error("Id port returned an invalid id");
       const rootInfo = await this.ports.fileSystem.entryInfo(root);
@@ -175,6 +177,7 @@ export class WorkspaceService {
         this.catalog,
         options.confirmedStaleLock,
       );
+      acquiredLease = lock.status === "acquired" ? lock.lease : undefined;
       if (lock.status === "readOnly") {
         return {
           status: "readOnly",
@@ -199,6 +202,7 @@ export class WorkspaceService {
       const recovered = await this.recovery.recover(canonicalRoot, registry);
       if (recovered.status === "readOnly") {
         await lock.lease.release();
+        acquiredLease = undefined;
         return {
           status: "readOnly",
           session: {
@@ -210,6 +214,7 @@ export class WorkspaceService {
           },
         };
       }
+      acquiredLease = undefined;
       return {
         status: "editable",
         session: {
@@ -221,6 +226,7 @@ export class WorkspaceService {
         },
       };
     } catch (error) {
+      await acquiredLease?.release().catch(() => undefined);
       return {
         status: "failed",
         diagnostics: [serviceDiagnostic({

@@ -151,6 +151,7 @@ interface Harness {
   readonly artifacts: ArtifactEvents;
   readonly projectionCalls: TrustedBuildProjectionRequest[];
   readonly resourceCalls: Array<Parameters<BuildResourceClosurePort["resolve"]>[0]>;
+  readonly releasedProjectionHandles: string[];
   readonly save: ReturnType<typeof vi.fn<ManualBuildSavePort["saveAndReadClean"]>>;
   currentValue: CurrentBuildInputs;
   preparedOverride: Partial<PreparedBuildProjection>;
@@ -163,7 +164,11 @@ function harness(): Harness {
   const artifacts = new ArtifactEvents();
   const projectionCalls: TrustedBuildProjectionRequest[] = [];
   const resourceCalls: Array<Parameters<BuildResourceClosurePort["resolve"]>[0]> = [];
-  const ids = Array.from({ length: 32 }, (_, index) => buildId(((index % 8) + 1).toString()));
+  const releasedProjectionHandles: string[] = [];
+  const activeProjectionHandles = new Set<string>();
+  const ids = Array.from({ length: 256 }, (_, index) =>
+    `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, "0")}`
+  );
   let idIndex = 0;
   const state: Harness = {
     orchestrator: undefined as unknown as BuildOrchestrator,
@@ -171,6 +176,7 @@ function harness(): Harness {
     artifacts,
     projectionCalls,
     resourceCalls,
+    releasedProjectionHandles,
     save: vi.fn(async () => state.currentValue),
     currentValue: current(),
     preparedOverride: {},
@@ -181,8 +187,15 @@ function harness(): Harness {
     async prepare(request) {
       projectionCalls.push(request);
       if (state.failProjection) throw new Error("private provider detail");
+      if (activeProjectionHandles.size >= 128) throw new Error("provider capacity exhausted");
       const inputs = request.kind === "manual" ? request.savedInputs : state.currentValue;
-      return prepared(inputs, state.preparedOverride);
+      const projectionHandle = `projection:trusted-snapshot-${projectionCalls.length}`;
+      activeProjectionHandles.add(projectionHandle);
+      return prepared(inputs, { projectionHandle, ...state.preparedOverride });
+    },
+    release(projectionHandle) {
+      releasedProjectionHandles.push(projectionHandle);
+      activeProjectionHandles.delete(projectionHandle);
     },
   };
   state.orchestrator = new BuildOrchestrator({
@@ -199,6 +212,7 @@ function harness(): Harness {
     resources: {
       async resolve(request) {
         resourceCalls.push(request);
+        activeProjectionHandles.delete(request.provenance.projectionHandle);
         if (state.failResources) throw new Error("simulated resolver failure");
         return EMPTY_RESOURCES;
       },
@@ -277,6 +291,7 @@ describe("BuildOrchestrator trusted projection boundary", () => {
     await expect(test.orchestrator.submitPreview(preview(1))).rejects.toMatchObject({
       kind: "projectionNotExact",
     });
+    expect(test.releasedProjectionHandles).toEqual(["projection:trusted-snapshot-1"]);
 
     const pathBearing = harness();
     pathBearing.preparedOverride = {
@@ -285,6 +300,7 @@ describe("BuildOrchestrator trusted projection boundary", () => {
     await expect(pathBearing.orchestrator.submitPreview(preview(1))).rejects.toMatchObject({
       kind: "projectionNotExact",
     });
+    expect(pathBearing.releasedProjectionHandles).toEqual(["projection:trusted-snapshot-1"]);
   });
 
   it("requires a clean save and an exact provider projection for manual admission", async () => {
@@ -302,6 +318,7 @@ describe("BuildOrchestrator trusted projection boundary", () => {
       kind: "projectionNotExact",
       code: "CBB-SAVE-0002",
     });
+    expect(test.releasedProjectionHandles).toEqual(["projection:trusted-snapshot-1"]);
 
     test.preparedOverride = {};
     const admission = await test.orchestrator.submitManual(manual());
@@ -321,6 +338,32 @@ describe("BuildOrchestrator trusted projection boundary", () => {
 });
 
 describe("BuildOrchestrator queue and fault behavior", () => {
+  it("releases more than 128 superseded queued previews without exhausting provider capacity", async () => {
+    const test = harness();
+    await test.orchestrator.setDragActive(RESOURCE, true);
+    let lastBuildId = "";
+    for (let sequence = 1; sequence <= 129; sequence++) {
+      lastBuildId = (await test.orchestrator.submitPreview(preview(sequence))).buildId;
+    }
+
+    expect(test.projectionCalls).toHaveLength(129);
+    expect(test.releasedProjectionHandles).toHaveLength(128);
+    expect(new Set(test.releasedProjectionHandles).size).toBe(128);
+    await test.orchestrator.cancel(lastBuildId);
+    expect(test.releasedProjectionHandles).toHaveLength(129);
+    await test.orchestrator.whenIdle();
+  });
+
+  it("releases a prepared projection when durable queued status admission fails", async () => {
+    const test = harness();
+    test.artifacts.failNextType = "queued";
+    await expect(test.orchestrator.submitPreview(preview(1))).rejects.toMatchObject({
+      kind: "statusPersistenceFailed",
+    });
+    expect(test.releasedProjectionHandles).toEqual(["projection:trusted-snapshot-1"]);
+    expect(test.runner.runs).toEqual([]);
+  });
+
   it("cancels a process tree when a newer trusted preview supersedes running work", async () => {
     const test = harness();
     const first = await test.orchestrator.submitPreview(preview(1));

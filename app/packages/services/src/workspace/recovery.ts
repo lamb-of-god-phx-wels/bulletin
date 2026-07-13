@@ -16,9 +16,9 @@ export interface WorkspaceRecoveryRegistryPort {
 }
 
 /**
- * Run save-journal recovery first, then generic transaction recovery, before
- * any editable document session is returned. Any ambiguity stops the chain and
- * opens read-only; later recovery stages never run after an earlier ambiguity.
+ * Run save-journal recovery first, then closed service-specific recovery stages,
+ * then generic transaction recovery before any editable session is returned.
+ * Any ambiguity stops the chain and opens read-only; later stages never run.
  */
 export class CompositeWorkspaceStartupRecovery implements StartupRecoveryPort {
   constructor(
@@ -28,6 +28,7 @@ export class CompositeWorkspaceStartupRecovery implements StartupRecoveryPort {
     ) => MultiTransactionStartupRecoveryPort,
     private readonly registry: WorkspaceRecoveryRegistryPort,
     private readonly ids: IdPort,
+    private readonly additionalRecoveries: readonly StartupRecoveryPort[] = [],
   ) {}
 
   async recover(
@@ -36,6 +37,15 @@ export class CompositeWorkspaceStartupRecovery implements StartupRecoveryPort {
   ): Promise<StartupRecoveryResult> {
     const saves = await this.saveRecovery.recover(root, loadedRegistry);
     if (saves.status === "readOnly") return saves;
+    let recovered: StartupRecoveryResult = saves;
+    for (const recovery of this.additionalRecoveries) {
+      const next = await recovery.recover(root, recovered.registry);
+      recovered = {
+        ...next,
+        diagnostics: [...recovered.diagnostics, ...next.diagnostics],
+      };
+      if (recovered.status === "readOnly") return recovered;
+    }
 
     const transactions = await this.transactionsForRoot(root).recoverStartup();
     if (transactions.mode === "readOnly") {
@@ -45,9 +55,9 @@ export class CompositeWorkspaceStartupRecovery implements StartupRecoveryPort {
       }
       return {
         status: "readOnly",
-        registry: saves.registry,
+        registry: recovered.registry,
         diagnostics: [
-          ...saves.diagnostics,
+          ...recovered.diagnostics,
           serviceDiagnostic({
             code: "CBB-SAVE-0001",
             correlationId,
@@ -69,7 +79,7 @@ export class CompositeWorkspaceStartupRecovery implements StartupRecoveryPort {
     return {
       status: "ok",
       registry,
-      diagnostics: saves.diagnostics,
+      diagnostics: recovered.diagnostics,
     };
   }
 }

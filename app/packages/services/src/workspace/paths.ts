@@ -12,6 +12,7 @@ export const SAVE_JOURNAL_DIRECTORY = "transactions/save";
 export const MULTI_TRANSACTION_JOURNAL_DIRECTORY = "transactions/multi";
 export const MULTI_TRANSACTION_PAYLOAD_DIRECTORY = "transactions/staging";
 export const TRANSACTION_QUARANTINE_DIRECTORY = "transactions/quarantine";
+export const ARTIFACT_INSTALL_JOURNAL_DIRECTORY = "transactions/artifacts";
 export const CONFLICT_DIRECTORY = "conflicts";
 
 export const WORKSPACE_DIRECTORIES = [
@@ -38,6 +39,7 @@ export const WORKSPACE_DIRECTORIES = [
   MULTI_TRANSACTION_JOURNAL_DIRECTORY,
   MULTI_TRANSACTION_PAYLOAD_DIRECTORY,
   TRANSACTION_QUARANTINE_DIRECTORY,
+  ARTIFACT_INSTALL_JOURNAL_DIRECTORY,
   CONFLICT_DIRECTORY,
 ] as const;
 

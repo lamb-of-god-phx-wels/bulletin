@@ -23,6 +23,10 @@ export type RetentionNodeKind =
   | "approval"
   | "conflict"
   | "recoverySnapshot"
+  | "transaction"
+  | "transactionPayload"
+  | "resourceClosure"
+  | "activeBuild"
   | "backupTransaction"
   | "other";
 
@@ -43,6 +47,7 @@ export type RetentionReferenceKind =
   | "approvalEvidence"
   | "weeklyWorkOwner"
   | "transactionPin"
+  | "buildDependency"
   | "other";
 
 export interface RetentionReference {
@@ -63,6 +68,7 @@ export type RetentionRootReason =
   | "conflictOrRecovery"
   | "retainedArtifact"
   | "activeBuild"
+  | "pendingTransaction"
   | "activeBackupOrRestore"
   | "userPin";
 

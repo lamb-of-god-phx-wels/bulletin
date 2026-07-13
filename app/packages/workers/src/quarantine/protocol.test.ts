@@ -11,6 +11,7 @@ import {
 } from "./broker.js";
 import {
   QUARANTINE_HARD_LIMITS,
+  quarantineArchiveClosureHash,
   quarantineHandle,
   validateQuarantineRequest,
   validateQuarantineResult,
@@ -55,7 +56,25 @@ const immediateTimer: QuarantineTimerPort = {
   },
 };
 
+const validHandleLifecycle = {
+  async verifyAndRehashInput(verification: Parameters<
+    PrivilegedQuarantineOutputVerifierPort["verifyAndRehashInput"]
+  >[0]) {
+    return {
+      version: 1,
+      requestId: verification.requestId,
+      operation: verification.operation,
+      input: verification.input,
+      hash: `sha256:${"a".repeat(64)}`,
+      byteSize: 100,
+    };
+  },
+  async cleanupInput() {},
+  async discardOutput() {},
+};
+
 const validOutputVerifier: PrivilegedQuarantineOutputVerifierPort = {
+  ...validHandleLifecycle,
   async verifyAndRehash(verification) {
     return {
       version: 1,
@@ -115,7 +134,7 @@ describe("quarantine protocol", () => {
   });
 
   it("rejects observations above the request's lowered limit", () => {
-    const lowered = request({ inputBytes: 100, xmlNodes: 10, pathCommands: 20 });
+    const lowered = request({ inputBytes: 100, outputBytes: 100, xmlNodes: 10, pathCommands: 20 });
     expect(() => validateQuarantineResult(success(), lowered)).not.toThrow();
     expect(() =>
       validateQuarantineResult(
@@ -147,7 +166,7 @@ describe("quarantine protocol", () => {
     }, request())).toThrow(/malformed failure/);
   });
 
-  it("validates archive paths, exact totals, aliases, and compression ratios", () => {
+  it("validates archive paths, payload totals with container overhead, aliases, and compression ratios", () => {
     const archiveRequest: InspectArchiveRequest = {
       version: 1,
       requestId: "22222222-2222-4222-8222-222222222222",
@@ -162,36 +181,43 @@ describe("quarantine protocol", () => {
         compressionRatio: 10,
       },
     };
+    const archiveEntries: ArchiveSuccess["entries"] = [
+      {
+        kind: "file",
+        path: "assets/logo.svg",
+        compressedBytes: 10,
+        uncompressedBytes: 50,
+        hash: `sha256:${"e".repeat(64)}`,
+      },
+      {
+        kind: "file",
+        path: "documents/bulletin.json",
+        compressedBytes: 20,
+        uncompressedBytes: 100,
+        hash: `sha256:${"f".repeat(64)}`,
+      },
+    ];
     const archiveSuccess: ArchiveSuccess = {
       version: 1,
       requestId: archiveRequest.requestId,
       operation: "inspectArchive",
       status: "succeeded",
       output: OUTPUT,
-      outputHash: `sha256:${"d".repeat(64)}`,
+      outputHash: quarantineArchiveClosureHash(archiveEntries.map((entry) => ({
+        path: entry.path,
+        hash: entry.hash,
+        byteSize: entry.uncompressedBytes,
+      }))),
       outputBytes: 150,
-      mediaType: "application/zip",
+      mediaType: "application/vnd.cbb.quarantine-closure",
       observed: {
-        compressedBytes: 30,
+        compressedBytes: 70,
         uncompressedBytes: 150,
         entries: 2,
         entryBytes: 100,
         compressionRatio: 5,
       },
-      entries: [
-        {
-          path: "assets/logo.svg",
-          compressedBytes: 10,
-          uncompressedBytes: 50,
-          hash: `sha256:${"e".repeat(64)}`,
-        },
-        {
-          path: "documents/bulletin.json",
-          compressedBytes: 20,
-          uncompressedBytes: 100,
-          hash: `sha256:${"f".repeat(64)}`,
-        },
-      ],
+      entries: archiveEntries,
     };
     expect(() => validateQuarantineResult(archiveSuccess, archiveRequest)).not.toThrow();
     expect(() =>
@@ -327,11 +353,14 @@ describe("quarantine protocol", () => {
   it("passes only an operation-bound opaque handle to the verifier and returns a real receipt", async () => {
     const verificationCalls: unknown[] = [];
     const verifier: PrivilegedQuarantineOutputVerifierPort = {
+      ...validHandleLifecycle,
       async verifyAndRehash(verification) {
         verificationCalls.push(verification);
         expect(Object.keys(verification).sort()).toEqual([
           "allowedMediaTypes",
           "maximumBytes",
+          "maximumEntries",
+          "maximumEntryBytes",
           "operation",
           "output",
           "requestId",
@@ -340,7 +369,7 @@ describe("quarantine protocol", () => {
         expect(verification).not.toHaveProperty("path");
         expect(verification).not.toHaveProperty("outputHash");
         expect(verification.allowedMediaTypes).toEqual(["image/svg+xml"]);
-        expect(verification.maximumBytes).toBe(request().limits.inputBytes);
+        expect(verification.maximumBytes).toBe(request().limits.outputBytes);
         return {
           version: 1,
           requestId: verification.requestId,
@@ -377,6 +406,78 @@ describe("quarantine protocol", () => {
     expect(Object.isFrozen(readVerifiedQuarantineReceipt(brokerResult.receipt).result.observed)).toBe(true);
   });
 
+  it("verifies the input before launch and rejects worker observations for different bytes", async () => {
+    const execute = vi.fn(async () => success());
+    const cleanupInput = vi.fn(async () => undefined);
+    const discardOutput = vi.fn(async () => undefined);
+    const handles: PrivilegedQuarantineOutputVerifierPort = {
+      ...validOutputVerifier,
+      async verifyAndRehashInput(verification) {
+        return {
+          version: 1,
+          requestId: verification.requestId,
+          operation: verification.operation,
+          input: verification.input,
+          hash: `sha256:${"a".repeat(64)}`,
+          byteSize: 99,
+        };
+      },
+      cleanupInput,
+      discardOutput,
+    };
+    const worker: QuarantineWorkerPort = {
+      isolationAvailable: true,
+      execute,
+      async terminate() {},
+    };
+    await expect(runQuarantineRequest(request(), worker, immediateTimer, handles))
+      .resolves.toMatchObject({ reason: "inputVerificationFailed" });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(cleanupInput).toHaveBeenCalledWith(INPUT);
+    expect(discardOutput).toHaveBeenCalledWith(OUTPUT);
+  });
+
+  it("cancels, reaps, and cleans both one-shot handles", async () => {
+    const controller = new AbortController();
+    let resolveWorker: ((value: unknown) => void) | undefined;
+    const worker: QuarantineWorkerPort = {
+      isolationAvailable: true,
+      execute: vi.fn(() => new Promise((resolve) => { resolveWorker = resolve; })),
+      terminate: vi.fn(async () => undefined),
+    };
+    const cleanupInput = vi.fn(async () => undefined);
+    const discardOutput = vi.fn(async () => undefined);
+    const handles: PrivilegedQuarantineOutputVerifierPort = {
+      ...validOutputVerifier,
+      cleanupInput,
+      discardOutput,
+    };
+    const running = runQuarantineRequest(request(), worker, immediateTimer, handles, {
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(worker.execute).toHaveBeenCalledOnce());
+    controller.abort();
+    await expect(running).resolves.toMatchObject({ reason: "canceled" });
+    expect(worker.terminate).toHaveBeenCalledWith(request().requestId);
+    expect(cleanupInput).toHaveBeenCalledWith(INPUT);
+    expect(discardOutput).toHaveBeenCalledWith(OUTPUT);
+    resolveWorker?.(success());
+  });
+
+  it("surfaces cleanup failure instead of the preceding worker outcome", async () => {
+    const worker: QuarantineWorkerPort = {
+      isolationAvailable: true,
+      async execute() { throw new Error("crash"); },
+      async terminate() {},
+    };
+    const handles: PrivilegedQuarantineOutputVerifierPort = {
+      ...validOutputVerifier,
+      async discardOutput() { throw new Error("cannot remove output"); },
+    };
+    await expect(runQuarantineRequest(request(), worker, immediateTimer, handles))
+      .resolves.toMatchObject({ reason: "cleanupFailed" });
+  });
+
   it("rejects forged receipts and extraneous or unbound privileged evidence", async () => {
     const evidence: VerifiedQuarantineOutputEvidence = {
       version: 1,
@@ -398,6 +499,7 @@ describe("quarantine protocol", () => {
       async terminate() {},
     };
     const extraneousVerifier: PrivilegedQuarantineOutputVerifierPort = {
+      ...validHandleLifecycle,
       async verifyAndRehash(verification) {
         return {
           version: 1,
@@ -416,6 +518,7 @@ describe("quarantine protocol", () => {
     )).resolves.toMatchObject({ reason: "outputVerificationFailed" });
 
     const wrongOperationVerifier: PrivilegedQuarantineOutputVerifierPort = {
+      ...validHandleLifecycle,
       async verifyAndRehash(verification) {
         return {
           version: 1,

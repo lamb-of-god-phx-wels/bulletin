@@ -10,3 +10,5 @@ export const WORKERS_PACKAGE_NAME = "@cbb/workers" as const;
 
 export * from "./quarantine/protocol.js";
 export * from "./quarantine/broker.js";
+export * from "./quarantine/nodeHandles.js";
+export * from "./quarantine/nodeBubblewrapWorker.js";

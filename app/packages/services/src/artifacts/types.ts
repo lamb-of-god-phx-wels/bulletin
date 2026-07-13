@@ -148,7 +148,34 @@ export interface ArtifactOwnedByteLocator {
 
 export type ArtifactLocator = ArtifactRecordLocator | ArtifactOwnedByteLocator;
 
+export interface ArtifactInstallJournalOwnedByte {
+  readonly extension: "typ" | "pdf";
+  readonly hash: Sha256Hash;
+  readonly byteSize: number;
+}
+
+/**
+ * Write-ahead intent for one immutable artifact installation. The artifact
+ * record is the commit marker; owned bytes are never live without that exact
+ * record and this journal makes pre-marker crash residue transaction-owned.
+ */
+export interface ArtifactInstallJournal {
+  readonly version: 1;
+  readonly kind: "artifactInstallJournal";
+  readonly record: ArtifactRecord;
+  readonly ownedBytes: readonly ArtifactInstallJournalOwnedByte[];
+}
+
+export interface ArtifactInstallJournalPort {
+  /** Persist and fsync intent before the first owned byte is installed. */
+  begin(journal: ArtifactInstallJournal): Promise<void>;
+  /** Idempotently remove only the exact durable intent after commit/rollback. */
+  finish(journal: ArtifactInstallJournal): Promise<void>;
+}
+
 export interface ArtifactStoragePort {
+  /** Production storage supplies this crash-recovery boundary. */
+  readonly installJournal?: ArtifactInstallJournalPort;
   readRecord(locator: ArtifactRecordLocator): Promise<unknown | undefined>;
   /** Atomic durable create; false means the immutable locator already exists. */
   installRecordExclusive(locator: ArtifactRecordLocator, record: ArtifactRecord): Promise<boolean>;

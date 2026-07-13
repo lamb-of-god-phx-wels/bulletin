@@ -4,6 +4,7 @@ import type { CompileArtifactSinkPort } from "../build/runner.js";
 import type {
   ArtifactCurrencyInputs,
   ArtifactCurrencyResult,
+  ArtifactInstallJournal,
   ArtifactOwnedByteLocator,
   ArtifactPdfEvidence,
   ArtifactRecord,
@@ -47,6 +48,22 @@ interface OwnedInstall {
   readonly bytes: Uint8Array;
   readonly expectedHash: Sha256Hash;
   readonly pdf?: Omit<ArtifactPdfEvidence, "relativePath">;
+}
+
+function installJournal(
+  record: ArtifactRecord,
+  owned: readonly OwnedInstall[],
+): ArtifactInstallJournal {
+  return Object.freeze({
+    version: 1,
+    kind: "artifactInstallJournal",
+    record,
+    ownedBytes: Object.freeze(owned.map((item) => Object.freeze({
+      extension: item.locator.extension,
+      hash: item.expectedHash,
+      byteSize: item.bytes.byteLength,
+    })).sort((left, right) => left.extension < right.extension ? -1 : 1)),
+  });
 }
 
 interface ResolvedSource {
@@ -398,8 +415,15 @@ export class ImmutableArtifactStore {
   ): Promise<ArtifactRecord> {
     await this.validateRecord(record);
     await this.ensureVacant(record);
+    const journal = installJournal(record, owned);
+    const journalPort = this.ports.storage.installJournal;
+    let journalStarted = false;
     const installed: OwnedInstall[] = [];
     try {
+      if (journalPort !== undefined) {
+        await journalPort.begin(journal);
+        journalStarted = true;
+      }
       for (const item of owned) {
         if (item.locator.extension === "typ") {
           if (item.bytes.byteLength === 0 || item.bytes.byteLength > MAX_ARTIFACT_BYTES) {
@@ -430,10 +454,17 @@ export class ImmutableArtifactStore {
       ) {
         throw new ArtifactStoreError("invalidRecord", "Installed artifact record failed reread verification.");
       }
+      if (journalStarted) {
+        // The exact record is the durable commit marker. A finish failure may
+        // leave recoverable bookkeeping residue, but must not roll back or
+        // misreport a fully verified live artifact.
+        await journalPort?.finish(journal).catch(() => undefined);
+      }
       return record;
     } catch (error) {
       try {
         await this.cleanupAfterFailure(record, installed);
+        if (journalStarted) await journalPort?.finish(journal);
       } catch (cleanup) {
         throw cleanup;
       }

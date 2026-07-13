@@ -2,8 +2,19 @@ import { createHash, randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { constants } from "node:fs";
 import { chmod, lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { hexToSha256Hash, type Sha256Hash } from "@cbb/core";
+import {
+  assertLinuxRuntimeClosureCurrent,
+  LINUX_RESOURCE_LIMITS,
+  linuxRuntimeCommand,
+  linuxRuntimeMountArguments,
+  linuxResourceBrokerArguments,
+  verifyLinuxRuntimeClosure,
+  verifyLinuxResourceBroker,
+  type PinnedPdfRuntimeComponent,
+  type VerifiedLinuxRuntimeClosure,
+} from "@cbb/workers";
 import type {
   PdfInspectorIdentity,
   PinnedPdfInspection,
@@ -14,6 +25,8 @@ const MAX_BYTES = 1024 * 1024 * 1024;
 const MAX_OUTPUT = 1024 * 1024;
 const HASH = /^sha256:[0-9a-f]{64}$/u;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const PDF_RUNTIME_MANIFEST_NAME = "cbb-pdf-runtime.json";
+const PDF_RUNTIME_MANIFEST_KIND = "cbbPdfRuntimeClosure";
 
 export type NodePdfInfoInspectorErrorKind =
   | "invalidConfiguration"
@@ -38,8 +51,11 @@ export interface NodePdfInfoInspectorOptions {
     readonly toolId: string;
     readonly version: string;
     readonly hash: Sha256Hash;
+    readonly byteSize: number;
   };
-  readonly bubblewrap: { readonly path: string; readonly hash: Sha256Hash };
+  readonly runtimeManifest: PinnedPdfRuntimeComponent;
+  /** Signed v1 Linux resource/isolation broker; plain Bubblewrap is rejected. */
+  readonly executionBroker: { readonly path: string; readonly hash: Sha256Hash };
 }
 
 interface ProcessResult {
@@ -205,22 +221,24 @@ async function runBounded(executable: string, args: readonly string[], timeoutMs
 
 function sandboxArgs(
   options: NodePdfInfoInspectorOptions,
+  runtime: VerifiedLinuxRuntimeClosure,
   runRoot?: string,
 ): string[] {
   const args = [
     "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
-    "--ro-bind", "/usr", "/usr",
-    "--ro-bind-try", "/lib", "/lib",
-    "--ro-bind-try", "/lib64", "/lib64",
+    "--tmpfs", "/",
+    ...linuxRuntimeMountArguments(runtime),
     "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
   ];
-  if (runRoot === undefined) return [...args, "--clearenv", "--", "/usr/bin/true"];
+  if (runRoot === undefined) return [
+    ...args,
+    "--clearenv", "--", ...linuxRuntimeCommand(runtime, options.pdfinfo.path, ["-v"]),
+  ];
   return [
     ...args,
-    "--dir", "/tool", "--ro-bind", options.pdfinfo.path, "/tool/pdfinfo",
     "--ro-bind", runRoot, "/inspect", "--chdir", "/inspect",
     "--clearenv", "--setenv", "LANG", "C",
-    "--", "/tool/pdfinfo", "/inspect/input.pdf",
+    "--", ...linuxRuntimeCommand(runtime, options.pdfinfo.path, ["/inspect/input.pdf"]),
   ];
 }
 
@@ -259,6 +277,7 @@ export class NodePdfInfoInspector implements PinnedPdfInspectorPort {
   private constructor(
     private readonly parent: string,
     private readonly options: NodePdfInfoInspectorOptions,
+    private readonly runtime: VerifiedLinuxRuntimeClosure,
   ) {
     this.identity = Object.freeze({
       toolId: options.pdfinfo.toolId,
@@ -271,26 +290,50 @@ export class NodePdfInfoInspector implements PinnedPdfInspectorPort {
     try {
       if (
         process.platform !== "linux" || !isAbsolute(options.privateInspectionParent) ||
-        !isAbsolute(options.pdfinfo.path) || !isAbsolute(options.bubblewrap.path) ||
+        resolve(options.privateInspectionParent) !== options.privateInspectionParent ||
+        !isAbsolute(options.pdfinfo.path) || !isAbsolute(options.executionBroker.path) ||
         !/^[A-Za-z0-9][A-Za-z0-9_.+:-]{0,127}$/u.test(options.pdfinfo.toolId) ||
         !/^[A-Za-z0-9][A-Za-z0-9_.+:-]{0,127}$/u.test(options.pdfinfo.version) ||
-        !HASH.test(options.pdfinfo.hash) || !HASH.test(options.bubblewrap.hash)
+        !HASH.test(options.pdfinfo.hash) ||
+        !Number.isSafeInteger(options.pdfinfo.byteSize) || options.pdfinfo.byteSize < 1 ||
+        !HASH.test(options.executionBroker.hash)
       ) fail("invalidConfiguration");
       await mkdir(options.privateInspectionParent, { recursive: true, mode: 0o700 });
       await chmod(options.privateInspectionParent, 0o700);
       const parent = await realpath(options.privateInspectionParent);
+      if (parent !== options.privateInspectionParent) fail("invalidConfiguration");
       const stats = await lstat(parent, { bigint: true });
       if (stats.isSymbolicLink() || !stats.isDirectory()) fail("invalidConfiguration");
       await sweepAbandonedInspectionRoots(parent);
-      const [pdfinfoHash, bubblewrapHash] = await Promise.all([
-        stableHash(options.pdfinfo.path), stableHash(options.bubblewrap.path),
-      ]);
-      if (pdfinfoHash !== options.pdfinfo.hash || bubblewrapHash !== options.bubblewrap.hash) {
-        fail("componentVerificationFailed");
-      }
-      const probe = await runBounded(options.bubblewrap.path, sandboxArgs(options), 5_000);
+      const [runtime, executionBrokerHash] = await Promise.all([
+        verifyLinuxRuntimeClosure({
+          manifestName: PDF_RUNTIME_MANIFEST_NAME,
+          manifestKind: PDF_RUNTIME_MANIFEST_KIND,
+          manifest: options.runtimeManifest,
+          tools: [{
+            path: options.pdfinfo.path,
+            hash: options.pdfinfo.hash,
+            byteSize: options.pdfinfo.byteSize,
+          }],
+        }),
+        stableHash(options.executionBroker.path),
+        verifyLinuxResourceBroker(options.executionBroker),
+      ]).then(([verifiedRuntime, brokerHash]) => [verifiedRuntime, brokerHash] as const);
+      if (executionBrokerHash !== options.executionBroker.hash) fail("componentVerificationFailed");
+      const probe = await runBounded(options.executionBroker.path, linuxResourceBrokerArguments(
+        sandboxArgs(options, runtime),
+        LINUX_RESOURCE_LIMITS.probe,
+        {
+          scratchPath: parent,
+          outputPath: parent,
+          runtimeClosure: {
+            manifestPath: runtime.manifestPath,
+            manifestHash: runtime.manifestHash,
+          },
+        },
+      ), 5_000);
       if (probe.code !== 0 || probe.overLimit) fail("isolationUnavailable");
-      return new NodePdfInfoInspector(parent, options);
+      return new NodePdfInfoInspector(parent, options, runtime);
     } catch (error) {
       if (error instanceof NodePdfInfoInspectorError) throw error;
       fail("isolationUnavailable");
@@ -301,17 +344,32 @@ export class NodePdfInfoInspector implements PinnedPdfInspectorPort {
     if (!(bytes instanceof Uint8Array) || bytes.byteLength < 13 || bytes.byteLength > MAX_BYTES) {
       fail("invalidPdf");
     }
-    const [pdfinfoHash, bubblewrapHash] = await Promise.all([
-      stableHash(this.options.pdfinfo.path), stableHash(this.options.bubblewrap.path),
+    const [, executionBrokerHash] = await Promise.all([
+      assertLinuxRuntimeClosureCurrent(this.runtime),
+      stableHash(this.options.executionBroker.path),
     ]);
-    if (pdfinfoHash !== this.options.pdfinfo.hash || bubblewrapHash !== this.options.bubblewrap.hash) {
+    if (executionBrokerHash !== this.options.executionBroker.hash) {
       fail("componentVerificationFailed");
     }
     const runRoot = join(this.parent, randomUUID());
     await mkdir(runRoot, { recursive: false, mode: 0o700 });
     try {
       await installInput(join(runRoot, "input.pdf"), new Uint8Array(bytes));
-      const result = await runBounded(this.options.bubblewrap.path, sandboxArgs(this.options, runRoot));
+      const result = await runBounded(
+        this.options.executionBroker.path,
+        linuxResourceBrokerArguments(
+          sandboxArgs(this.options, this.runtime, runRoot),
+          LINUX_RESOURCE_LIMITS.pdfInspect,
+          {
+            scratchPath: runRoot,
+            outputPath: runRoot,
+            runtimeClosure: {
+              manifestPath: this.runtime.manifestPath,
+              manifestHash: this.runtime.manifestHash,
+            },
+          },
+        ),
+      );
       if (result.code !== 0 || result.overLimit || result.stderr.length > MAX_OUTPUT) {
         fail("inspectionFailed");
       }

@@ -202,7 +202,11 @@ const EXECUTION_TARGET_ROLES: Readonly<Record<TrustedComponentExecutionOperation
   Object.freeze({
     quarantineExecute: "quarantineWorker",
     typstCompile: "typstCli",
+    typstRuntimeBind: "typstRuntimeClosure",
     pdfInspect: "pdfInspector",
+    pdfStructuralInspect: "pdfStructuralInspector",
+    pdfFlatten: "pdfFlattener",
+    pdfRuntimeBind: "pdfRuntimeClosure",
   });
 
 function isExecutionOperation(value: unknown): value is TrustedComponentExecutionOperation {

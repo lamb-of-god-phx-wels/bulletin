@@ -117,7 +117,11 @@ function releaseComponents(): ComponentFixture[] {
     component("executionBroker", "broker", "native/execution-broker"),
     component("quarantineWorker", "quarantine-worker", "native/quarantine-worker"),
     component("typstCli", "typst", "native/typst"),
+    component("typstRuntimeClosure", "typst-runtime", "native/typst-runtime/cbb-typst-runtime.json"),
     component("pdfInspector", "pdf-inspector", "native/pdf-inspector"),
+    component("pdfStructuralInspector", "pdf-structural-inspector", "native/pdf-structural-inspector"),
+    component("pdfFlattener", "pdf-flattener", "native/pdf-flattener"),
+    component("pdfRuntimeClosure", "pdf-runtime", "native/pdf-runtime/cbb-pdf-runtime.json"),
     component("bookletCompositor", "compositor", "native/booklet-compositor"),
     component("schemaCatalog", "schemas", "resources/schemas.bin"),
     component("localeData", "locales", "resources/locales.bin"),
@@ -417,7 +421,11 @@ describe("opaque trusted component execution authority", () => {
       component("executionBroker", "broker", "native/execution-broker"),
     component("quarantineWorker", "quarantine-worker", "native/quarantine-worker"),
       component("typstCli", "typst", "native/typst"),
+      component("typstRuntimeClosure", "typst-runtime", "native/typst-runtime"),
       component("pdfInspector", "pdf-inspector", "native/pdf-inspector"),
+      component("pdfStructuralInspector", "pdf-structural", "native/pdf-structural"),
+      component("pdfFlattener", "pdf-flattener", "native/pdf-flattener"),
+      component("pdfRuntimeClosure", "pdf-runtime", "native/pdf-runtime"),
     ]);
   }
 
@@ -431,6 +439,10 @@ describe("opaque trusted component execution authority", () => {
     const quarantine = await registry.resolve({ role: "quarantineWorker", id: "quarantine-worker" });
     const typst = await registry.resolve({ role: "typstCli", id: "typst" });
     const inspector = await registry.resolve({ role: "pdfInspector", id: "pdf-inspector" });
+    const structural = await registry.resolve({ role: "pdfStructuralInspector", id: "pdf-structural" });
+    const flattener = await registry.resolve({ role: "pdfFlattener", id: "pdf-flattener" });
+    const pdfRuntime = await registry.resolve({ role: "pdfRuntimeClosure", id: "pdf-runtime" });
+    const typstRuntime = await registry.resolve({ role: "typstRuntimeClosure", id: "typst-runtime" });
 
     const typstGrant = await registry.execution.authorize({
       operation: "typstCompile",
@@ -447,6 +459,26 @@ describe("opaque trusted component execution authority", () => {
       broker: broker.locator,
       target: quarantine.locator,
     });
+    const flattenGrant = await registry.execution.authorize({
+      operation: "pdfFlatten",
+      broker: broker.locator,
+      target: flattener.locator,
+    });
+    const structuralGrant = await registry.execution.authorize({
+      operation: "pdfStructuralInspect",
+      broker: broker.locator,
+      target: structural.locator,
+    });
+    const pdfRuntimeGrant = await registry.execution.authorize({
+      operation: "pdfRuntimeBind",
+      broker: broker.locator,
+      target: pdfRuntime.locator,
+    });
+    const typstRuntimeGrant = await registry.execution.authorize({
+      operation: "typstRuntimeBind",
+      broker: broker.locator,
+      target: typstRuntime.locator,
+    });
     expect(quarantineGrant.target.role).toBe("quarantineWorker");
     expect(typstGrant).toMatchObject({
       operation: "typstCompile",
@@ -454,6 +486,10 @@ describe("opaque trusted component execution authority", () => {
       target: { role: "typstCli", id: "typst" },
     });
     expect(inspectGrant.target.role).toBe("pdfInspector");
+    expect(flattenGrant.target.role).toBe("pdfFlattener");
+    expect(structuralGrant.target.role).toBe("pdfStructuralInspector");
+    expect(pdfRuntimeGrant.target.role).toBe("pdfRuntimeClosure");
+    expect(typstRuntimeGrant.target.role).toBe("typstRuntimeClosure");
     expect(Object.isFrozen(typstGrant)).toBe(true);
     expect(JSON.stringify([typstGrant, inspectGrant])).not.toContain(root);
     expect(JSON.stringify([typstGrant, inspectGrant])).not.toContain("relativePath");

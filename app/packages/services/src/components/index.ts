@@ -55,8 +55,14 @@ export type {
 export {
   NodeClosedTrustedComponentExecutor,
 } from "./nodeExecutor.js";
-export { createSignedNodeBubblewrapQuarantineWorker } from "./signedQuarantineRuntime.js";
-export type { SignedNodeBubblewrapQuarantineWorkerOptions } from "./signedQuarantineRuntime.js";
+export {
+  createSignedNodeBubblewrapQuarantineWorker,
+  createSignedNodeLinuxQuarantineWorker,
+} from "./signedQuarantineRuntime.js";
+export type {
+  SignedNodeBubblewrapQuarantineWorkerOptions,
+  SignedNodeLinuxQuarantineWorkerOptions,
+} from "./signedQuarantineRuntime.js";
 export type {
   ClosedTrustedComponentOperationContext,
   ClosedTrustedComponentPaths,

@@ -216,6 +216,110 @@ describe("isolated Typst runner", () => {
     expect(cleanup).toHaveBeenCalledWith(ROOT);
   });
 
+  it("applies the single build deadline through PDF verification", async () => {
+    vi.useFakeTimers();
+    let markVerificationStarted: (() => void) | undefined;
+    const verificationStarted = new Promise<void>((resolve) => {
+      markVerificationStarted = resolve;
+    });
+    const terminate = vi.fn(async () => undefined);
+    const cleanup = vi.fn(async () => undefined);
+    const persistCompile = vi.fn(async () => ({ artifactId: "late" }));
+    const wholeBuildTimer: BuildRunnerTimerPort = {
+      async raceTimeout() {
+        await verificationStarted;
+        return { kind: "timedOut" };
+      },
+    };
+    const pending = runIsolatedTypstCompile(
+      request(),
+      TOOL,
+      sandbox({
+        terminate,
+        cleanup,
+        async verifyPdf() {
+          markVerificationStarted?.();
+          return new Promise<VerifiedPdfOutput>(() => undefined);
+        },
+      }),
+      wholeBuildTimer,
+      { persistCompile },
+    );
+    await verificationStarted;
+    await vi.advanceTimersByTimeAsync(1_001);
+    const result = await pending;
+    vi.useRealTimers();
+    expect(result).toMatchObject({ kind: "timedOut", code: "CBB-BUILD-0002" });
+    expect(terminate).toHaveBeenCalledWith(ROOT);
+    expect(cleanup).not.toHaveBeenCalled();
+    expect(persistCompile).not.toHaveBeenCalled();
+  });
+
+  it("aborts and cleans safely when the timer adapter itself throws", async () => {
+    const terminate = vi.fn(async () => undefined);
+    const cleanup = vi.fn(async () => undefined);
+    const throwingTimer: BuildRunnerTimerPort = {
+      async raceTimeout() {
+        throw new Error("clock failed");
+      },
+    };
+    const result = await runIsolatedTypstCompile(
+      request(),
+      TOOL,
+      sandbox({ terminate, cleanup }),
+      throwingTimer,
+      { async persistCompile() { throw new Error("must not run"); } },
+    );
+    expect(result).toMatchObject({ kind: "timedOut", code: "CBB-BUILD-0002" });
+    expect(terminate).toHaveBeenCalledWith(ROOT);
+    expect(cleanup).toHaveBeenCalledWith(ROOT);
+  });
+
+  it("awaits an authoritative durable commit after timed execution has completed", async () => {
+    let markPersistenceStarted: (() => void) | undefined;
+    let finishPersistence: ((value: { readonly artifactId: string }) => void) | undefined;
+    const persistenceStarted = new Promise<void>((resolve) => {
+      markPersistenceStarted = resolve;
+    });
+    const persistenceFinished = new Promise<{ readonly artifactId: string }>((resolve) => {
+      finishPersistence = resolve;
+    });
+    const terminate = vi.fn(async () => undefined);
+    const cleanup = vi.fn(async () => undefined);
+    let executionDeadlineClosed = false;
+    const wholeBuildTimer: BuildRunnerTimerPort = {
+      async raceTimeout(work) {
+        const value = await work;
+        executionDeadlineClosed = true;
+        return { kind: "completed", value };
+      },
+    };
+    const controller = new AbortController();
+    const pending = runIsolatedTypstCompile(
+      request(),
+      TOOL,
+      sandbox({ terminate, cleanup }),
+      wholeBuildTimer,
+      {
+        async persistCompile() {
+          expect(executionDeadlineClosed).toBe(true);
+          markPersistenceStarted?.();
+          return persistenceFinished;
+        },
+      },
+      controller.signal,
+    );
+    await persistenceStarted;
+    controller.abort("tooLateToContradictCommit");
+    finishPersistence?.({ artifactId: "committed" });
+    await expect(pending).resolves.toEqual({
+      status: "succeeded",
+      artifact: { artifactId: "committed" },
+    });
+    expect(terminate).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledWith(ROOT);
+  });
+
   it("fails closed when the sandbox cannot authoritatively remove its build root", async () => {
     const persistCompile = vi.fn(async () => ({ artifactId: "must-not-escape" }));
     const result = await runIsolatedTypstCompile(

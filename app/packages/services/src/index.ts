@@ -49,3 +49,6 @@ export * from "./artifacts/index.js";
 export * from "./history/retentionGraph.js";
 export * from "./history/retentionProjection.js";
 export * from "./history/nodeRetention.js";
+export * from "./windows/buildSandbox.js";
+export * from "./windows/pdfInspector.js";
+export * from "./windows/signedRuntime.js";

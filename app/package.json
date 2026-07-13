@@ -13,7 +13,8 @@
   "scripts": {
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "test:m3-native:linux": "CBB_RUN_NATIVE_M3=1 vitest run test/m3-native-build.test.ts"
+    "verify:m3-quarantine:linux": "native/quarantine-worker/scripts/verify.sh",
+    "test:m3-native:linux": "npm run verify:m3-quarantine:linux && CBB_RUN_NATIVE_M3=1 vitest run test/m3-native-build.test.ts packages/workers/src/quarantine/nodeBubblewrapWorker.native.test.ts packages/workers/src/quarantine/nodePdfFlattenWorker.native.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

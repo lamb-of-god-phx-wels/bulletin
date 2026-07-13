@@ -1,12 +1,13 @@
 import { generateKeyPairSync, sign } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { mkdtemp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  canonicalJsonBytes,
   MANDATORY_BUNDLED_FONTS,
   hashBytes,
   parseLocalResourceId,
@@ -49,19 +50,155 @@ async function bytes(path: string): Promise<Uint8Array> {
   return new Uint8Array(await readFile(path));
 }
 
+interface PackagedRuntime {
+  readonly root: string;
+  readonly tool: { readonly path: string; readonly hash: Sha256Hash; readonly byteSize: number };
+  readonly manifest: { readonly path: string; readonly hash: Sha256Hash; readonly byteSize: number };
+}
+
+async function elfRuntimePaths(executable: string): Promise<{
+  readonly loader: { readonly source: string; readonly name: string };
+  readonly libraries: readonly { readonly source: string; readonly name: string }[];
+}> {
+  const [{ stdout: programHeaders }, { stdout: dependencies }] = await Promise.all([
+    executeFile("readelf", ["-lW", executable], {
+      env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", LANG: "C" },
+      timeout: 30_000,
+      maxBuffer: 4 * 1024 * 1024,
+    }),
+    executeFile("ldd", [executable], {
+      env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", LANG: "C" },
+      timeout: 30_000,
+      maxBuffer: 4 * 1024 * 1024,
+    }),
+  ]);
+  const interpreter = /Requesting program interpreter:\s*([^\]]+)\]/u.exec(programHeaders)?.[1];
+  if (interpreter === undefined || !interpreter.startsWith("/")) {
+    throw new Error("Native smoke requires a dynamically linked ELF tool");
+  }
+  const loaderSource = await realpath(interpreter);
+  const loaderName = interpreter.split("/").at(-1);
+  if (loaderName === undefined) throw new Error("Dynamic loader name is unavailable");
+  const libraries = new Map<string, string>();
+  for (const line of dependencies.split(/\r?\n/u)) {
+    const value = line.trim();
+    if (value.length === 0 || value.startsWith("linux-vdso")) continue;
+    if (value.includes("not found")) throw new Error(`Unresolved native dependency: ${value}`);
+    const path = /=>\s*(\/[^\s]+)/u.exec(value)?.[1] ?? /^(\/[^\s]+)/u.exec(value)?.[1];
+    if (path === undefined) continue;
+    const resolved = await realpath(path);
+    if (resolved !== loaderSource) {
+      const name = path.split("/").at(-1);
+      if (name === undefined) throw new Error("Library name is unavailable");
+      const existing = libraries.get(name);
+      if (existing !== undefined && existing !== resolved) {
+        throw new Error(`Runtime library name collision: ${name}`);
+      }
+      libraries.set(name, resolved);
+    }
+  }
+  return {
+    loader: { source: loaderSource, name: loaderName },
+    libraries: [...libraries]
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([name, source]) => ({ name, source })),
+  };
+}
+
+async function packageRuntime(options: {
+  readonly parent: string;
+  readonly directoryName: string;
+  readonly toolName: string;
+  readonly toolPath: string;
+  readonly manifestName: string;
+  readonly manifestKind: string;
+}): Promise<PackagedRuntime> {
+  const root = join(options.parent, options.directoryName);
+  await Promise.all([
+    mkdir(join(root, "bin"), { recursive: true }),
+    mkdir(join(root, "lib"), { recursive: true }),
+  ]);
+  const closure = await elfRuntimePaths(options.toolPath);
+  const copied = new Map<string, Uint8Array>();
+  const install = async (source: string, relativePath: string, executable: boolean): Promise<void> => {
+    const destination = join(root, ...relativePath.split("/"));
+    const sourceBytes = await bytes(source);
+    const existing = copied.get(relativePath);
+    if (existing !== undefined && hashBytes(existing) !== hashBytes(sourceBytes)) {
+      throw new Error(`Runtime basename collision: ${relativePath}`);
+    }
+    if (existing !== undefined) return;
+    await copyFile(source, destination);
+    await chmod(destination, executable ? 0o700 : 0o600);
+    copied.set(relativePath, sourceBytes);
+  };
+  await install(options.toolPath, `bin/${options.toolName}`, true);
+  const loaderName = closure.loader.name;
+  await install(closure.loader.source, `lib/${loaderName}`, true);
+  for (const library of closure.libraries) {
+    await install(library.source, `lib/${library.name}`, false);
+  }
+  const files = [...copied]
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([path, value]) => ({ path, hash: hashBytes(value), byteSize: value.byteLength }));
+  const manifestBytes = canonicalJsonBytes({
+    version: 1,
+    kind: options.manifestKind,
+    loaderPath: `lib/${loaderName}`,
+    libraryDirectories: ["lib"],
+    files,
+  });
+  const manifestPath = join(root, options.manifestName);
+  await writeFile(manifestPath, manifestBytes, { mode: 0o600 });
+  const toolBytes = copied.get(`bin/${options.toolName}`)!;
+  return {
+    root,
+    tool: {
+      path: join(root, "bin", options.toolName),
+      hash: hashBytes(toolBytes),
+      byteSize: toolBytes.byteLength,
+    },
+    manifest: {
+      path: manifestPath,
+      hash: hashBytes(manifestBytes),
+      byteSize: manifestBytes.byteLength,
+    },
+  };
+}
+
 describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
   it("isolates Typst, stages exact mandatory fonts, inspects PDF, and persists before cleanup", async () => {
     const parent = await mkdtemp(join(tmpdir(), "cbb-m3-native-"));
+    try {
     const buildParent = join(parent, "builds");
     const inspectParent = join(parent, "inspect");
     const quarantineRuntime = join(parent, "quarantine-runtime");
     const quarantineHandles = join(parent, "quarantine-handles");
     const quarantineSource = join(parent, "quarantine-worker.c");
     const quarantineExecutable = join(parent, "quarantine-worker");
+    const brokerExecutable = join(parent, "execution-broker");
     await mkdir(buildParent, { mode: 0o700 });
     await Promise.all([
       mkdir(quarantineRuntime, { mode: 0o700 }),
       mkdir(quarantineHandles, { mode: 0o700 }),
+    ]);
+    const [typstRuntime, pdfRuntime] = await Promise.all([
+      packageRuntime({
+        parent,
+        directoryName: "typst-runtime",
+        toolName: "typst",
+        toolPath: TYPST,
+        manifestName: "cbb-typst-runtime.json",
+        manifestKind: "cbbTypstRuntimeClosure",
+      }),
+      packageRuntime({
+        parent,
+        directoryName: "pdf-runtime",
+        toolName: "pdfinfo",
+        toolPath: PDFINFO,
+        manifestName: "cbb-pdf-runtime.json",
+        manifestKind: "cbbPdfRuntimeClosure",
+      }),
     ]);
     await writeFile(quarantineSource, [
       "#include <string.h>",
@@ -77,12 +214,35 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
       timeout: 30_000,
       maxBuffer: 1024 * 1024,
     });
+    await writeFile(brokerExecutable, [
+      `#!${process.execPath}`,
+      "const fs = require('node:fs');",
+      "const { createHash } = require('node:crypto');",
+      "const { spawnSync } = require('node:child_process');",
+      "const args = process.argv.slice(2);",
+      "if (args.length === 1 && args[0] === '--cbb-linux-resource-broker-capabilities-v1') {",
+      "  fs.writeSync(1, JSON.stringify({kind:'cbbLinuxResourceBrokerCapabilities',version:1,cpuTime:true,addressSpace:true,processCount:true,fileSize:true,openFiles:true,scratchQuota:true,outputQuota:true,mountIsolation:true,networkIsolation:true,processTreeTermination:true,runtimeClosureVerification:true}));",
+      "} else {",
+      "  const manifest = args.indexOf('--runtime-manifest-path');",
+      "  const manifestHash = args.indexOf('--runtime-manifest-hash');",
+      "  if (manifest >= 0 || manifestHash >= 0) {",
+      "    if (manifest < 0 || manifestHash < 0) process.exit(74);",
+      "    const observed = 'sha256:' + createHash('sha256').update(fs.readFileSync(args[manifest + 1])).digest('hex');",
+      "    if (observed !== args[manifestHash + 1]) process.exit(75);",
+      "  }",
+      "  const marker = args.indexOf('--cbb-sandbox-argv-v1');",
+      "  if (marker < 0) process.exit(72);",
+      `  const result = spawnSync(${JSON.stringify(BWRAP)}, args.slice(marker + 1), { stdio: 'inherit', env: {} });`,
+      "  process.exit(result.status === null ? 73 : result.status);",
+      "}",
+      "",
+    ].join("\n"), { mode: 0o700 });
 
-    const [typstBytes, bwrapBytes, pdfinfoBytes, quarantineBytes, sansBytes, symbolsBytes] = await Promise.all([
-      bytes(TYPST), bytes(BWRAP), bytes(PDFINFO), bytes(quarantineExecutable), bytes(NOTO_SANS), bytes(NOTO_SYMBOLS),
+    const [brokerBytes, quarantineBytes, sansBytes, symbolsBytes] = await Promise.all([
+      bytes(brokerExecutable), bytes(quarantineExecutable), bytes(NOTO_SANS), bytes(NOTO_SYMBOLS),
     ]);
-    const typstHash = hashBytes(typstBytes);
-    const bwrapHash = hashBytes(bwrapBytes);
+    const typstHash = typstRuntime.tool.hash;
+    const brokerHash = hashBytes(brokerBytes);
     const executor = new NodeClosedTrustedComponentExecutor();
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
     const content: TrustedComponentManifestContent = {
@@ -91,10 +251,12 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
       signingKeyId: "native-smoke-key",
       release: NATIVE_EXPECTED_RELEASE,
       components: [
-        { role: "executionBroker", id: "bubblewrap", version: "0.11.2", platform: "linux", arch: "x64", relativePath: "usr/bin/bwrap", hash: bwrapHash, byteSize: bwrapBytes.byteLength },
-        { role: "pdfInspector", id: "poppler-pdfinfo", version: "26.05.0", platform: "linux", arch: "x64", relativePath: "usr/bin/pdfinfo", hash: hashBytes(pdfinfoBytes), byteSize: pdfinfoBytes.byteLength },
+        { role: "executionBroker", id: "cbb-linux-resource-broker", version: "m3-test.1", platform: "linux", arch: "x64", relativePath: brokerExecutable.slice(1), hash: brokerHash, byteSize: brokerBytes.byteLength },
+        { role: "pdfInspector", id: "poppler-pdfinfo", version: "26.05.0", platform: "linux", arch: "x64", relativePath: pdfRuntime.tool.path.slice(1), hash: pdfRuntime.tool.hash, byteSize: pdfRuntime.tool.byteSize },
+        { role: "pdfRuntimeClosure", id: "poppler-runtime", version: "26.05.0", platform: "linux", arch: "x64", relativePath: pdfRuntime.manifest.path.slice(1), hash: pdfRuntime.manifest.hash, byteSize: pdfRuntime.manifest.byteSize },
         { role: "quarantineWorker", id: "quarantine-worker", version: "m3-probe.1", platform: "linux", arch: "x64", relativePath: quarantineExecutable.slice(1), hash: hashBytes(quarantineBytes), byteSize: quarantineBytes.byteLength },
-        { role: "typstCli", id: "typst", version: "0.14.2", platform: "linux", arch: "x64", relativePath: "usr/bin/typst", hash: typstHash, byteSize: typstBytes.byteLength },
+        { role: "typstCli", id: "typst", version: "0.14.2", platform: "linux", arch: "x64", relativePath: typstRuntime.tool.path.slice(1), hash: typstHash, byteSize: typstRuntime.tool.byteSize },
+        { role: "typstRuntimeClosure", id: "typst-runtime", version: "0.14.2", platform: "linux", arch: "x64", relativePath: typstRuntime.manifest.path.slice(1), hash: typstRuntime.manifest.hash, byteSize: typstRuntime.manifest.byteSize },
       ],
     };
     const manifest: SignedTrustedComponentManifest = {
@@ -114,10 +276,12 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
       expectedArch: "x64",
       nativeExecutor: executor,
     });
-    const brokerComponent = await registry.resolve({ role: "executionBroker", id: "bubblewrap" });
+    const brokerComponent = await registry.resolve({ role: "executionBroker", id: "cbb-linux-resource-broker" });
     const typstComponent = await registry.resolve({ role: "typstCli", id: "typst" });
     const pdfComponent = await registry.resolve({ role: "pdfInspector", id: "poppler-pdfinfo" });
+    const pdfRuntimeComponent = await registry.resolve({ role: "pdfRuntimeClosure", id: "poppler-runtime" });
     const quarantineComponent = await registry.resolve({ role: "quarantineWorker", id: "quarantine-worker" });
+    const typstRuntimeComponent = await registry.resolve({ role: "typstRuntimeClosure", id: "typst-runtime" });
     const quarantine = await createSignedNodeBubblewrapQuarantineWorker({
       runtimeRoot: quarantineRuntime,
       handles: await NodeQuarantineHandleStore.create(quarantineHandles),
@@ -133,6 +297,7 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
       executor,
       executionBroker: brokerComponent.locator,
       pdfInspector: pdfComponent.locator,
+      pdfRuntime: pdfRuntimeComponent.locator,
     });
     const pdfs = createNodeArtifactPdfValidator({
       inspector,
@@ -149,6 +314,7 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
       executor,
       executionBroker: brokerComponent.locator,
       typst: typstComponent.locator,
+      typstRuntime: typstRuntimeComponent.locator,
       resources: {
         async read(entry) {
           const value = resourceBytes.get(entry.hash);
@@ -243,5 +409,8 @@ describe.runIf(RUN_NATIVE)("native M3 offline build spine", () => {
       status: "succeeded",
       artifact: { pageCount: 1 },
     });
-  }, 60_000);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

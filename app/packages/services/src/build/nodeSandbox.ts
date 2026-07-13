@@ -4,6 +4,17 @@ import { constants } from "node:fs";
 import { chmod, lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { hashBytes, hexToSha256Hash, type Sha256Hash } from "@cbb/core";
+import {
+  assertLinuxRuntimeClosureCurrent,
+  LINUX_RESOURCE_LIMITS,
+  linuxRuntimeCommand,
+  linuxRuntimeMountArguments,
+  linuxResourceBrokerArguments,
+  verifyLinuxRuntimeClosure,
+  verifyLinuxResourceBroker,
+  type PinnedPdfRuntimeComponent,
+  type VerifiedLinuxRuntimeClosure,
+} from "@cbb/workers";
 import type { ArtifactPdfValidatorPort, ObservedPdfIdentity } from "../artifacts/index.js";
 import type { ResourceStagingEntry } from "../resources/index.js";
 import type {
@@ -24,6 +35,8 @@ const HASH = /^sha256:[0-9a-f]{64}$/u;
 const ROOT_HANDLE = /^build-root:[0-9a-f-]{36}$/u;
 const ASSET_ALIAS = /^assets\/a[0-9]{4}\.(?:png|jpg|svg|pdf|bin)$/u;
 const FONT_ALIAS = /^fonts\/f[0-9]{4}-[0-9]{4}\.(?:ttf|otf|woff|woff2)$/u;
+const TYPST_RUNTIME_MANIFEST_NAME = "cbb-typst-runtime.json";
+const TYPST_RUNTIME_MANIFEST_KIND = "cbbTypstRuntimeClosure";
 
 export type NodeTypstSandboxErrorKind =
   | "invalidConfiguration"
@@ -70,8 +83,11 @@ export interface NodeOfflineTypstSandboxOptions {
   readonly typst: TrustedExecutableIdentity & {
     readonly toolId: "typst";
     readonly version: string;
+    readonly byteSize: number;
   };
-  readonly bubblewrap: TrustedExecutableIdentity;
+  readonly runtimeManifest: PinnedPdfRuntimeComponent;
+  /** Signed v1 Linux resource/isolation broker; plain Bubblewrap is rejected. */
+  readonly executionBroker: TrustedExecutableIdentity;
   readonly resources: ResourceStagingBytePort;
   readonly pdfs: ArtifactPdfValidatorPort;
   readonly outputHandles: CompileOutputHandlePort;
@@ -320,10 +336,9 @@ function validateObservedPdf(observed: ObservedPdfIdentity): void {
 }
 
 /**
- * Linux adapter for app-generated Typst. Bubblewrap owns separate mount, PID,
- * user, IPC, UTS, cgroup and network namespaces. The child sees only the staged
- * build root and read-only runtime libraries, with an empty package cache and a
- * closed environment. Missing isolation always rejects construction.
+ * Linux adapter for app-generated Typst. The signed execution broker owns the
+ * namespaces and installs CPU, address-space, process, file and directory
+ * quotas before executing the sandbox. Missing limits or isolation rejects.
  */
 export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
   readonly isolationProfile = "offlineTypstV1" as const;
@@ -332,6 +347,7 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
   private constructor(
     private readonly buildParent: string,
     private readonly options: NodeOfflineTypstSandboxOptions,
+    private readonly runtime: VerifiedLinuxRuntimeClosure,
   ) {}
 
   static async create(options: NodeOfflineTypstSandboxOptions): Promise<NodeOfflineTypstSandbox> {
@@ -341,34 +357,53 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
         typeof constants.O_NOFOLLOW !== "number" ||
         constants.O_NOFOLLOW === 0 ||
         !isAbsolute(options.privateBuildParent) ||
+        resolve(options.privateBuildParent) !== options.privateBuildParent ||
         !isAbsolute(options.typst.path) ||
-        !isAbsolute(options.bubblewrap.path) ||
+        !isAbsolute(options.executionBroker.path) ||
         options.typst.toolId !== "typst" ||
         !/^[A-Za-z0-9][A-Za-z0-9_.+:-]{0,127}$/u.test(options.typst.version) ||
         !HASH.test(options.typst.hash) ||
-        !HASH.test(options.bubblewrap.hash)
+        !Number.isSafeInteger(options.typst.byteSize) || options.typst.byteSize < 1 ||
+        !HASH.test(options.executionBroker.hash)
       ) fail("invalidConfiguration");
       await mkdir(options.privateBuildParent, { recursive: true, mode: 0o700 });
       await chmod(options.privateBuildParent, 0o700);
       const buildParent = await realpath(options.privateBuildParent);
+      if (buildParent !== options.privateBuildParent) fail("invalidConfiguration");
       const parentStats = await lstat(buildParent, { bigint: true });
       if (parentStats.isSymbolicLink() || !parentStats.isDirectory()) fail("invalidConfiguration");
       await sweepAbandonedBuildRoots(buildParent);
-      const typst = await stableFileIdentity(options.typst.path, MAX_COMPONENT_BYTES);
-      const bubblewrap = await stableFileIdentity(options.bubblewrap.path, MAX_COMPONENT_BYTES);
-      if (typst.hash !== options.typst.hash || bubblewrap.hash !== options.bubblewrap.hash) {
-        fail("componentVerificationFailed");
-      }
-      const available = await runProbe(options.bubblewrap.path, [
+      const [runtime, executionBroker] = await Promise.all([
+        verifyLinuxRuntimeClosure({
+          manifestName: TYPST_RUNTIME_MANIFEST_NAME,
+          manifestKind: TYPST_RUNTIME_MANIFEST_KIND,
+          manifest: options.runtimeManifest,
+          tools: [{
+            path: options.typst.path,
+            hash: options.typst.hash,
+            byteSize: options.typst.byteSize,
+          }],
+        }),
+        stableFileIdentity(options.executionBroker.path, MAX_COMPONENT_BYTES),
+        verifyLinuxResourceBroker(options.executionBroker),
+      ]).then(([verifiedRuntime, broker]) => [verifiedRuntime, broker] as const);
+      if (executionBroker.hash !== options.executionBroker.hash) fail("componentVerificationFailed");
+      const available = await runProbe(options.executionBroker.path, linuxResourceBrokerArguments([
         "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
-        "--ro-bind", "/usr", "/usr",
-        "--ro-bind-try", "/lib", "/lib",
-        "--ro-bind-try", "/lib64", "/lib64",
+        "--tmpfs", "/",
+        ...linuxRuntimeMountArguments(runtime),
         "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-        "--clearenv", "--", "/usr/bin/true",
-      ]);
+        "--clearenv", "--", ...linuxRuntimeCommand(runtime, options.typst.path, ["--version"]),
+      ], LINUX_RESOURCE_LIMITS.probe, {
+        scratchPath: buildParent,
+        outputPath: buildParent,
+        runtimeClosure: {
+          manifestPath: runtime.manifestPath,
+          manifestHash: runtime.manifestHash,
+        },
+      }));
       if (!available) fail("isolationUnavailable");
-      return new NodeOfflineTypstSandbox(buildParent, options);
+      return new NodeOfflineTypstSandbox(buildParent, options, runtime);
     } catch (error) {
       if (error instanceof NodeTypstSandboxError) throw error;
       fail("isolationUnavailable");
@@ -382,11 +417,11 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
         requirement.version !== this.options.typst.version ||
         requirement.executableHash !== this.options.typst.hash
       ) return false;
-      const [typst, bubblewrap] = await Promise.all([
-        stableFileIdentity(this.options.typst.path, MAX_COMPONENT_BYTES),
-        stableFileIdentity(this.options.bubblewrap.path, MAX_COMPONENT_BYTES),
+      const [, executionBroker] = await Promise.all([
+        assertLinuxRuntimeClosureCurrent(this.runtime),
+        stableFileIdentity(this.options.executionBroker.path, MAX_COMPONENT_BYTES),
       ]);
-      return typst.hash === this.options.typst.hash && bubblewrap.hash === this.options.bubblewrap.hash;
+      return executionBroker.hash === this.options.executionBroker.hash;
     } catch {
       return false;
     }
@@ -453,21 +488,19 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
   async compile(root: BuildRootHandle, signal?: AbortSignal): Promise<SandboxCompileResult> {
     const entry = this.entry(root);
     if (entry.terminated || signal?.aborted === true) return { kind: "canceled" };
-    const [typst, bubblewrap] = await Promise.all([
-      stableFileIdentity(this.options.typst.path, MAX_COMPONENT_BYTES),
-      stableFileIdentity(this.options.bubblewrap.path, MAX_COMPONENT_BYTES),
+    const [, executionBroker] = await Promise.all([
+      assertLinuxRuntimeClosureCurrent(this.runtime),
+      stableFileIdentity(this.options.executionBroker.path, MAX_COMPONENT_BYTES),
     ]);
-    if (typst.hash !== this.options.typst.hash || bubblewrap.hash !== this.options.bubblewrap.hash) {
+    if (executionBroker.hash !== this.options.executionBroker.hash) {
       fail("componentVerificationFailed");
     }
     if (entry.process !== undefined) fail("invalidHandle");
     const args = [
       "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
-      "--ro-bind", "/usr", "/usr",
-      "--ro-bind-try", "/lib", "/lib",
-      "--ro-bind-try", "/lib64", "/lib64",
+      "--tmpfs", "/",
+      ...linuxRuntimeMountArguments(this.runtime),
       "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-      "--dir", "/tool", "--ro-bind", this.options.typst.path, "/tool/typst",
       "--bind", entry.path, "/build",
       "--tmpfs", "/packages", "--tmpfs", "/cache", "--chdir", "/build",
       "--clearenv",
@@ -475,22 +508,35 @@ export class NodeOfflineTypstSandbox implements IsolatedTypstSandboxPort {
       "--setenv", "TZ", "UTC",
       "--setenv", "LANG", "C.UTF-8",
       "--",
-      "/tool/typst", "compile",
-      "--root", "/build",
-      "--font-path", "/build/fonts",
-      "--ignore-system-fonts",
-      "--ignore-embedded-fonts",
-      "--package-path", "/packages",
-      "--package-cache-path", "/cache",
-      "--creation-timestamp", "0",
-      "--jobs", "1",
-      "--diagnostic-format", "short",
-      "/build/main.typ", "/build/output.pdf",
+      ...linuxRuntimeCommand(this.runtime, this.options.typst.path, [
+        "compile",
+        "--root", "/build",
+        "--font-path", "/build/fonts",
+        "--ignore-system-fonts",
+        "--ignore-embedded-fonts",
+        "--package-path", "/packages",
+        "--package-cache-path", "/cache",
+        "--creation-timestamp", "0",
+        "--jobs", "1",
+        "--diagnostic-format", "short",
+        "/build/main.typ", "/build/output.pdf",
+      ]),
     ];
     return new Promise<SandboxCompileResult>((resolveCompile) => {
       let settled = false;
       let outputBytes = 0;
-      const child = spawn(this.options.bubblewrap.path, args, {
+      const child = spawn(this.options.executionBroker.path, linuxResourceBrokerArguments(
+        args,
+        LINUX_RESOURCE_LIMITS.typst,
+        {
+          scratchPath: entry.path,
+          outputPath: join(entry.path, "output.pdf"),
+          runtimeClosure: {
+            manifestPath: this.runtime.manifestPath,
+            manifestHash: this.runtime.manifestHash,
+          },
+        },
+      ), {
         detached: true,
         env: {},
         stdio: ["ignore", "pipe", "pipe"],

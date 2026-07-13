@@ -4,7 +4,11 @@ export const TRUSTED_COMPONENT_ROLES = [
   "executionBroker",
   "quarantineWorker",
   "typstCli",
+  "typstRuntimeClosure",
   "pdfInspector",
+  "pdfStructuralInspector",
+  "pdfFlattener",
+  "pdfRuntimeClosure",
   "bookletCompositor",
   "pdfUaValidator",
   "bundledFontFace",
@@ -113,7 +117,11 @@ export interface TrustedComponentSelectionRequest {
 export const TRUSTED_COMPONENT_EXECUTION_OPERATIONS = [
   "quarantineExecute",
   "typstCompile",
+  "typstRuntimeBind",
   "pdfInspect",
+  "pdfStructuralInspect",
+  "pdfFlatten",
+  "pdfRuntimeBind",
 ] as const;
 
 export type TrustedComponentExecutionOperation =
@@ -122,7 +130,11 @@ export type TrustedComponentExecutionOperation =
 export const TRUSTED_COMPONENT_EXECUTION_LIMITS = Object.freeze({
   quarantineExecute: Object.freeze({ maximumRuntimeMs: 120_000 }),
   typstCompile: Object.freeze({ maximumRuntimeMs: 120_000 }),
+  typstRuntimeBind: Object.freeze({ maximumRuntimeMs: 30_000 }),
   pdfInspect: Object.freeze({ maximumRuntimeMs: 30_000 }),
+  pdfStructuralInspect: Object.freeze({ maximumRuntimeMs: 30_000 }),
+  pdfFlatten: Object.freeze({ maximumRuntimeMs: 120_000 }),
+  pdfRuntimeBind: Object.freeze({ maximumRuntimeMs: 30_000 }),
 } as const satisfies Readonly<
   Record<TrustedComponentExecutionOperation, { readonly maximumRuntimeMs: number }>
 >);

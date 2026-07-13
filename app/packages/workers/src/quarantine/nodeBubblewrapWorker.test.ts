@@ -9,6 +9,21 @@ import { QUARANTINE_HARD_LIMITS, type SanitizeSvgRequest } from "./protocol.js";
 
 const roots: string[] = [];
 const encoder = new TextEncoder();
+const BROKER_CAPABILITIES = {
+  kind: "cbbLinuxResourceBrokerCapabilities",
+  version: 1,
+  cpuTime: true,
+  addressSpace: true,
+  processCount: true,
+  fileSize: true,
+  openFiles: true,
+  scratchQuota: true,
+  outputQuota: true,
+  mountIsolation: true,
+  networkIsolation: true,
+  processTreeTermination: true,
+  runtimeClosureVerification: true,
+};
 
 async function root(label: string): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), `cbb-bwrap-${label}-`));
@@ -49,7 +64,7 @@ async function executable(path: string, contents: Uint8Array | string): Promise<
 }
 
 async function harness(
-  launcherProgram = "require('node:fs').writeSync(1, JSON.stringify({argv:process.argv.slice(2),env:process.env}));",
+  launcherProgram = "require('node:fs').writeSync(1, JSON.stringify({argv:process.argv.slice(2),env:process.env,brokerArgs}));",
   maximumMessageBytes?: number,
 ): Promise<{
   readonly worker: NodeBubblewrapQuarantineWorker;
@@ -63,7 +78,15 @@ async function harness(
   const workerPath = join(fixtureRoot, "pinned-static-worker");
   const launcherHash = await executable(launcherPath, [
     `#!${process.execPath}`,
-    launcherProgram,
+    "const brokerArgs = process.argv.slice(2);",
+    "if (brokerArgs.length === 1 && brokerArgs[0] === '--cbb-linux-resource-broker-capabilities-v1') {",
+    `  require('node:fs').writeSync(1, ${JSON.stringify(JSON.stringify(BROKER_CAPABILITIES))});`,
+    "} else {",
+    "  const marker = brokerArgs.indexOf('--cbb-sandbox-argv-v1');",
+    "  if (marker < 0) process.exit(72);",
+    "  process.argv = [...process.argv.slice(0, 2), ...brokerArgs.slice(marker + 1)];",
+    `  ${launcherProgram}`,
+    "}",
     "",
   ].join("\n"));
   const workerHash = await executable(workerPath, staticElfFixture());
@@ -80,7 +103,7 @@ async function harness(
   };
   return {
     worker: await NodeBubblewrapQuarantineWorker.create({
-      bubblewrap: { path: launcherPath, hash: launcherHash },
+      executionBroker: { path: launcherPath, hash: launcherHash },
       worker: { path: workerPath, hash: workerHash, staticallyLinked: true },
       runtimeRoot,
       handles,
@@ -91,7 +114,7 @@ async function harness(
   };
 }
 
-describe("Linux bubblewrap quarantine transport", () => {
+describe("Linux signed resource-broker quarantine transport", () => {
   it("constructs the closed no-network mount contract and clears the host environment", async () => {
     const { worker, request } = await harness();
     expect(worker.isolationAvailable).toBe(process.platform === "linux");
@@ -99,6 +122,7 @@ describe("Linux bubblewrap quarantine transport", () => {
     const result = await worker.execute(request) as {
       readonly argv: readonly string[];
       readonly env: Readonly<Record<string, string>>;
+      readonly brokerArgs: readonly string[];
     };
     expect(result.argv).toEqual(expect.arrayContaining([
       "--unshare-all",
@@ -118,6 +142,14 @@ describe("Linux bubblewrap quarantine transport", () => {
     expect(result.argv).not.toContain("--proc");
     expect(result.argv).not.toContain("--dev");
     expect(result.env).toEqual({});
+    expect(result.brokerArgs).toEqual(expect.arrayContaining([
+      "--cpu-seconds", "120",
+      "--address-space-bytes", (1024 * 1024 * 1024).toString(10),
+      "--process-count", "16",
+      "--file-size-bytes", QUARANTINE_HARD_LIMITS.sanitizeSvg.outputBytes.toString(10),
+      "--open-file-count", "256",
+      "--output-bytes", QUARANTINE_HARD_LIMITS.sanitizeSvg.outputBytes.toString(10),
+    ]));
     await expect(worker.terminate(request.requestId)).resolves.toBeUndefined();
   });
 
@@ -191,7 +223,7 @@ describe("Linux bubblewrap quarantine transport", () => {
     const workerHash = await executable(workerPath, "#!/bin/sh\nexit 0\n");
     const handles = await NodeQuarantineHandleStore.create(handleRoot);
     const worker = await NodeBubblewrapQuarantineWorker.create({
-      bubblewrap: { path: launcherPath, hash: launcherHash },
+      executionBroker: { path: launcherPath, hash: launcherHash },
       worker: { path: workerPath, hash: workerHash, staticallyLinked: true },
       runtimeRoot,
       handles,
@@ -213,7 +245,7 @@ describe("Linux bubblewrap quarantine transport", () => {
       const workerHash = await executable(workerPath, contents);
       const handles = await NodeQuarantineHandleStore.create(handleRoot);
       const worker = await NodeBubblewrapQuarantineWorker.create({
-        bubblewrap: { path: launcherPath, hash: launcherHash },
+        executionBroker: { path: launcherPath, hash: launcherHash },
         worker: { path: workerPath, hash: workerHash, staticallyLinked: true },
         runtimeRoot,
         handles,

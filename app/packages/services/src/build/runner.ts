@@ -121,6 +121,7 @@ const SAFE_ASSET_ALIAS = /^assets\/a[0-9]{4}\.(?:png|jpg|svg|pdf|bin)$/;
 const SAFE_FONT_ALIAS = /^fonts\/f[0-9]{4}-[0-9]{4}\.(?:ttf|otf|woff|woff2)$/;
 const MAX_ARTIFACT_BYTES = 1024 * 1024 * 1024;
 const MAX_PAGES = 1_000;
+const ABANDON_GRACE_MS = 1_000;
 
 function failure<Result>(
   kind: TypstRunnerFailureKind,
@@ -243,10 +244,26 @@ function isAborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true;
 }
 
+async function settlesWithin(work: Promise<unknown>): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work.then(() => true, () => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), ABANDON_GRACE_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 /**
  * Compile generated source through the trusted isolation adapter and install
- * evidence before the temporary root is removed. All failures clean the root;
- * no partial output is returned or persisted.
+ * evidence before the temporary root is removed. The execution deadline covers
+ * staging, compilation, and PDF verification. Immutable artifact installation
+ * begins only after that timed work completes and is then awaited as an
+ * authoritative durability commit; a timeout can never race a success record.
  */
 export async function runIsolatedTypstCompile<Result>(
   request: TypstCompileRequest,
@@ -284,80 +301,137 @@ export async function runIsolatedTypstCompile<Result>(
   }
   if (!trusted) return failure("untrustedTool", "CBB-SECURITY-0001");
 
-  let root: BuildRootHandle | undefined;
-  let abortListener: (() => void) | undefined;
-  const execute = async (): Promise<TypstRunnerResult<Result>> => {
-    try {
+  let root: BuildRootHandle;
+  try {
     root = await sandbox.createBuildRoot(request.buildId);
-    if (isAborted(signal)) {
-      await sandbox.terminate(root).catch(() => undefined);
-      return failure("canceled", "CBB-BUILD-0002");
-    }
-    if (signal !== undefined) {
-      const capturedRoot = root;
-      abortListener = () => {
-        void sandbox.terminate(capturedRoot).catch(() => undefined);
-      };
-      signal.addEventListener("abort", abortListener, { once: true });
-    }
+  } catch {
+    return failure("stagingFailed", "CBB-SECURITY-0001");
+  }
 
-    const stagedSource = await sandbox.stageSource(root, source, request.sourceHash);
-    if (
-      stagedSource.observedHash !== request.sourceHash ||
-      stagedSource.observedByteSize !== source.byteLength
-    ) {
-      return failure("stagingFailed", "CBB-SECURITY-0001");
-    }
-    for (const entry of request.resources.stagingEntries) {
-      const staged = await sandbox.stageResource(root, entry);
-      if (staged.observedHash !== entry.hash || staged.observedByteSize !== entry.byteSize) {
-        return failure("stagingFailed", "CBB-SECURITY-0001");
-      }
-    }
+  const deadline = new AbortController();
+  const executionAborted = (): boolean => isAborted(signal) || deadline.signal.aborted;
+  let abortListener: (() => void) | undefined;
+  if (signal !== undefined) {
+    abortListener = () => {
+      deadline.abort("buildCanceled");
+      void sandbox.terminate(root).catch(() => undefined);
+    };
+    signal.addEventListener("abort", abortListener, { once: true });
+  }
 
-    const raced = await timer.raceTimeout(sandbox.compile(root, signal), timeoutMs);
-    if (raced.kind === "timedOut") {
-      await sandbox.terminate(root).catch(() => undefined);
-      return failure("timedOut", "CBB-BUILD-0002");
-    }
-    if (raced.value.kind === "canceled" || isAborted(signal)) {
-      await sandbox.terminate(root).catch(() => undefined);
-      return failure("canceled", "CBB-BUILD-0002");
-    }
-    if (raced.value.kind === "failed") {
-      return failure("compileFailed", "CBB-BUILD-0001", raced.value.diagnosticCodes);
-    }
-
-    let pdf: VerifiedPdfOutput;
+  type TimedExecutionResult =
+    | { readonly kind: "failed"; readonly result: TypstRunnerResult<Result> }
+    | { readonly kind: "verified"; readonly pdf: VerifiedPdfOutput };
+  const failed = (result: TypstRunnerResult<Result>): TimedExecutionResult => ({
+    kind: "failed",
+    result,
+  });
+  const execute = async (): Promise<TimedExecutionResult> => {
     try {
-      pdf = await sandbox.verifyPdf(root);
-    } catch {
-      return failure("invalidPdf", "CBB-SECURITY-0001");
-    }
-    if (!validPdf(pdf)) return failure("invalidPdf", "CBB-SECURITY-0001");
-    try {
-      const artifact = await sink.persistCompile({
-        buildId: request.buildId,
-        source,
-        sourceHash: request.sourceHash,
-        pdf,
-        tool: trustedTool,
-        resources: request.resources,
-      });
-      return { status: "succeeded", artifact };
-    } catch {
-      return failure("artifactPersistenceFailed", "CBB-BUILD-0001");
-    }
-    } catch {
-      return failure("stagingFailed", "CBB-SECURITY-0001");
-    } finally {
-      if (signal !== undefined && abortListener !== undefined) {
-        signal.removeEventListener("abort", abortListener);
+      if (executionAborted()) {
+        await sandbox.terminate(root).catch(() => undefined);
+        return failed(failure("canceled", "CBB-BUILD-0002"));
       }
+      const stagedSource = await sandbox.stageSource(root, source, request.sourceHash);
+      if (executionAborted()) return failed(failure("canceled", "CBB-BUILD-0002"));
+      if (
+        stagedSource.observedHash !== request.sourceHash ||
+        stagedSource.observedByteSize !== source.byteLength
+      ) return failed(failure("stagingFailed", "CBB-SECURITY-0001"));
+
+      for (const entry of request.resources.stagingEntries) {
+        const staged = await sandbox.stageResource(root, entry);
+        if (executionAborted()) return failed(failure("canceled", "CBB-BUILD-0002"));
+        if (staged.observedHash !== entry.hash || staged.observedByteSize !== entry.byteSize) {
+          return failed(failure("stagingFailed", "CBB-SECURITY-0001"));
+        }
+      }
+
+      const compiled = await sandbox.compile(root, deadline.signal);
+      if (compiled.kind === "canceled" || executionAborted()) {
+        return failed(failure("canceled", "CBB-BUILD-0002"));
+      }
+      if (compiled.kind === "failed") {
+        return failed(failure("compileFailed", "CBB-BUILD-0001", compiled.diagnosticCodes));
+      }
+
+      let pdf: VerifiedPdfOutput;
+      try {
+        pdf = await sandbox.verifyPdf(root);
+      } catch {
+        return failed(failure("invalidPdf", "CBB-SECURITY-0001"));
+      }
+      if (executionAborted()) return failed(failure("canceled", "CBB-BUILD-0002"));
+      if (!validPdf(pdf)) return failed(failure("invalidPdf", "CBB-SECURITY-0001"));
+      return { kind: "verified", pdf };
+    } catch {
+      return failed(failure("stagingFailed", "CBB-SECURITY-0001"));
     }
   };
-  const result = await execute();
-  if (root !== undefined) {
+
+  const work = execute();
+  let raced:
+    | { readonly kind: "completed"; readonly value: TimedExecutionResult }
+    | { readonly kind: "timedOut" };
+  let timerFailed = false;
+  try {
+    raced = await timer.raceTimeout(work, timeoutMs);
+  } catch {
+    timerFailed = true;
+    raced = { kind: "timedOut" };
+  }
+  let result: TypstRunnerResult<Result>;
+  let cleanupNow = true;
+  if (raced.kind === "timedOut") {
+    deadline.abort(timerFailed ? "buildTimerFailed" : "buildTimedOut");
+    const termination = sandbox.terminate(root).catch(() => undefined);
+    const [workSettled, terminationSettled] = await Promise.all([
+      settlesWithin(work),
+      settlesWithin(termination),
+    ]);
+    cleanupNow = workSettled && terminationSettled;
+    if (!cleanupNow) {
+      // The timed phase cannot persist. Keep its root owned until every user
+      // has actually settled, then clean asynchronously; a never-settling port
+      // leaves bounded residue for the sandbox startup sweep instead of racing
+      // root deletion or defeating the caller's deadline indefinitely.
+      void Promise.allSettled([work, termination])
+        .then(() => sandbox.cleanup(root))
+        .catch(() => undefined);
+    }
+    result = failure("timedOut", "CBB-BUILD-0002");
+  } else if (raced.value.kind === "failed") {
+    result = raced.value.result;
+  } else {
+    if (signal !== undefined && abortListener !== undefined) {
+      signal.removeEventListener("abort", abortListener);
+      abortListener = undefined;
+    }
+    if (executionAborted()) {
+      result = failure("canceled", "CBB-BUILD-0002");
+    } else {
+      // Immutable installation is a durability commit, not killable execution.
+      // Once it starts we await its authoritative success/failure and never
+      // publish a contradictory timeout for the same build id.
+      try {
+        const artifact = await sink.persistCompile({
+          buildId: request.buildId,
+          source,
+          sourceHash: request.sourceHash,
+          pdf: raced.value.pdf,
+          tool: trustedTool,
+          resources: request.resources,
+        });
+        result = { status: "succeeded", artifact };
+      } catch {
+        result = failure("artifactPersistenceFailed", "CBB-BUILD-0001");
+      }
+    }
+  }
+  if (signal !== undefined && abortListener !== undefined) {
+    signal.removeEventListener("abort", abortListener);
+  }
+  if (cleanupNow) {
     try {
       await sandbox.cleanup(root);
     } catch {

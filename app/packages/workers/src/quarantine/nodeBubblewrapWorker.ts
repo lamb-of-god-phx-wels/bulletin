@@ -4,6 +4,11 @@ import { lstat, mkdtemp, open, readdir, realpath, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { hashBytes, type Sha256Hash } from "@cbb/core";
+import {
+  LINUX_RESOURCE_LIMITS,
+  linuxResourceBrokerArguments,
+  verifyLinuxResourceBroker,
+} from "../execution/linuxResourceBroker.js";
 import type { QuarantineWorkerPort } from "./broker.js";
 import type { NodeQuarantineHandleStore } from "./nodeHandles.js";
 import { validateQuarantineRequest, type QuarantineRequest } from "./protocol.js";
@@ -28,7 +33,8 @@ export interface PinnedStaticQuarantineWorker extends PinnedLinuxExecutable {
 }
 
 export interface NodeBubblewrapQuarantineWorkerOptions {
-  readonly bubblewrap: PinnedLinuxExecutable;
+  /** Signed v1 isolation/resource broker. Plain Bubblewrap is not accepted. */
+  readonly executionBroker: PinnedLinuxExecutable;
   readonly worker: PinnedStaticQuarantineWorker;
   readonly runtimeRoot: string;
   readonly handles: NodeQuarantineHandleStore;
@@ -317,7 +323,7 @@ function sandboxArguments(
 
 /** Prove that this exact pinned launcher can create the required namespace. */
 async function probeIsolation(
-  bubblewrap: VerifiedExecutable,
+  executionBroker: VerifiedExecutable,
   worker: VerifiedExecutable,
   runtimeRoot: string,
 ): Promise<void> {
@@ -328,7 +334,11 @@ async function probeIsolation(
   }
   try {
     await new Promise<void>((resolveProbe, rejectProbe) => {
-      const child = spawn(bubblewrap.path, sandboxArguments(worker.path, undefined, true), {
+      const child = spawn(executionBroker.path, linuxResourceBrokerArguments(
+        sandboxArguments(worker.path, undefined, true),
+        LINUX_RESOURCE_LIMITS.probe,
+        { scratchPath: probeRoot, outputPath: probeRoot },
+      ), {
         cwd: probeRoot,
         detached: true,
         env: {},
@@ -380,15 +390,15 @@ async function probeIsolation(
 }
 
 /**
- * Linux quarantine transport using a pinned bubblewrap and a single-file,
- * statically linked worker. No host root, network namespace, environment, or
- * caller path is exposed inside the sandbox.
+ * Linux quarantine transport using a signed v1 resource/isolation broker and a
+ * single-file, statically linked worker. Plain Bubblewrap is not sufficient:
+ * the broker must attest namespace and kernel resource-limit enforcement.
  */
 export class NodeBubblewrapQuarantineWorker implements QuarantineWorkerPort {
   public readonly isolationAvailable: boolean;
   readonly #options: NodeBubblewrapQuarantineWorkerOptions;
   readonly #runtimeRoot: string | undefined;
-  readonly #bubblewrap: VerifiedExecutable | undefined;
+  readonly #executionBroker: VerifiedExecutable | undefined;
   readonly #worker: VerifiedExecutable | undefined;
   readonly #maximumMessageBytes: number;
   readonly #active = new Map<string, ActiveProcess>();
@@ -398,17 +408,17 @@ export class NodeBubblewrapQuarantineWorker implements QuarantineWorkerPort {
     options: NodeBubblewrapQuarantineWorkerOptions,
     verified: {
       readonly runtimeRoot?: string;
-      readonly bubblewrap?: VerifiedExecutable;
+      readonly executionBroker?: VerifiedExecutable;
       readonly worker?: VerifiedExecutable;
     },
   ) {
     this.#options = options;
     this.#runtimeRoot = verified.runtimeRoot;
-    this.#bubblewrap = verified.bubblewrap;
+    this.#executionBroker = verified.executionBroker;
     this.#worker = verified.worker;
     this.isolationAvailable = process.platform === "linux" &&
       this.#runtimeRoot !== undefined &&
-      this.#bubblewrap !== undefined &&
+      this.#executionBroker !== undefined &&
       this.#worker !== undefined;
     this.#maximumMessageBytes = options.maximumMessageBytes ?? DEFAULT_MAXIMUM_MESSAGE_BYTES;
   }
@@ -427,14 +437,19 @@ export class NodeBubblewrapQuarantineWorker implements QuarantineWorkerPort {
       return new NodeBubblewrapQuarantineWorker(options, {});
     }
     try {
-      const [runtimeRoot, bubblewrap, worker] = await Promise.all([
+      const [runtimeRoot, executionBroker, worker] = await Promise.all([
         fixedRuntimeRoot(options.runtimeRoot),
-        verifyExecutable(options.bubblewrap, false),
+        verifyExecutable(options.executionBroker, false),
         verifyExecutable(options.worker, true),
       ]);
+      await verifyLinuxResourceBroker(options.executionBroker);
       await sweepRuntimeResidue(runtimeRoot);
-      await probeIsolation(bubblewrap, worker, runtimeRoot);
-      return new NodeBubblewrapQuarantineWorker(options, { runtimeRoot, bubblewrap, worker });
+      await probeIsolation(executionBroker, worker, runtimeRoot);
+      return new NodeBubblewrapQuarantineWorker(options, {
+        runtimeRoot,
+        executionBroker,
+        worker,
+      });
     } catch {
       return new NodeBubblewrapQuarantineWorker(options, {});
     }
@@ -449,7 +464,7 @@ export class NodeBubblewrapQuarantineWorker implements QuarantineWorkerPort {
     if (
       !this.isolationAvailable ||
       this.#runtimeRoot === undefined ||
-      this.#bubblewrap === undefined ||
+      this.#executionBroker === undefined ||
       this.#worker === undefined ||
       this.#active.has(request.requestId) ||
       this.#starting.has(request.requestId)
@@ -465,7 +480,11 @@ export class NodeBubblewrapQuarantineWorker implements QuarantineWorkerPort {
     let child: ChildProcessWithoutNullStreams | undefined;
     try {
       await Promise.all([
-        assertExecutableCurrent(this.#options.bubblewrap, this.#bubblewrap, false),
+        assertExecutableCurrent(
+          this.#options.executionBroker,
+          this.#executionBroker,
+          false,
+        ),
         assertExecutableCurrent(this.#options.worker, this.#worker, true),
       ]);
       if (starting.canceled) throw failure();
@@ -482,7 +501,27 @@ export class NodeBubblewrapQuarantineWorker implements QuarantineWorkerPort {
         runtimeRoot = undefined;
         throw failure();
       }
-      const spawned = spawn(this.#bubblewrap.path, sandboxArguments(this.#worker.path, binding), {
+      const requestedOutputBytes = request.operation === "inspectArchive"
+        ? request.limits.uncompressedBytes
+        : request.limits.outputBytes;
+      const requestedFileBytes = request.operation === "inspectArchive"
+        ? request.limits.entryBytes
+        : request.limits.outputBytes;
+      const spawned = spawn(this.#executionBroker.path, linuxResourceBrokerArguments(
+        sandboxArguments(this.#worker.path, binding),
+        {
+          ...LINUX_RESOURCE_LIMITS.quarantine,
+          fileSizeBytes: Math.min(
+            requestedFileBytes,
+            LINUX_RESOURCE_LIMITS.quarantine.fileSizeBytes,
+          ),
+          outputBytes: Math.min(
+            requestedOutputBytes,
+            LINUX_RESOURCE_LIMITS.quarantine.outputBytes,
+          ),
+        },
+        { scratchPath: runtimeRoot, outputPath: binding.outputPath },
+      ), {
         cwd: runtimeRoot,
         detached: true,
         env: {},

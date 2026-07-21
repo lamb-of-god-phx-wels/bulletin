@@ -76,6 +76,20 @@ if (process.env.BULLETIN_LIBRARY_DELETE_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_LIBRARY_EDIT_ONLY === '1') {
+  await click('Library'); await click('Add library item');
+  await fill('Title', 'Original Song'); await fill('Stable ID', 'editable-song'); await fill('Structured text', 'Original lyrics.');
+  await click('Save item'); await wait(`document.body.textContent.includes('Original Song')`, 'original library item');
+  await pointerClick('Edit'); await fill('Title', 'Edited Song'); await fill('Structured text', 'Updated lyrics.');
+  await click('Save new version'); await wait(`document.body.textContent.includes('Edited Song') && document.body.textContent.includes('version 2')`, 'edited library version');
+  const versions = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace => workspace.library.items.filter(item => item.id === 'editable-song').map(item => ({version:item.version,title:item.title})))`);
+  if (versions.length !== 2 || versions[0].title !== 'Original Song' || versions[1].title !== 'Edited Song') throw new Error(`Library edit did not preserve version history: ${JSON.stringify(versions)}`);
+  pass('edits a library item by creating a new version');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 await wait(`Array.from(document.querySelectorAll('.missing-template-content')).some(element=>element.parentElement?.textContent.includes("Lord's Prayer"))`, 'hidden missing template content repair UI');
 pass('surfaces hidden template content when its library item is missing');
 

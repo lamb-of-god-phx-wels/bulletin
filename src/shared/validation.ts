@@ -16,7 +16,10 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1): V
     if (block.type === 'scriptureReading' && !block.reference) issues.push({ path: `/blocks/${index}/reference`, message: 'Enter a Scripture reference.' });
     else if (block.type === 'scriptureReading' && !block.resolved) issues.push({ path: `/blocks/${index}/resolved`, message: 'Fetch or paste the approved passage text.' });
     if ((block.type === 'song' || block.type === 'libraryText') && !block.libraryItemId) issues.push({ path: `/blocks/${index}/libraryItemId`, message: 'Choose an approved library item.' });
-    if ((block.type === 'song' || block.type === 'libraryText') && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion))) issues.push({ path: `/blocks/${index}/libraryItemId`, message: `Library item “${block.libraryItemId}” version ${block.libraryItemVersion ?? 'latest'} is unavailable.` });
+    if ((block.type === 'song' || block.type === 'libraryText') && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion))) {
+      const title = block.type === 'libraryText' ? block.title : block.title ?? block.label;
+      issues.push({ path: `/blocks/${index}/libraryItemId`, message: `The ${block.weeklyEditable ? '' : 'template-managed '}block “${title ?? block.libraryItemId}” references missing library item “${block.libraryItemId}”${block.libraryItemVersion ? ` version ${block.libraryItemVersion}` : ''}. Choose a replacement or remove the block from this bulletin.` });
+    }
     if (block.type === 'song' && block.renderMode === 'asset' && !block.asset && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion) && item.assets?.length)) issues.push({ path: `/blocks/${index}/asset`, message: 'Choose a music image or PDF.' });
     if (block.type === 'fullPageAsset' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an asset.' });
   });

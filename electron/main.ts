@@ -1,12 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
-import type { BulletinDocumentV1, BulletinApi, ScriptureBlock } from '../src/shared/types.js';
+import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
-import { validateBulletin } from '../src/shared/validation.js';
 import { createRevision, inside, openWorkspace, readAssetData, saveBulletin, saveLibrary, saveTemplate } from './workspace.js';
+import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
@@ -50,7 +50,12 @@ function registerIpc() {
     const mediaType = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf' : 'image/jpeg';
     return { path: path.relative(root, destination), mediaType, alt: path.basename(source) };
   });
-  ipcMain.handle('scripture:lookup', (_event, input: Parameters<BulletinApi['lookupScripture']>[0]) => lookupScripture(input));
+  ipcMain.handle('scripture:lookup', (_event, input: Parameters<BulletinApi['lookupScripture']>[0]) => lookupBibleGatewayWeb(input));
+  ipcMain.handle('scripture:open', async (_event, reference: string, translation: string) => {
+    const url = new URL('https://www.biblegateway.com/passage/');
+    url.searchParams.set('search', reference); url.searchParams.set('version', translation.toUpperCase());
+    await shell.openExternal(url.toString());
+  });
   ipcMain.handle('print:job', () => printJob);
   ipcMain.on('print:ready', () => printReady?.());
   ipcMain.handle('pdf:export', (_event, root: string, relative: string, document: BulletinDocumentV1) => exportPdf(root, relative, document));
@@ -58,8 +63,6 @@ function registerIpc() {
 
 async function exportPdf(root: string, relative: string, document: BulletinDocumentV1) {
   const workspace = await openWorkspace(root);
-  const issues = validateBulletin(document, workspace.library);
-  if (issues.length) throw new Error(`${issues[0].path}: ${issues[0].message}`);
   const referencedAssets = document.blocks.flatMap(block => {
     const assets = 'asset' in block && block.asset ? [block.asset] : [];
     if ('libraryItemId' in block) assets.push(...(workspace.library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
@@ -67,7 +70,8 @@ async function exportPdf(root: string, relative: string, document: BulletinDocum
   });
   await Promise.all(referencedAssets.map(asset => readFile(inside(root, asset.path))));
   const suggested = `${document.info.date} ${document.info.title}.pdf`.replace(/[<>:"/\\|?*]/g, '-');
-  const choice = await dialog.showSaveDialog({ title: 'Export bulletin PDF', defaultPath: inside(root, path.join(path.dirname(relative), 'exports', suggested)), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  const options = { title: 'Export bulletin PDF', defaultPath: inside(root, path.join(path.dirname(relative), 'exports', suggested)), filters: [{ name: 'PDF', extensions: ['pdf'] }] };
+  const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
   if (choice.canceled || !choice.filePath) return null;
   printJob = { root, document };
   const printWindow = new BrowserWindow({ show: false, webPreferences: { preload: path.join(dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
@@ -104,24 +108,4 @@ async function replacePdfPages(raw: Buffer, root: string, document: BulletinDocu
     page.drawPage(embedded, { x: (504 - embedded.width * scale) / 2, y: (612 - embedded.height * scale) / 2, width: embedded.width * scale, height: embedded.height * scale });
   }
   return Buffer.from(await output.save());
-}
-
-async function lookupScripture(input: { reference: string; translation: string; username?: string; password?: string }): Promise<ScriptureBlock['resolved']> {
-  if (!input.username || !input.password) throw new Error('Bible Gateway credentials are not configured. Paste the passage text instead.');
-  const tokenUrl = new URL('https://api.biblegateway.com/2/request_access_token');
-  tokenUrl.searchParams.set('username', input.username); tokenUrl.searchParams.set('password', input.password);
-  const tokenResponse = await fetch(tokenUrl);
-  if (!tokenResponse.ok) throw new Error(`Bible Gateway authorization failed (${tokenResponse.status}).`);
-  const tokenData = await tokenResponse.json() as { access_token?: string; error?: { errmsg?: string } };
-  if (!tokenData.access_token) throw new Error(tokenData.error?.errmsg ?? 'Bible Gateway did not return an access token.');
-  const lookup = new URL(`https://api.biblegateway.com/2/bible/${encodeURIComponent(input.reference)}/${encodeURIComponent(input.translation.toLowerCase())}`);
-  lookup.searchParams.set('access_token', tokenData.access_token); lookup.searchParams.set('objects', 'data,attribution');
-  const response = await fetch(lookup);
-  if (!response.ok) throw new Error(`Bible Gateway lookup failed (${response.status}).`);
-  const payload = await response.json() as any;
-  const entry = Array.isArray(payload) ? payload[0] : payload;
-  const html = entry?.data?.content ?? entry?.content ?? '';
-  const text = String(html).replace(/<br\s*\/?\s*>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
-  if (!text) throw new Error('Bible Gateway returned no passage text.');
-  return { content: text.split(/\n+/).map(line => ({ type: 'paragraph', children: [{ type: 'text', text: line }] })), source: 'bible-gateway', retrievedAt: new Date().toISOString(), attribution: entry?.attribution?.text ?? `${input.translation.toUpperCase()} via Bible Gateway` };
 }

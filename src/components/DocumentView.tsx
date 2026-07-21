@@ -72,9 +72,9 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--body-size': `${template.theme.bodySizePt}pt`, '--line-height': template.theme.lineHeight,
     '--page-margin': `${template.theme.marginIn}in`
   } as React.CSSProperties}>
-    {pages.map(page => <article className={`document-page page-${page.kind}`} key={page.number}>
+    {pages.map(page => <div className="page-frame" key={page.number}><article className={`document-page page-${page.kind}`}>
       <div className="page-content">{page.blocks.map(block => <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
-    </article>)}
+    </article></div>)}
   </div>;
 }

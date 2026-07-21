@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="850" viewBox="0 0 700 850">
+  <rect width="700" height="850" fill="#f3eee3"/>
+  <path d="M350 180v260M260 270h180" stroke="#a44d2a" stroke-width="24"/>
+  <text x="350" y="560" text-anchor="middle" font-family="serif" font-size="48" fill="#25302d">Smoke Test Cover</text>
+</svg>

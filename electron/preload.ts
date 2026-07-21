@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { BulletinApi } from '../src/shared/types.js';
 
 const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void } = {
+  platform: 'electron',
   chooseWorkspace: () => ipcRenderer.invoke('workspace:choose'),
   openWorkspace: root => ipcRenderer.invoke('workspace:open', root),
   saveBulletin: (...args) => ipcRenderer.invoke('bulletin:save', ...args),
@@ -12,6 +13,7 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   importAsset: (...args) => ipcRenderer.invoke('asset:import', ...args),
   readAsset: (...args) => ipcRenderer.invoke('asset:read', ...args),
   lookupScripture: input => ipcRenderer.invoke('scripture:lookup', input),
+  openScripture: (...args) => ipcRenderer.invoke('scripture:open', ...args),
   getPrintJob: () => ipcRenderer.invoke('print:job'),
   printReady: () => ipcRenderer.send('print:ready')
 };

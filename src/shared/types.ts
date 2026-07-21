@@ -39,7 +39,7 @@ export interface ScriptureBlock extends BlockBase {
   reference: string;
   translation: string;
   caption?: string;
-  resolved?: { content: Paragraph[]; source: 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
+  resolved?: { content: Paragraph[]; source: 'bible-gateway-web' | 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
 }
 export interface SongBlock extends BlockBase {
   type: 'song';
@@ -123,7 +123,10 @@ export interface ValidationIssue { path: string; message: string }
 export interface WorkspaceSummary { root: string; bulletins: Array<{ path: string; document: BulletinDocumentV1 }>; templates: Array<{ path: string; template: TemplateV1 }>; library?: LibraryManifestV1 }
 
 export interface BulletinApi {
+  platform: 'electron' | 'browser';
   chooseWorkspace(): Promise<string | null>;
+  listWorkspaces?(): Promise<Array<{ root: string; name: string }>>;
+  createWorkspace?(name: string): Promise<string>;
   openWorkspace(root: string): Promise<WorkspaceSummary>;
   saveBulletin(root: string, relativePath: string, document: BulletinDocumentV1, expectedRevision: number): Promise<{ revision: number; updatedAt: string }>;
   saveTemplate(root: string, template: TemplateV1): Promise<string>;
@@ -132,5 +135,6 @@ export interface BulletinApi {
   exportPdf(root: string, relativePath: string, document: BulletinDocumentV1): Promise<string | null>;
   importAsset(root: string, targetFolder: string): Promise<AssetRef | null>;
   readAsset(root: string, relativePath: string): Promise<string>;
-  lookupScripture(input: { reference: string; translation: string; username?: string; password?: string }): Promise<ScriptureBlock['resolved']>;
+  lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;
+  openScripture(reference: string, translation: string): Promise<void>;
 }

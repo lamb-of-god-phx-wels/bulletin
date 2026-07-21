@@ -11,15 +11,19 @@ npm run dev
 
 `npm run build` performs the production TypeScript and Vite build. `npm test` runs the schema, migration, pagination, and shared-workspace tests. `npm run package` creates a Windows NSIS installer or Linux AppImage for the current build platform.
 
+For UI work in an ordinary browser, run `npm exec vite`. The browser build uses persistent IndexedDB workspaces and real file pickers, so its weekly, template, and library flows can be exercised without Electron. The packaged desktop app continues to use ordinary folders on disk.
+
 ## First use
 
 1. Choose a folder already synchronized by the SharePoint/OneDrive desktop client.
 2. The app initializes `templates/`, `bulletins/`, `assets/`, and `library.json` without requiring Microsoft credentials.
 3. Add approved songs, liturgy, images, and license notices on the Library screen.
-4. Create a week from the published template, fill in the changing content, and resolve each reading through approved Bible Gateway access or the manual paste fallback.
+4. Create a week from the published template, fill in the changing content, and import each reading from its public BibleGateway.com passage page or use the manual paste fallback.
 5. Check the live page preview and export. Every export records an immutable JSON revision beside the project.
 
-The app does not bundle copyrighted worship content and does not scrape Bible Gateway. Full-page PDFs remain vector pages in the final export; images and structured content use the common document renderer.
+The app does not bundle copyrighted worship content or scrape Bible sites. Full-page PDFs remain vector pages in the final export; images and structured content use the common document renderer.
+
+BibleGateway.com import does not use a login or API credentials. It makes one bounded request for the public passage selected by the user and snapshots the displayed text and publisher notice into the bulletin. Page changes, browser verification, or rate limiting produce an actionable error and preserve the “Open on Bible Gateway” and manual-paste fallback. Users remain responsible for each translation’s quotation limits and attribution requirements.
 
 ## Workspace layout
 

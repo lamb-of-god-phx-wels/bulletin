@@ -14,7 +14,7 @@
 
   ## Core Architecture and Interfaces
 
-  - Use Electron, React, and TypeScript. Keep filesystem access, Bible Gateway calls, credential storage, and PDF generation in the Electron main process behind a narrow,
+  - Use Electron, React, and TypeScript. Keep filesystem access, bounded BibleGateway.com passage imports, and PDF generation in the Electron main process behind a narrow,
     validated IPC interface.
 
   - Treat the SharePoint-synced directory as an ordinary filesystem workspace; do not require Microsoft Graph. Store only machine preferences, caches, and encrypted
@@ -40,7 +40,7 @@
       - Create from a template, enter the date and changing service information, select approved library items, manage announcements, and preview the final pages
         continuously.
 
-      - Resolve Scripture through the authenticated Bible Gateway API (https://www.biblegateway.com/api/documentation), snapshot the returned text and attribution into the
+      - Resolve Scripture from the user-selected public BibleGateway.com passage page, snapshot the displayed text and attribution into the
         bulletin, and provide a paste-and-confirm fallback when access is unavailable.
 
       - Generate copyright notices from Scripture and library licensing metadata.
@@ -76,7 +76,7 @@
   ## Test and Acceptance Plan
 
   - Unit-test schema validation, v0-to-v1 migration, library resolution, attribution generation, pagination, filler-page calculation, and conflict detection.
-  - Test Bible Gateway success, invalid credentials, unsupported translations, offline/cache behavior, and manual-paste fallback with mocked network responses.
+  - Test Bible Gateway page parsing, unsupported translations, blocked requests, offline behavior, and manual-paste fallback with mocked network responses.
   - Add visual/PDF regression fixtures based on June 7, 2026 plus representative 12-page and 16-page seasonal bulletins. Assert 7×8.5-inch pages, multiples of four, expected
     text ordering, no clipping or overlap, and stable screenshots.
 
@@ -89,8 +89,7 @@
   ## Assumptions and Boundaries
 
   - Users supply and are responsible for authorized fonts, hymn/music files, artwork, and license metadata; the app does not bundle copyrighted worship content.
-  - NIV and other copyrighted Scripture use depends on approved translation access and applicable attribution requirements, including the NIV usage terms
-    (https://www.biblegateway.com/versions/new-international-version-niv-bible/).
+  - NIV and other copyrighted Scripture use depends on observing the publisher's quotation limits and attribution requirements. The importer retains the publisher notice shown by Bible Gateway.
 
   - V1 does not ingest Publisher, Word, or arbitrary Office documents, provide free-form desktop-publishing placement, call cloud AI, or include a hosted backend.
   - The operating-system SharePoint client handles authentication, synchronization, and SharePoint history. The app handles local atomic saves, its own export revisions, and

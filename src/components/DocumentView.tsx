@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AssetRef, BulletinBlock, BulletinDocumentV1, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
-import { paginate } from '../shared/pagination';
+import type { AssetRef, BulletinDocumentV1, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
+import { paginate, type PaginatedBlock } from '../shared/pagination';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'symbol'
   ? <span className="cross" key={index}>✠</span>
@@ -17,7 +17,7 @@ function FlowAsset({ asset, source }: { asset: AssetRef; source?: string }) {
     : <img src={source} alt={asset.alt ?? ''} />;
 }
 
-function BlockView({ block, library, assets, document }: { block: BulletinBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
+function BlockView({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
     case 'titlePage': return <div className="cover">
@@ -33,8 +33,8 @@ function BlockView({ block, library, assets, document }: { block: BulletinBlock;
     case 'richText': return <div className="rich-text"><Paragraphs content={block.content} /></div>;
     case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => <div className="response-row" key={index}><b>{entry.reader}:</b><div><Paragraphs content={entry.content} /></div></div>)}</div>;
     case 'scriptureReading': return <section className="scripture"><h3>{block.label ?? 'Reading'}: <span>{block.reference}</span></h3>{block.caption && <p className="caption">{block.caption}</p>}{block.resolved ? <Paragraphs content={block.resolved.content} /> : <p className="missing">Passage text has not been resolved. Add it before export.</p>}<div className="translation">{block.translation}</div></section>;
-    case 'song': { const asset = block.asset ?? item?.assets?.[0]; return <section className="song"><h3>{block.label ?? block.songType}: <span>{item?.title ?? block.title ?? block.libraryItemId}</span></h3>{block.renderMode === 'asset' && asset ? <FlowAsset asset={asset} source={assets[asset.path]} /> : item?.content ? <Paragraphs content={item.content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
-    case 'libraryText': return <section><h3 className="block-heading">{block.label ?? block.title ?? item?.title}</h3>{item?.content ? <Paragraphs content={item.content} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>;
+    case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? item?.content; return <section className="song"><h3>{block.label ?? block.songType}: <span>{item?.title ?? block.title ?? block.libraryItemId}</span></h3>{block.renderMode === 'asset' && asset ? <FlowAsset asset={asset} source={assets[asset.path]} /> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
+    case 'libraryText': { const content = block.pageContent ?? item?.content; return <section><h3 className="block-heading">{block.label ?? block.title ?? item?.title}</h3>{content ? <Paragraphs content={content} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>; }
     case 'announcements': return <section className="announcements"><h2>Announcements</h2>{block.items.map(item => <article key={item.id}><h3>{item.title}</h3><Paragraphs content={item.content} /></article>)}</section>;
     case 'copyright': {
       const notices = document.blocks.flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : []).filter(Boolean);

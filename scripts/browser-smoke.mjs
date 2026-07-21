@@ -90,6 +90,21 @@ if (process.env.BULLETIN_LIBRARY_EDIT_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_PAGINATION_ONLY === '1') {
+  const longLyrics = Array.from({ length: 40 }, (_, index) => `Verse ${index + 1} ${'lyrics '.repeat(45)}`).join('\n\n');
+  await click('Library'); await click('Add library item');
+  await fill('Title', 'Long Pagination Song'); await fill('Stable ID', 'long-pagination-song'); await fill('Structured text', longLyrics);
+  await click('Save item'); await wait(`document.body.textContent.includes('Long Pagination Song')`, 'long song library item');
+  await click('This week'); await choose('Library song', 'long-pagination-song');
+  await wait(`document.querySelectorAll('.document-page').length > 4`, 'paginated long song');
+  const overflow = await evaluate(`Array.from(document.querySelectorAll('.page-content')).map((element, index) => ({page:index + 1, scroll:element.scrollHeight, client:element.clientHeight})).filter(page => page.scroll > page.client + 1)`);
+  if (overflow.length) throw new Error(`Rendered content overflows pages: ${JSON.stringify(overflow)}`);
+  pass('keeps oversized structured content inside rendered page bounds');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 await wait(`Array.from(document.querySelectorAll('.missing-template-content')).some(element=>element.parentElement?.textContent.includes("Lord's Prayer"))`, 'hidden missing template content repair UI');
 pass('surfaces hidden template content when its library item is missing');
 

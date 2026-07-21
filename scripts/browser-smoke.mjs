@@ -62,6 +62,20 @@ if (process.env.BULLETIN_DELETE_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_LIBRARY_DELETE_ONLY === '1') {
+  await click('Library'); await click('Add library item');
+  await fill('Title', 'Temporary Song'); await fill('Stable ID', 'temporary-song'); await fill('Structured text', 'Temporary lyrics.');
+  await click('Save item'); await wait(`document.body.textContent.includes('Temporary Song')`, 'saved temporary library item');
+  await pointerClick('Delete'); await wait(`Boolean(document.querySelector('.confirmation-modal'))`, 'library delete confirmation');
+  await pointerClick('Delete item'); await wait(`!document.body.textContent.includes('Temporary Song')`, 'removed library item');
+  const remaining = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace => workspace.library.items.length)`);
+  if (remaining !== 0) throw new Error(`Deleted library item remains in storage (${remaining} records).`);
+  pass('deletes a versioned library item');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 await wait(`Array.from(document.querySelectorAll('.missing-template-content')).some(element=>element.parentElement?.textContent.includes("Lord's Prayer"))`, 'hidden missing template content repair UI');
 pass('surfaces hidden template content when its library item is missing');
 

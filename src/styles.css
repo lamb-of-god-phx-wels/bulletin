@@ -181,6 +181,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .empty-state > span { font-size: 36px; }.empty-state h2 { margin: 14px 0 4px; font: 22px Georgia, serif; }.empty-state p { max-width: 470px; line-height: 1.5; }
 .library-group { max-width: 850px; margin-top: 25px; }.library-group > h3 { font: 19px Georgia, serif; text-transform: capitalize; }
 .library-group article { display: flex; justify-content: space-between; padding: 12px 15px; border: 1px solid #ddd9cf; border-bottom: 0; background: white; }.library-group article:last-child { border-bottom: 1px solid #ddd9cf; }.library-group article div { display: flex; flex-direction: column; }.library-group article small, .library-group article > span { color: #858983; font-size: 11px; }
+.library-group article .library-item-actions { flex-direction: row; align-items: center; gap: 12px; }.library-item-actions > span { color: #858983; font-size: 11px; }.library-item-actions .danger-text { padding: 4px 0; }
 code { padding: 2px 5px; border-radius: 4px; background: #ebe8e0; }
 
 @page { size: 7in 8.5in; margin: 0; }

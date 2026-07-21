@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mylambofgod.org/schemas/bulletin-v1.schema.json",
+  "title": "BulletinDocumentV1",
+  "type": "object",
+  "required": ["schemaVersion", "id", "revision", "template", "church", "info", "blocks", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "template": { "type": "object", "required": ["id", "version"], "properties": { "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 } }, "additionalProperties": false },
+    "church": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } }, "additionalProperties": false },
+    "info": { "type": "object", "required": ["title", "date", "churchWeek"], "properties": { "title": { "type": "string" }, "series": { "type": "string" }, "date": { "type": "string", "format": "date" }, "churchWeek": { "type": "string" } }, "additionalProperties": false },
+    "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+    "sourceNotes": { "type": "string" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "block": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["titlePage", "churchInfo", "heading", "sectionHeading", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer"] },
+        "label": { "type": "string" },
+        "weeklyEditable": { "type": "boolean" },
+        "layout": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

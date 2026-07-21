@@ -1,458 +1,713 @@
 {
-    "churchInfo": {
-        "name": "Lamb of God Lutheran Church"
+  "schemaVersion": 1,
+  "id": "bulletin-2026-06-07",
+  "revision": 0,
+  "template": {
+    "id": "lamb-of-god-weekly",
+    "version": 1
+  },
+  "church": {
+    "name": "Lamb of God Lutheran Church"
+  },
+  "info": {
+    "title": "God Loves Sinners",
+    "series": "Say It Out Loud",
+    "date": "2026-06-07",
+    "churchWeek": "Second Sunday After Pentecost"
+  },
+  "blocks": [
+    {
+      "id": "titlepage",
+      "type": "titlePage",
+      "weeklyEditable": true
     },
-    "bulletinInfo": {
-        "title": "God Loves Sinners",
-        "series": "Say It Out Loud",
-        "date": {
-            "type": "date",
-            "data": "2026-07-20"
-        },
-        "churchWeek": "Second Sunday After Pentecost"
+    {
+      "id": "welcomepage",
+      "type": "churchInfo"
     },
-    "content": [
+    {
+      "id": "god-loves-sinners",
+      "type": "sermonTitle",
+      "text": "God Loves Sinners",
+      "weeklyEditable": true
+    },
+    {
+      "id": "the-gathering",
+      "type": "sectionHeading",
+      "text": "The Gathering"
+    },
+    {
+      "id": "opening-hymn",
+      "type": "song",
+      "label": "Opening Hymn",
+      "title": "CW399",
+      "songType": "hymn",
+      "libraryItemId": "cw399",
+      "selection": {
+        "mode": "verses",
+        "verses": [
+          1,
+          2,
+          3
+        ]
+      },
+      "renderMode": "lyrics",
+      "weeklyEditable": true
+    },
+    {
+      "id": "invocation",
+      "type": "heading",
+      "text": "Invocation"
+    },
+    {
+      "id": "responsivereading",
+      "type": "responsiveReading",
+      "entries": [
         {
-            "type": "titlePage"
-        },
-        {
-            "type": "welcomePage"
-        },
-        {
-            "type": "sermonTitle",
-            "text": "God Loves Sinners"
-        },
-        {
-            "type": "sectionHeading",
-            "text": "The Gathering"
-        },
-        {
-            "type": "song",
-            "songType": "hymn",
-            "lyricsOnly": true,
-            "label": "Opening Hymn",
-            "hymnNumber": "CW399",
-            "verses": [
-                1,
-                2,
-                3
-            ]
-        },
-        {
-            "type": "heading",
-            "text": "Invocation"
-        },
-        {
-            "type": "responsiveReading",
-            "content": [
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
                 {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Blessed be the holy Trinity, <<cross>> one God, who forgives all our sin, whose mercy endures forever."
-                        }
-                    ]
+                  "type": "text",
+                  "text": "Blessed be the holy Trinity, "
                 },
                 {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Amen."
-                        }
-                    ]
+                  "type": "symbol",
+                  "name": "cross"
+                },
+                {
+                  "type": "text",
+                  "text": " one God, who forgives all our sin, whose mercy endures forever."
                 }
-            ]
+              ]
+            }
+          ]
         },
         {
-            "type": "heading",
-            "text": "Prayer"
-        },
-        {
-            "type": "responsiveReading",
-            "content": [
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
                 {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Almighty God, to whom all hearts are open, all desires known, and from whom no secrets are hidden; cleanse the thoughts of our hearts by the inspiration of your Holy Spirit, that we may perfectly love you and worthily magnify your holy name, through Jesus Christ our Lord."
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Amen."
-                        }
-                    ]
+                  "type": "text",
+                  "text": "Amen."
                 }
-            ]
-        },
-        {
-            "type": "heading",
-            "text": "Confession of Sins"
-        },
-        {
-            "type": "responsiveReading",
-            "content": [
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "scripture",
-                            "scripture": "1 John 1:8-9"
-                        },
-                        {
-                            "type": "text",
-                            "text": "Holy God, holy and mighty, holy and immortal, have mercy on us. For self-centered living, and for failing to walk with humility and gentleness:"
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
-                        }
-                    ]
-                },
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "For longing to have what is not ours, and for failing to give thanks for what is ours:"
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
-                        }
-                    ]
-                },
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "For angry deeds, for hurtful words, for uncharitable thoughts, and for those sins we do not even remember committing:"
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
-                        }
-                    ]
-                },
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "For idleness in witnessing for Jesus Christ, and for squandering the gifts of love and grace:"
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
-                        }
-                    ]
-                },
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "For all the wrong we have done, and all the good we have failed to do:"
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
-                        }
-                    ]
-                },
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "God, who is rich in mercy, loved us even when we were dead in sin, and made us alive together with Christ. By grace you have been saved. In the name of  Jesus Christ, your sins are forgiven. Almighty God strengthen you with power through the Holy Spirit, that Christ may live in your hearts through faith."
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Amen."
-                        }
-                    ]
-                },
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "In the peace of forgiveness, let us praise the Lord!"
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "type": "song",
-            "songType": "song",
-            "lyricsOnly": true,
-            "title": "Give Thanks",
-            "label": "Song of Praise"
-        },
-        {
-            "type": "heading",
-            "text": "Prayer of the Day"
-        },
-        {
-            "type": "responsiveReading",
-            "content": [
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Almighty and merciful God, you sent your Son, Jesus Christ, to seek and to save the lost. Graciously open our ears and our hearts to hear his call and follow him by faith that we may feast with him forever in his kingdom; through your Son, Jesus Christ our Lord, who lives and reigns with you and the Holy Spirit, one God, now and forever."
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Amen."
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "type": "sectionHeading",
-            "text": "The Word"
-        },
-        {
-            "type": "scriptureReading",
-            "label": "First Reading",
-            "caption": "The LORD chooses Moses, an exiled murderer, to lead the Israelites.",
-            "scriptureReference": "Exodus 3:1-15",
-            "translation": "niv"
-        },
-        {
-            "type": "song",
-            "songType": "psalm",
-            "psalmNumber": "130",
-            "label": "Psalm",
-            "lyricsOnly": false,
-            "verses": [
-                1,
-                2,
-                3,
-                4
-            ]
-        },
-        {
-            "type": "heading",
-            "text": "Children's Message"
-        },
-        {
-            "type": "scriptureReading",
-            "label": "Gospel",
-            "caption": "Tax collectors were considered among the worst of sinners. To demonstrate grace, Jesus called one to be his disciple.",
-            "scriptureReference": "Matthew 9:9-13",
-            "translation": "niv"
-        },
-        {
-            "type": "song",
-            "songType": "hymn",
-            "lyricsOnly": true,
-            "hymnNumber": "CW385",
-            "label": "Hymn of the Day",
-            "verses": "all"
-        },
-        {
-            "type": "scriptureReading",
-            "label": "Sermon",
-            "caption": null,
-            "scriptureReference": "1 Timothy 1:12-17"
-        },
-        {
-            "type": "confession",
-            "confession": "Apostles' Creed",
-            "label": "Confession of Faith"
-        },
-        {
-            "type": "sectionHeading",
-            "text": "The Prayers"
-        },
-        {
-            "type": "heading",
-            "text": "Prayer of the Church"
-        },
-        {
-            "type": "prayer",
-            "prayer": "Lord's Prayer"
-        },
-        {
-            "type": "heading",
-            "text": "Blessing"
-        },
-        {
-            "type": "responsiveReading",
-            "content": [
-                {
-                    "reader": "M",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Brothers and sisters, go in peace."
-                        },
-                        {
-                            "type": "text",
-                            "text": "Live in harmony with one another."
-                        },
-                        {
-                            "type": "text",
-                            "text": "Serve the Lord with gladness."
-                        },
-                        {
-                            "type": "text",
-                            "text": ""
-                        },
-                        {
-                            "type": "text",
-                            "text": "The Lord bless you and keep you."
-                        },
-                        {
-                            "type": "text",
-                            "text": "The Lord make his face shine on you and be gracious to you."
-                        },
-                        {
-                            "type": "text",
-                            "text": "The Lord look on you with favor and give <<cross>> you peace."
-                        }
-                    ]
-                },
-                {
-                    "reader": "C",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Amen."
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "type": "copyrightBlock"
-        },
-        {
-            "type": "song",
-            "songType": "song",
-            "lyricsOnly": false,
-            "label": "Closing Song",
-            "title": "His Mercy is More"
-        },
-        {
-            "type": "announcements",
-            "items": [
-                {
-                    "type": "announcement",
-                    "title": "Bible Classes",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Bible classes and Sunday School are on summer break and will resume in August."
-                        }
-                    ]
-                },
-                {
-                    "type": "announcement",
-                    "title": "Feed My Starving Children",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Do you want to make an impact on hungry kids? If you are available Saturday, June 20, 12 to 2pm, we will meet at Feed My Starving Children, 1100 W Grove Parkway, Tempe, 85283. We will pack meals of vitamins, vegetables, soy and rice into bags and boxes that are then shipped globally."
-                        },
-                        {
-                            "type": "text",
-                            "text": "Contact Sarah Gulden, 602-501-5906, or sjg480@cox.net to reserve your spot!"
-                        },
-                        {
-                            "type": "text",
-                            "style": {
-                                "fontWeight": "bold"
-                            },
-                            "text": "Please RSVP as soon as possible, setup is being finalized shortly."
-                        }
-                    ]
-                },
-                {
-                    "type": "announcement",
-                    "title": "Caring Cards",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Father's Day cards have been added as June 21 is coming soon. Thank you for choosing our handmade cards available for a cost of at least $1 per card to help pay for supplies. The Caring Card Ministry is a LOG ministry"
-                        }
-                    ]
-                },
-                {
-                    "type": "announcement",
-                    "title": "Service Opportunities at Lamb of God",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "You are invited and encouraged to share your unique gifts and become a vital part of our church family’s mission. Volunteering is more than just completing a task; it is a way to live out our faith and grow in fellowship with one another."
-                        },
-                        {
-                            "type": "text",
-                            "text": ""
-                        },
-                        {
-                            "type": "text",
-                            "text": "See the poster in the narthex to see what volunteers our church needs. Then decide where you can help—and let us know if some area is missing from the list."
-                        },
-                        {
-                            "type": "scripture",
-                            "style": {
-                                "textAlign": "center"
-                            },
-                            "bibleReference": "1 Peter 4:10"
-                        }
-                    ]
-                }
-            ]
+              ]
+            }
+          ]
         }
-    ]
+      ]
+    },
+    {
+      "id": "prayer",
+      "type": "heading",
+      "text": "Prayer"
+    },
+    {
+      "id": "responsivereading-2",
+      "type": "responsiveReading",
+      "entries": [
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Almighty God, to whom all hearts are open, all desires known, and from whom no secrets are hidden; cleanse the thoughts of our hearts by the inspiration of your Holy Spirit, that we may perfectly love you and worthily magnify your holy name, through Jesus Christ our Lord."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Amen."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "confession-of-sins",
+      "type": "heading",
+      "text": "Confession of Sins"
+    },
+    {
+      "id": "responsivereading-3",
+      "type": "responsiveReading",
+      "entries": [
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "1 John 1:8-9"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Holy God, holy and mighty, holy and immortal, have mercy on us. For self-centered living, and for failing to walk with humility and gentleness:"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "For longing to have what is not ours, and for failing to give thanks for what is ours:"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "For angry deeds, for hurtful words, for uncharitable thoughts, and for those sins we do not even remember committing:"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "For idleness in witnessing for Jesus Christ, and for squandering the gifts of love and grace:"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "For all the wrong we have done, and all the good we have failed to do:"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Holy God, holy and mighty, holy and immortal, have mercy on us."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "God, who is rich in mercy, loved us even when we were dead in sin, and made us alive together with Christ. By grace you have been saved. In the name of  Jesus Christ, your sins are forgiven. Almighty God strengthen you with power through the Holy Spirit, that Christ may live in your hearts through faith."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Amen."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "In the peace of forgiveness, let us praise the Lord!"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "song-of-praise",
+      "type": "song",
+      "label": "Song of Praise",
+      "title": "Give Thanks",
+      "songType": "song",
+      "libraryItemId": "give-thanks",
+      "selection": {
+        "mode": "all"
+      },
+      "renderMode": "lyrics",
+      "weeklyEditable": true
+    },
+    {
+      "id": "prayer-of-the-day",
+      "type": "heading",
+      "text": "Prayer of the Day"
+    },
+    {
+      "id": "responsivereading-4",
+      "type": "responsiveReading",
+      "entries": [
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Almighty and merciful God, you sent your Son, Jesus Christ, to seek and to save the lost. Graciously open our ears and our hearts to hear his call and follow him by faith that we may feast with him forever in his kingdom; through your Son, Jesus Christ our Lord, who lives and reigns with you and the Holy Spirit, one God, now and forever."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Amen."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "the-word",
+      "type": "sectionHeading",
+      "text": "The Word"
+    },
+    {
+      "id": "first-reading",
+      "type": "scriptureReading",
+      "label": "First Reading",
+      "caption": "The LORD chooses Moses, an exiled murderer, to lead the Israelites.",
+      "reference": "Exodus 3:1-15",
+      "translation": "NIV",
+      "weeklyEditable": true
+    },
+    {
+      "id": "psalm",
+      "type": "song",
+      "label": "Psalm",
+      "title": "130",
+      "songType": "psalm",
+      "libraryItemId": "130",
+      "selection": {
+        "mode": "verses",
+        "verses": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "renderMode": "asset",
+      "weeklyEditable": true
+    },
+    {
+      "id": "children-s-message",
+      "type": "heading",
+      "text": "Children's Message"
+    },
+    {
+      "id": "gospel",
+      "type": "scriptureReading",
+      "label": "Gospel",
+      "caption": "Tax collectors were considered among the worst of sinners. To demonstrate grace, Jesus called one to be his disciple.",
+      "reference": "Matthew 9:9-13",
+      "translation": "NIV",
+      "weeklyEditable": true
+    },
+    {
+      "id": "hymn-of-the-day",
+      "type": "song",
+      "label": "Hymn of the Day",
+      "title": "CW385",
+      "songType": "hymn",
+      "libraryItemId": "cw385",
+      "selection": {
+        "mode": "all"
+      },
+      "renderMode": "lyrics",
+      "weeklyEditable": true
+    },
+    {
+      "id": "sermon",
+      "type": "scriptureReading",
+      "label": "Sermon",
+      "reference": "1 Timothy 1:12-17",
+      "translation": "NIV",
+      "weeklyEditable": true
+    },
+    {
+      "id": "confession-of-faith",
+      "type": "libraryText",
+      "libraryItemId": "apostles-creed",
+      "title": "Apostles' Creed"
+    },
+    {
+      "id": "the-prayers",
+      "type": "sectionHeading",
+      "text": "The Prayers"
+    },
+    {
+      "id": "prayer-of-the-church",
+      "type": "heading",
+      "text": "Prayer of the Church"
+    },
+    {
+      "id": "prayer-2",
+      "type": "libraryText",
+      "libraryItemId": "lord-s-prayer",
+      "title": "Lord's Prayer"
+    },
+    {
+      "id": "blessing",
+      "type": "heading",
+      "text": "Blessing"
+    },
+    {
+      "id": "responsivereading-5",
+      "type": "responsiveReading",
+      "entries": [
+        {
+          "reader": "M",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Brothers and sisters, go in peace."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Live in harmony with one another."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Serve the Lord with gladness."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": []
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "The Lord bless you and keep you."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "The Lord make his face shine on you and be gracious to you."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "The Lord look on you with favor and give "
+                },
+                {
+                  "type": "symbol",
+                  "name": "cross"
+                },
+                {
+                  "type": "text",
+                  "text": " you peace."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "reader": "C",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Amen."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "copyrightblock",
+      "type": "copyright"
+    },
+    {
+      "id": "closing-song",
+      "type": "song",
+      "label": "Closing Song",
+      "title": "His Mercy is More",
+      "songType": "song",
+      "libraryItemId": "his-mercy-is-more",
+      "selection": {
+        "mode": "all"
+      },
+      "renderMode": "asset",
+      "weeklyEditable": true
+    },
+    {
+      "id": "announcements",
+      "type": "announcements",
+      "weeklyEditable": true,
+      "items": [
+        {
+          "id": "bible-classes",
+          "title": "Bible Classes",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Bible classes and Sunday School are on summer break and will resume in August."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "feed-my-starving-children",
+          "title": "Feed My Starving Children",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Do you want to make an impact on hungry kids? If you are available Saturday, June 20, 12 to 2pm, we will meet at Feed My Starving Children, 1100 W Grove Parkway, Tempe, 85283. We will pack meals of vitamins, vegetables, soy and rice into bags and boxes that are then shipped globally."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Contact Sarah Gulden, 602-501-5906, or sjg480@cox.net to reserve your spot!"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Please RSVP as soon as possible, setup is being finalized shortly.",
+                  "marks": [
+                    "bold"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "caring-cards",
+          "title": "Caring Cards",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Father's Day cards have been added as June 21 is coming soon. Thank you for choosing our handmade cards available for a cost of at least $1 per card to help pay for supplies. The Caring Card Ministry is a LOG ministry"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "service-opportunities-at-lamb-of-god",
+          "title": "Service Opportunities at Lamb of God",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "You are invited and encouraged to share your unique gifts and become a vital part of our church family’s mission. Volunteering is more than just completing a task; it is a way to live out our faith and grow in fellowship with one another."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "children": []
+            },
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "See the poster in the narthex to see what volunteers our church needs. Then decide where you can help—and let us know if some area is missing from the list."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "align": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "1 Peter 4:10"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "updatedAt": "2026-07-21T00:13:25.734Z"
 }

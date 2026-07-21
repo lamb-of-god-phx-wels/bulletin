@@ -13,7 +13,11 @@
 *.pdf
 content/
 pdf/
-example_bulletins/
-*private-data.tex
-assets/church/information.md
-.untracked
+.untracked/
+node_modules/
+dist/
+dist-electron/
+release/
+coverage/
+.vite/
+*.tsbuildinfo

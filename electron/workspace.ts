@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:
 import path from 'node:path';
 import type { BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from '../src/shared/types.js';
 import { defaultTemplate } from '../src/shared/defaults.js';
+import { normalizeLibrary } from '../src/shared/library.js';
 
 function inside(root: string, relative: string) {
   const target = path.resolve(root, relative);
@@ -41,7 +42,9 @@ export async function openWorkspace(root: string): Promise<WorkspaceSummary> {
   const templateFiles = await jsonFiles(inside(root, 'templates'));
   const bulletins = await Promise.all(bulletinFiles.map(async file => ({ path: path.relative(root, file), document: await readJson<BulletinDocumentV1>(file) })));
   const templates = await Promise.all(templateFiles.map(async file => ({ path: path.relative(root, file), template: await readJson<TemplateV1>(file) })));
-  const library = await readJson<LibraryManifestV1>(inside(root, 'library.json'));
+  const storedLibrary = await readJson<LibraryManifestV1>(inside(root, 'library.json'));
+  const library = normalizeLibrary(storedLibrary);
+  if (library !== storedLibrary) await atomicJson(inside(root, 'library.json'), library);
   return { root, bulletins, templates, library };
 }
 
@@ -75,7 +78,7 @@ export async function saveTemplate(root: string, template: TemplateV1) {
 export const deleteTemplate = (root: string, relative: string) => deleteJson(root, relative);
 
 export async function saveLibrary(root: string, library: LibraryManifestV1) {
-  await atomicJson(inside(root, 'library.json'), library);
+  await atomicJson(inside(root, 'library.json'), normalizeLibrary(library));
 }
 
 export async function createRevision(root: string, bulletinRelative: string, document: BulletinDocumentV1, label: string) {

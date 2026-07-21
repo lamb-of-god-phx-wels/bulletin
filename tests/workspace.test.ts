@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -41,5 +41,18 @@ describe('shared workspace', () => {
     const workspace = await openWorkspace(root);
     expect(workspace.bulletins).toHaveLength(0);
     expect(workspace.templates.some(item => item.path === templatePath)).toBe(false);
+  });
+
+  it('persists the legacy music-to-song library migration when opening', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    await openWorkspace(root);
+    await writeFile(join(root, 'library.json'), JSON.stringify({ schemaVersion: 1, name: 'Legacy', items: [
+      { id: 'anthem', version: 1, kind: 'song', title: 'Anthem', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Lyrics' }] }] },
+      { id: 'anthem', version: 1, kind: 'music', title: 'Anthem music', assets: [{ path: 'assets/anthem.pdf', mediaType: 'application/pdf' }] }
+    ] }));
+    const workspace = await openWorkspace(root);
+    expect(workspace.library?.items).toHaveLength(1);
+    expect(workspace.library?.items[0]).toMatchObject({ kind: 'song', content: [{ children: [{ text: 'Lyrics' }] }], assets: [{ path: 'assets/anthem.pdf' }] });
+    expect(await readFile(join(root, 'library.json'), 'utf8')).not.toContain('"music"');
   });
 });

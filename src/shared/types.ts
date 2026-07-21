@@ -106,7 +106,7 @@ export interface TemplateV1 {
   updatedAt: string;
 }
 
-export type LibraryKind = 'song' | 'liturgy' | 'image' | 'font' | 'church-info' | 'music';
+export type LibraryKind = 'song' | 'liturgy' | 'image' | 'font' | 'church-info';
 export interface LibraryItemV1 {
   id: string;
   version: number;

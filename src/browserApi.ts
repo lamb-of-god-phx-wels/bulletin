@@ -1,5 +1,6 @@
 import legacyExample from '../example_bulletin.json';
 import { defaultTemplate } from './shared/defaults';
+import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
 
@@ -105,7 +106,12 @@ function mediaType(file: File): AssetRef['mediaType'] {
 async function summary(root: string) {
   const value = await getRecord<WorkspaceSummary>(workspaceStore, root);
   if (!value) throw new Error(`Workspace “${root}” no longer exists.`);
-  return value;
+  if (!value.library) return value;
+  const library = normalizeLibrary(value.library);
+  if (library === value.library) return value;
+  const migrated = { ...value, library };
+  await putRecord(workspaceStore, root, migrated);
+  return migrated;
 }
 
 export async function installBrowserApi() {
@@ -143,7 +149,7 @@ export async function installBrowserApi() {
       const current = await summary(root);
       await putRecord(workspaceStore, root, { ...current, templates: current.templates.filter(item => item.path !== path) });
     },
-    saveLibrary: async (root, library) => { const current = await summary(root); await putRecord(workspaceStore, root, { ...current, library }); },
+    saveLibrary: async (root, library) => { const current = await summary(root); await putRecord(workspaceStore, root, { ...current, library: normalizeLibrary(library) }); },
     createRevision: async (root, bulletinPath, document, label) => {
       const key = `${root}:revision:${bulletinPath}:${Date.now()}:${label}`; await putRecord(workspaceStore, key, document); return key;
     },

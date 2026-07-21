@@ -7,7 +7,7 @@ const paragraphText = (content: Paragraph[]) => content.map(p => p.children.map(
 export function WeeklyEditor({ document, library, root, relativePath, onChange, onError }: { document: BulletinDocumentV1; library?: LibraryManifestV1; root?: string; relativePath: string; onChange(document: BulletinDocumentV1): void; onError(message: string): void }) {
   const [expanded, setExpanded] = useState<string>();
   const [lookupStatus, setLookupStatus] = useState<Record<string, { state: 'loading' | 'success' | 'error'; text: string }>>({});
-  const songs = [...new Map(library?.items.filter(item => item.kind === 'song' || item.kind === 'music').sort((a, b) => a.version - b.version).map(item => [item.id, item])).values()];
+  const songs = [...new Map(library?.items.filter(item => item.kind === 'song').sort((a, b) => a.version - b.version).map(item => [item.id, item])).values()];
   const missingLibraryReference = (block: BulletinBlock) => (block.type === 'song' || block.type === 'libraryText') && Boolean(library) && !library!.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion));
   const updateInfo = (key: keyof BulletinDocumentV1['info'], value: string) => onChange({ ...document, info: { ...document.info, [key]: value } });
   const updateBlock = (id: string, next: BulletinBlock) => onChange({ ...document, blocks: document.blocks.map(block => block.id === id ? next : block) });

@@ -102,7 +102,10 @@ await wait(`Boolean(document.querySelector('.lookup-status.success, .lookup-stat
 if (await evaluate(`Boolean(document.querySelector('.lookup-status.error'))`) && !await evaluate(`Boolean(document.querySelector('.error-toast'))`)) throw new Error('Global error feedback toast was not shown.');
 pass('Bible Gateway import returns visible, actionable feedback');
 
-await click('Templates'); await wait(`${buttonExpression('Save draft')} !== undefined`, 'template controls'); await click('Save draft');
+await click('Templates'); await wait(`${buttonExpression('Save draft')} !== undefined`, 'template controls');
+await fill('Page margin (inches)', '0.65');
+await wait(`document.querySelector('.builder-preview .document-stack')?.getAttribute('style')?.includes('--page-margin: 0.65in')`, 'live template margin preview');
+await click('Save draft');
 await wait(`document.querySelector('.template-save-status')?.textContent.includes('Draft saved')`, 'template draft save');
 await click('Publish new version');
 await wait(`document.querySelector('.template-save-status')?.textContent.includes('New version published')`, 'template publish');

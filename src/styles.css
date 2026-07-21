@@ -120,6 +120,12 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .sermon-title { padding: 0 0 .12in; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; font-size: 13pt; text-align: center; text-transform: uppercase; }
 .section-heading { margin: .18in 0 .24in !important; font: 13pt var(--display-font); text-align: center; }
 .block-heading, .scripture h3, .song h3 { margin: .2in 0 .08in !important; font-size: 10pt; text-transform: uppercase; }
+.page-content > .section-heading:first-child,
+.page-content > .block-heading:first-child,
+.page-content > .sermon-title:first-child,
+.page-content > section:first-child > .block-heading:first-child,
+.page-content > .scripture:first-child > h3:first-child,
+.page-content > .song:first-child > h3:first-child { margin-top: 0 !important; }
 .block-heading span, .scripture h3 span, .song h3 span { font-weight: 400; text-transform: none; }
 .response-row { display: grid; grid-template-columns: .25in 1fr; gap: .04in; }
 .response-row p { margin-bottom: .08in; }
@@ -146,6 +152,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .template-save-status { color: var(--success); font-size: 12px; font-weight: 700; margin-left: 4px; }
 .builder-panel .editor-card h2 { margin-bottom: 14px; font: 18px Georgia, serif; }
 .builder-panel .editor-card > label { margin-bottom: 11px; }
+.field-help { margin-top: 5px; color: #7b7f79; font-size: 10px; font-weight: 500; line-height: 1.4; }
 .outline { margin: 0; padding: 0; list-style: none; }
 .outline li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #ece9e1; }
 .outline li div:first-child { display: flex; flex-direction: column; }

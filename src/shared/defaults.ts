@@ -16,7 +16,7 @@ export const defaultTemplate: TemplateV1 = {
     accent: '#a44d2a',
     bodySizePt: 10,
     lineHeight: 1.28,
-    marginIn: 0.48
+    marginIn: 0.4
   },
   starterBlocks: [
     { id: 'cover', type: 'titlePage', weeklyEditable: true },

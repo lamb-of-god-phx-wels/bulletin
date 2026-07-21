@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from '../src/shared/types.js';
 import { defaultTemplate } from '../src/shared/defaults.js';
@@ -58,11 +58,21 @@ export async function saveBulletin(root: string, relative: string, document: Bul
   return { revision: saved.revision, updatedAt: saved.updatedAt };
 }
 
+async function deleteJson(root: string, relative: string) {
+  if (!relative.endsWith('.json')) throw new Error('Only JSON workspace records can be deleted.');
+  try { await unlink(inside(root, relative)); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+}
+
+export const deleteBulletin = (root: string, relative: string) => deleteJson(root, relative);
+
 export async function saveTemplate(root: string, template: TemplateV1) {
   const relative = `templates/${template.id}/v${template.version}${template.status === 'draft' ? '-draft' : ''}.json`;
   await atomicJson(inside(root, relative), { ...template, updatedAt: new Date().toISOString() });
   return relative;
 }
+
+export const deleteTemplate = (root: string, relative: string) => deleteJson(root, relative);
 
 export async function saveLibrary(root: string, library: LibraryManifestV1) {
   await atomicJson(inside(root, 'library.json'), library);

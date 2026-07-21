@@ -129,7 +129,9 @@ export interface BulletinApi {
   createWorkspace?(name: string): Promise<string>;
   openWorkspace(root: string): Promise<WorkspaceSummary>;
   saveBulletin(root: string, relativePath: string, document: BulletinDocumentV1, expectedRevision: number): Promise<{ revision: number; updatedAt: string }>;
+  deleteBulletin(root: string, relativePath: string): Promise<void>;
   saveTemplate(root: string, template: TemplateV1): Promise<string>;
+  deleteTemplate(root: string, relativePath: string): Promise<void>;
   saveLibrary(root: string, library: LibraryManifestV1): Promise<void>;
   createRevision(root: string, relativePath: string, document: BulletinDocumentV1, label: string): Promise<string>;
   exportPdf(root: string, relativePath: string, document: BulletinDocumentV1): Promise<string | null>;

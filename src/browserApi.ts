@@ -126,6 +126,10 @@ export async function installBrowserApi() {
       await putRecord(workspaceStore, root, { ...current, bulletins });
       return { revision: saved.revision, updatedAt: saved.updatedAt };
     },
+    deleteBulletin: async (root, path) => {
+      const current = await summary(root);
+      await putRecord(workspaceStore, root, { ...current, bulletins: current.bulletins.filter(item => item.path !== path) });
+    },
     saveTemplate: async (root, template) => {
       const current = await summary(root);
       const path = `templates/${template.id}/v${template.version}${template.status === 'draft' ? '-draft' : ''}.json`;
@@ -134,6 +138,10 @@ export async function installBrowserApi() {
       const templates = existing ? current.templates.map(item => item.path === path ? { path, template: saved } : item) : [...current.templates, { path, template: saved }];
       await putRecord(workspaceStore, root, { ...current, templates });
       return path;
+    },
+    deleteTemplate: async (root, path) => {
+      const current = await summary(root);
+      await putRecord(workspaceStore, root, { ...current, templates: current.templates.filter(item => item.path !== path) });
     },
     saveLibrary: async (root, library) => { const current = await summary(root); await putRecord(workspaceStore, root, { ...current, library }); },
     createRevision: async (root, bulletinPath, document, label) => {

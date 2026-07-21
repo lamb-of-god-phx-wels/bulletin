@@ -5,7 +5,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
-import { createRevision, inside, openWorkspace, readAssetData, saveBulletin, saveLibrary, saveTemplate } from './workspace.js';
+import { createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, readAssetData, saveBulletin, saveLibrary, saveTemplate } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +36,9 @@ function registerIpc() {
   });
   ipcMain.handle('workspace:open', (_event, root: string) => openWorkspace(root));
   ipcMain.handle('bulletin:save', (_event, ...args: Parameters<BulletinApi['saveBulletin']>) => saveBulletin(...args));
+  ipcMain.handle('bulletin:delete', (_event, ...args: Parameters<BulletinApi['deleteBulletin']>) => deleteBulletin(...args));
   ipcMain.handle('template:save', (_event, ...args: Parameters<BulletinApi['saveTemplate']>) => saveTemplate(...args));
+  ipcMain.handle('template:delete', (_event, ...args: Parameters<BulletinApi['deleteTemplate']>) => deleteTemplate(...args));
   ipcMain.handle('library:save', (_event, ...args: Parameters<BulletinApi['saveLibrary']>) => saveLibrary(...args));
   ipcMain.handle('revision:create', (_event, ...args: Parameters<BulletinApi['createRevision']>) => createRevision(...args));
   ipcMain.handle('asset:read', (_event, root: string, relative: string) => readAssetData(root, relative));

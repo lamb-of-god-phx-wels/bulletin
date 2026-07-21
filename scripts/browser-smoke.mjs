@@ -49,6 +49,19 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_DELETE_ONLY === '1') {
+  await pointerClick('Delete');
+  await wait(`Boolean(document.querySelector('.confirmation-modal'))`, 'in-app delete confirmation');
+  await pointerClick('Delete bulletin');
+  await wait(`document.body.textContent.includes('No bulletins yet')`, 'empty bulletin state');
+  const remaining = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace => workspace.bulletins.length)`);
+  if (remaining !== 0) throw new Error(`Deleted bulletin remains in browser storage (${remaining} records).`);
+  pass('deletes a bulletin without recreating it');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 await wait(`Array.from(document.querySelectorAll('.missing-template-content')).some(element=>element.parentElement?.textContent.includes("Lord's Prayer"))`, 'hidden missing template content repair UI');
 pass('surfaces hidden template content when its library item is missing');
 

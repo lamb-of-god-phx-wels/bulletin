@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DocumentView } from './components/DocumentView';
 import { WeeklyEditor } from './components/WeeklyEditor';
 import { TemplateBuilder } from './components/TemplateBuilder';
+import { TemplateSwitcher } from './components/TemplateSwitcher';
 import { createBulletin, defaultTemplate } from './shared/defaults';
 import { paginate } from './shared/pagination';
+import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, type TemplateRecord } from './shared/templates';
 import type { BulletinDocumentV1, LibraryItemV1, LibraryManifestV1, TemplateV1, ValidationIssue, WorkspaceSummary } from './shared/types';
 import { validateBulletin } from './shared/validation';
 
@@ -41,6 +43,7 @@ function DesktopApp() {
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
+  const [newBulletinPicker, setNewBulletinPicker] = useState(false);
   const dirty = useRef(false);
   const savedRevision = useRef(0);
   const statusSequence = useRef(0);
@@ -73,10 +76,10 @@ function DesktopApp() {
     if (!window.bulletin) return;
     try {
       const next = await window.bulletin.openWorkspace(root); setWorkspace(next); localStorage.setItem('bulletin-workspace', root);
-      const selectedTemplate = [...next.templates].sort((a, b) => b.template.version - a.template.version)[0];
+      const selectedTemplate = templateChoices(next.templates)[0] ?? sortedTemplateRecords(next.templates)[0];
       setTemplate(selectedTemplate?.template ?? defaultTemplate); setTemplatePath(selectedTemplate?.path ?? '');
       const latest = [...next.bulletins].sort((a, b) => b.document.info.date.localeCompare(a.document.info.date))[0];
-      if (latest) openDocument(latest.document, latest.path); else startNew(selectedTemplate?.template ?? defaultTemplate);
+      if (latest) openDocument(latest.document, latest.path, next.templates); else startNew(selectedTemplate?.template ?? defaultTemplate);
     } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
   }
   async function chooseWorkspace() {
@@ -87,8 +90,11 @@ function DesktopApp() {
     try { const root = await window.bulletin.chooseWorkspace(); if (root) await loadWorkspace(root); }
     catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
   }
-  function openDocument(next: BulletinDocumentV1, path: string) { setDocument(next); setRelativePath(path); savedRevision.current = next.revision; dirty.current = false; reportStatus('Saved'); setScreen('weekly'); }
+  function selectTemplate(record: TemplateRecord) { setTemplate(record.template); setTemplatePath(record.path); }
+  function openDocument(next: BulletinDocumentV1, path: string, records = workspace?.templates ?? []) { const record = templateForReference(records, next.template); if (record) selectTemplate(record); setDocument(next); setRelativePath(path); savedRevision.current = next.revision; dirty.current = false; reportStatus('Saved'); setScreen('weekly'); }
+  function showWeekly() { if (document) { const record = templateForReference(workspace?.templates ?? [], document.template); if (record) selectTemplate(record); } setScreen('weekly'); }
   function startNew(from = template) { const next = createBulletin(from); const base = `bulletins/${next.info.date}/bulletin.json`; const path = workspace?.bulletins.some(item => item.path === base) ? `bulletins/${next.info.date}/bulletin-${Date.now()}.json` : base; openDocument(next, path); dirty.current = true; }
+  function beginNewBulletin() { const choices = templateChoices(workspace?.templates ?? []); if (choices.length <= 1) { const choice = choices[0]; if (choice) selectTemplate(choice); startNew(choice?.template ?? template); return; } setNewBulletinPicker(true); }
   function changeDocument(next: BulletinDocumentV1) { dirty.current = true; setExportIssues([]); reportStatus('Unsaved changes'); setDocument(next); }
   async function deleteCurrentBulletin() {
     if (!document || !workspace || !window.bulletin) return;
@@ -123,15 +129,24 @@ function DesktopApp() {
   }
   async function saveTemplate(publish: boolean) {
     if (!workspace || !window.bulletin) return;
-    const next = publish ? { ...template, status: 'published' as const, version: template.version + 1 } : { ...template, status: 'draft' as const };
+    const next = publish ? { ...template, status: 'published' as const, version: nextTemplateVersion(workspace.templates, template.id) } : { ...template, status: 'draft' as const };
     try { const path = await window.bulletin.saveTemplate(workspace.root, next); setTemplate(next); setTemplatePath(path); setWorkspace(current => current ? { ...current, templates: current.templates.some(item => item.path === path) ? current.templates.map(item => item.path === path ? { path, template: next } : item) : [...current.templates, { path, template: next }] } : current); reportStatus(`${publish ? 'Published' : 'Saved'} ${path}`); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; }
+  }
+  async function createNewTemplate(name: string) {
+    if (!workspace || !window.bulletin) return;
+    const next = duplicateTemplate(template, name, workspace.templates);
+    try {
+      const path = await window.bulletin.saveTemplate(workspace.root, next);
+      setWorkspace(current => current ? { ...current, templates: [...current.templates, { path, template: next }] } : current);
+      setTemplate(next); setTemplatePath(path); reportStatus(`Created ${name}`);
+    } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; }
   }
   async function deleteCurrentTemplate() {
     if (!workspace || !window.bulletin || !templatePath || workspace.templates.length <= 1) return;
     try {
       await window.bulletin.deleteTemplate(workspace.root, templatePath);
       const templates = workspace.templates.filter(item => item.path !== templatePath);
-      const selected = [...templates].sort((a, b) => b.template.version - a.template.version)[0];
+      const selected = templateChoices(templates).find(item => item.template.id === template.id) ?? templateChoices(templates)[0] ?? sortedTemplateRecords(templates)[0];
       setWorkspace({ ...workspace, templates }); setTemplate(selected.template); setTemplatePath(selected.path);
       reportStatus('Template version deleted');
     } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
@@ -161,23 +176,28 @@ function DesktopApp() {
   const statusIsError = /blocked|conflict|required|failed|error|missing|unavailable|does not|could not|invalid|enter |choose |paste |fetch /i.test(status);
   const workspaceName = availableWorkspaces.find(item => item.root === workspace.root)?.name ?? (workspace.root.startsWith('local:') ? workspace.root.slice(6).replaceAll('-', ' ') : workspace.root);
   return <div className="app-shell">
-    <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={() => setScreen('weekly')}><span>◫</span>This week</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{workspace.bulletins.slice().sort((a, b) => b.document.info.date.localeCompare(a.document.info.date)).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom"><button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span></div></aside>
+    <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={showWeekly}><span>◫</span>This week</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{workspace.bulletins.slice().sort((a, b) => b.document.info.date.localeCompare(a.document.info.date)).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom"><button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span></div></aside>
     <main className="main-area">
-      <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-pressed={showGuides} onClick={toggleGuides}>Guides {showGuides ? 'on' : 'off'}</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers {showRulers ? 'on' : 'off'}</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" onClick={confirmBulletinDelete}>Delete</button>}<button className="secondary" onClick={() => startNew()}>New week</button><button type="button" className="primary" disabled={!window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
+      <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-pressed={showGuides} onClick={toggleGuides}>Guides {showGuides ? 'on' : 'off'}</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers {showRulers ? 'on' : 'off'}</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" onClick={confirmBulletinDelete}>Delete</button>}<button className="secondary" onClick={beginNewBulletin}>New week</button><button type="button" className="primary" disabled={!window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
       {screen === 'weekly' && document && <div className="weekly-layout"><section className="editor-pane"><WeeklyEditor document={document} library={workspace.library} root={workspace.root} relativePath={relativePath} onChange={changeDocument} onError={reportStatus} /></section><section className="preview-pane"><div className="preview-toolbar"><div><b>Print preview</b><span>{pageCount} pages · 7 × 8.5 in</span></div><div className={issues.length ? 'validation warning' : 'validation'}>{issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish` : '✓ Ready to export'}</div></div><DocumentView document={document} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} /></section></div>}
-      {screen === 'weekly' && !document && <div className="empty-state"><span>◫</span><h2>No bulletins yet</h2><p>Create a bulletin from the current template when you’re ready to begin.</p><button className="primary" onClick={() => startNew()}>Create bulletin</button></div>}
-      {screen === 'templates' && <div className="template-screen"><TemplateBuilder template={template} onChange={setTemplate} onSave={saveTemplate} onDelete={confirmTemplateDelete} canDelete={workspace.templates.length > 1 && Boolean(templatePath)} /><div className="builder-preview"><DocumentView document={document ?? createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} /></div></div>}
+      {screen === 'weekly' && !document && <div className="empty-state"><span>◫</span><h2>No bulletins yet</h2><p>Create a bulletin from one of your templates when you’re ready to begin.</p><button className="primary" onClick={beginNewBulletin}>Create bulletin</button></div>}
+      {screen === 'templates' && <div className="template-screen"><div className="template-workbench"><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} onChange={setTemplate} onSave={saveTemplate} onDelete={confirmTemplateDelete} canDelete={workspace.templates.length > 1 && Boolean(templatePath)} /></div><div className="builder-preview"><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} /></div></div>}
       {screen === 'library' && <LibraryView workspace={workspace} onError={reportStatus} onSave={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace({ ...workspace, library }); reportStatus('Library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} />}
     </main>
     {statusIsError && <div className="error-toast" role="alert"><span>!</span><div><b>Something needs attention</b><p>{status}</p></div><button aria-label="Dismiss error" onClick={() => reportStatus('Ready')}>×</button></div>}
     {exportIssues.length > 0 && <div className="modal-backdrop" role="presentation"><section className="export-issues-modal" role="dialog" aria-modal="true" aria-labelledby="export-issues-title"><header><div><div className="eyebrow">Export checklist</div><h2 id="export-issues-title">Review {exportIssues.length} item{exportIssues.length === 1 ? '' : 's'}</h2></div><button aria-label="Close export checklist" onClick={() => setExportIssues([])}>×</button></header><div className="export-issue-list">{exportIssues.map((issue, index) => <div key={`${issue.path}-${index}`}><span>{index + 1}</span><div><b>{issue.message}</b><small>{issue.path}</small></div></div>)}</div><footer><p>You can return to the editor to fix these items, or export the current preview as it appears now.</p><div className="export-checklist-actions"><button className="secondary" onClick={() => setExportIssues([])}>Back to editor</button><button className="primary" onClick={() => void performExport()}>Export anyway</button></div></footer></section></div>}
     {confirmation && <ConfirmDialog confirmation={confirmation} onCancel={() => setConfirmation(undefined)} onConfirm={async () => { const action = confirmation.action; setConfirmation(undefined); await action(); }} />}
+    {newBulletinPicker && <NewBulletinDialog templates={templateChoices(workspace.templates)} onCancel={() => setNewBulletinPicker(false)} onSelect={record => { setNewBulletinPicker(false); selectTemplate(record); startNew(record.template); }} />}
     {workspacePicker && <WorkspacePicker workspaces={availableWorkspaces} current={workspace.root} onClose={() => setWorkspacePicker(false)} onSelect={async root => { setWorkspacePicker(false); await loadWorkspace(root); }} onCreate={async name => { try { const root = await window.bulletin!.createWorkspace!(name); setAvailableWorkspaces(await window.bulletin!.listWorkspaces!()); setWorkspacePicker(false); await loadWorkspace(root); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); } }} />}
   </div>;
 }
 
 function ConfirmDialog({ confirmation, onCancel, onConfirm }: { confirmation: Confirmation; onCancel(): void; onConfirm(): Promise<void> }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onCancel(); }}><section className="confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmation-title"><div className="eyebrow">Please confirm</div><h2 id="confirmation-title">{confirmation.title}</h2><p>{confirmation.message}</p><p>This action cannot be undone.</p><div><button className="secondary" autoFocus onClick={onCancel}>Cancel</button><button className="danger" onClick={() => void onConfirm()}>{confirmation.confirmLabel}</button></div></section></div>;
+}
+
+function NewBulletinDialog({ templates, onCancel, onSelect }: { templates: TemplateRecord[]; onCancel(): void; onSelect(record: TemplateRecord): void }) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onCancel(); }}><section className="new-bulletin-modal" role="dialog" aria-modal="true" aria-labelledby="new-bulletin-title"><header><div><div className="eyebrow">New week</div><h2 id="new-bulletin-title">Choose a template</h2></div><button aria-label="Close" onClick={onCancel}>×</button></header><div className="template-choice-list">{templates.map(record => <button key={record.path} onClick={() => onSelect(record)}><span>◇</span><div><b>{record.template.name}</b><small>Version {record.template.version}{record.template.status === 'draft' ? ' · Draft' : ' · Published'}</small></div><strong>Use template</strong></button>)}</div></section></div>;
 }
 
 function WorkspacePicker({ workspaces, current, onClose, onSelect, onCreate }: { workspaces: Array<{ root: string; name: string }>; current: string; onClose(): void; onSelect(root: string): void; onCreate(name: string): void }) {

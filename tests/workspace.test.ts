@@ -43,6 +43,16 @@ describe('shared workspace', () => {
     expect(workspace.templates.some(item => item.path === templatePath)).toBe(false);
   });
 
+  it('persists separate template families and versions', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    await openWorkspace(root);
+    await saveTemplate(root, { ...defaultTemplate, id: 'festival-service', name: 'Festival Service', version: 1, status: 'draft' });
+    await saveTemplate(root, { ...defaultTemplate, id: 'festival-service', name: 'Festival Service', version: 2, status: 'published' });
+    const workspace = await openWorkspace(root);
+    expect(workspace.templates.filter(item => item.template.id === 'festival-service').map(item => item.template.version).sort()).toEqual([1, 2]);
+    expect(new Set(workspace.templates.map(item => item.template.id))).toEqual(new Set(['lamb-of-god-weekly', 'festival-service']));
+  });
+
   it('persists the legacy music-to-song library migration when opening', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
     await openWorkspace(root);

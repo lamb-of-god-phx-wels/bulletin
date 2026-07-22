@@ -74,6 +74,39 @@ if (process.env.BULLETIN_GUIDES_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_TEMPLATES_ONLY === '1') {
+  await click('Templates');
+  await click('New template');
+  await fill('New template name', 'Festival Service');
+  await click('Create from current');
+  await wait(`document.querySelector('.topbar h1')?.textContent === 'Festival Service'`, 'new template selection');
+  const created = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.filter(item=>item.template.id==='festival-service').map(item=>({path:item.path,version:item.template.version,status:item.template.status})))`);
+  if (created.length !== 1 || created[0].version !== 1 || created[0].status !== 'draft') throw new Error(`New template was not saved as its own family: ${JSON.stringify(created)}`);
+  await click('Publish new version');
+  await wait(`document.querySelector('.template-save-status')?.textContent.includes('New version published')`, 'new template publication');
+  await wait(`document.querySelectorAll('select[aria-label="Template and version"] option').length === 3`, 'template version options');
+  const versions = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.filter(item=>item.template.id==='festival-service').map(item=>({version:item.template.version,status:item.template.status})).sort((a,b)=>a.version-b.version))`);
+  if (versions.length !== 2 || versions[0].status !== 'draft' || versions[1].version !== 2 || versions[1].status !== 'published') throw new Error(`Template version history is incorrect: ${JSON.stringify(versions)}`);
+  await click('This week');
+  await wait(`document.querySelector('.topbar h1')?.textContent === 'God Loves Sinners'`, 'referenced weekly template');
+  await click('New week');
+  await wait(`Boolean(document.querySelector('.new-bulletin-modal'))`, 'new bulletin template picker');
+  const choices = await evaluate(`Array.from(document.querySelectorAll('.template-choice-list > button b')).map(element=>element.textContent)`);
+  if (choices.length !== 2 || !choices.includes('Lamb of God Weekly') || !choices.includes('Festival Service')) throw new Error(`New bulletin template choices are incorrect: ${JSON.stringify(choices)}`);
+  await click('Festival Service');
+  await wait(`!document.querySelector('.new-bulletin-modal') && document.querySelector('.topbar h1')?.textContent === 'Sermon title'`, 'festival bulletin');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'festival bulletin save');
+  const bulletinTemplate = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins.find(item=>item.document.info.title==='Sermon title')?.document.template)`);
+  if (bulletinTemplate?.id !== 'festival-service' || bulletinTemplate.version !== 2) throw new Error(`New bulletin did not retain its selected template: ${JSON.stringify(bulletinTemplate)}`);
+  await click('God Loves Sinners');
+  await click('Templates');
+  await wait(`document.querySelector('select[aria-label="Template and version"] option:checked')?.textContent.includes('Lamb of God Weekly')`, 'original bulletin template selection');
+  pass('creates, versions, selects, and links multiple templates');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_RULERS_ONLY === '1') {
   if (!await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers off');
   await wait(`document.querySelectorAll('.ruler-horizontal .ruler-tick').length === document.querySelectorAll('.page-frame').length * 29`, 'horizontal ruler ticks');

@@ -8,6 +8,35 @@
     "schemaVersion": { "const": 1 }, "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "name": { "type": "string" },
     "status": { "enum": ["draft", "published"] },
     "page": { "type": "object", "required": ["widthIn", "heightIn", "pageMultiple"], "properties": { "widthIn": { "const": 7 }, "heightIn": { "const": 8.5 }, "pageMultiple": { "const": 4 } }, "additionalProperties": false },
-    "theme": { "type": "object" }, "starterBlocks": { "type": "array" }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
-  }, "additionalProperties": false
+    "theme": { "type": "object" }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "block": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "layoutText": { "type": "string", "minLength": 1 },
+        "bindings": { "type": "array", "items": { "$ref": "#/$defs/customBinding" } },
+        "values": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
+      "additionalProperties": true
+    },
+    "customBinding": {
+      "type": "object",
+      "required": ["key", "label", "source"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.series", "church.name"] },
+        "defaultValue": { "type": "string" },
+        "multiline": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AssetRef, BulletinDocumentV1, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
+import type { AssetRef, BulletinDocumentV1, CustomBlock, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
+import { customBlockParagraphs } from '../shared/customBlocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'symbol'
@@ -8,6 +9,23 @@ const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index)
 
 function Paragraphs({ content }: { content: Paragraph[] }) {
   return <>{content.map((paragraph, index) => <p key={index} style={{ textAlign: paragraph.align }}>{inlineText(paragraph)}</p>)}</>;
+}
+
+function customStyle(block: CustomBlock): React.CSSProperties | undefined {
+  const style = block.style; if (!style) return undefined;
+  return {
+    boxSizing: 'border-box', width: `${style.widthPercent}%`,
+    marginTop: `${style.marginIn.top}in`, marginBottom: `${style.marginIn.bottom}in`,
+    marginLeft: style.placement === 'left' ? 0 : 'auto', marginRight: style.placement === 'right' ? 0 : 'auto',
+    padding: `${style.paddingIn.top}in ${style.paddingIn.right}in ${style.paddingIn.bottom}in ${style.paddingIn.left}in`,
+    textAlign: style.textAlign, fontFamily: style.fontFamily === 'body' ? 'var(--body-font)' : style.fontFamily === 'display' ? 'var(--display-font)' : style.fontFamily,
+    fontSize: `${style.fontSizePt}pt`, lineHeight: style.lineHeight, fontWeight: style.fontWeight, fontStyle: style.fontStyle,
+    fontVariant: style.textTransform === 'small-caps' ? 'small-caps' : undefined,
+    textTransform: style.textTransform === 'uppercase' ? 'uppercase' : undefined,
+    color: style.color, backgroundColor: style.backgroundColor ?? 'transparent',
+    border: style.borderWidthPt ? `${style.borderWidthPt}pt solid ${style.borderColor}` : undefined,
+    borderRadius: `${style.borderRadiusPt}pt`
+  };
 }
 
 function FlowAsset({ asset, source }: { asset: AssetRef; source?: string }) {
@@ -51,6 +69,7 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
     case 'sectionHeading': return <h2 className="section-heading">✠ {block.text} ✠</h2>;
     case 'heading': return <h3 className="block-heading">{block.text}</h3>;
     case 'richText': return <div className="rich-text"><Paragraphs content={block.content} /></div>;
+    case 'custom': return <section className="custom-block" style={customStyle(block)}>{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
     case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => <div className="response-row" key={index}><b>{entry.reader}:</b><div><Paragraphs content={entry.content} /></div></div>)}</div>;
     case 'scriptureReading': return <section className="scripture"><h3>{block.label ?? 'Reading'}: <span>{block.reference}</span></h3>{block.caption && <p className="caption">{block.caption}</p>}{block.resolved ? <Paragraphs content={block.resolved.content} /> : <p className="missing">Passage text has not been resolved. Add it before export.</p>}<div className="translation">{block.translation}</div></section>;
     case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? item?.content; return <section className="song"><h3>{block.label ?? block.songType}: <span>{item?.title ?? block.title ?? block.libraryItemId}</span></h3>{block.renderMode === 'asset' && asset ? <FlowAsset asset={asset} source={assets[asset.path]} /> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }

@@ -50,6 +50,49 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_CUSTOM_BLOCKS_ONLY === '1') {
+  await click('Templates');
+  await click('Add block'); await wait(`Boolean(document.querySelector('.block-library-modal'))`, 'first-class block library');
+  if (!await evaluate(`document.querySelector('.block-library-modal')?.textContent.includes('Scripture reading')`)) throw new Error('Built-in blocks are missing from the block library.');
+  await click('Create custom block'); await wait(`Boolean(document.querySelector('.custom-block-designer'))`, 'separate custom block designer');
+  await fill('Block name', 'Service invitation');
+  await fill('Field label', 'Service time');
+  await fill('Placeholder', 'serviceTime');
+  await fill('Default value', '9:00 AM');
+  await click('Add binding');
+  await evaluate(`(()=>{const element=document.querySelectorAll('.binding-row')[1].querySelectorAll('input')[0];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'Sermon title');element.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await evaluate(`(()=>{const element=document.querySelectorAll('.binding-row')[1].querySelectorAll('input')[1];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'sermonTitle');element.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await evaluate(`(()=>{const element=document.querySelectorAll('.binding-row')[1].querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(element,'info.title');element.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await fill('Content layout', 'Worship begins at {{serviceTime}}.\n\nToday: {{sermonTitle}}');
+  await fill('Width (%)', '60');
+  await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Text alignment');const button=Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Center');button.click();return true})()`);
+  await click('Create block'); await wait(`document.querySelectorAll('.custom-choices .block-choice').length === 1`, 'saved reusable block definition');
+  await evaluate(`document.querySelector('.custom-choices .block-choice .secondary').click()`);
+  await wait(`document.querySelector('.builder-preview .document-stack')?.textContent.includes('Worship begins at 9:00 AM.') && document.querySelector('.builder-preview .document-stack')?.textContent.includes('Today: Sermon title')`, 'bound custom block preview');
+  const renderedStyle = await evaluate(`(()=>{const block=Array.from(document.querySelectorAll('.builder-preview .custom-block')).at(-1);return {width:block.style.width,textAlign:block.style.textAlign}})()`);
+  if (renderedStyle.width !== '60%' || renderedStyle.textAlign !== 'center') throw new Error(`Custom layout controls were not rendered: ${JSON.stringify(renderedStyle)}`);
+  await click('Add block'); await pointerClick('Edit'); await fill('Block name', 'Service invitation updated'); await click('Save changes');
+  await wait(`document.querySelector('.custom-choices .block-choice b')?.textContent === 'Service invitation updated'`, 'edited reusable block');
+  await evaluate(`document.querySelector('.custom-choices .block-choice .secondary').click()`);
+  await wait(`document.querySelectorAll('.outline .outline-main b').length > 1 && Array.from(document.querySelectorAll('.outline .outline-main b')).filter(element=>element.textContent==='Service invitation updated').length === 2`, 'reused custom block');
+  await click('Add block'); await pointerClick('Edit'); await click('Delete from block library'); await click('Delete reusable block');
+  await wait(`document.querySelector('.block-library-empty')?.textContent.includes('No custom blocks')`, 'deleted reusable block definition');
+  await evaluate(`document.querySelector('button[aria-label="Close block library"]').click()`);
+  await wait(`!document.querySelector('.block-library-modal') && document.querySelector('.builder-preview .document-stack')?.textContent.includes('Service invitation updated')`, 'preserved template snapshots after definition deletion');
+  await click('Publish new version');
+  await wait(`document.querySelector('.template-save-status')?.textContent.includes('New version published')`, 'custom block template publication');
+  await click('This week'); await click('New week');
+  await wait(`Array.from(document.querySelectorAll('.block-editor h3')).some(element=>element.textContent==='Service invitation updated')`, 'custom block weekly editor');
+  await fill('Service time', '10:30 AM');
+  await wait(`document.querySelector('.preview-pane .document-stack')?.textContent.includes('Worship begins at 10:30 AM.')`, 'custom weekly value preview');
+  const savedBlocks = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.find(item=>item.template.version===2)?.template.starterBlocks.filter(block=>block.type==='custom'))`);
+  if (savedBlocks?.length !== 2 || savedBlocks[0].name !== 'Service invitation updated' || savedBlocks[0].style?.widthPercent !== 60) throw new Error(`Custom blocks were not persisted correctly: ${JSON.stringify(savedBlocks)}`);
+  pass('creates, edits, deletes, reuses, styles, publishes, and weekly-edits first-class blocks');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_GUIDES_ONLY === '1') {
   if (await evaluate(`document.querySelector('.guide-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Guides on');
   await click('Guides off');

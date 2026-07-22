@@ -21,12 +21,32 @@
       "required": ["id", "type"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["titlePage", "churchInfo", "heading", "sectionHeading", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer"] },
+        "type": { "enum": ["titlePage", "churchInfo", "heading", "sectionHeading", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer", "custom"] },
         "label": { "type": "string" },
         "weeklyEditable": { "type": "boolean" },
-        "layout": { "type": "object" }
+        "layout": { "type": "object" },
+        "name": { "type": "string", "minLength": 1 },
+        "definitionId": { "type": "string" },
+        "showName": { "type": "boolean" },
+        "layoutText": { "type": "string", "minLength": 1 },
+        "bindings": { "type": "array", "items": { "$ref": "#/$defs/customBinding" } },
+        "values": { "type": "object", "additionalProperties": { "type": "string" } },
+        "style": { "type": "object" }
       },
+      "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
       "additionalProperties": true
+    },
+    "customBinding": {
+      "type": "object",
+      "required": ["key", "label", "source"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.series", "church.name"] },
+        "defaultValue": { "type": "string" },
+        "multiline": { "type": "boolean" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

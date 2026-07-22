@@ -60,9 +60,55 @@ export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: P
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }
 
+export type CustomBindingSource = 'weekly' | 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
+export interface CustomBlockBinding {
+  key: string;
+  label: string;
+  source: CustomBindingSource;
+  defaultValue?: string;
+  multiline?: boolean;
+}
+export interface CustomBlockStyle {
+  widthPercent: number;
+  placement: 'left' | 'center' | 'right';
+  textAlign: 'left' | 'center' | 'right' | 'justify';
+  paddingIn: { top: number; right: number; bottom: number; left: number };
+  marginIn: { top: number; bottom: number };
+  fontFamily: string;
+  fontSizePt: number;
+  lineHeight: number;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  textTransform: 'none' | 'uppercase' | 'small-caps';
+  color: string;
+  backgroundColor?: string;
+  borderWidthPt: number;
+  borderColor: string;
+  borderRadiusPt: number;
+}
+export interface CustomBlockDefinitionV1 {
+  id: string;
+  name: string;
+  showName: boolean;
+  layoutText: string;
+  bindings: CustomBlockBinding[];
+  style: CustomBlockStyle;
+  updatedAt: string;
+}
+export interface CustomBlock extends BlockBase {
+  type: 'custom';
+  definitionId?: string;
+  name: string;
+  showName?: boolean;
+  layoutText: string;
+  bindings: CustomBlockBinding[];
+  values?: Record<string, string>;
+  style?: CustomBlockStyle;
+}
+
 export type BulletinBlock = TitlePageBlock | ChurchInfoBlock | HeadingBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
-  AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock;
+  AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | CustomBlock;
 
 export interface AssetRef {
   path: string;
@@ -117,7 +163,7 @@ export interface LibraryItemV1 {
   assets?: Array<AssetRef & { variant?: string }>;
   license?: { notice: string; licenseNumber?: string };
 }
-export interface LibraryManifestV1 { schemaVersion: 1; name: string; items: LibraryItemV1[] }
+export interface LibraryManifestV1 { schemaVersion: 1; name: string; items: LibraryItemV1[]; blocks?: CustomBlockDefinitionV1[] }
 
 export interface ValidationIssue { path: string; message: string }
 export interface WorkspaceSummary { root: string; bulletins: Array<{ path: string; document: BulletinDocumentV1 }>; templates: Array<{ path: string; template: TemplateV1 }>; library?: LibraryManifestV1 }

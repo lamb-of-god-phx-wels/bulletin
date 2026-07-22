@@ -17,4 +17,16 @@ describe('bulletin validation', () => {
       message: 'The template-managed block “Lord\'s Prayer” references missing library item “lord-s-prayer”. Choose a replacement or remove the block from this bulletin.'
     });
   });
+
+  it('reports invalid custom-block definitions', () => {
+    const document = createBulletin(defaultTemplate);
+    document.blocks.push({ id: 'custom-welcome', type: 'custom', name: 'Welcome', layoutText: '{{serviceTime}} {{missing}}', bindings: [
+      { key: 'serviceTime', label: 'Service time', source: 'weekly' },
+      { key: 'serviceTime', label: 'Duplicate', source: 'weekly' }
+    ] });
+    expect(validateBulletin(document)).toEqual(expect.arrayContaining([
+      { path: `/blocks/${document.blocks.length - 1}`, message: 'Placeholder “serviceTime” is used by more than one binding.' },
+      { path: `/blocks/${document.blocks.length - 1}`, message: 'Layout placeholder “{{missing}}” has no data binding.' }
+    ]));
+  });
 });

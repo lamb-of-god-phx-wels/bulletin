@@ -14,6 +14,7 @@ function contentFor(block: PaginatedBlock, library?: LibraryManifestV1): Paragra
   if (block.type === 'scriptureReading') return block.resolved?.content;
   if (block.type === 'song' && block.renderMode === 'lyrics') return itemFor(block, library)?.content;
   if (block.type === 'libraryText') return itemFor(block, library)?.content;
+  if (block.type === 'custom') return block.layoutText.split(/\n\s*\n/).filter(Boolean).map(text => ({ type: 'paragraph', children: [{ type: 'text', text: text.replace(/\n/g, ' ') }] }));
   return undefined;
 }
 
@@ -28,6 +29,7 @@ function basePoints(block: PaginatedBlock, template: TemplateV1): number {
     case 'heading': case 'sermonTitle': return 28;
     case 'scriptureReading': return 34 + (block.caption ? template.theme.bodySizePt * template.theme.lineHeight + 8.64 : 0);
     case 'song': case 'libraryText': return 30;
+    case 'custom': return (block.showName ?? true) ? 30 : 0;
     case 'announcements': return 38;
     case 'copyright': return 34;
     default: return 0;
@@ -45,6 +47,12 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   const fallback = (block.type === 'song' || block.type === 'libraryText') && !content ? 48 : 0;
   const points = basePoints(block, template) + contentPoints(content, template) + fallback;
   const density = block.layout?.density === 'compact' ? .84 : 1;
+  if (block.type === 'custom' && block.style) {
+    const widthFactor = Math.min(4, 100 / Math.max(10, block.style.widthPercent));
+    const verticalBox = (block.style.paddingIn.top + block.style.paddingIn.bottom + block.style.marginIn.top + block.style.marginIn.bottom) * 72 + block.style.borderWidthPt * 2;
+    const fontFactor = block.style.fontSizePt / template.theme.bodySizePt * (block.style.lineHeight / template.theme.lineHeight);
+    return (basePoints(block, template) + contentPoints(content, template) * widthFactor * fontFactor + verticalBox) * density;
+  }
   return points * density;
 }
 

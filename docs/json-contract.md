@@ -22,8 +22,13 @@ Every block has a stable `id` and discriminating `type`. Supported types are:
 | `announcements`, `copyright` | Back matter and generated notices |
 | `fullPageAsset` | Inserted image or original PDF page |
 | `spacer` | Small, bounded semantic spacing |
+| `custom` | User-defined text layout with named weekly or bulletin-data bindings |
 
 Rich text is represented as paragraphs containing text or named-symbol runs. It deliberately excludes arbitrary HTML and CSS. The only weekly layout hints are `pageBreakBefore`, `keepTogether`, `density`, `fit`, and `cropAnchor`.
+
+A reusable custom-block definition is stored in the workspace library. It has a human-readable `name`, a `layoutText` string, named `bindings`, and presentation settings for width, placement, padding, spacing, alignment, typography, fill, and border. Placeholders use double braces, such as `{{serviceTime}}`. A binding can expose a new weekly input or read `info.title`, `info.date`, `info.churchWeek`, `info.series`, or `church.name`.
+
+Adding a custom block to a template creates a self-contained snapshot with a `definitionId`. Later edits to or deletion of the library definition do not invalidate already-published templates and bulletins. Weekly values are stored on the bulletin block under `values`.
 
 ## Reproducibility
 

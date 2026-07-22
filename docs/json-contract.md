@@ -24,7 +24,7 @@ Every block has a stable `id` and discriminating `type`. Supported types are:
 | `spacer` | Small, bounded semantic spacing |
 | `custom` | User-defined text layout with named weekly or bulletin-data bindings |
 
-Rich text is represented as paragraphs containing text or named-symbol runs. It deliberately excludes arbitrary HTML and CSS. The only weekly layout hints are `pageBreakBefore`, `keepTogether`, `density`, `fit`, and `cropAnchor`.
+Rich text is represented as paragraphs containing text or named-symbol runs. It deliberately excludes arbitrary HTML and CSS. Every block can carry `layout` flow hints (`pageBreakBefore`, `keepTogether`, `density`, `fit`, and `cropAnchor`) and a structured `presentation` override. Presentation supports width, horizontal placement, four-side padding, before/after spacing, text alignment, typography, colors, fill, and borders. A template block establishes the default; a copied block in a weekly bulletin can override it without modifying the template.
 
 A reusable custom-block definition is stored in the workspace library. It has a human-readable `name`, a `layoutText` string, named `bindings`, and presentation settings for width, placement, padding, spacing, alignment, typography, fill, and border. Placeholders use double braces, such as `{{serviceTime}}`. A binding can expose a new weekly input or read `info.title`, `info.date`, `info.churchWeek`, `info.series`, or `church.name`.
 

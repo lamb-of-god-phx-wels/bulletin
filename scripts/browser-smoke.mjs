@@ -50,6 +50,36 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1') {
+  await click('Fine-tune layout'); await wait(`Boolean(document.querySelector('.weekly-block-picker'))`, 'weekly all-block formatting picker');
+  const pickerCounts = await evaluate(`({choices:document.querySelectorAll('.weekly-block-picker > div > button').length,blocks:window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.length)})`);
+  if (pickerCounts.choices < 10) throw new Error(`Weekly formatter does not expose all blocks: ${JSON.stringify(pickerCounts)}`);
+  await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.weekly-block-picker > div > button')).find(element=>element.textContent.includes('Opening Hymn'));if(!button)throw new Error('Opening Hymn formatting choice missing');button.click();return true})()`);
+  await wait(`Boolean(document.querySelector('.block-formatting-modal'))`, 'weekly block formatting modal');
+  await fill('Width (%)', '70'); await fill('Left padding (in)', '0.2');
+  await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.block-formatting-modal .segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Text alignment');Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Right').click();return true})()`);
+  await evaluate(`document.querySelector('.block-formatting-modal input[type="checkbox"]').click()`);
+  await click('Apply formatting');
+  await wait(`(()=>{const wrapper=document.querySelector('.preview-pane .song')?.closest('.block-presentation');return wrapper?.style.width==='70%'&&wrapper?.style.paddingLeft==='0.2in'&&wrapper?.style.textAlign==='right'})()`, 'weekly song formatting render');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'weekly formatting autosave');
+  const weeklyOverride = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id==='opening-hymn')).then(block=>({presentation:block.presentation,layout:block.layout}))`);
+  if (weeklyOverride.presentation?.widthPercent !== 70 || weeklyOverride.layout?.pageBreakBefore !== true) throw new Error(`Weekly formatting was not persisted: ${JSON.stringify(weeklyOverride)}`);
+  await click('Templates');
+  await evaluate(`(()=>{const row=Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='Opening Hymn');if(!row)throw new Error('Template song row missing');row.querySelector('.format-block-button').click();return true})()`);
+  await wait(`document.querySelector('.block-formatting-modal .eyebrow')?.textContent==='Template formatting'`, 'template block formatting modal');
+  await fill('Width (%)', '80');
+  await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.block-formatting-modal .segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Place block');Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Center').click();return true})()`);
+  await click('Apply formatting');
+  await wait(`(()=>{const wrapper=document.querySelector('.builder-preview .song')?.closest('.block-presentation');return wrapper?.style.width==='80%'&&wrapper?.style.marginLeft==='auto'&&wrapper?.style.marginRight==='auto'})()`, 'template song formatting render');
+  await click('Save draft'); await wait(`document.querySelector('.template-save-status')?.textContent.includes('Draft saved')`, 'formatted template save');
+  const templateOverride = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.find(item=>item.template.status==='draft')?.template.starterBlocks.find(block=>block.id==='opening-hymn')?.presentation)`);
+  if (templateOverride?.widthPercent !== 80 || templateOverride?.placement !== 'center') throw new Error(`Template formatting was not persisted: ${JSON.stringify(templateOverride)}`);
+  pass('formats built-in blocks independently in template and weekly workflows');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_CUSTOM_BLOCKS_ONLY === '1') {
   await click('Templates');
   await click('Add block'); await wait(`Boolean(document.querySelector('.block-library-modal'))`, 'first-class block library');

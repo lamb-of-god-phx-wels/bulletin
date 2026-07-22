@@ -11,8 +11,9 @@ function Paragraphs({ content }: { content: Paragraph[] }) {
   return <>{content.map((paragraph, index) => <p key={index} style={{ textAlign: paragraph.align }}>{inlineText(paragraph)}</p>)}</>;
 }
 
-function customStyle(block: CustomBlock): React.CSSProperties | undefined {
-  const style = block.style; if (!style) return undefined;
+function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefined {
+  const style = block.type === 'custom' ? { ...block.style, ...block.presentation } as CustomBlock['style'] : block.presentation as CustomBlock['style'];
+  if (!style) return undefined;
   return {
     boxSizing: 'border-box', width: `${style.widthPercent}%`,
     marginTop: `${style.marginIn.top}in`, marginBottom: `${style.marginIn.bottom}in`,
@@ -69,7 +70,7 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
     case 'sectionHeading': return <h2 className="section-heading">✠ {block.text} ✠</h2>;
     case 'heading': return <h3 className="block-heading">{block.text}</h3>;
     case 'richText': return <div className="rich-text"><Paragraphs content={block.content} /></div>;
-    case 'custom': return <section className="custom-block" style={customStyle(block)}>{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
+    case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
     case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => <div className="response-row" key={index}><b>{entry.reader}:</b><div><Paragraphs content={entry.content} /></div></div>)}</div>;
     case 'scriptureReading': return <section className="scripture"><h3>{block.label ?? 'Reading'}: <span>{block.reference}</span></h3>{block.caption && <p className="caption">{block.caption}</p>}{block.resolved ? <Paragraphs content={block.resolved.content} /> : <p className="missing">Passage text has not been resolved. Add it before export.</p>}<div className="translation">{block.translation}</div></section>;
     case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? item?.content; return <section className="song"><h3>{block.label ?? block.songType}: <span>{item?.title ?? block.title ?? block.libraryItemId}</span></h3>{block.renderMode === 'asset' && asset ? <FlowAsset asset={asset} source={assets[asset.path]} /> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
@@ -113,7 +114,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   } as React.CSSProperties}>
     {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
-      <div className="page-content">{page.blocks.map(block => <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
+      <div className="page-content">{page.blocks.map(block => { const style = presentationStyle(block); return style ? <div className={`block-presentation has-presentation ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} style={style} key={block.id}><BlockView block={block} library={library} assets={assets} document={bulletin} /></div> : <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />; })}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
     </article></div>)}
   </div>;

@@ -23,6 +23,7 @@ interface BlockBase {
   label?: string;
   weeklyEditable?: boolean;
   layout?: LayoutHints;
+  presentation?: Partial<CustomBlockStyle>;
 }
 
 export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: AssetRef }

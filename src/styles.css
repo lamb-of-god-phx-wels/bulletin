@@ -244,6 +244,27 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .designer-issues { max-width: 260px; color: #984a37; font-size: 10px; font-weight: 700; }
 .delete-definition-confirm { display: flex; align-items: center; gap: 7px; }.delete-definition-confirm > span { color: #7b6b62; font-size: 10px; }
 .custom-block-heading { margin: 0 0 .08in; font: inherit; font-weight: bold; }
+.reorder .format-block-button { width: auto; min-width: 55px; padding: 0 8px; color: #925039; font-size: 10px; font-weight: 750; }
+.weekly-content-actions { display: flex; gap: 7px; }
+.block-formatting-modal { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(940px, 100%); height: min(820px, calc(100vh - 44px)); overflow: hidden; border: 1px solid #d5d0c5; border-radius: 15px; background: #f8f7f3; box-shadow: 0 26px 80px #18221d66; }
+.block-formatting-modal > header, .weekly-block-picker > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 20px 23px 16px; border-bottom: 1px solid #dedad0; background: white; }
+.block-formatting-modal > header h2, .weekly-block-picker > header h2 { margin: 3px 0 4px; font: 24px Georgia, serif; }.block-formatting-modal > header p, .weekly-block-picker > header p { margin: 0; color: #747972; font-size: 11px; }
+.block-formatting-modal > header > button, .weekly-block-picker > header > button { padding: 0; border: 0; color: #747a74; background: transparent; font-size: 25px; }
+.formatting-body { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(390px, 1.28fr); min-height: 0; }
+.formatting-body > aside { padding: 20px; border-right: 1px solid #ddd9cf; background: #eeece6; }
+.formatting-body > main { padding: 18px 20px 45px; overflow: auto; }
+.format-preview-page { min-height: 330px; padding: 24px 19px; overflow: hidden; background: white; box-shadow: 0 4px 16px #35352b20; }
+.format-preview-page article { box-sizing: border-box; white-space: normal; }.format-preview-page article > b { display: block; margin-bottom: 8px; }.format-preview-page article p { margin: 0; }
+.format-scope-note { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; padding: 11px; border: 1px solid #d8d3c8; border-radius: 7px; color: #747972; background: #f8f6f0; font-size: 10px; }.format-scope-note b { color: #44514b; font-size: 11px; }
+.format-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
+.block-formatting-modal > footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 20px; border-top: 1px solid #d9d5cc; background: white; }.block-formatting-modal > footer > div { display: flex; gap: 8px; }
+.weekly-block-picker { width: min(620px, 100%); max-height: min(760px, calc(100vh - 44px)); overflow: hidden; border: 1px solid #d5d0c5; border-radius: 14px; background: #f8f7f3; box-shadow: 0 26px 80px #18221d66; }
+.weekly-block-picker > div { display: grid; gap: 7px; max-height: 610px; padding: 15px; overflow: auto; }
+.weekly-block-picker > div > button { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid #ddd9cf; border-radius: 8px; color: #334039; background: white; text-align: left; }.weekly-block-picker > div > button:hover { border-color: #b96c4d; background: #fffaf7; }
+.weekly-block-picker > div > button > span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; color: #935039; background: #f2e6de; font-size: 10px; font-weight: 800; }.weekly-block-picker > div > button > div { display: flex; flex-direction: column; gap: 2px; }.weekly-block-picker small { color: #838781; font-size: 10px; }.weekly-block-picker strong { color: #9e5033; font-size: 10px; }
+.block-presentation { box-sizing: border-box; }
+.block-presentation.full-height-presentation { position: relative; height: 100%; }
+.block-presentation.has-presentation :is(h1, h2, h3, p, span, b, strong, em, article, div) { color: inherit; font-family: inherit !important; font-size: inherit !important; font-style: inherit; text-align: inherit !important; text-transform: inherit; }
 .builder-preview { min-width: 0; overflow: hidden; background: #dedbd3; }
 .builder-preview .document-stack { height: 100%; }
 .library-screen { height: calc(100vh - 84px); padding: 28px; overflow: auto; }

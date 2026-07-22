@@ -37,23 +37,27 @@ function basePoints(block: PaginatedBlock, template: TemplateV1): number {
 }
 
 export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1, library?: LibraryManifestV1): number {
+  const presentation = block.type === 'custom' ? { ...block.style, ...block.presentation } : block.presentation;
+  const formatted = (points: number) => {
+    if (!presentation) return points;
+    const widthFactor = Math.min(4, 100 / Math.max(10, presentation.widthPercent ?? 100));
+    const padding = presentation.paddingIn ?? { top: 0, bottom: 0 };
+    const margin = presentation.marginIn ?? { top: 0, bottom: 0 };
+    const verticalBox = ((padding.top ?? 0) + (padding.bottom ?? 0) + (margin.top ?? 0) + (margin.bottom ?? 0)) * 72 + (presentation.borderWidthPt ?? 0) * 2;
+    const fontFactor = (presentation.fontSizePt ?? template.theme.bodySizePt) / template.theme.bodySizePt * ((presentation.lineHeight ?? template.theme.lineHeight) / template.theme.lineHeight);
+    return points * widthFactor * fontFactor + verticalBox;
+  };
   if (block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
-  if (block.type === 'copyright') return Math.min(500, usablePoints(template));
-  if (block.type === 'spacer') return { small: 8, medium: 18, large: 36 }[block.size];
-  if (block.type === 'responsiveReading') return block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + 8;
-  if (block.type === 'announcements') return basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template), 0);
-  if (block.type === 'song' && block.renderMode === 'asset') return 438;
+  if (block.type === 'copyright') return Math.min(formatted(500), usablePoints(template));
+  if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
+  if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + 8);
+  if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template), 0));
+  if (block.type === 'song' && block.renderMode === 'asset') return formatted(438);
   const content = contentFor(block, library);
   const fallback = (block.type === 'song' || block.type === 'libraryText') && !content ? 48 : 0;
   const points = basePoints(block, template) + contentPoints(content, template) + fallback;
   const density = block.layout?.density === 'compact' ? .84 : 1;
-  if (block.type === 'custom' && block.style) {
-    const widthFactor = Math.min(4, 100 / Math.max(10, block.style.widthPercent));
-    const verticalBox = (block.style.paddingIn.top + block.style.paddingIn.bottom + block.style.marginIn.top + block.style.marginIn.bottom) * 72 + block.style.borderWidthPt * 2;
-    const fontFactor = block.style.fontSizePt / template.theme.bodySizePt * (block.style.lineHeight / template.theme.lineHeight);
-    return (basePoints(block, template) + contentPoints(content, template) * widthFactor * fontFactor + verticalBox) * density;
-  }
-  return points * density;
+  return formatted(points * density);
 }
 
 function splitParagraph(paragraph: Paragraph, maximumCharacters: number): Paragraph[] {

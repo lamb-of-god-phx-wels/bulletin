@@ -25,6 +25,7 @@
         "label": { "type": "string" },
         "weeklyEditable": { "type": "boolean" },
         "layout": { "type": "object" },
+        "presentation": { "type": "object" },
         "name": { "type": "string", "minLength": 1 },
         "definitionId": { "type": "string" },
         "showName": { "type": "boolean" },

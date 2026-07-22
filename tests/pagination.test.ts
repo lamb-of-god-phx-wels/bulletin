@@ -48,4 +48,13 @@ describe('pagination', () => {
     expect(fragments.length).toBeGreaterThan(1);
     expect(fragments.every(fragment => fragment.items.length === 1)).toBe(true);
   });
+
+  it('accounts for per-block width, type size, and box spacing', () => {
+    const plain: BulletinBlock = { id: 'song', type: 'song', songType: 'song', libraryItemId: 'missing', selection: { mode: 'all' }, renderMode: 'lyrics' };
+    const formatted: BulletinBlock = { ...plain, presentation: {
+      widthPercent: 50, fontSizePt: 14, lineHeight: 1.5,
+      paddingIn: { top: .2, right: .1, bottom: .2, left: .1 }, marginIn: { top: .1, bottom: .1 }
+    } };
+    expect(estimateBlockPoints(formatted, defaultTemplate)).toBeGreaterThan(estimateBlockPoints(plain, defaultTemplate));
+  });
 });

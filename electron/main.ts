@@ -17,7 +17,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1050, minHeight: 700,
     backgroundColor: '#f4f1e9',
-    webPreferences: { preload: path.join(dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    webPreferences: { preload: path.join(dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
@@ -76,7 +76,7 @@ async function exportPdf(root: string, relative: string, document: BulletinDocum
   const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
   if (choice.canceled || !choice.filePath) return null;
   printJob = { root, document };
-  const printWindow = new BrowserWindow({ show: false, webPreferences: { preload: path.join(dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  const printWindow = new BrowserWindow({ show: false, webPreferences: { preload: path.join(dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   try {
     const loaded = new Promise<void>(resolve => { printReady = resolve; });
     if (!app.isPackaged) await printWindow.loadURL('http://localhost:5173?print=1');

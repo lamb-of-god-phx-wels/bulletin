@@ -50,6 +50,32 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_NESTED_TEXT_ONLY === '1') {
+  await wait(`Boolean(Array.from(document.querySelectorAll('.nested-block-editor textarea')).find(element=>element.value==='Welcome'))`, 'structured church information text blocks');
+  await evaluate(`(()=>{const input=Array.from(document.querySelectorAll('.nested-block-editor textarea')).find(element=>element.value==='Welcome');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Welcome to Worship');input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.preview-pane .church-info .paragraph-header')).some(element=>element.textContent==='Welcome to Worship')`, 'edited nested header text block');
+  await evaluate(`(()=>{const input=Array.from(document.querySelectorAll('.nested-block-editor textarea')).find(element=>element.value==='Welcome to Worship');input.closest('.nested-block-editor').querySelector(':scope > summary .format-block-button').click();return true})()`);
+  await wait(`Boolean(document.querySelector('.block-formatting-modal'))`, 'nested block formatter');
+  await evaluate(`(()=>{const select=Array.from(document.querySelectorAll('.block-formatting-modal label')).find(element=>element.textContent.startsWith('Style')).querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'italic');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await click('Apply formatting');
+  await wait(`(()=>{const heading=Array.from(document.querySelectorAll('.preview-pane .church-info .paragraph-header')).find(element=>element.textContent==='Welcome to Worship');return heading?.closest('.block-presentation')?.style.fontStyle==='italic'})()`, 'nested header formatting preserved');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'nested block autosave');
+  const nested = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.type==='churchInfo').children).then(children=>children.map(child=>({id:child.id,type:child.type,children:child.children})))`);
+  const heading = nested.find(child => child.id === 'church-welcome')?.children.find(child=>child.role==='header');
+  if (nested.length !== 4 || heading?.type !== 'richText' || heading?.content?.[0]?.children?.[0]?.text !== 'Welcome to Worship' || heading?.presentation?.fontStyle !== 'italic') throw new Error(`Nested church information was flattened or lost formatting: ${JSON.stringify(nested)}`);
+  await click('Templates');
+  await wait(`Boolean(Array.from(document.querySelectorAll('.nested-outline textarea')).find(element=>element.value==='Welcome'))`, 'template paragraph text controls');
+  await evaluate(`(()=>{const input=Array.from(document.querySelectorAll('.nested-outline textarea')).find(element=>element.value==='Welcome');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Template Welcome');input.dispatchEvent(new Event('input',{bubbles:true}));input.closest('li').querySelector('.format-block-button').click();return true})()`);
+  await fill('Space after (in)', '0'); await click('Apply formatting');
+  await evaluate(`(()=>{const input=Array.from(document.querySelectorAll('.nested-outline textarea')).find(element=>element.value.startsWith('Thank you for joining'));input.closest('li').querySelector('.format-block-button').click();return true})()`);
+  await fill('Space before (in)', '0'); await click('Apply formatting');
+  await wait(`(()=>{const header=Array.from(document.querySelectorAll('.builder-preview .paragraph-header')).find(element=>element.textContent==='Template Welcome')?.closest('.block-presentation');const body=header?.parentElement?.querySelector('.paragraph-body')?.closest('.block-presentation');if(!header||!body)return false;return Math.abs(body.getBoundingClientRect().top-header.getBoundingClientRect().bottom)<.5})()`, 'zero-gap paragraph header and body');
+  pass('edits nested church-information elements without losing structure or formatting');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1') {
   await click('Fine-tune layout'); await wait(`Boolean(document.querySelector('.weekly-block-picker'))`, 'weekly all-block formatting picker');
   const pickerCounts = await evaluate(`({choices:document.querySelectorAll('.weekly-block-picker > div > button').length,blocks:window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.length)})`);

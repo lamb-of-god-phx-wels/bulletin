@@ -57,4 +57,10 @@ describe('pagination', () => {
     } };
     expect(estimateBlockPoints(formatted, defaultTemplate)).toBeGreaterThan(estimateBlockPoints(plain, defaultTemplate));
   });
+
+  it('paginates a weekly song-text override instead of its library source', () => {
+    const library: LibraryManifestV1 = { schemaVersion: 1, name: 'Test', items: [{ id: 'song', version: 1, kind: 'song', title: 'Song', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Short library text' }] }] }] };
+    const block: BulletinBlock = { id: 'song', type: 'song', songType: 'song', libraryItemId: 'song', libraryItemVersion: 1, selection: { mode: 'all' }, renderMode: 'lyrics', contentOverride: Array.from({ length: 50 }, () => ({ type: 'paragraph', children: [{ type: 'text', text: 'Weekly lyrics '.repeat(50) }] })) };
+    expect(paginate([block], defaultTemplate, library).flatMap(page => page.blocks).filter(item => item.type === 'song').length).toBeGreaterThan(1);
+  });
 });

@@ -6,6 +6,7 @@ export const builtInBlocks: Array<{ type: Exclude<BulletinBlock['type'], 'custom
   { type: 'scriptureReading', name: 'Scripture reading', description: 'Reference, translation, introduction, and imported passage.' },
   { type: 'song', name: 'Song or hymn', description: 'Lyrics or a music image from the shared library.' },
   { type: 'heading', name: 'Heading', description: 'A simple heading within the service.' },
+  { type: 'paragraph', name: 'Paragraph', description: 'Body text with an optional tightly coupled header.' },
   { type: 'sectionHeading', name: 'Section heading', description: 'A centered divider for a major service section.' },
   { type: 'richText', name: 'Text', description: 'Structured paragraph content.' },
   { type: 'responsiveReading', name: 'Responsive reading', description: 'Minister and congregation responses.' },

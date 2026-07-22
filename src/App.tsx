@@ -52,6 +52,7 @@ function DesktopApp() {
 
   useEffect(() => {
     const root = localStorage.getItem('bulletin-workspace');
+    if (window.bulletin?.platform === 'electron' && root?.startsWith('local:')) { localStorage.removeItem('bulletin-workspace'); return; }
     if (root) void loadWorkspace(root);
     else if (window.bulletin?.platform === 'browser') void window.bulletin.chooseWorkspace().then(next => { if (next) return loadWorkspace(next); });
   }, []);

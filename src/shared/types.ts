@@ -21,15 +21,17 @@ export interface LayoutHints {
 interface BlockBase {
   id: string;
   label?: string;
+  role?: 'header' | 'body';
   weeklyEditable?: boolean;
   layout?: LayoutHints;
   presentation?: Partial<CustomBlockStyle>;
 }
 
 export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: AssetRef }
-export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number }
+export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; children?: BulletinBlock[] }
 export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string }
-export interface RichTextBlock extends BlockBase { type: 'richText'; content: Paragraph[] }
+export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
+export interface RichTextBlock extends BlockBase { type: 'richText'; role?: 'header' | 'body'; content: Paragraph[] }
 export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string }
 export interface ResponsiveReadingBlock extends BlockBase {
   type: 'responsiveReading';
@@ -51,8 +53,9 @@ export interface SongBlock extends BlockBase {
   selection: { mode: 'all' } | { mode: 'verses'; verses: number[] };
   renderMode: 'lyrics' | 'asset';
   asset?: AssetRef;
+  contentOverride?: Paragraph[];
 }
-export interface LibraryTextBlock extends BlockBase { type: 'libraryText'; libraryItemId: string; libraryItemVersion?: number; title?: string }
+export interface LibraryTextBlock extends BlockBase { type: 'libraryText'; libraryItemId: string; libraryItemVersion?: number; title?: string; contentOverride?: Paragraph[] }
 export interface AnnouncementsBlock extends BlockBase {
   type: 'announcements';
   items: Array<{ id: string; title: string; content: Paragraph[] }>;
@@ -60,6 +63,7 @@ export interface AnnouncementsBlock extends BlockBase {
 export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: Paragraph[] }
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }
+export interface GroupBlock extends BlockBase { type: 'group'; children: BulletinBlock[] }
 
 export type CustomBindingSource = 'weekly' | 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
 export interface CustomBlockBinding {
@@ -107,9 +111,9 @@ export interface CustomBlock extends BlockBase {
   style?: CustomBlockStyle;
 }
 
-export type BulletinBlock = TitlePageBlock | ChurchInfoBlock | HeadingBlock | RichTextBlock |
+export type BulletinBlock = TitlePageBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
-  AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | CustomBlock;
+  AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 
 export interface AssetRef {
   path: string;

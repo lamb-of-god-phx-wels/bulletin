@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AssetRef, BulletinDocumentV1, CustomBlock, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
-import { customBlockParagraphs } from '../shared/customBlocks';
+import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
+import { childBlocks, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'symbol'
@@ -12,8 +13,13 @@ function Paragraphs({ content }: { content: Paragraph[] }) {
 }
 
 function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefined {
-  const style = block.type === 'custom' ? { ...block.style, ...block.presentation } as CustomBlock['style'] : block.presentation as CustomBlock['style'];
-  if (!style) return undefined;
+  const base = block.type === 'custom' ? block.style : undefined;
+  if (!base && !block.presentation) return undefined;
+  const style: NonNullable<CustomBlock['style']> = {
+    ...defaultCustomBlockStyle, ...base, ...block.presentation,
+    paddingIn: { ...defaultCustomBlockStyle.paddingIn, ...base?.paddingIn, ...block.presentation?.paddingIn },
+    marginIn: { ...defaultCustomBlockStyle.marginIn, ...base?.marginIn, ...block.presentation?.marginIn }
+  };
   return {
     boxSizing: 'border-box', width: `${style.widthPercent}%`,
     marginTop: `${style.marginIn.top}in`, marginBottom: `${style.marginIn.bottom}in`,
@@ -65,16 +71,18 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
       {!block.asset && <><div className="cover-series">{document.info.series ?? 'Worship'}</div><h1>{document.info.title}</h1></>}
       {!block.asset && <><div className="cover-date"><strong>{document.info.churchWeek}</strong><span>{new Date(`${document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span></div><div className="cover-church">{document.church.name}</div></>}
     </div>;
-    case 'churchInfo': return <div className="church-info"><h1>{document.church.name}</h1><div className="tagline">Reaching Up. Reaching Out. Reaching Across.</div><hr /><h2>Welcome</h2><p>Thank you for joining us for worship. We gather before our almighty God to offer him our worship and praise and to strengthen ourselves through his holy and powerful Word.</p><h2>Children’s Room</h2><p>Children are always welcome in worship. A children’s room is available for families who need it.</p><div className="contact-card">Church information is maintained in the shared content library.</div></div>;
+    case 'churchInfo': return <div className="church-info"><h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</div>;
+    case 'group': return <section className="block-group">{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</section>;
     case 'sermonTitle': return <h1 className="sermon-title">{block.text}</h1>;
     case 'sectionHeading': return <h2 className="section-heading">✠ {block.text} ✠</h2>;
     case 'heading': return <h3 className="block-heading">{block.text}</h3>;
-    case 'richText': return <div className="rich-text"><Paragraphs content={block.content} /></div>;
+    case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</section>;
+    case 'richText': return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''}`}><Paragraphs content={block.content} /></div>;
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
     case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => <div className="response-row" key={index}><b>{entry.reader}:</b><div><Paragraphs content={entry.content} /></div></div>)}</div>;
     case 'scriptureReading': return <section className="scripture"><h3>{block.label ?? 'Reading'}: <span>{block.reference}</span></h3>{block.caption && <p className="caption">{block.caption}</p>}{block.resolved ? <Paragraphs content={block.resolved.content} /> : <p className="missing">Passage text has not been resolved. Add it before export.</p>}<div className="translation">{block.translation}</div></section>;
-    case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? item?.content; return <section className="song"><h3>{block.label ?? block.songType}: <span>{item?.title ?? block.title ?? block.libraryItemId}</span></h3>{block.renderMode === 'asset' && asset ? <FlowAsset asset={asset} source={assets[asset.path]} /> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
-    case 'libraryText': { const content = block.pageContent ?? item?.content; return <section><h3 className="block-heading">{block.label ?? block.title ?? item?.title}</h3>{content ? <Paragraphs content={content} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>; }
+    case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section className="song"><h3>{block.label ?? block.songType}: <span>{block.title ?? item?.title ?? block.libraryItemId}</span></h3>{block.renderMode === 'asset' && asset ? <FlowAsset asset={asset} source={assets[asset.path]} /> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
+    case 'libraryText': { const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section><h3 className="block-heading">{block.label ?? block.title ?? item?.title}</h3>{content ? <Paragraphs content={content} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>; }
     case 'announcements': return <section className="announcements"><h2>Announcements</h2>{block.items.map(item => <article key={item.id}><h3>{item.title}</h3><Paragraphs content={item.content} /></article>)}</section>;
     case 'copyright': {
       const notices = document.blocks.flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : []).filter(Boolean);
@@ -86,9 +94,14 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
   }
 }
 
+function RenderedBlock({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
+  const style = presentationStyle(block);
+  return style ? <div className={`block-presentation has-presentation ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div> : <BlockView block={block} library={library} assets={assets} document={document} />;
+}
+
 export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; onReady?(): void }) {
   const [assets, setAssets] = useState<Record<string, string>>({});
-  const refs = useMemo(() => [...new Map(bulletin.blocks.flatMap(block => {
+  const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
     const result: AssetRef[] = [];
     if ('asset' in block && block.asset) result.push(block.asset);
     if ('libraryItemId' in block) result.push(...(library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
@@ -114,7 +127,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   } as React.CSSProperties}>
     {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
-      <div className="page-content">{page.blocks.map(block => { const style = presentationStyle(block); return style ? <div className={`block-presentation has-presentation ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} style={style} key={block.id}><BlockView block={block} library={library} assets={assets} document={bulletin} /></div> : <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />; })}</div>
+      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
     </article></div>)}
   </div>;

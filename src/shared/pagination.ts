@@ -1,4 +1,5 @@
 import type { BulletinBlock, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
+import { childBlocks } from './blocks.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[] }
@@ -12,8 +13,8 @@ function contentFor(block: PaginatedBlock, library?: LibraryManifestV1): Paragra
   if (block.pageContent) return block.pageContent;
   if (block.type === 'richText') return block.content;
   if (block.type === 'scriptureReading') return block.resolved?.content;
-  if (block.type === 'song' && block.renderMode === 'lyrics') return itemFor(block, library)?.content;
-  if (block.type === 'libraryText') return itemFor(block, library)?.content;
+  if (block.type === 'song' && block.renderMode === 'lyrics') return block.contentOverride ?? itemFor(block, library)?.content;
+  if (block.type === 'libraryText') return block.contentOverride ?? itemFor(block, library)?.content;
   if (block.type === 'custom') return block.layoutText.split(/\n\s*\n/).filter(Boolean).map(text => ({ type: 'paragraph', children: [{ type: 'text', text: text.replace(/\n/g, ' ') }] }));
   return undefined;
 }
@@ -47,6 +48,8 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
     const fontFactor = (presentation.fontSizePt ?? template.theme.bodySizePt) / template.theme.bodySizePt * ((presentation.lineHeight ?? template.theme.lineHeight) / template.theme.lineHeight);
     return points * widthFactor * fontFactor + verticalBox;
   };
+  if (block.type === 'group') return formatted(block.children.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
+  if (block.type === 'paragraph') return formatted(childBlocks(block)!.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
   if (block.type === 'copyright') return Math.min(formatted(500), usablePoints(template));
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);

@@ -1,4 +1,5 @@
 import type { BulletinDocumentV1, TemplateV1 } from './types.js';
+import { defaultChurchInfoChildren } from './blocks.js';
 
 const now = () => new Date().toISOString();
 
@@ -20,7 +21,7 @@ export const defaultTemplate: TemplateV1 = {
   },
   starterBlocks: [
     { id: 'cover', type: 'titlePage', weeklyEditable: true },
-    { id: 'church-info', type: 'churchInfo' },
+    { id: 'church-info', type: 'churchInfo', children: defaultChurchInfoChildren() },
     { id: 'sermon-title', type: 'sermonTitle', text: 'Sermon title', weeklyEditable: true },
     { id: 'gathering', type: 'sectionHeading', text: 'The Gathering' },
     { id: 'opening-hymn', type: 'song', songType: 'hymn', libraryItemId: '', selection: { mode: 'all' }, renderMode: 'lyrics', label: 'Opening Hymn', weeklyEditable: true },

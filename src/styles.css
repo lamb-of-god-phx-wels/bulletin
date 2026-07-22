@@ -2,6 +2,7 @@
 @font-face { font-family: ErasLocal; src: url('/assets/fonts/ErasDemiItc.ttf'); }
 :root { font-family: Inter, CalibriLocal, Arial, sans-serif; color: #25302d; background: #ece9e1; font-synthesis: none; }
 * { box-sizing: border-box; }
+.fatal-error { display: grid; place-items: center; align-content: center; min-height: 100vh; padding: 40px; color: #303b36; background: #f4f1e9; text-align: center; }.fatal-error h1 { max-width: 650px; margin: 15px 0 8px; font: 28px Georgia, serif; }.fatal-error p { max-width: 700px; margin: 0 0 20px; color: #934734; font: 13px/1.5 monospace; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
@@ -83,6 +84,22 @@ input:focus, textarea:focus, select:focus { border-color: #a55b3d; box-shadow: 0
 .editor-section-title h2 { margin: 3px 0 0; font: 21px Georgia, serif; }
 .block-editor header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
 .block-editor header h3 { margin-top: 3px; font: 18px Georgia, serif; }
+.collapsible-editor { padding: 0; overflow: hidden; }
+.collapsible-editor > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 18px; color: inherit; list-style: none; }
+.collapsible-editor > summary::-webkit-details-marker { display: none; }
+.collapsible-editor > summary::before { content: '›'; flex: none; color: #9a6c56; font-size: 21px; line-height: 1; transition: transform .15s ease; }
+.collapsible-editor[open] > summary::before { transform: rotate(90deg); }
+.collapsible-editor > summary > div:first-of-type { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
+.collapsible-editor > summary h3 { margin: 0; font: 18px Georgia, serif; }
+.collapsible-editor > summary b, .collapsible-editor > summary h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.collapsible-editor > summary:hover { background: #faf8f3; }
+.collapsible-editor[open] > summary { border-bottom: 1px solid #e7e3da; }
+.collapsible-editor-fields { padding: 16px 18px 18px; }
+.collapsible-editor-fields > label, .collapsible-editor-fields > details { margin-bottom: 11px; }
+.collapsible-editor textarea { border: 1px solid #d5d2c9; border-radius: 7px; }
+.nested-block-editor.collapsible-editor { padding: 0; }
+.nested-block-editor.collapsible-editor > summary { padding: 10px 11px; }
+.nested-block-editor .collapsible-editor-fields { padding: 11px; }
 .block-type { color: #9a6c56; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .reorder { display: flex; gap: 3px; }
 .reorder button { width: 29px; height: 29px; padding: 0; border: 1px solid #ddd9d0; border-radius: 6px; color: #656b67; background: #faf9f6; }
@@ -92,6 +109,12 @@ details { border: 1px solid #e2ded5; border-radius: 7px; }
 summary { padding: 10px; color: #6c706b; cursor: pointer; font-size: 12px; font-weight: 700; }
 details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .announcement-editor { display: grid; gap: 9px; margin: 0 0 13px; padding: 12px; border-radius: 8px; background: #f7f5f0; }
+.response-editor { display: grid; gap: 9px; margin: 0 0 13px; padding: 12px; border-radius: 8px; background: #f7f5f0; }
+.content-reset { margin: 7px 10px 10px; }
+.nested-blocks { display: grid; gap: 9px; margin-top: 10px; padding: 12px; border: 1px solid #e1ddd3; border-radius: 8px; background: #f7f5f0; }
+.nested-blocks-heading { display: flex; flex-direction: column; gap: 2px; }.nested-blocks-heading span { color: #7b7f79; font-size: 10px; }
+.nested-block-editor { padding: 11px; border: 1px solid #e0dcd2; border-radius: 7px; background: white; }.nested-block-editor > header { margin-bottom: 9px; }.nested-block-editor > header > div:first-child { display: flex; flex-direction: column; gap: 2px; }.nested-block-editor > label { margin-bottom: 8px; }
+.nested-add-actions { display: flex; gap: 7px; }.nested-add-actions button { min-height: 31px; padding: 6px 10px; font-size: 10px; }
 .helper { margin: 0 0 12px; color: #73766f; font-size: 12px; line-height: 1.5; }
 .danger-text { border: 0 !important; color: #a34236 !important; background: transparent !important; }
 .adjustments-toggle { display: flex; justify-content: space-between; width: 100%; margin-top: 14px; padding: 10px 0 0; border: 0; border-top: 1px solid #edeae2; color: #747872; background: transparent; font-size: 12px; font-weight: 750; }
@@ -143,6 +166,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .sermon-title { padding: 0 0 .12in; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; font-size: 13pt; text-align: center; text-transform: uppercase; }
 .section-heading { margin: .18in 0 .24in !important; font: 13pt var(--display-font); text-align: center; }
 .block-heading, .scripture h3, .song h3 { margin: .2in 0 .08in !important; font-size: 10pt; text-transform: uppercase; }
+.paragraph-block { margin: 0 0 .16in; }.paragraph-block .rich-text p:last-child { margin-bottom: 0; }.paragraph-block .paragraph-header { font-weight: bold; text-transform: uppercase; }
 .page-content > .section-heading:first-child,
 .page-content > .block-heading:first-child,
 .page-content > .sermon-title:first-child,
@@ -184,6 +208,10 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .outline .outline-main { display: flex; flex-direction: column; }
 .outline small { margin-top: 2px; color: #8b8d88; }
 .outline .outline-main .check { flex-direction: row; margin-top: 6px; color: #777b75; font-size: 10px; }
+.outline li.outline-container { display: grid; grid-template-columns: 1fr auto; align-items: start; }
+.nested-outline { grid-column: 1 / -1; width: 100%; margin: 8px 0 0; padding: 5px 0 0 15px; border-left: 2px solid #e1ddd4; list-style: none; }.outline .nested-outline li { padding: 7px 0 7px 10px; }
+.outline-text-editor { min-width: 240px; margin-top: 7px; font-weight: 400; }
+.edit-content-button { width: auto !important; min-width: 42px; padding: 0 7px !important; }
 .outline li.custom-outline-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; padding: 14px 0; }
 .custom-block-editor { grid-column: 1 / -1; display: grid; gap: 13px; margin-top: 4px; padding: 14px; border: 1px solid #ddd8ce; border-radius: 9px; background: #f8f6f1; }
 .custom-block-editor .field-row { align-items: end; margin-bottom: 0; }

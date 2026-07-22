@@ -158,6 +158,30 @@ if (process.env.BULLETIN_DELETE_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_LIBRARY_VERSIONS_ONLY === '1') {
+  await click('Library'); await click('Add library item');
+  await fill('Title', 'Original Grouped Song'); await fill('Stable ID', 'grouped-song'); await fill('Structured text', 'Original lyrics.');
+  await click('Save item');
+  await wait(`document.querySelectorAll('.library-group article').length === 1 && document.querySelectorAll('select[aria-label="Version for grouped-song"] option').length === 1`, 'single grouped library item');
+  await pointerClick('Edit'); await fill('Title', 'Revised Grouped Song'); await fill('Structured text', 'Revised lyrics.');
+  await click('Save new version');
+  await wait(`document.querySelectorAll('.library-group article').length === 1 && document.querySelectorAll('select[aria-label="Version for grouped-song"] option').length === 2 && document.querySelector('select[aria-label="Version for grouped-song"]')?.value === '2' && document.querySelector('.library-group article b')?.textContent === 'Revised Grouped Song'`, 'grouped version history');
+  await evaluate(`(()=>{const select=document.querySelector('select[aria-label="Version for grouped-song"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'1');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`document.querySelector('.library-group article b')?.textContent === 'Original Grouped Song'`, 'selected earlier library version');
+  await pointerClick('Edit');
+  await wait(`document.querySelector('.library-form input')?.value === 'Original Grouped Song' && document.querySelector('.library-form .helper')?.textContent.includes('version 1')`, 'edit selected library version');
+  await click('Cancel'); await pointerClick('Delete');
+  await wait(`document.querySelector('.confirmation-modal')?.textContent.includes('version 1')`, 'delete selected library version confirmation');
+  await pointerClick('Delete item');
+  await wait(`document.querySelectorAll('.library-group article').length === 1 && document.querySelectorAll('select[aria-label="Version for grouped-song"] option').length === 1 && document.querySelector('.library-group article b')?.textContent === 'Revised Grouped Song'`, 'remaining grouped library version');
+  const remaining = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.items.map(item=>({id:item.id,version:item.version,title:item.title})))`);
+  if (remaining.length !== 1 || remaining[0].version !== 2) throw new Error(`Selected library version was not deleted correctly: ${JSON.stringify(remaining)}`);
+  pass('groups library items with an inline version selector');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_LIBRARY_DELETE_ONLY === '1') {
   await click('Library'); await click('Add library item');
   await fill('Title', 'Temporary Song'); await fill('Stable ID', 'temporary-song'); await fill('Structured text', 'Temporary lyrics.');

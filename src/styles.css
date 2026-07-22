@@ -207,6 +207,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .library-group { max-width: 850px; margin-top: 25px; }.library-group > h3 { font: 19px Georgia, serif; text-transform: capitalize; }
 .library-group article { display: flex; justify-content: space-between; padding: 12px 15px; border: 1px solid #ddd9cf; border-bottom: 0; background: white; }.library-group article:last-child { border-bottom: 1px solid #ddd9cf; }.library-group article div { display: flex; flex-direction: column; }.library-group article small, .library-group article > span { color: #858983; font-size: 11px; }
 .library-group article .library-item-actions { flex-direction: row; align-items: center; gap: 12px; }.library-item-actions > span { color: #858983; font-size: 11px; }.library-item-actions .danger-text { padding: 4px 0; }
+.inline-version-select { width: auto; min-width: 70px; height: 32px; padding-right: 28px; color: #535b56; background: #faf9f6; font-size: 11px; font-weight: 750; }
 code { padding: 2px 5px; border-radius: 4px; background: #ebe8e0; }
 
 @page { size: 7in 8.5in; margin: 0; }

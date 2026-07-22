@@ -1,5 +1,16 @@
 import type { LibraryItemV1, LibraryManifestV1 } from './types.js';
 
+export interface LibraryFamily { id: string; kind: LibraryItemV1['kind']; versions: LibraryItemV1[] }
+
+export function libraryFamilies(items: LibraryItemV1[]): LibraryFamily[] {
+  const families = new Map<string, LibraryItemV1[]>();
+  for (const item of items) families.set(item.id, [...(families.get(item.id) ?? []), item]);
+  return [...families.entries()].map(([id, versions]) => {
+    versions.sort((left, right) => right.version - left.version);
+    return { id, kind: versions[0].kind, versions };
+  }).sort((left, right) => left.versions[0].title.localeCompare(right.versions[0].title));
+}
+
 function mergeSongItems(first: LibraryItemV1, second: LibraryItemV1): LibraryItemV1 {
   const assets = [...(first.assets ?? []), ...(second.assets ?? [])].filter((asset, index, all) => all.findIndex(candidate => candidate.path === asset.path && candidate.variant === asset.variant) === index);
   const aliases = [...(first.aliases ?? []), ...(second.aliases ?? [])].filter((alias, index, all) => all.indexOf(alias) === index);

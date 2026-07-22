@@ -3,12 +3,43 @@ import { defaultTemplate } from './shared/defaults';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
+import churchLogoUrl from '../assets/church/logo.png';
+import seriesLogoUrl from '../assets/sermon_series/say_it_out_loud/logo.png';
+import churchBuildingUrl from '../assets/example_2026-06-07/church-building.png';
+import psalmPartOneUrl from '../assets/example_2026-06-07/psalm-130-part-1.png';
+import psalmPartTwoUrl from '../assets/example_2026-06-07/psalm-130-part-2.png';
+import closingSongUrl from '../assets/example_2026-06-07/his-mercy-is-more.png';
+import prayerCareQrUrl from '../assets/example_2026-06-07/prayer-care-qr.png';
+import givingQrUrl from '../assets/example_2026-06-07/giving-qr.png';
 
 const databaseName = 'bulletin-builder';
 const workspaceStore = 'workspaces';
 const assetStore = 'assets';
 const workspaceIndexKey = 'bulletin-browser-workspaces';
 let databasePromise: Promise<IDBDatabase> | undefined;
+const exampleAssets: Record<string, string> = {
+  'assets/church/logo.png': churchLogoUrl,
+  'assets/sermon_series/say_it_out_loud/logo.png': seriesLogoUrl,
+  'assets/example_2026-06-07/church-building.png': churchBuildingUrl,
+  'assets/example_2026-06-07/psalm-130-part-1.png': psalmPartOneUrl,
+  'assets/example_2026-06-07/psalm-130-part-2.png': psalmPartTwoUrl,
+  'assets/example_2026-06-07/his-mercy-is-more.png': closingSongUrl,
+  'assets/example_2026-06-07/prayer-care-qr.png': prayerCareQrUrl,
+  'assets/example_2026-06-07/giving-qr.png': givingQrUrl
+};
+const exampleTemplate: TemplateV1 = {
+  ...defaultTemplate,
+  id: 'lamb-of-god-example',
+  name: 'Lamb of God — June 7, 2026 Example',
+  theme: {
+    ...defaultTemplate.theme,
+    bodyFont: 'CalibriLocal, Calibri, Arial, sans-serif',
+    displayFont: 'ErasLocal, Georgia, serif',
+    bodySizePt: 8,
+    lineHeight: 1.16,
+    marginIn: 0.3
+  }
+};
 
 function database() {
   return databasePromise ??= new Promise((resolve, reject) => {
@@ -61,7 +92,9 @@ async function createWorkspace(name: string, seedExample = false) {
   while (existing.some(item => item.root === root)) root = `${base}-${suffix++}`;
   const summary: WorkspaceSummary = {
     root,
-    templates: [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }],
+    templates: seedExample
+      ? [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }, { path: `templates/${exampleTemplate.id}/v1.json`, template: clone(exampleTemplate) }]
+      : [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }],
     bulletins: seedExample ? [{ path: 'bulletins/2026-06-07/bulletin.json', document: migrateLegacyBulletin(legacyExample) }] : [],
     library: { schemaVersion: 1, name: `${name} Library`, items: [] }
   };
@@ -104,8 +137,23 @@ function mediaType(file: File): AssetRef['mediaType'] {
 }
 
 async function summary(root: string) {
-  const value = await getRecord<WorkspaceSummary>(workspaceStore, root);
+  let value = await getRecord<WorkspaceSummary>(workspaceStore, root);
   if (!value) throw new Error(`Workspace “${root}” no longer exists.`);
+  const example = migrateLegacyBulletin(legacyExample);
+  const exampleRecord = value.bulletins.find(item => item.document.id === example.id);
+  const storedExampleTemplate = value.templates.find(item => item.template.id === exampleTemplate.id && item.template.version === exampleTemplate.version);
+  if (!exampleRecord || (exampleRecord.document.revision === 0 && exampleRecord.document.sourceNotes !== example.sourceNotes) || !storedExampleTemplate) {
+    value = {
+      ...value,
+      bulletins: exampleRecord
+        ? value.bulletins.map(item => item === exampleRecord && item.document.revision === 0 ? { ...item, document: clone(example) } : item)
+        : [...value.bulletins, { path: 'bulletins/2026-06-07/bulletin.json', document: clone(example) }],
+      templates: storedExampleTemplate
+        ? value.templates.map(item => item === storedExampleTemplate ? { ...item, template: clone(exampleTemplate) } : item)
+        : [...value.templates, { path: `templates/${exampleTemplate.id}/v1.json`, template: clone(exampleTemplate) }]
+    };
+    await putRecord(workspaceStore, root, value);
+  }
   if (!value.library) return value;
   const library = normalizeLibrary(value.library);
   if (library === value.library) return value;
@@ -166,7 +214,7 @@ export async function installBrowserApi() {
       await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
       return { path, mediaType: mediaType(file), alt: file.name };
     },
-    readAsset: async (root, path) => { const value = await getRecord<string>(assetStore, `${root}:${path}`); if (!value) throw new Error(`Asset “${path}” is unavailable.`); return value; },
+    readAsset: async (root, path) => { const value = await getRecord<string>(assetStore, `${root}:${path}`); if (!value && !exampleAssets[path]) throw new Error(`Asset “${path}” is unavailable.`); return value ?? exampleAssets[path]; },
     lookupScripture: async input => {
       const response = await fetch('/__bulletin/bible-gateway', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
       const payload = await response.json(); if (!response.ok) throw new Error(payload.error ?? 'BibleGateway.com import failed.'); return payload;

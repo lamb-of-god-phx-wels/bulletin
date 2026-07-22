@@ -155,10 +155,13 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .document-page p { margin-bottom: .12in; }
 .cover { position: relative; height: 100%; padding-top: .85in; text-align: center; }
 .cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.cover > .cover-series-image { top: 1.34in; right: auto; bottom: auto; left: 50%; width: 2.55in; height: 2.05in; transform: translateX(-50%); }
 .cover-series { margin: 1.2in auto .65in; color: var(--accent); font: 39pt/1 var(--display-font); letter-spacing: -.03em; }
 .cover h1 { max-width: 5in; margin: 0 auto; font: bold 17pt/1.2 var(--body-font); text-transform: uppercase; }
 .cover-date { position: absolute; top: 0; right: 0; left: 0; display: flex; justify-content: space-between; padding-bottom: .08in; border-bottom: 1px solid currentColor; font-size: 9pt; }
 .cover-church { position: absolute; right: 0; bottom: .1in; left: 0; font: 15pt var(--display-font); text-transform: uppercase; }
+.cover > .cover-church-logo { top: auto; right: 0; bottom: .02in; left: auto; width: 1.82in; height: auto; }
+.church-info { position: relative; }.church-info-image { float: left; width: 1.05in; height: .57in; margin: 0 .12in .05in 0; object-fit: cover; }
 .church-info h1 { padding: .12in 0; border-bottom: 3px solid var(--accent); font: 19pt var(--display-font); }
 .church-info h2 { margin: .25in 0 .05in; font-size: 10pt; text-transform: uppercase; }
 .church-info .tagline { color: #696d68; font-style: italic; }
@@ -178,10 +181,12 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .response-row p { margin-bottom: .08in; }
 .scripture .caption { margin-bottom: .12in; font-style: italic; }
 .scripture .translation { color: #777; font-size: 7pt; text-align: right; }
-.song img, .song .flow-pdf { display: block; width: 100%; max-width: 100%; height: 5.6in; max-height: 5.8in; margin: .12in auto; border: 0; object-fit: contain; }
+.song img, .song .flow-pdf { display: block; width: 100%; max-width: 100%; height: var(--song-asset-height, 5.6in); max-height: 5.8in; margin: .12in auto; border: 0; object-fit: contain; }
+.song > p { margin-bottom: .08in; white-space: pre-line; }
 .missing { padding: .1in; border-left: 3px solid #c78755; color: #99643e; background: #fbf4e9; font-style: italic; }
 .announcements > h2 { margin: 0 0 .25in; font: 15pt var(--display-font); text-align: center; text-transform: uppercase; }
 .announcements article h3 { margin: .14in 0 .04in; font-size: 9pt; text-transform: uppercase; }
+.announcement-with-asset { display: grid; grid-template-columns: .66in 1fr; gap: .12in; align-items: center; }.announcement-with-asset.asset-right { grid-template-columns: 1fr .66in; }.announcement-with-asset.asset-right > .flow-pdf, .announcement-with-asset.asset-right > img { grid-column: 2; grid-row: 1; }.announcement-with-asset.asset-right > div { grid-column: 1; grid-row: 1; }.announcement-with-asset > img, .announcement-with-asset > .flow-pdf { width: .66in; height: .66in; object-fit: contain; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }
 .full-page-asset { position: absolute; inset: 0; }
 .full-page-asset img { width: 100%; height: 100%; object-fit: contain; }

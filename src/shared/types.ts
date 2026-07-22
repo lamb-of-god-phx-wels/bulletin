@@ -27,8 +27,8 @@ interface BlockBase {
   presentation?: Partial<CustomBlockStyle>;
 }
 
-export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: AssetRef }
-export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; children?: BulletinBlock[] }
+export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: AssetRef; seriesAsset?: AssetRef; churchLogoAsset?: AssetRef }
+export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
 export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string }
 export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
 export interface RichTextBlock extends BlockBase { type: 'richText'; role?: 'header' | 'body'; content: Paragraph[] }
@@ -53,14 +53,16 @@ export interface SongBlock extends BlockBase {
   selection: { mode: 'all' } | { mode: 'verses'; verses: number[] };
   renderMode: 'lyrics' | 'asset';
   asset?: AssetRef;
+  assetHeightIn?: number;
+  showHeading?: boolean;
   contentOverride?: Paragraph[];
 }
 export interface LibraryTextBlock extends BlockBase { type: 'libraryText'; libraryItemId: string; libraryItemVersion?: number; title?: string; contentOverride?: Paragraph[] }
 export interface AnnouncementsBlock extends BlockBase {
   type: 'announcements';
-  items: Array<{ id: string; title: string; content: Paragraph[] }>;
+  items: Array<{ id: string; title: string; content: Paragraph[]; asset?: AssetRef; assetSide?: 'left' | 'right' }>;
 }
-export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: Paragraph[] }
+export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: Paragraph[]; suppressGeneratedNotices?: boolean }
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }
 export interface GroupBlock extends BlockBase { type: 'group'; children: BulletinBlock[] }

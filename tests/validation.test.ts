@@ -18,6 +18,18 @@ describe('bulletin validation', () => {
     });
   });
 
+  it('accepts a bulletin snapshot with embedded library content', () => {
+    const document = createBulletin(defaultTemplate, '2026-06-07');
+    document.blocks.push({
+      id: 'snapshotted-prayer',
+      type: 'libraryText',
+      libraryItemId: 'archived-prayer',
+      title: 'Archived Prayer',
+      contentOverride: [{ type: 'paragraph', children: [{ type: 'text', text: 'Saved with this bulletin.' }] }]
+    });
+    expect(validateBulletin(document, { schemaVersion: 1, name: 'Empty', items: [] }).some(issue => issue.path === `/blocks/${document.blocks.length - 1}/libraryItemId`)).toBe(false);
+  });
+
   it('reports invalid custom-block definitions', () => {
     const document = createBulletin(defaultTemplate);
     document.blocks.push({ id: 'custom-welcome', type: 'custom', name: 'Welcome', layoutText: '{{serviceTime}} {{missing}}', bindings: [

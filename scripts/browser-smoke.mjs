@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+
 const endpoint = process.env.BULLETIN_CDP ?? 'http://127.0.0.1:9223';
 const targets = await (await fetch(`${endpoint}/json`)).json();
 const target = targets.find(item => item.type === 'page');
@@ -49,6 +51,16 @@ await command('Emulation.clearDeviceMetricsOverride');
 await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_EXAMPLE_ONLY === '1') {
+  await wait('document.querySelectorAll(".preview-pane .document-page").length > 0 && Array.from(document.querySelectorAll(".preview-pane img")).every(image=>image.complete)', 'rendered example bulletin');
+  const result = await evaluate('({pages:document.querySelectorAll(".preview-pane .document-page").length,missing:Array.from(document.querySelectorAll(".preview-pane .missing")).map(element=>element.textContent),titles:Array.from(document.querySelectorAll(".preview-pane .document-page")).map(page=>page.textContent.trim().slice(0,80)),images:document.querySelectorAll(".preview-pane img").length})');
+  const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+  await writeFile('/tmp/bulletin-example-render.png', Buffer.from(screenshot.data, 'base64'));
+  console.log(JSON.stringify(result, null, 2));
+  socket.close();
+  process.exit(result.pages === 12 && result.missing.length === 0 ? 0 : 1);
+}
 
 if (process.env.BULLETIN_NESTED_TEXT_ONLY === '1') {
   await wait(`Boolean(Array.from(document.querySelectorAll('.nested-block-editor textarea')).find(element=>element.value==='Welcome'))`, 'structured church information text blocks');

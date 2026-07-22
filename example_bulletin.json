@@ -3,7 +3,7 @@
   "id": "bulletin-2026-06-07",
   "revision": 0,
   "template": {
-    "id": "lamb-of-god-weekly",
+    "id": "lamb-of-god-example",
     "version": 1
   },
   "church": {
@@ -19,11 +19,492 @@
     {
       "id": "titlepage",
       "type": "titlePage",
+      "seriesAsset": {
+        "path": "assets/sermon_series/say_it_out_loud/logo.png",
+        "mediaType": "image/png",
+        "alt": "Say It Out Loud"
+      },
+      "churchLogoAsset": {
+        "path": "assets/church/logo.png",
+        "mediaType": "image/png",
+        "alt": "Lamb of God Lutheran Church"
+      },
       "weeklyEditable": true
     },
     {
       "id": "welcomepage",
-      "type": "churchInfo"
+      "type": "churchInfo",
+      "heroAsset": {
+        "path": "assets/example_2026-06-07/church-building.png",
+        "mediaType": "image/png",
+        "alt": "Lamb of God church building"
+      },
+      "children": [
+        {
+          "id": "church-tagline",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "church-tagline-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Reaching Up. Reaching Out. Reaching Across.",
+                      "marks": [
+                        "italic"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontSizePt": 8,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.12
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "church-contact",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "church-contact-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Pastor Michael Koepke  ·  Pastor@MyLambofGod.org"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Church Phone: 480-283-8329  ·  MyLambofGod.org"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Cell Phone: 623-419-4303  ·  599 E. Chandler Blvd., Phoenix, AZ 85048"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontSizePt": 7.5,
+                "lineHeight": 1.1,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.12
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "church-council",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "church-council-header",
+              "type": "richText",
+              "role": "header",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "COUNCIL MEMBERS"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontWeight": "bold",
+                "fontSizePt": 8,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.02
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            },
+            {
+              "id": "church-council-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Clinton Alcorn — alcornclinton@yahoo.com — 480-707-3494"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Lenin Arthanari — leninarthanari@hotmail.com — 602-481-0345"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Dennis Niska — dennis.niska@gmail.com — 630-605-8624"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Ryan Pearson — ryanppearson26@gmail.com — 575-430-1994"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Thom Woldahl — tdahl7@gmail.com — 480-819-2646"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontSizePt": 7.5,
+                "lineHeight": 1.05,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.14
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "church-welcome",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "church-welcome-header",
+              "type": "richText",
+              "role": "header",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "WELCOME"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontWeight": "bold",
+                "fontSizePt": 8,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            },
+            {
+              "id": "church-welcome-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Thank you for joining us for worship this morning. In our service we gather before our almighty God to offer him our worship and praise. We also gather to strengthen ourselves through the study of God’s holy and powerful Word."
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontSizePt": 8,
+                "lineHeight": 1.08,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.1
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "pastor-hours",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "pastor-hours-header",
+              "type": "richText",
+              "role": "header",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "PASTOR’S OFFICE HOURS"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontWeight": "bold",
+                "fontSizePt": 8,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            },
+            {
+              "id": "pastor-hours-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "If you would like to meet with Pastor Koepke, please contact him to make an appointment. Our pastor is here to serve both Lamb of God members and our community."
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontSizePt": 8,
+                "lineHeight": 1.08,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.1
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "children-room",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "children-room-header",
+              "type": "richText",
+              "role": "header",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "CHILDREN’S ROOM"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontWeight": "bold",
+                "fontSizePt": 8,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            },
+            {
+              "id": "children-room-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "We love having children in our service. However, if you feel your child needs to be taken out for a while, you may choose to use the children’s room off the hallway near the mailboxes. We also ask everyone to reserve the back few rows for families with young children, making it easier to leave the church area if needed."
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontSizePt": 8,
+                "lineHeight": 1.08,
+                "marginIn": {
+                  "top": 0,
+                  "bottom": 0.1
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "church-links",
+          "type": "paragraph",
+          "children": [
+            {
+              "id": "church-links-body",
+              "type": "richText",
+              "role": "body",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "WEBSITE: MyLambofGod.org"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "CALENDAR: MyLambofGod.org/calendar"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "FACEBOOK: facebook.com/MyLambofGod"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "align": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "INSTAGRAM: @LambofGodLutheran"
+                    }
+                  ]
+                }
+              ],
+              "presentation": {
+                "fontWeight": "bold",
+                "fontSizePt": 7.5,
+                "lineHeight": 1.05,
+                "marginIn": {
+                  "top": 0.05,
+                  "bottom": 0
+                },
+                "paddingIn": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "god-loves-sinners",
@@ -40,7 +521,7 @@
       "id": "opening-hymn",
       "type": "song",
       "label": "Opening Hymn",
-      "title": "CW399",
+      "title": "To God Be the Glory (CW 399)",
       "songType": "hymn",
       "libraryItemId": "cw399",
       "selection": {
@@ -52,7 +533,36 @@
         ]
       },
       "renderMode": "lyrics",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "contentOverride": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "1.      To God be the glory; great things he has done!\nHe so loved the world that he gave us his Son,\nWho yielded his life an atonement for sin\nAnd opened the life-gate that all may go in.\nPraise the Lord! Praise the Lord! Let the earth hear his voice!\nPraise the Lord! Praise the Lord! Let the people rejoice!\nOh, come to the Father through Jesus the Son\nAnd give him the glory -- great things he has done!"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "2.      Oh, perfect redemption, the purchase of blood,\nTo ev'ry believer the promise of God;\nThe vilest offender who truly believes,\nThat moment from Jesus a pardon receives.\nPraise the Lord! Praise the Lord! Let the earth hear his voice!\nPraise the Lord! Praise the Lord! Let the people rejoice!\nOh, come to the Father through Jesus the Son\nAnd give him the glory -- great things he has done!"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "3.     Great things he has taught us, great things he has done,\nAnd great our rejoicing through Jesus the Son,\nBut purer and higher and greater will be\nOur joy and our wonder when Jesus we see.\nPraise the Lord! Praise the Lord! Let the earth hear his voice!\nPraise the Lord! Praise the Lord! Let the people rejoice!\nOh, come to the Father through Jesus the Son\nAnd give him the glory -- great things he has done!"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "invocation",
@@ -157,7 +667,20 @@
               "children": [
                 {
                   "type": "text",
-                  "text": "1 John 1:8-9"
+                  "text": "If we say we have no sin, we deceive ourselves, and the truth is not in us. But if we confess our sins, God who is faithful and just will forgive our sins and cleanse us from all unrighteousness."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "align": "right",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "1 John 1:8-9",
+                  "marks": [
+                    "italic"
+                  ]
                 }
               ]
             },
@@ -353,7 +876,21 @@
         "mode": "all"
       },
       "renderMode": "lyrics",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "contentOverride": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "Give thanks with a grateful heart , give thanks to the Holy One\nGive thanks, because he’s given Jesus Christ his Son.\nGive thanks with a grateful heart, give thanks to the Holy One\nGive thanks, because he’s given Jesus Christ his Son.\nAnd now, let the weak say, “I am strong!” Let the poor say, “I am rich!”\nBecause of what the Lord has done for us.\nAnd now, let the weak say, “I am strong!” Let the poor say, “I am rich!”\nBecause of what the Lord has done for us, give thanks!\n(Musical Interlude)\nGive thanks with a grateful heart , give thanks to the Holy One\nGive thanks, because he’s given Jesus Christ his Son.\nAnd now, let the weak say, “I am strong!” Let the poor say, “I am rich!”\nBecause of what the Lord has done for us.\nAnd now, let the weak say, “I am strong!” Let the poor say, “I am rich!”\nBecause of what the Lord has done for us, give thanks!"
+            }
+          ]
+        }
+      ],
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "prayer-of-the-day",
@@ -406,13 +943,56 @@
       "caption": "The LORD chooses Moses, an exiled murderer, to lead the Israelites.",
       "reference": "Exodus 3:1-15",
       "translation": "NIV",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "resolved": {
+        "content": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "Now Moses was tending the flock of Jethro his father-in-law, the priest of Midian, and he led the flock to the far side of the wilderness and came to Horeb, the mountain of God. 2 There the angel of the Lord appeared to him in flames of fire from within a bush. Moses saw that though the bush was"
+              }
+            ]
+          }
+        ],
+        "source": "manual",
+        "retrievedAt": "2026-06-04T20:47:57-07:00",
+        "attribution": "THE HOLY BIBLE, NEW INTERNATIONAL VERSION®, NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by permission. All rights reserved worldwide."
+      }
+    },
+    {
+      "id": "first-reading-continuation",
+      "type": "scriptureReading",
+      "label": "First Reading (continued)",
+      "reference": "Exodus 3:1-15",
+      "translation": "NIV",
+      "weeklyEditable": true,
+      "resolved": {
+        "content": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "on fire it did not burn up. 3 So Moses thought, “I will go over and see this strange sight—why the bush does not burn up.” When the Lord saw that he had gone over to look, God called to him from within the bush, “Moses! Moses!” And Moses said, “Here I am.” “Do not come any closer,” God said. “Take off your sandals, for the place where you are standing is holy ground.” 6 Then he said, “I am the God of your father, the God of Abraham, the God of Isaac and the God of Jacob.” At this, Moses hid his face, because he was afraid to look at God.7 The Lord said, “I have indeed seen the misery of my people in Egypt. I have heard them crying out because of their slave drivers, and I am concerned about their suffering. 8 So I have come down to rescue them from the hand of the Egyptians and to bring them up out of that land into a good and spacious land, a land flowing with milk and honey—the home of the Canaanites, Hittites, Amorites, Perizzites, Hivites and Jebusites. 9 And now the cry of the Israelites has reached me, and I have seen the way the Egyptians are oppressing them. 10 So now, go. I am sending you to Pharaoh to bring my people the Israelites out of Egypt.” But Moses said to God, “Who am I that I should go to Pharaoh and bring the Israelites out of Egypt?” And God said, “I will be with you. And this will be the sign to you that it is I who have sent you: When you have brought the people out of Egypt, you will worship God on this mountain.” Moses said to God, “Suppose I go to the Israelites and say to them, ‘The God of your fathers has sent me to you,’ and they ask me, ‘What is his name?’ Then what shall I tell them?” God said to Moses, “I am who I am. This is what you are to say to the Israelites: ‘I am has sent me to you.’”15 God also said to Moses, “Say to the Israelites, ‘The Lord, the God of your fathers—the God of Abraham, the God of Isaac and the God of Jacob—has sent me to you.’ “This is my name forever, the name you shall call me from generation to generation."
+              }
+            ]
+          }
+        ],
+        "source": "manual",
+        "retrievedAt": "2026-06-04T20:47:57-07:00",
+        "attribution": "THE HOLY BIBLE, NEW INTERNATIONAL VERSION®, NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by permission. All rights reserved worldwide."
+      },
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "psalm",
       "type": "song",
       "label": "Psalm",
-      "title": "130",
+      "title": "I Will Wait for You (Psalm 130)",
       "songType": "psalm",
       "libraryItemId": "130",
       "selection": {
@@ -425,12 +1005,44 @@
         ]
       },
       "renderMode": "asset",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "libraryItemVersion": 1,
+      "asset": {
+        "path": "assets/example_2026-06-07/psalm-130-part-1.png",
+        "mediaType": "image/png",
+        "alt": "I Will Wait for You score, first portion"
+      },
+      "assetHeightIn": 2.15
+    },
+    {
+      "id": "psalm-continuation",
+      "type": "song",
+      "songType": "psalm",
+      "libraryItemId": "130",
+      "libraryItemVersion": 1,
+      "title": "I Will Wait for You (Psalm 130)",
+      "selection": {
+        "mode": "all"
+      },
+      "renderMode": "asset",
+      "showHeading": false,
+      "assetHeightIn": 5.75,
+      "asset": {
+        "path": "assets/example_2026-06-07/psalm-130-part-2.png",
+        "mediaType": "image/png",
+        "alt": "I Will Wait for You score, continued"
+      },
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "children-s-message",
       "type": "heading",
-      "text": "Children's Message"
+      "text": "Children's Message",
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "gospel",
@@ -439,20 +1051,101 @@
       "caption": "Tax collectors were considered among the worst of sinners. To demonstrate grace, Jesus called one to be his disciple.",
       "reference": "Matthew 9:9-13",
       "translation": "NIV",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "resolved": {
+        "content": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "As Jesus went on from there, he saw a man named Matthew sitting at the tax collector’s booth. “Follow me,” he told him, and Matthew got up and followed him. While Jesus was having dinner at Matthew’s house, many tax collectors and sinners came and ate with him and his disciples. 11 When the Pharisees saw this, they asked his disciples, “Why does your teacher eat with tax collectors and sinners?” On hearing this, Jesus said, “It is not the healthy who need a doctor, but the sick. 13 But go and learn what this means: ‘I desire mercy, not sacrifice.’ For I have not come to call the righteous, but sinners.”"
+              }
+            ]
+          }
+        ],
+        "source": "manual",
+        "retrievedAt": "2026-06-04T20:47:57-07:00",
+        "attribution": "THE HOLY BIBLE, NEW INTERNATIONAL VERSION®, NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by permission. All rights reserved worldwide."
+      }
     },
     {
       "id": "hymn-of-the-day",
       "type": "song",
       "label": "Hymn of the Day",
-      "title": "CW385",
+      "title": "Chief of Sinners Though I Be (CW 385)",
       "songType": "hymn",
       "libraryItemId": "cw385",
       "selection": {
         "mode": "all"
       },
       "renderMode": "lyrics",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "contentOverride": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "1. Chief of sinners though I be, Jesus shed his blood for me,\nDied that I might live on high, lives that I might never die.\nAs the branch is to the vine, I am his and he is mine!"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "2. Oh, the height of Jesus' love, higher than the heav'ns above,\nDeeper than the depths of sea, lasting as eternity,\nLove that found me -- wondrous thought! Found me when I sought him not."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hymn-of-the-day-continuation",
+      "type": "song",
+      "label": "Hymn of the Day (continued)",
+      "title": "Chief of Sinners Though I Be (CW 385)",
+      "songType": "hymn",
+      "libraryItemId": "cw385",
+      "selection": {
+        "mode": "all"
+      },
+      "renderMode": "lyrics",
+      "weeklyEditable": true,
+      "contentOverride": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "3. Only Jesus can impart comfort to a wounded heart:\nPeace that flows from sin forgiv'n, joy that lifts the soul to heav'n,\nFaith and hope to walk with God in the way that Enoch trod."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "4. Chief of sinners though I be, Christ is all in all to me.\nAll my wants to him are known; all my sorrows are his own.\nSafe with him in earthly strife, I await the heav'nly life."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "5. Strengthen me, O gracious Lord, by your Spirit and your word.\nWhen my wayward heart would stray, keep me in the narrow way;\nGrace in time of need supply while I live and when I die."
+            }
+          ]
+        }
+      ],
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "sermon",
@@ -460,18 +1153,48 @@
       "label": "Sermon",
       "reference": "1 Timothy 1:12-17",
       "translation": "NIV",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "resolved": {
+        "content": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "I thank Christ Jesus our Lord, who has given me strength, that he considered me trustworthy, appointing me to his service. 13 Even though I was once a blasphemer and a persecutor and a violent man, I was shown mercy because I acted in ignorance and unbelief. The grace of our Lord was poured out on me abundantly, along with the faith and love that are in Christ Jesus. Here is a trustworthy saying that deserves full acceptance: Christ Jesus came into the world to save sinners—of whom I am the worst. 16 But for that very reason I was shown mercy so that in me, the worst of sinners, Christ Jesus might display his immense patience as an example for those who would believe in him and receive eternal life. 17 Now to the King eternal, immortal, invisible, the only God, be honor and glory for ever and ever. Amen."
+              }
+            ]
+          }
+        ],
+        "source": "manual",
+        "retrievedAt": "2026-06-04T20:47:57-07:00",
+        "attribution": "THE HOLY BIBLE, NEW INTERNATIONAL VERSION®, NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by permission. All rights reserved worldwide."
+      }
     },
     {
       "id": "confession-of-faith",
       "type": "libraryText",
       "libraryItemId": "apostles-creed",
-      "title": "Apostles' Creed"
+      "title": "Apostles' Creed",
+      "contentOverride": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "I believe in God, the Father almighty, maker of heaven and earth. I believe in Jesus Christ, his only Son, our Lord, who was conceived by the Holy Spirit, born of the virgin Mary, suffered under Pontius Pilate, was crucified, died, and was buried. He descended into hell. The third day he rose again from the dead. He ascended into heaven and is seated at the right hand of God the Father almighty. From there he will come to judge the living and the dead. I believe in the Holy Spirit, the holy Christian Church, the communion of saints, the forgiveness of sins, the resurrection of the body, and the life everlasting. Amen."
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "the-prayers",
       "type": "sectionHeading",
-      "text": "The Prayers"
+      "text": "The Prayers",
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "prayer-of-the-church",
@@ -482,7 +1205,18 @@
       "id": "prayer-2",
       "type": "libraryText",
       "libraryItemId": "lord-s-prayer",
-      "title": "Lord's Prayer"
+      "title": "Lord's Prayer",
+      "contentOverride": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "Our Father in heaven, hallowed be your name, your kingdom come, your will be done on earth as in heaven. Give us today our daily bread. Forgive us our sins, as we forgive those who sin against us. Lead us not into temptation, but deliver us from evil. For the kingdom, the power, and the glory are yours now and forever. Amen."
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "blessing",
@@ -582,20 +1316,37 @@
     },
     {
       "id": "copyrightblock",
-      "type": "copyright"
+      "type": "copyright",
+      "extra": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "To God Be The Glory, Text, Tune, Setting: public domain. Give Thanks, by Henry Smith © 1970 by Integrity's Hosanna! Music. All rights reserved. Used by permission. I Will Wait for You (Psalm 130), Words and Music by Keith Getty, Jordan Kauflin, Matt Merker and Stuart Townend ©2018 Getty Music Publishing (BMI) / Jordan Kauflin Music (BMI) / Matthew Merker Music (BMI) / Getty Music Hymns and Songs (ASCAP) / Townend Songs (PRS) / Adm. by MusicServices.org in the US and Canada and by www.songsolutions.org elsewhere in the World) Chief of Sinners Though I Be, Text and Tune: public domain. *Setting: c 1993 Kermit G. Moldenhauer. Used by permission. His Mercy Is More, by Matt Boswell and Matt Papa; © 2016 Getty Music Hymns and Songs, Getty Music Publishing, Love Your Enemies Publishing, Messenger Hymns (admin. Music Service, Inc.) OneLicense.net A-730121 & CCLI #1941416 THE HOLY BIBLE, NEW INTERNATIONAL VERSION®, NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by permission. All rights reserved worldwide."
+            }
+          ]
+        }
+      ],
+      "suppressGeneratedNotices": true
     },
     {
       "id": "closing-song",
       "type": "song",
       "label": "Closing Song",
-      "title": "His Mercy is More",
+      "title": "His Mercy Is More",
       "songType": "song",
       "libraryItemId": "his-mercy-is-more",
       "selection": {
         "mode": "all"
       },
       "renderMode": "asset",
-      "weeklyEditable": true
+      "weeklyEditable": true,
+      "libraryItemVersion": 1,
+      "assetHeightIn": 5.2,
+      "layout": {
+        "pageBreakBefore": true
+      }
     },
     {
       "id": "announcements",
@@ -705,9 +1456,55 @@
               ]
             }
           ]
+        },
+        {
+          "id": "requests-for-prayer-and-care",
+          "title": "Requests for Prayer and Care",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "If you wish to request prayer for yourself or someone else, you may fill out the request on the Communication Card or use this QR code. This is also a way to reach the Caring Committee if you need other assistance as well."
+                }
+              ]
+            }
+          ],
+          "asset": {
+            "path": "assets/example_2026-06-07/prayer-care-qr.png",
+            "mediaType": "image/png",
+            "alt": "Prayer and care request QR code"
+          },
+          "assetSide": "right"
+        },
+        {
+          "id": "giving-to-lamb-of-god",
+          "title": "Giving to Lamb of God",
+          "content": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "If you wish to give your offering to Lamb of God online, this QR code is provided for your convenience. Several types of payment are accepted on this secure site. Thank you for your financial gifts to assist with the ministry of Lamb of God."
+                }
+              ]
+            }
+          ],
+          "asset": {
+            "path": "assets/example_2026-06-07/giving-qr.png",
+            "mediaType": "image/png",
+            "alt": "Online giving QR code"
+          },
+          "assetSide": "left"
         }
-      ]
+      ],
+      "layout": {
+        "pageBreakBefore": true
+      }
     }
   ],
-  "updatedAt": "2026-07-21T00:13:25.734Z"
+  "updatedAt": "2026-07-22T00:00:00.000Z",
+  "sourceNotes": "Faithfully transcribed from example_bulletins/6 7 2026.pdf. Music notation and QR codes remain source assets; all other bulletin content is structured and editable."
 }

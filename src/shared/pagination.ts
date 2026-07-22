@@ -21,7 +21,11 @@ function contentFor(block: PaginatedBlock, library?: LibraryManifestV1): Paragra
 
 const usablePoints = (template: TemplateV1) => (template.page.heightIn - template.theme.marginIn * 2) * 72 - 24;
 const charsPerLine = (template: TemplateV1) => Math.max(42, Math.floor(((template.page.widthIn - template.theme.marginIn * 2) * 72) / (template.theme.bodySizePt * .56)));
-const paragraphPoints = (paragraph: Paragraph, template: TemplateV1) => Math.max(1, Math.ceil(paragraphLength(paragraph) / charsPerLine(template))) * template.theme.bodySizePt * template.theme.lineHeight + 8.64;
+const paragraphPoints = (paragraph: Paragraph, template: TemplateV1) => {
+  const explicitLines = Math.max(1, ...paragraph.children.map(child => child.type === 'text' ? child.text.split('\n').length : 1));
+  const wrappedLines = Math.max(1, Math.ceil(paragraphLength(paragraph) / charsPerLine(template)));
+  return Math.max(explicitLines, wrappedLines) * template.theme.bodySizePt * template.theme.lineHeight + 8.64;
+};
 const contentPoints = (content: Paragraph[] | undefined, template: TemplateV1) => content?.reduce((total, paragraph) => total + paragraphPoints(paragraph, template), 0) ?? 0;
 
 function basePoints(block: PaginatedBlock, template: TemplateV1): number {
@@ -51,11 +55,11 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   if (block.type === 'group') return formatted(block.children.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'paragraph') return formatted(childBlocks(block)!.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
-  if (block.type === 'copyright') return Math.min(formatted(500), usablePoints(template));
+  if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
   if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + 8);
-  if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template), 0));
-  if (block.type === 'song' && block.renderMode === 'asset') return formatted(438);
+  if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template) + (item.asset ? 54 : 0), 0));
+  if (block.type === 'song' && block.renderMode === 'asset') return formatted((block.showHeading === false ? 0 : 30) + (block.assetHeightIn ?? 5.6) * 72);
   const content = contentFor(block, library);
   const fallback = (block.type === 'song' || block.type === 'libraryText') && !content ? 48 : 0;
   const points = basePoints(block, template) + contentPoints(content, template) + fallback;

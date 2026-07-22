@@ -11,13 +11,14 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1): V
   if (!Array.isArray(doc.blocks)) issues.push({ path: '/blocks', message: 'Blocks must be an array.' });
   const ids = new Set<string>();
   doc.blocks?.forEach((block, index) => {
+    const hasInlineLibraryContent = (block.type === 'song' && Boolean(block.contentOverride?.length || block.asset)) || (block.type === 'libraryText' && Boolean(block.contentOverride?.length));
     if (!block.id) issues.push({ path: `/blocks/${index}/id`, message: 'Every block needs an ID.' });
     else if (ids.has(block.id)) issues.push({ path: `/blocks/${index}/id`, message: `Duplicate block ID: ${block.id}` });
     ids.add(block.id);
     if (block.type === 'scriptureReading' && !block.reference) issues.push({ path: `/blocks/${index}/reference`, message: 'Enter a Scripture reference.' });
     else if (block.type === 'scriptureReading' && !block.resolved) issues.push({ path: `/blocks/${index}/resolved`, message: 'Fetch or paste the approved passage text.' });
     if ((block.type === 'song' || block.type === 'libraryText') && !block.libraryItemId) issues.push({ path: `/blocks/${index}/libraryItemId`, message: 'Choose an approved library item.' });
-    if ((block.type === 'song' || block.type === 'libraryText') && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion))) {
+    if ((block.type === 'song' || block.type === 'libraryText') && !hasInlineLibraryContent && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion))) {
       const title = block.type === 'libraryText' ? block.title : block.title ?? block.label;
       issues.push({ path: `/blocks/${index}/libraryItemId`, message: `The ${block.weeklyEditable ? '' : 'template-managed '}block “${title ?? block.libraryItemId}” references missing library item “${block.libraryItemId}”${block.libraryItemVersion ? ` version ${block.libraryItemVersion}` : ''}. Choose a replacement or remove the block from this bulletin.` });
     }

@@ -24,6 +24,19 @@ function PageRulers() {
   return <div className="page-rulers" aria-hidden="true"><div className="ruler-corner">in</div><div className="ruler ruler-horizontal">{horizontal.map(tick => <i className={tickClass(tick.index)} style={{ left: tick.position }} key={tick.index}>{tick.label && <span>{tick.label}</span>}</i>)}</div><div className="ruler ruler-vertical">{vertical.map(tick => <i className={tickClass(tick.index)} style={{ top: tick.position }} key={tick.index}>{tick.label && <span>{tick.label}</span>}</i>)}</div></div>;
 }
 
+function trackPointer(event: React.PointerEvent<HTMLElement>) {
+  const frame = event.currentTarget.parentElement;
+  if (!frame) return;
+  const bounds = event.currentTarget.getBoundingClientRect();
+  frame.style.setProperty('--cursor-x', `${Math.max(0, Math.min(bounds.width, event.clientX - bounds.left))}px`);
+  frame.style.setProperty('--cursor-y', `${Math.max(0, Math.min(bounds.height, event.clientY - bounds.top))}px`);
+  frame.classList.add('tracking-cursor');
+}
+
+function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
+  event.currentTarget.parentElement?.classList.remove('tracking-cursor');
+}
+
 function BlockView({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
@@ -79,7 +92,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--body-size': `${template.theme.bodySizePt}pt`, '--line-height': template.theme.lineHeight,
     '--page-margin': `${template.theme.marginIn}in`
   } as React.CSSProperties}>
-    {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <PageRulers />}<article className={`document-page page-${page.kind}`}>
+    {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       <div className="page-content">{page.blocks.map(block => <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
     </article></div>)}

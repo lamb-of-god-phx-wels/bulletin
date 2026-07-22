@@ -115,6 +115,11 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .ruler-horizontal .ruler-tick span { position: absolute; bottom: 10px; left: 0; transform: translateX(-50%); font-style: normal; }
 .ruler-vertical .ruler-tick { right: 0; height: 0; border-width: 1px 0 0; }.ruler-vertical .ruler-tick.quarter { width: 4px; }.ruler-vertical .ruler-tick.half { width: 7px; }.ruler-vertical .ruler-tick.major { width: 10px; opacity: 1; }
 .ruler-vertical .ruler-tick span { position: absolute; top: 0; right: 10px; transform: translateY(-50%); font-style: normal; }
+.page-crosshairs { --crosshair-color: #a84f32; position: absolute; z-index: 4; inset: 0; display: none; pointer-events: none; }
+.page-frame.tracking-cursor .page-crosshairs { display: block; }
+.page-crosshairs i { position: absolute; display: block; margin: 0; padding: 0; opacity: .72; }
+.crosshair-vertical { top: -23px; bottom: 0; left: var(--cursor-x); border-left: 1px solid var(--crosshair-color); }
+.crosshair-horizontal { top: var(--cursor-y); right: 0; left: -23px; border-top: 1px solid var(--crosshair-color); }
 .document-page { position: absolute; top: 0; left: 50%; width: 672px; height: 816px; min-height: 816px; max-height: 816px; overflow: hidden; color: var(--ink); background: white; box-shadow: 0 4px 18px #3b392f25; font-family: var(--body-font); font-size: var(--body-size); line-height: var(--line-height); transform: translateX(-50%) scale(.72); transform-origin: top center; }
 .document-stack.is-print .page-frame { width: 7in; height: 8.5in; margin: 0; }
 .document-stack.is-print .document-page { left: 0; width: 7in; height: 8.5in; min-height: 8.5in; max-height: 8.5in; transform: none; }
@@ -201,7 +206,7 @@ code { padding: 2px 5px; border-radius: 4px; background: #ebe8e0; }
 @page { size: 7in 8.5in; margin: 0; }
 @media print {
   html, body, #root { width: 7in; margin: 0 !important; padding: 0 !important; background: white; }
-  .print-controls, .page-rulers { display: none !important; }.print-screen, .print-screen .document-stack { margin: 0; background: white; }
+  .print-controls, .page-rulers, .page-crosshairs { display: none !important; }.print-screen, .print-screen .document-stack { margin: 0; background: white; }
   .document-stack { display: block; }
   .page-frame { width: 7in; height: 8.5in; margin: 0; break-after: page; page-break-after: always; }
   .page-frame:last-child { break-after: auto; }

@@ -45,6 +45,7 @@ const setFileForButton = async (buttonText, file) => {
 const results = [];
 const pass = message => { results.push(message); console.log(`✓ ${message}`); };
 
+await command('Emulation.clearDeviceMetricsOverride');
 await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
@@ -54,21 +55,20 @@ if (process.env.BULLETIN_RULERS_ONLY === '1') {
   await wait(`document.querySelectorAll('.ruler-horizontal .ruler-tick').length === document.querySelectorAll('.page-frame').length * 29`, 'horizontal ruler ticks');
   const ruler = await evaluate(`(()=>{const frame=document.querySelector('.page-frame');const page=frame.querySelector('.document-page');const ticks=frame.querySelectorAll('.ruler-horizontal .ruler-tick');const vertical=frame.querySelectorAll('.ruler-vertical .ruler-tick');return {pageWidth:page.getBoundingClientRect().width,pageHeight:page.getBoundingClientRect().height,frameHeight:frame.getBoundingClientRect().height,quarter:ticks[1].getBoundingClientRect().left-ticks[0].getBoundingClientRect().left,horizontal:ticks.length,vertical:vertical.length,lastLabel:vertical[vertical.length-1].textContent}})()`);
   if (ruler.horizontal !== 29 || ruler.vertical !== 35 || ruler.lastLabel !== '8.5' || Math.abs(ruler.quarter - ruler.pageWidth / 28) > .25 || Math.abs(ruler.pageHeight - ruler.frameHeight) > .25 || Math.abs(ruler.pageHeight / ruler.pageWidth - 8.5 / 7) > .001) throw new Error(`Ruler or page measurements are inaccurate: ${JSON.stringify(ruler)}`);
-  const hoverPoint = await evaluate(`(()=>{const bounds=document.querySelector('.page-frame .document-page').getBoundingClientRect();return {x:bounds.left+38,y:bounds.top+73}})()`);
-  await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hoverPoint.x, y: hoverPoint.y });
+  const hoverPoint = await evaluate(`(()=>{const page=document.querySelector('.page-frame .document-page');const bounds=page.getBoundingClientRect();const point={x:bounds.left+38,y:bounds.top+73,offsetX:38,offsetY:73};page.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:point.x,clientY:point.y}));return point})()`);
   await wait(`document.querySelector('.page-frame')?.classList.contains('tracking-cursor')`, 'ruler crosshair');
   const crosshair = await evaluate(`(()=>{const frame=document.querySelector('.page-frame').getBoundingClientRect();const vertical=document.querySelector('.crosshair-vertical').getBoundingClientRect();const horizontal=document.querySelector('.crosshair-horizontal').getBoundingClientRect();return {verticalX:vertical.left,verticalTop:vertical.top,verticalBottom:vertical.bottom,horizontalY:horizontal.top,horizontalLeft:horizontal.left,horizontalRight:horizontal.right,frameLeft:frame.left,frameTop:frame.top,frameRight:frame.right,frameBottom:frame.bottom}})()`);
-  if (Math.abs(crosshair.verticalX - hoverPoint.x) > 1 || Math.abs(crosshair.horizontalY - hoverPoint.y) > 1 || Math.abs(crosshair.verticalTop - (crosshair.frameTop - 23)) > 1 || Math.abs(crosshair.verticalBottom - crosshair.frameBottom) > 1 || Math.abs(crosshair.horizontalLeft - (crosshair.frameLeft - 23)) > 1 || Math.abs(crosshair.horizontalRight - crosshair.frameRight) > 1) throw new Error(`Crosshair does not reach the rulers accurately: ${JSON.stringify({ hoverPoint, crosshair })}`);
-  await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
+  if (Math.abs(crosshair.verticalX - (crosshair.frameLeft + hoverPoint.offsetX)) > 1 || Math.abs(crosshair.horizontalY - (crosshair.frameTop + hoverPoint.offsetY)) > 1 || Math.abs(crosshair.verticalTop - (crosshair.frameTop - 23)) > 1 || Math.abs(crosshair.verticalBottom - crosshair.frameBottom) > 1 || Math.abs(crosshair.horizontalLeft - (crosshair.frameLeft - 23)) > 1 || Math.abs(crosshair.horizontalRight - crosshair.frameRight) > 1) throw new Error(`Crosshair does not reach the rulers accurately: ${JSON.stringify({ hoverPoint, crosshair })}`);
+  await evaluate(`(()=>{const page=document.querySelector('.page-frame .document-page');page.dispatchEvent(new PointerEvent('pointerout',{bubbles:true,relatedTarget:document.body}));return true})()`);
   await wait(`!document.querySelector('.page-frame')?.classList.contains('tracking-cursor')`, 'hidden crosshair after leaving page');
   await command('Emulation.setDeviceMetricsOverride', { width: 1100, height: 800, deviceScaleFactor: 1, mobile: false });
   const compactRuler = await evaluate(`(()=>{const frame=document.querySelector('.page-frame');const page=frame.querySelector('.document-page');const ticks=frame.querySelectorAll('.ruler-horizontal .ruler-tick');return {pageWidth:page.getBoundingClientRect().width,pageHeight:page.getBoundingClientRect().height,frameHeight:frame.getBoundingClientRect().height,quarter:ticks[1].getBoundingClientRect().left-ticks[0].getBoundingClientRect().left}})()`);
   if (Math.abs(compactRuler.quarter - compactRuler.pageWidth / 28) > .25 || Math.abs(compactRuler.pageHeight - compactRuler.frameHeight) > .25 || Math.abs(compactRuler.pageHeight / compactRuler.pageWidth - 8.5 / 7) > .001) throw new Error(`Responsive ruler or page measurements are inaccurate: ${JSON.stringify(compactRuler)}`);
-  const compactHover = await evaluate(`(()=>{const bounds=document.querySelector('.page-frame .document-page').getBoundingClientRect();return {x:bounds.left+31,y:bounds.top+47}})()`);
-  await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: compactHover.x, y: compactHover.y });
+  const compactHover = await evaluate(`(()=>{const page=document.querySelector('.page-frame .document-page');const bounds=page.getBoundingClientRect();const point={x:bounds.left+31,y:bounds.top+47,offsetX:31,offsetY:47};page.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:point.x,clientY:point.y}));return point})()`);
   await wait(`document.querySelector('.page-frame')?.classList.contains('tracking-cursor')`, 'compact ruler crosshair');
   const compactCrosshair = await evaluate(`({x:document.querySelector('.crosshair-vertical').getBoundingClientRect().left,y:document.querySelector('.crosshair-horizontal').getBoundingClientRect().top})`);
-  if (Math.abs(compactCrosshair.x - compactHover.x) > 1 || Math.abs(compactCrosshair.y - compactHover.y) > 1) throw new Error(`Compact crosshair does not track the cursor accurately: ${JSON.stringify({ compactHover, compactCrosshair })}`);
+  const compactFrame = await evaluate(`(()=>{const bounds=document.querySelector('.page-frame').getBoundingClientRect();return {left:bounds.left,top:bounds.top}})()`);
+  if (Math.abs(compactCrosshair.x - (compactFrame.left + compactHover.offsetX)) > 1 || Math.abs(compactCrosshair.y - (compactFrame.top + compactHover.offsetY)) > 1) throw new Error(`Compact crosshair does not track the cursor accurately: ${JSON.stringify({ compactHover, compactCrosshair, compactFrame })}`);
   await command('Emulation.clearDeviceMetricsOverride');
   await click('Rulers on');
   await wait(`!document.querySelector('.page-rulers') && !document.querySelector('.page-crosshairs') && !document.querySelector('.page-frame.with-rulers')`, 'hidden rulers, crosshairs, and spacing');
@@ -78,6 +78,10 @@ if (process.env.BULLETIN_RULERS_ONLY === '1') {
   await click('Rulers off');
   await wait(`Boolean(document.querySelector('.builder-preview .page-rulers'))`, 'visible template rulers');
   if (await evaluate(`localStorage.getItem('bulletin-show-rulers') !== 'true'`)) throw new Error('Visible ruler preference was not saved.');
+  for (const margin of [0, .25, .5]) {
+    await fill('Page margin (inches)', String(margin));
+    await wait(`(()=>{const pageElement=document.querySelector('.builder-preview .document-page');const page=pageElement?.getBoundingClientRect();const content=document.querySelector('.builder-preview .document-page > .page-content > :first-child')?.getBoundingClientRect();if(!page||!content)return false;const inches=page.width/7;return Math.abs((content.left-page.left)/inches-${margin})<.01&&Math.abs((content.top-page.top)/inches-${margin})<.01&&getComputedStyle(pageElement).paddingLeft==='0px'})()`, `${margin} inch template margin alignment`);
+  }
   pass('renders optional, accurate 7 × 8.5 inch rulers');
   console.log(`\n${results.length} browser MVP checks passed.`);
   socket.close();

@@ -19,7 +19,7 @@ const evaluate = async expression => (await command('Runtime.evaluate', { expres
 const wait = async (expression, label, timeout = 8000) => {
   const started = Date.now();
   while (Date.now() - started < timeout) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)); }
-  const context = await evaluate(`({status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent})`);
+  const context = await evaluate(`({status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length})`);
   throw new Error(`Timed out waiting for ${label}: ${JSON.stringify(context)}`);
 };
 const buttonExpression = text => `Array.from(document.querySelectorAll('button')).find(element => element.textContent.trim().includes(${JSON.stringify(text)}))`;
@@ -48,6 +48,29 @@ const pass = message => { results.push(message); console.log(`✓ ${message}`); 
 await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_RULERS_ONLY === '1') {
+  if (!await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await pointerClick('Rulers off');
+  await wait(`document.querySelectorAll('.ruler-horizontal .ruler-tick').length === document.querySelectorAll('.page-frame').length * 29`, 'horizontal ruler ticks');
+  const ruler = await evaluate(`(()=>{const frame=document.querySelector('.page-frame');const page=frame.querySelector('.document-page');const ticks=frame.querySelectorAll('.ruler-horizontal .ruler-tick');const vertical=frame.querySelectorAll('.ruler-vertical .ruler-tick');return {pageWidth:page.getBoundingClientRect().width,pageHeight:page.getBoundingClientRect().height,frameHeight:frame.getBoundingClientRect().height,quarter:ticks[1].getBoundingClientRect().left-ticks[0].getBoundingClientRect().left,horizontal:ticks.length,vertical:vertical.length,lastLabel:vertical[vertical.length-1].textContent}})()`);
+  if (ruler.horizontal !== 29 || ruler.vertical !== 35 || ruler.lastLabel !== '8.5' || Math.abs(ruler.quarter - ruler.pageWidth / 28) > .25 || Math.abs(ruler.pageHeight - ruler.frameHeight) > .25 || Math.abs(ruler.pageHeight / ruler.pageWidth - 8.5 / 7) > .001) throw new Error(`Ruler or page measurements are inaccurate: ${JSON.stringify(ruler)}`);
+  await command('Emulation.setDeviceMetricsOverride', { width: 1100, height: 800, deviceScaleFactor: 1, mobile: false });
+  const compactRuler = await evaluate(`(()=>{const frame=document.querySelector('.page-frame');const page=frame.querySelector('.document-page');const ticks=frame.querySelectorAll('.ruler-horizontal .ruler-tick');return {pageWidth:page.getBoundingClientRect().width,pageHeight:page.getBoundingClientRect().height,frameHeight:frame.getBoundingClientRect().height,quarter:ticks[1].getBoundingClientRect().left-ticks[0].getBoundingClientRect().left}})()`);
+  if (Math.abs(compactRuler.quarter - compactRuler.pageWidth / 28) > .25 || Math.abs(compactRuler.pageHeight - compactRuler.frameHeight) > .25 || Math.abs(compactRuler.pageHeight / compactRuler.pageWidth - 8.5 / 7) > .001) throw new Error(`Responsive ruler or page measurements are inaccurate: ${JSON.stringify(compactRuler)}`);
+  await command('Emulation.clearDeviceMetricsOverride');
+  await pointerClick('Rulers on');
+  await wait(`!document.querySelector('.page-rulers') && !document.querySelector('.page-frame.with-rulers')`, 'hidden rulers and spacing');
+  if (await evaluate(`localStorage.getItem('bulletin-show-rulers') !== 'false'`)) throw new Error('Hidden ruler preference was not saved.');
+  await click('Templates');
+  await wait(`document.querySelector('.ruler-toggle')?.textContent.includes('off') && !document.querySelector('.page-rulers')`, 'hidden template rulers');
+  await pointerClick('Rulers off');
+  await wait(`Boolean(document.querySelector('.builder-preview .page-rulers'))`, 'visible template rulers');
+  if (await evaluate(`localStorage.getItem('bulletin-show-rulers') !== 'true'`)) throw new Error('Visible ruler preference was not saved.');
+  pass('renders optional, accurate 7 × 8.5 inch rulers');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_DELETE_ONLY === '1') {
   await pointerClick('Delete');

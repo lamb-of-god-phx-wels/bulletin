@@ -17,6 +17,13 @@ function FlowAsset({ asset, source }: { asset: AssetRef; source?: string }) {
     : <img src={source} alt={asset.alt ?? ''} />;
 }
 
+function PageRulers() {
+  const horizontal = Array.from({ length: 29 }, (_, index) => ({ index, position: `${index / 28 * 100}%`, label: index % 4 === 0 ? String(index / 4) : undefined }));
+  const vertical = Array.from({ length: 35 }, (_, index) => ({ index, position: `${index / 34 * 100}%`, label: index % 4 === 0 ? String(index / 4) : index === 34 ? '8.5' : undefined }));
+  const tickClass = (index: number) => `ruler-tick ${index % 4 === 0 ? 'major' : index % 2 === 0 ? 'half' : 'quarter'}`;
+  return <div className="page-rulers" aria-hidden="true"><div className="ruler-corner">in</div><div className="ruler ruler-horizontal">{horizontal.map(tick => <i className={tickClass(tick.index)} style={{ left: tick.position }} key={tick.index}>{tick.label && <span>{tick.label}</span>}</i>)}</div><div className="ruler ruler-vertical">{vertical.map(tick => <i className={tickClass(tick.index)} style={{ top: tick.position }} key={tick.index}>{tick.label && <span>{tick.label}</span>}</i>)}</div></div>;
+}
+
 function BlockView({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
@@ -46,7 +53,7 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
   }
 }
 
-export function DocumentView({ document: bulletin, template, library, root, print = false, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; onReady?(): void }) {
+export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; onReady?(): void }) {
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(bulletin.blocks.flatMap(block => {
     const result: AssetRef[] = [];
@@ -72,7 +79,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--body-size': `${template.theme.bodySizePt}pt`, '--line-height': template.theme.lineHeight,
     '--page-margin': `${template.theme.marginIn}in`
   } as React.CSSProperties}>
-    {pages.map(page => <div className="page-frame" key={page.number}><article className={`document-page page-${page.kind}`}>
+    {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <PageRulers />}<article className={`document-page page-${page.kind}`}>
       <div className="page-content">{page.blocks.map(block => <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
     </article></div>)}

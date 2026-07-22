@@ -50,6 +50,30 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_GUIDES_ONLY === '1') {
+  if (await evaluate(`document.querySelector('.guide-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Guides on');
+  await click('Guides off');
+  await wait(`document.querySelectorAll('.page-guides').length === document.querySelectorAll('.page-frame').length`, 'weekly margin guides');
+  const weeklyGuide = await evaluate(`(()=>{const page=document.querySelector('.document-page').getBoundingClientRect();const guide=document.querySelector('.page-guides').getBoundingClientRect();const content=document.querySelector('.document-page > .page-content > :first-child').getBoundingClientRect();return {pageLeft:page.left,pageTop:page.top,pageRight:page.right,pageBottom:page.bottom,guideLeft:guide.left,guideTop:guide.top,guideRight:guide.right,guideBottom:guide.bottom,contentLeft:content.left,contentTop:content.top}})()`);
+  if (Math.abs(weeklyGuide.guideLeft - weeklyGuide.contentLeft) > 1 || Math.abs(weeklyGuide.guideTop - weeklyGuide.contentTop) > 1 || Math.abs((weeklyGuide.guideLeft - weeklyGuide.pageLeft) - (weeklyGuide.pageRight - weeklyGuide.guideRight)) > 1 || Math.abs((weeklyGuide.guideTop - weeklyGuide.pageTop) - (weeklyGuide.pageBottom - weeklyGuide.guideBottom)) > 1) throw new Error(`Weekly guides do not align with the content margin: ${JSON.stringify(weeklyGuide)}`);
+  await click('Templates');
+  await wait(`Boolean(document.querySelector('.builder-preview .page-guides'))`, 'template margin guides');
+  await fill('Page margin (inches)', '0.5');
+  await wait(`(()=>{const page=document.querySelector('.builder-preview .document-page')?.getBoundingClientRect();const guide=document.querySelector('.builder-preview .page-guides')?.getBoundingClientRect();if(!page||!guide)return false;const inch=page.width/7;return Math.abs((guide.left-page.left)/inch-.5)<.01&&Math.abs((guide.top-page.top)/inch-.5)<.01})()`, 'half-inch guide alignment');
+  if (await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers on');
+  await wait(`!document.querySelector('.page-rulers') && Boolean(document.querySelector('.page-guides'))`, 'guides without rulers');
+  await click('Guides on');
+  await wait(`!document.querySelector('.page-guides')`, 'hidden guides');
+  if (await evaluate(`localStorage.getItem('bulletin-show-guides') !== 'false'`)) throw new Error('Hidden guide preference was not saved.');
+  await click('Guides off');
+  await wait(`Boolean(document.querySelector('.builder-preview .page-guides'))`, 'restored guides');
+  if (await evaluate(`localStorage.getItem('bulletin-show-guides') !== 'true'`)) throw new Error('Visible guide preference was not saved.');
+  pass('renders optional margin guides in weekly and template previews');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_RULERS_ONLY === '1') {
   if (!await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers off');
   await wait(`document.querySelectorAll('.ruler-horizontal .ruler-tick').length === document.querySelectorAll('.page-frame').length * 29`, 'horizontal ruler ticks');

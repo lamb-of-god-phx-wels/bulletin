@@ -66,7 +66,7 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
   }
 }
 
-export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; onReady?(): void }) {
+export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; onReady?(): void }) {
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(bulletin.blocks.flatMap(block => {
     const result: AssetRef[] = [];
@@ -93,6 +93,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--page-margin': `${template.theme.marginIn}in`
   } as React.CSSProperties}>
     {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
+      {guides && !print && <div className="page-guides" aria-hidden="true" />}
       <div className="page-content">{page.blocks.map(block => <BlockView key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
     </article></div>)}

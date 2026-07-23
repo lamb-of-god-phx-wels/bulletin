@@ -6,6 +6,7 @@ import { TemplateSwitcher } from './components/TemplateSwitcher';
 import { createBulletin, defaultTemplate } from './shared/defaults';
 import { libraryFamilies, type LibraryFamily } from './shared/library';
 import { paginate } from './shared/pagination';
+import { paragraphsFromPlainText } from './shared/plainText';
 import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, type TemplateRecord } from './shared/templates';
 import type { BulletinDocumentV1, LibraryItemV1, LibraryManifestV1, TemplateV1, ValidationIssue, WorkspaceSummary } from './shared/types';
 import { validateBulletin } from './shared/validation';
@@ -322,7 +323,7 @@ function LibraryView({ workspace, onSave, onError }: { workspace: WorkspaceSumma
     if (!id || !draft.title.trim()) { onError('Enter a title and stable ID before saving the library item.'); return; }
     const version = Math.max(0, ...items.filter(item => item.id === id).map(item => item.version)) + 1;
     const item: LibraryItemV1 = { ...(editing?.aliases ? { aliases: editing.aliases } : {}), id, version, kind: draft.kind, title: draft.title,
-      ...(draft.text ? { content: draft.text.split(/\n\s*\n/).map(text => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text: text.replace(/\n/g, ' ') }] })) } : {}),
+      ...(draft.text ? { content: paragraphsFromPlainText(draft.text, { preserveLineBreaks: draft.kind === 'song' }) } : {}),
       ...(draft.notice ? { license: { notice: draft.notice, ...(editing?.license?.licenseNumber ? { licenseNumber: editing.license.licenseNumber } : {}) } } : {}), ...(draft.asset ? { assets: [draft.asset, ...(editing?.assets?.slice(1) ?? [])] } : {}) };
     try { await onSave({ ...(workspace.library ?? { schemaVersion: 1, name: 'Church Library' }), items: [...items, item] }); setSelectedVersions(current => ({ ...current, [id]: version })); setAdding(false); setEditing(undefined); setDraft(emptyLibraryDraft()); }
     catch { /* The parent reports the actionable error. */ }

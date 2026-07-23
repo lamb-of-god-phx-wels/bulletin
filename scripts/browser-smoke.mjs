@@ -110,6 +110,28 @@ if (process.env.BULLETIN_PREVIEW_NAV_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_SONG_LINES_ONLY === '1') {
+  const libraryLyrics = 'Verse one, line one\nVerse one, line two\n\nVerse two, line one\nVerse two, line two';
+  await click('Library'); await click('Add library item');
+  await fill('Title', 'Line Break Hymn'); await fill('Stable ID', 'line-break-hymn'); await fill('Structured text', libraryLyrics);
+  await click('Save item'); await wait(`document.body.textContent.includes('Line Break Hymn')`, 'saved line-break song');
+  const storedLyrics = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.items.find(item=>item.id==='line-break-hymn').content.map(paragraph=>paragraph.children[0].text))`);
+  if (storedLyrics.length !== 2 || storedLyrics[0] !== 'Verse one, line one\nVerse one, line two' || storedLyrics[1] !== 'Verse two, line one\nVerse two, line two') throw new Error(`Library song lines were not preserved: ${JSON.stringify(storedLyrics)}`);
+  await click('This week'); await choose('Library song', 'line-break-hymn');
+  const songBlockId = await evaluate(`Array.from(document.querySelectorAll('.editor-pane select')).find(element=>element.value==='line-break-hymn').closest('[data-editor-block-id]').dataset.editorBlockId`);
+  await wait(`(()=>{const song=document.querySelector('.preview-pane [data-block-id="${songBlockId}"]');return song?.querySelector('p')?.textContent==='Verse one, line one\\nVerse one, line two'&&getComputedStyle(song.querySelector('p')).whiteSpace==='pre-line'})()`, 'rendered library lyric lines');
+  const weeklyLyrics = 'Weekly line one\nWeekly line two\n\nWeekly second verse';
+  await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(element=>element.dataset.editorBlockId===${JSON.stringify(songBlockId)});const textarea=editor.querySelector('textarea[placeholder="Enter song lyrics…"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(textarea,${JSON.stringify(weeklyLyrics)});textarea.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`document.querySelector('.preview-pane [data-block-id="${songBlockId}"] p')?.textContent==='Weekly line one\\nWeekly line two'`, 'rendered weekly lyric lines');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved weekly lyric lines');
+  const weeklyStored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(songBlockId)}).contentOverride.map(paragraph=>paragraph.children[0].text))`);
+  if (weeklyStored[0] !== 'Weekly line one\nWeekly line two' || weeklyStored[1] !== 'Weekly second verse') throw new Error(`Weekly song lines were not preserved: ${JSON.stringify(weeklyStored)}`);
+  pass('preserves lyric lines in library songs and weekly overrides');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_MARGIN_ONLY === '1') {
   await fill('Page margin (inches)', '0.65');
   await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.65in'`, 'weekly page margin preview');

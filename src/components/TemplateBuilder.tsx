@@ -17,7 +17,10 @@ function builtInBlock(type: BulletinBlock['type']): BulletinBlock {
     : type === 'spacer' ? { id, type, size: 'medium' }
     : type === 'scriptureReading' ? { id, type, reference: '', translation: 'NIV', label: 'Reading', weeklyEditable: true }
     : type === 'song' ? { id, type, songType: 'hymn', libraryItemId: '', selection: { mode: 'all' }, renderMode: 'lyrics', label: 'Hymn', weeklyEditable: true }
-    : type === 'responsiveReading' ? { id, type, entries: [{ reader: 'M', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'New response' }] }] }] }
+    : type === 'responsiveReading' ? { id, type, entries: [
+      { role: 'leader', reader: 'M', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'New leader response' }] }] },
+      { role: 'follower', reader: 'C', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'New follower response' }] }] }
+    ] }
     : type === 'libraryText' ? { id, type, libraryItemId: '', title: 'Reusable text', weeklyEditable: true }
     : type === 'announcements' ? { id, type, items: [], weeklyEditable: true }
     : type === 'churchInfo' ? { id, type, children: defaultChurchInfoChildren() }

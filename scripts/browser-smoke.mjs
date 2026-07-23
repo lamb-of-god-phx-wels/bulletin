@@ -158,6 +158,23 @@ if (process.env.BULLETIN_VERSE_NUMBERS_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_RESPONSIVE_ONLY === '1') {
+  await wait(`Boolean(document.querySelector('.preview-pane .response-leader')&&document.querySelector('.preview-pane .response-follower'))`, 'leader and follower response rows');
+  const weights = await evaluate(`(()=>{const weight=element=>Number.parseInt(getComputedStyle(element).fontWeight,10);const leader=document.querySelector('.preview-pane .response-leader');const follower=document.querySelector('.preview-pane .response-follower');return {leaderLabel:weight(leader.querySelector('.response-reader')),leaderText:weight(leader.querySelector('p')),followerLabel:weight(follower.querySelector('.response-reader')),followerText:weight(follower.querySelector('p')),synthesis:getComputedStyle(follower).fontSynthesisWeight}})()`);
+  if (weights.leaderLabel >= 600 || weights.leaderText >= 600 || weights.followerLabel < 600 || weights.followerText < 600 || weights.synthesis === 'none') throw new Error(`Responsive reading weights are incorrect: ${JSON.stringify(weights)}`);
+  const responsiveBlockId = await evaluate(`document.querySelector('.editor-pane .response-editor').closest('[data-editor-block-id]').dataset.editorBlockId`);
+  const before = await evaluate(`document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-row').length`);
+  await evaluate(`Array.from(document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .response-add-actions').querySelectorAll('button')).find(button=>button.textContent.includes('Follower')).click()`);
+  await wait(`(()=>{const rows=document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-row');const added=rows[rows.length-1];return rows.length===${before + 1}&&added?.classList.contains('response-follower')&&added.textContent.includes('New follower response')&&Number.parseInt(getComputedStyle(added.querySelector('p')).fontWeight,10)>=600})()`, 'new follower response');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved responsive reading roles');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(responsiveBlockId)}).entries.at(-1))`);
+  if (stored.role !== 'follower' || stored.reader !== 'C') throw new Error(`Follower role was not persisted: ${JSON.stringify(stored)}`);
+  pass('distinguishes regular leaders from bold congregation responses');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_WEEKLY_DELETE_ONLY === '1') {
   const blockId = await evaluate(`Array.from(document.querySelectorAll('.editor-pane .block-editor')).find(editor=>editor.querySelector('.block-type')?.textContent.startsWith('heading')&&document.querySelector('.preview-pane [data-block-id="'+editor.dataset.editorBlockId+'"]')).dataset.editorBlockId`);
   await evaluate(`Array.from(document.querySelectorAll('.editor-pane .block-editor')).find(editor=>editor.dataset.editorBlockId===${JSON.stringify(blockId)}).querySelector('button[aria-label^="Remove "]').click()`);

@@ -4,6 +4,7 @@ import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/custom
 import { childBlocks, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
+import { responsiveEntryRole } from '../shared/responsiveReading';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
   ? <br key={index} />
@@ -82,7 +83,10 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
     case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</section>;
     case 'richText': return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''}`}><Paragraphs content={block.content} /></div>;
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
-    case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => <div className="response-row" key={index}><b>{entry.reader}:</b><div><Paragraphs content={entry.content} /></div></div>)}</div>;
+    case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => {
+      const role = responsiveEntryRole(entry);
+      return <div className={`response-row response-${role}`} data-response-role={role} key={index}><span className="response-reader">{entry.reader}:</span><div><Paragraphs content={entry.content} /></div></div>;
+    })}</div>;
     case 'scriptureReading': return <section className="scripture"><h3>{block.label ?? 'Reading'}: <span>{block.reference}</span></h3>{block.caption && <p className="caption">{block.caption}</p>}{block.resolved ? <Paragraphs content={block.resolved.content} /> : <p className="missing">Passage text has not been resolved. Add it before export.</p>}<div className="translation">{block.translation}</div></section>;
     case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section className="song">{block.showHeading !== false && <h3>{block.label ?? block.songType}: <span>{block.title ?? item?.title ?? block.libraryItemId}</span></h3>}{block.renderMode === 'asset' && asset ? <div className="song-asset" style={block.assetHeightIn ? { '--song-asset-height': `${block.assetHeightIn}in` } as React.CSSProperties : undefined}><FlowAsset asset={asset} source={assets[asset.path]} /></div> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
     case 'libraryText': { const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section><h3 className="block-heading">{block.label ?? block.title ?? item?.title}</h3>{content ? <Paragraphs content={content} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>; }

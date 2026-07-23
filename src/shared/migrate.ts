@@ -30,6 +30,7 @@ function migrateResponsive(item: Legacy, id: string): ResponsiveReadingBlock {
     type: 'responsiveReading',
     entries: (item.content ?? []).map((entry: Legacy) => ({
       reader: entry.reader ?? '',
+      role: /^C(?:\b|:)/i.test((entry.reader ?? '').trim()) ? 'follower' : 'leader',
       content: (entry.content ?? []).map((content: Legacy) =>
         content.type === 'scripture'
           ? para(content.scripture ?? content.bibleReference ?? '')

@@ -15,6 +15,7 @@ describe('legacy bulletin migration', () => {
     expect(migrated.info.date).toBe('2026-06-07');
     expect(migrated.blocks[1]).toMatchObject({ type: 'scriptureReading', reference: 'Matthew 9:9-13', translation: 'NIV' });
     expect(migrated.blocks[2]).toMatchObject({ type: 'song', libraryItemId: 'cw399', selection: { mode: 'verses', verses: [1, 3] } });
+    expect(migrated.blocks[0]).toMatchObject({ type: 'responsiveReading', entries: [{ reader: 'M', role: 'leader' }] });
     expect(JSON.stringify(migrated.blocks[0])).toContain('"name":"cross"');
   });
 

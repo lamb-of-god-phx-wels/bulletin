@@ -34,9 +34,15 @@ export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHead
 export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
 export interface RichTextBlock extends BlockBase { type: 'richText'; role?: 'header' | 'body'; content: Paragraph[] }
 export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string }
+export type ResponsiveReadingRole = 'leader' | 'follower';
+export interface ResponsiveReadingEntry {
+  reader: string;
+  role?: ResponsiveReadingRole;
+  content: Paragraph[];
+}
 export interface ResponsiveReadingBlock extends BlockBase {
   type: 'responsiveReading';
-  entries: Array<{ reader: string; content: Paragraph[] }>;
+  entries: ResponsiveReadingEntry[];
 }
 export interface ScriptureBlock extends BlockBase {
   type: 'scriptureReading';

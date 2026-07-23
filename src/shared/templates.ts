@@ -26,6 +26,10 @@ export function templateChoices(records: TemplateRecord[]) {
     .sort((left, right) => left.template.name.localeCompare(right.template.name));
 }
 
+export function templateVersions(records: TemplateRecord[], id: string) {
+  return records.filter(record => record.template.id === id).sort(byVersion);
+}
+
 export function nextTemplateVersion(records: TemplateRecord[], id: string) {
   return Math.max(0, ...records.filter(record => record.template.id === id).map(record => record.template.version)) + 1;
 }

@@ -7,7 +7,7 @@ import { createBulletin, defaultTemplate } from './shared/defaults';
 import { libraryFamilies, type LibraryFamily } from './shared/library';
 import { paginate } from './shared/pagination';
 import { paragraphsFromPlainText } from './shared/plainText';
-import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, type TemplateRecord } from './shared/templates';
+import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, templateVersions, type TemplateRecord } from './shared/templates';
 import type { BulletinDocumentV1, LibraryItemV1, LibraryManifestV1, TemplateV1, ValidationIssue, WorkspaceSummary } from './shared/types';
 import { validateBulletin } from './shared/validation';
 import { templateForBulletin } from './shared/documentLayout';
@@ -188,18 +188,38 @@ function DesktopApp() {
       setTemplate(next); setTemplatePath(path); reportStatus(`Created ${name}`);
     } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; }
   }
-  async function deleteCurrentTemplate() {
+  function selectAfterTemplateDeletion(templates: TemplateRecord[], preferredId?: string) {
+    const selected = templateChoices(templates).find(item => item.template.id === preferredId) ?? templateChoices(templates)[0] ?? sortedTemplateRecords(templates)[0];
+    if (!selected) return;
+    setWorkspace(current => current ? { ...current, templates } : current);
+    setTemplate(selected.template);
+    setTemplatePath(selected.path);
+  }
+  async function deleteCurrentTemplateVersion() {
     if (!workspace || !window.bulletin || !templatePath || workspace.templates.length <= 1) return;
     try {
       await window.bulletin.deleteTemplate(workspace.root, templatePath);
       const templates = workspace.templates.filter(item => item.path !== templatePath);
-      const selected = templateChoices(templates).find(item => item.template.id === template.id) ?? templateChoices(templates)[0] ?? sortedTemplateRecords(templates)[0];
-      setWorkspace({ ...workspace, templates }); setTemplate(selected.template); setTemplatePath(selected.path);
+      selectAfterTemplateDeletion(templates, template.id);
       reportStatus('Template version deleted');
     } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
   }
-  function confirmTemplateDelete() {
-    setConfirmation({ title: 'Delete template version?', message: `${template.name} version ${template.version}${template.status === 'draft' ? ' draft' : ''} will be permanently removed.`, confirmLabel: 'Delete version', action: deleteCurrentTemplate });
+  async function deleteCurrentTemplateFamily() {
+    if (!workspace || !window.bulletin || templateChoices(workspace.templates).length <= 1) return;
+    const versions = templateVersions(workspace.templates, template.id);
+    try {
+      for (const version of versions) await window.bulletin.deleteTemplate(workspace.root, version.path);
+      const templates = workspace.templates.filter(item => item.template.id !== template.id);
+      selectAfterTemplateDeletion(templates);
+      reportStatus(`Deleted ${template.name} and ${versions.length} version${versions.length === 1 ? '' : 's'}`);
+    } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
+  }
+  function confirmTemplateVersionDelete() {
+    setConfirmation({ title: 'Delete template version?', message: `${template.name} version ${template.version}${template.status === 'draft' ? ' draft' : ''} will be permanently removed. Other versions will remain available.`, confirmLabel: 'Delete version', action: deleteCurrentTemplateVersion });
+  }
+  function confirmTemplateFamilyDelete() {
+    const versions = workspace ? templateVersions(workspace.templates, template.id).length : 0;
+    setConfirmation({ title: 'Delete template?', message: `“${template.name}” and all ${versions} version${versions === 1 ? '' : 's'} will be permanently removed.`, confirmLabel: 'Delete template', action: deleteCurrentTemplateFamily });
   }
   function toggleRulers() {
     setShowRulers(current => {
@@ -297,7 +317,7 @@ function DesktopApp() {
       <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" onClick={confirmBulletinDelete}>Delete</button>}<button className="secondary" onClick={beginNewBulletin}>New week</button><button type="button" className="primary" disabled={!window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
       {screen === 'weekly' && document && <div className="weekly-layout"><section className="editor-pane" onClick={handleEditorBlockClick}><WeeklyEditor document={document} template={template} library={workspace.library} root={workspace.root} relativePath={relativePath} onChange={changeDocument} onError={reportStatus} /></section><section className="preview-pane" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Print preview</b><span>{pageCount} pages · 7 × 8.5 in</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /><div className={issues.length ? 'validation warning' : 'validation'}>{issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish` : '✓ Ready to export'}</div></div><DocumentView document={document} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></section></div>}
       {screen === 'weekly' && !document && <div className="empty-state"><span>◫</span><h2>No bulletins yet</h2><p>Create a bulletin from one of your templates when you’re ready to begin.</p><button className="primary" onClick={beginNewBulletin}>Create bulletin</button></div>}
-      {screen === 'templates' && <div className="template-screen"><div className="template-workbench" onClick={handleEditorBlockClick}><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} definitions={workspace.library?.blocks ?? []} onChange={setTemplate} onDefinitionsChange={async blocks => { if (!window.bulletin) return; const library = { ...(workspace.library ?? { schemaVersion: 1 as const, name: 'Shared Library', items: [] }), blocks }; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('Block library saved'); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; } }} onSave={saveTemplate} onDelete={confirmTemplateDelete} canDelete={workspace.templates.length > 1 && Boolean(templatePath)} /></div><div className="builder-preview" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Template preview</b><span>7 × 8.5 in pages</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /></div><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></div></div>}
+      {screen === 'templates' && <div className="template-screen"><div className="template-workbench" onClick={handleEditorBlockClick}><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} definitions={workspace.library?.blocks ?? []} onChange={setTemplate} onDefinitionsChange={async blocks => { if (!window.bulletin) return; const library = { ...(workspace.library ?? { schemaVersion: 1 as const, name: 'Shared Library', items: [] }), blocks }; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('Block library saved'); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; } }} onSave={saveTemplate} onDeleteVersion={confirmTemplateVersionDelete} onDeleteTemplate={confirmTemplateFamilyDelete} canDeleteVersion={workspace.templates.length > 1 && Boolean(templatePath)} canDeleteTemplate={templateChoices(workspace.templates).length > 1 && Boolean(templatePath)} /></div><div className="builder-preview" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Template preview</b><span>7 × 8.5 in pages</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /></div><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></div></div>}
       {screen === 'library' && <LibraryView workspace={workspace} onError={reportStatus} onSave={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace({ ...workspace, library }); reportStatus('Library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} />}
     </main>
     {statusIsError && <div className="error-toast" role="alert"><span>!</span><div><b>Something needs attention</b><p>{status}</p></div><button aria-label="Dismiss error" onClick={() => reportStatus('Ready')}>×</button></div>}

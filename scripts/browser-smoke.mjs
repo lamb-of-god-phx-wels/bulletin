@@ -396,6 +396,33 @@ if (process.env.BULLETIN_RULERS_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_TEMPLATE_DELETE_ONLY === '1') {
+  await click('Templates');
+  await wait(`Boolean(document.querySelector('select[aria-label="Template"]')&&document.querySelector('select[aria-label="Template version"]'))`, 'separate template and version selectors');
+  const initialFamilies = await evaluate(`document.querySelector('select[aria-label="Template"]').options.length`);
+  const temporaryName = `Temporary Delete Template ${Date.now()}`;
+  await click('New template');
+  await fill('New template name', temporaryName);
+  await click('Create from current');
+  await wait(`document.querySelector('select[aria-label="Template"]').options.length===${initialFamilies + 1}&&document.querySelector('select[aria-label="Template"]').selectedOptions[0]?.textContent===${JSON.stringify(temporaryName)}`, 'created template family');
+  await click('Publish new version');
+  await wait(`document.querySelector('select[aria-label="Template version"]').options.length===2&&document.querySelector('.template-save-status')?.textContent.includes('New version published')`, 'published second template version');
+  await evaluate(`Array.from(document.querySelectorAll('.builder-actions button')).find(button=>button.textContent.trim()==='Delete version').click()`);
+  await wait(`document.querySelector('.confirmation-modal')?.textContent.includes('Other versions will remain available')`, 'delete version confirmation');
+  await evaluate(`document.querySelector('.confirmation-modal .danger').click()`);
+  await wait(`document.querySelector('select[aria-label="Template version"]').options.length===1&&document.querySelector('select[aria-label="Template"]').selectedOptions[0]?.textContent===${JSON.stringify(temporaryName)}`, 'deleted selected template version');
+  await evaluate(`Array.from(document.querySelectorAll('.builder-actions button')).find(button=>button.textContent.trim()==='Delete template').click()`);
+  await wait(`document.querySelector('.confirmation-modal')?.textContent.includes('and all 1 version')`, 'delete template family confirmation');
+  await evaluate(`document.querySelector('.confirmation-modal .danger').click()`);
+  await wait(`document.querySelector('select[aria-label="Template"]').options.length===${initialFamilies}&&!Array.from(document.querySelector('select[aria-label="Template"]').options).some(option=>option.textContent===${JSON.stringify(temporaryName)})`, 'deleted template family');
+  const remaining = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.filter(record=>record.template.name===${JSON.stringify(temporaryName)}).length)`);
+  if (remaining !== 0) throw new Error(`Deleted template records remain in storage: ${remaining}`);
+  pass('separates template families from versions and deletes either scope');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_DELETE_ONLY === '1') {
   await pointerClick('Delete');
   await wait(`Boolean(document.querySelector('.confirmation-modal'))`, 'in-app delete confirmation');

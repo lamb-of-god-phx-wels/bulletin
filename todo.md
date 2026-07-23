@@ -1,6 +1,5 @@
 # TODO
 
-# Intro page - remove "Windows and Arch Linux · local-first · no account required" statement and other superfluous messaging.
 * Zoom support for preview
 * Change "Guides on/off" and "Rulers on/off" to simply "Guides" and "Rulers" (state implied by existing coloring)
 * Verse numbers from bible references should be rendered as superscripts

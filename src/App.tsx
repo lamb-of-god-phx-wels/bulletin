@@ -172,7 +172,7 @@ function DesktopApp() {
     });
   }
 
-  if (!workspace) return <div className="welcome-screen"><div className="brand-mark">✠</div><div className="eyebrow">Bulletin Builder</div><h1>Sunday’s bulletin,<br />without the busywork.</h1><p>Choose the folder your church already syncs with SharePoint. Templates, approved content, and weekly projects will live there together.</p><button className="primary large" onClick={chooseWorkspace}>Choose bulletin workspace</button><small>Windows and Arch Linux · local-first · no account required</small></div>;
+  if (!workspace) return <div className="welcome-screen"><div className="brand-mark">✠</div><div className="eyebrow">Bulletin Builder</div><h1>Sunday’s bulletin,<br />without the busywork.</h1><p>Choose the folder where your church keeps its bulletins.</p><button className="primary large" onClick={chooseWorkspace}>Choose bulletin workspace</button></div>;
 
   const pageCount = document ? paginate(document.blocks, templateForBulletin(template, document), workspace.library).length : 0;
   const issues = document ? validateBulletin(document, workspace.library) : [];

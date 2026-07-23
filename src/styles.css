@@ -18,7 +18,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .welcome-screen .brand-mark { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 30px; border-radius: 50%; color: white; background: #9b4e30; font-size: 24px; }
 .welcome-screen h1 { margin: 12px 0 18px; max-width: 700px; font: 54px/1.03 Georgia, serif; letter-spacing: -.035em; }
 .welcome-screen p { max-width: 590px; margin: 0 0 28px; color: #615d54; font-size: 18px; line-height: 1.6; }
-.welcome-screen small { margin-top: 18px; color: #817c72; }
 .app-shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100vh; overflow: hidden; }
 .sidebar { display: flex; flex-direction: column; padding: 25px 16px 16px; color: #e9e7de; background: #27322e; }
 .app-brand { display: flex; align-items: center; gap: 12px; padding: 0 10px 26px; }

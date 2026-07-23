@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type WheelEvent as ReactWheelEvent } from 'react';
 import { DocumentView } from './components/DocumentView';
 import { WeeklyEditor } from './components/WeeklyEditor';
 import { TemplateBuilder } from './components/TemplateBuilder';
@@ -16,6 +16,25 @@ type Confirmation = { title: string; message: string; confirmLabel: string; acti
 type LibraryDraft = { id: string; title: string; kind: LibraryItemV1['kind']; text: string; notice: string; asset?: NonNullable<LibraryItemV1['assets']>[number] };
 const emptyLibraryDraft = (): LibraryDraft => ({ id: '', title: '', kind: 'song', text: '', notice: '' });
 const libraryContentText = (item: LibraryItemV1) => item.content?.map(paragraph => paragraph.children.map(child => child.type === 'text' ? child.text : '✠').join('')).join('\n\n') ?? '';
+const previewZooms = [.5, .6, .72, .85, 1, 1.25];
+
+function PreviewZoomControls({ zoom, onChange, onFit }: { zoom: number; onChange(zoom: number): void; onFit(mode: 'width' | 'page', container: HTMLElement | null): void }) {
+  const lower = [...previewZooms].reverse().find(value => value < zoom - .001) ?? previewZooms[0];
+  const higher = previewZooms.find(value => value > zoom + .001) ?? previewZooms.at(-1)!;
+  const options = previewZooms.includes(zoom) ? previewZooms : [...previewZooms, zoom].sort((left, right) => left - right);
+  return <div className="preview-zoom">
+    <div className="preview-zoom-steps">
+      <button type="button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= previewZooms[0]} onClick={() => onChange(lower)}>−</button>
+      <select aria-label="Preview zoom" value={zoom} onChange={event => onChange(Number(event.target.value))}>{options.map(value => <option value={value} key={value}>{Math.round(value * 100)}%</option>)}</select>
+      <button type="button" aria-label="Zoom in" title="Zoom in" disabled={zoom >= previewZooms.at(-1)!} onClick={() => onChange(higher)}>＋</button>
+    </div>
+    <div className="preview-zoom-presets">
+      <button type="button" onClick={event => onFit('width', event.currentTarget.closest('.preview-pane, .builder-preview'))}>Fit to width</button>
+      <button type="button" onClick={event => onFit('page', event.currentTarget.closest('.preview-pane, .builder-preview'))}>Fit to page</button>
+      <button type="button" onClick={() => onChange(1)}>100%</button>
+    </div>
+  </div>;
+}
 
 export default function App() {
   const [printMode, setPrintMode] = useState(() => new URLSearchParams(location.search).get('print') === '1');
@@ -45,6 +64,10 @@ function DesktopApp() {
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
+  const [previewZoom, setPreviewZoom] = useState(() => {
+    const saved = Number(localStorage.getItem('bulletin-preview-zoom'));
+    return previewZooms.includes(saved) ? saved : window.innerWidth <= 1120 ? .6 : .72;
+  });
   const [newBulletinPicker, setNewBulletinPicker] = useState(false);
   const dirty = useRef(false);
   const savedRevision = useRef(0);
@@ -171,6 +194,30 @@ function DesktopApp() {
       return next;
     });
   }
+  function changePreviewZoom(zoom: number) {
+    setPreviewZoom(zoom);
+    localStorage.setItem('bulletin-preview-zoom', String(zoom));
+  }
+  function fitPreview(mode: 'width' | 'page', container: HTMLElement | null) {
+    const stack = container?.querySelector<HTMLElement>('.document-stack');
+    if (!stack) return;
+    const rulerWidth = showRulers ? 46 : 0;
+    const rulerHeight = showRulers ? 75 : 0;
+    const fitWidth = (stack.clientWidth - 48 - rulerWidth) / 672;
+    const fitPage = Math.min(fitWidth, (stack.clientHeight - 56 - rulerHeight) / 816);
+    changePreviewZoom(Math.round(Math.max(.1, Math.min(2, mode === 'width' ? fitWidth : fitPage)) * 1000) / 1000);
+  }
+  function handlePreviewWheel(event: ReactWheelEvent<HTMLElement>) {
+    if (!event.ctrlKey || event.deltaY === 0) return;
+    event.preventDefault();
+    setPreviewZoom(current => {
+      const currentIndex = previewZooms.indexOf(current);
+      const nextIndex = Math.max(0, Math.min(previewZooms.length - 1, currentIndex + (event.deltaY < 0 ? 1 : -1)));
+      const next = previewZooms[nextIndex];
+      localStorage.setItem('bulletin-preview-zoom', String(next));
+      return next;
+    });
+  }
 
   if (!workspace) return <div className="welcome-screen"><div className="brand-mark">✠</div><div className="eyebrow">Bulletin Builder</div><h1>Sunday’s bulletin,<br />without the busywork.</h1><p>Choose the folder where your church keeps its bulletins.</p><button className="primary large" onClick={chooseWorkspace}>Choose bulletin workspace</button></div>;
 
@@ -182,9 +229,9 @@ function DesktopApp() {
     <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={showWeekly}><span>◫</span>This week</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{workspace.bulletins.slice().sort((a, b) => b.document.info.date.localeCompare(a.document.info.date)).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom"><button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span></div></aside>
     <main className="main-area">
       <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-pressed={showGuides} onClick={toggleGuides}>Guides {showGuides ? 'on' : 'off'}</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers {showRulers ? 'on' : 'off'}</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" onClick={confirmBulletinDelete}>Delete</button>}<button className="secondary" onClick={beginNewBulletin}>New week</button><button type="button" className="primary" disabled={!window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
-      {screen === 'weekly' && document && <div className="weekly-layout"><section className="editor-pane"><WeeklyEditor document={document} template={template} library={workspace.library} root={workspace.root} relativePath={relativePath} onChange={changeDocument} onError={reportStatus} /></section><section className="preview-pane"><div className="preview-toolbar"><div><b>Print preview</b><span>{pageCount} pages · 7 × 8.5 in</span></div><div className={issues.length ? 'validation warning' : 'validation'}>{issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish` : '✓ Ready to export'}</div></div><DocumentView document={document} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} /></section></div>}
+      {screen === 'weekly' && document && <div className="weekly-layout"><section className="editor-pane"><WeeklyEditor document={document} template={template} library={workspace.library} root={workspace.root} relativePath={relativePath} onChange={changeDocument} onError={reportStatus} /></section><section className="preview-pane" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Print preview</b><span>{pageCount} pages · 7 × 8.5 in</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /><div className={issues.length ? 'validation warning' : 'validation'}>{issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish` : '✓ Ready to export'}</div></div><DocumentView document={document} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} /></section></div>}
       {screen === 'weekly' && !document && <div className="empty-state"><span>◫</span><h2>No bulletins yet</h2><p>Create a bulletin from one of your templates when you’re ready to begin.</p><button className="primary" onClick={beginNewBulletin}>Create bulletin</button></div>}
-      {screen === 'templates' && <div className="template-screen"><div className="template-workbench"><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} definitions={workspace.library?.blocks ?? []} onChange={setTemplate} onDefinitionsChange={async blocks => { if (!window.bulletin) return; const library = { ...(workspace.library ?? { schemaVersion: 1 as const, name: 'Shared Library', items: [] }), blocks }; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('Block library saved'); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; } }} onSave={saveTemplate} onDelete={confirmTemplateDelete} canDelete={workspace.templates.length > 1 && Boolean(templatePath)} /></div><div className="builder-preview"><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} /></div></div>}
+      {screen === 'templates' && <div className="template-screen"><div className="template-workbench"><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} definitions={workspace.library?.blocks ?? []} onChange={setTemplate} onDefinitionsChange={async blocks => { if (!window.bulletin) return; const library = { ...(workspace.library ?? { schemaVersion: 1 as const, name: 'Shared Library', items: [] }), blocks }; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('Block library saved'); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; } }} onSave={saveTemplate} onDelete={confirmTemplateDelete} canDelete={workspace.templates.length > 1 && Boolean(templatePath)} /></div><div className="builder-preview" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Template preview</b><span>7 × 8.5 in pages</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /></div><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} /></div></div>}
       {screen === 'library' && <LibraryView workspace={workspace} onError={reportStatus} onSave={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library); setWorkspace({ ...workspace, library }); reportStatus('Library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} />}
     </main>
     {statusIsError && <div className="error-toast" role="alert"><span>!</span><div><b>Something needs attention</b><p>{status}</p></div><button aria-label="Dismiss error" onClick={() => reportStatus('Ready')}>×</button></div>}

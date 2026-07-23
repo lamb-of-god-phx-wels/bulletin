@@ -100,7 +100,7 @@ function RenderedBlock({ block, library, assets, document }: { block: PaginatedB
   return style ? <div className={`block-presentation has-presentation ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div> : <BlockView block={block} library={library} assets={assets} document={document} />;
 }
 
-export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; onReady?(): void }) {
+export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; onReady?(): void }) {
   const effectiveTemplate = templateForBulletin(template, bulletin);
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
@@ -128,7 +128,10 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--body-font': effectiveTemplate.theme.bodyFont, '--display-font': effectiveTemplate.theme.displayFont,
     '--ink': effectiveTemplate.theme.ink, '--accent': effectiveTemplate.theme.accent,
     '--body-size': `${effectiveTemplate.theme.bodySizePt}pt`, '--line-height': effectiveTemplate.theme.lineHeight,
-    '--page-margin': `${effectiveTemplate.theme.marginIn}in`
+    '--page-margin': `${effectiveTemplate.theme.marginIn}in`,
+    '--preview-scale': zoom,
+    '--preview-page-width': `${672 * zoom}px`,
+    '--preview-page-height': `${816 * zoom}px`
   } as React.CSSProperties}>
     {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}

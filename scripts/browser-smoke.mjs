@@ -150,6 +150,19 @@ if (process.env.BULLETIN_VERSE_NUMBERS_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_WEEKLY_DELETE_ONLY === '1') {
+  const blockId = await evaluate(`Array.from(document.querySelectorAll('.editor-pane .block-editor')).find(editor=>editor.querySelector('.block-type')?.textContent.startsWith('heading')&&document.querySelector('.preview-pane [data-block-id="'+editor.dataset.editorBlockId+'"]')).dataset.editorBlockId`);
+  await evaluate(`Array.from(document.querySelectorAll('.editor-pane .block-editor')).find(editor=>editor.dataset.editorBlockId===${JSON.stringify(blockId)}).querySelector('button[aria-label^="Remove "]').click()`);
+  await wait(`!Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).some(element=>element.dataset.editorBlockId===${JSON.stringify(blockId)})&&!Array.from(document.querySelectorAll('.preview-pane [data-block-id]')).some(element=>element.dataset.blockId===${JSON.stringify(blockId)})`, 'removed weekly block and preview');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved weekly block deletion');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.some(block=>block.id===${JSON.stringify(blockId)}))`);
+  if (stored) throw new Error(`Deleted weekly block remains in storage: ${blockId}`);
+  pass('deletes a top-level block from the weekly bulletin');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_MARGIN_ONLY === '1') {
   await fill('Page margin (inches)', '0.65');
   await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.65in'`, 'weekly page margin preview');

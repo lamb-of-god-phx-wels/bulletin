@@ -21,7 +21,7 @@ const evaluate = async expression => (await command('Runtime.evaluate', { expres
 const wait = async (expression, label, timeout = 8000) => {
   const started = Date.now();
   while (Date.now() - started < timeout) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)); }
-  const context = await evaluate(`({status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:document.querySelector('.builder-preview .document-stack')&&{width:document.querySelector('.builder-preview .document-stack').clientWidth,height:document.querySelector('.builder-preview .document-stack').clientHeight},frame:document.querySelector('.builder-preview .page-frame')&&{width:document.querySelector('.builder-preview .page-frame').getBoundingClientRect().width,height:document.querySelector('.builder-preview .page-frame').getBoundingClientRect().height}})`);
+  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
   throw new Error(`Timed out waiting for ${label}: ${JSON.stringify(context)}`);
 };
 const buttonExpression = text => `Array.from(document.querySelectorAll('button')).find(element => element.textContent.trim().includes(${JSON.stringify(text)}))`;
@@ -63,6 +63,7 @@ if (process.env.BULLETIN_EXAMPLE_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_ZOOM_ONLY === '1') {
+  await wait(`(()=>{const stack=document.querySelector('.preview-pane .document-stack');const frame=document.querySelector('.preview-pane .page-frame')?.getBoundingClientRect();if(!stack||!frame)return false;return frame.width<=stack.clientWidth-94+1&&frame.height<=stack.clientHeight-131+1&&(Math.abs(frame.width-(stack.clientWidth-94))<1||Math.abs(frame.height-(stack.clientHeight-131))<1)})()`, 'default fit-to-page zoom');
   const initialWidth = await evaluate(`document.querySelector('.preview-pane .page-frame').getBoundingClientRect().width`);
   await evaluate(`(()=>{const element=document.querySelector('.preview-pane select[aria-label="Preview zoom"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(element,'1');element.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
   await wait(`Math.abs(document.querySelector('.preview-pane .page-frame').getBoundingClientRect().width - 672) < .1`, '100 percent weekly preview');
@@ -82,6 +83,11 @@ if (process.env.BULLETIN_ZOOM_ONLY === '1') {
   await wait(`(()=>{const stack=document.querySelector('.builder-preview .document-stack');const frame=document.querySelector('.builder-preview .page-frame').getBoundingClientRect();return frame.width<=stack.clientWidth-94+1&&frame.height<=stack.clientHeight-131+1&&(Math.abs(frame.width-(stack.clientWidth-94))<1||Math.abs(frame.height-(stack.clientHeight-131))<1)})()`, 'fit-to-page preset');
   await click('100%');
   await wait(`document.querySelector('.builder-preview select[aria-label="Preview zoom"]')?.value === '1' && Math.abs(document.querySelector('.builder-preview .page-frame').getBoundingClientRect().width - 672) < .1`, '100 percent preset');
+  await click('Fit to page');
+  const persistedZoom = await evaluate(`localStorage.getItem('bulletin-preview-zoom')`);
+  await evaluate(`setTimeout(() => location.reload(), 0); true`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await wait(`document.body.textContent.includes('God Loves Sinners') && document.querySelector('.preview-pane select[aria-label="Preview zoom"]')?.value === ${JSON.stringify(persistedZoom)}`, 'restored preview zoom after reload');
   pass('zooms weekly and template previews while preserving page proportions');
   console.log(`\n${results.length} browser MVP checks passed.`);
   socket.close();

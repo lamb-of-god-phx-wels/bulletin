@@ -17,6 +17,11 @@ type LibraryDraft = { id: string; title: string; kind: LibraryItemV1['kind']; te
 const emptyLibraryDraft = (): LibraryDraft => ({ id: '', title: '', kind: 'song', text: '', notice: '' });
 const libraryContentText = (item: LibraryItemV1) => item.content?.map(paragraph => paragraph.children.map(child => child.type === 'text' ? child.text : '✠').join('')).join('\n\n') ?? '';
 const previewZooms = [.5, .6, .72, .85, 1, 1.25];
+const storedPreviewZoom = () => {
+  const raw = localStorage.getItem('bulletin-preview-zoom');
+  const value = raw === null ? Number.NaN : Number(raw);
+  return Number.isFinite(value) && value >= .1 && value <= 2 ? value : undefined;
+};
 
 function PreviewZoomControls({ zoom, onChange, onFit }: { zoom: number; onChange(zoom: number): void; onFit(mode: 'width' | 'page', container: HTMLElement | null): void }) {
   const lower = [...previewZooms].reverse().find(value => value < zoom - .001) ?? previewZooms[0];
@@ -50,6 +55,7 @@ export default function App() {
 }
 
 function DesktopApp() {
+  const initialPreviewZoom = storedPreviewZoom();
   const [workspace, setWorkspace] = useState<WorkspaceSummary>();
   const [screen, setScreen] = useState<Screen>('weekly');
   const [document, setDocument] = useState<BulletinDocumentV1>();
@@ -64,11 +70,9 @@ function DesktopApp() {
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
-  const [previewZoom, setPreviewZoom] = useState(() => {
-    const saved = Number(localStorage.getItem('bulletin-preview-zoom'));
-    return previewZooms.includes(saved) ? saved : window.innerWidth <= 1120 ? .6 : .72;
-  });
+  const [previewZoom, setPreviewZoom] = useState(initialPreviewZoom ?? .72);
   const [newBulletinPicker, setNewBulletinPicker] = useState(false);
+  const previewZoomMode = useRef<'page' | 'width' | 'manual'>(initialPreviewZoom === undefined ? 'page' : 'manual');
   const dirty = useRef(false);
   const savedRevision = useRef(0);
   const statusSequence = useRef(0);
@@ -80,6 +84,20 @@ function DesktopApp() {
     if (root) void loadWorkspace(root);
     else if (window.bulletin?.platform === 'browser') void window.bulletin.chooseWorkspace().then(next => { if (next) return loadWorkspace(next); });
   }, []);
+
+  useEffect(() => {
+    if (!workspace || screen === 'library') return;
+    const container = window.document.querySelector<HTMLElement>('.preview-pane, .builder-preview');
+    const stack = container?.querySelector<HTMLElement>('.document-stack');
+    if (!container || !stack) return;
+    const applyActiveFit = () => {
+      if (previewZoomMode.current !== 'manual') fitPreview(previewZoomMode.current, container);
+    };
+    const timer = window.setTimeout(applyActiveFit);
+    const observer = new ResizeObserver(applyActiveFit);
+    observer.observe(stack);
+    return () => { window.clearTimeout(timer); observer.disconnect(); };
+  }, [workspace, document, screen, showRulers]);
 
   useEffect(() => {
     if (!dirty.current || !document || !workspace || !window.bulletin || !relativePath) return;
@@ -195,6 +213,7 @@ function DesktopApp() {
     });
   }
   function changePreviewZoom(zoom: number) {
+    previewZoomMode.current = 'manual';
     setPreviewZoom(zoom);
     localStorage.setItem('bulletin-preview-zoom', String(zoom));
   }
@@ -205,11 +224,15 @@ function DesktopApp() {
     const rulerHeight = showRulers ? 75 : 0;
     const fitWidth = (stack.clientWidth - 48 - rulerWidth) / 672;
     const fitPage = Math.min(fitWidth, (stack.clientHeight - 56 - rulerHeight) / 816);
-    changePreviewZoom(Math.round(Math.max(.1, Math.min(2, mode === 'width' ? fitWidth : fitPage)) * 1000) / 1000);
+    const zoom = Math.round(Math.max(.1, Math.min(2, mode === 'width' ? fitWidth : fitPage)) * 1000) / 1000;
+    previewZoomMode.current = mode;
+    setPreviewZoom(zoom);
+    localStorage.setItem('bulletin-preview-zoom', String(zoom));
   }
   function handlePreviewWheel(event: ReactWheelEvent<HTMLElement>) {
     if (!event.ctrlKey || event.deltaY === 0) return;
     event.preventDefault();
+    previewZoomMode.current = 'manual';
     setPreviewZoom(current => {
       const currentIndex = previewZooms.indexOf(current);
       const nextIndex = Math.max(0, Math.min(previewZooms.length - 1, currentIndex + (event.deltaY < 0 ? 1 : -1)));

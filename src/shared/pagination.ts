@@ -22,7 +22,7 @@ function contentFor(block: PaginatedBlock, library?: LibraryManifestV1): Paragra
 const usablePoints = (template: TemplateV1) => (template.page.heightIn - template.theme.marginIn * 2) * 72 - 24;
 const charsPerLine = (template: TemplateV1) => Math.max(42, Math.floor(((template.page.widthIn - template.theme.marginIn * 2) * 72) / (template.theme.bodySizePt * .56)));
 const paragraphPoints = (paragraph: Paragraph, template: TemplateV1) => {
-  const explicitLines = Math.max(1, ...paragraph.children.map(child => child.type === 'text' ? child.text.split('\n').length : 1));
+  const explicitLines = 1 + paragraph.children.reduce((count, child) => count + (child.type === 'lineBreak' ? 1 : child.type === 'text' ? child.text.split('\n').length - 1 : 0), 0);
   const wrappedLines = Math.max(1, Math.ceil(paragraphLength(paragraph) / charsPerLine(template)));
   return Math.max(explicitLines, wrappedLines) * template.theme.bodySizePt * template.theme.lineHeight + 8.64;
 };
@@ -72,6 +72,10 @@ function splitParagraph(paragraph: Paragraph, maximumCharacters: number): Paragr
   const groups: Inline[][] = [[]]; let used = 0;
   const nextGroup = () => { groups.push([]); used = 0; };
   for (const child of paragraph.children) {
+    if (child.type === 'lineBreak') {
+      groups.at(-1)!.push(child);
+      continue;
+    }
     if (child.type === 'symbol') {
       if (used >= maximumCharacters) nextGroup();
       groups.at(-1)!.push(child); used += 1; continue;

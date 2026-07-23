@@ -5,9 +5,11 @@ import { childBlocks, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
 
-const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'symbol'
-  ? <span className="cross" key={index}>✠</span>
-  : <span key={index} className={run.marks?.map(mark => `mark-${mark}`).join(' ')}>{run.text}</span>);
+const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
+  ? <br key={index} />
+  : run.type === 'symbol'
+    ? <span className="cross" key={index}>✠</span>
+    : <span key={index} className={run.marks?.map(mark => `mark-${mark}`).join(' ')}>{run.text}</span>);
 
 function Paragraphs({ content }: { content: Paragraph[] }) {
   return <>{content.map((paragraph, index) => <p key={index} style={{ textAlign: paragraph.align }}>{inlineText(paragraph)}</p>)}</>;

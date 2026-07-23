@@ -5,7 +5,7 @@ const page = `<!doctype html><html><body>
   <div class="passage-content passage-class-0">
     <div class="version-NIV result-text-style-normal text-html">
       <h3>John 3:16</h3>
-      <p><span class="text John-3-16"><sup class="versenum">16&nbsp;</sup>For God so loved the world<sup class="crossreference"><a>(A)</a></sup> that he gave his one and only Son.</span></p>
+      <p><span class="text John-3-16"><sup class="versenum">16&nbsp;</sup>For God so loved the world<br>that he gave his one and only Son.</span></p>
       <p>Whoever believes in him shall not perish but have eternal life.<sup class="footnote"><a>[a]</a></sup></p>
     </div>
   </div>
@@ -23,7 +23,7 @@ describe('Bible Gateway public-page importer', () => {
     expect(url.searchParams.get('version')).toBe('NIV');
     expect(result.source).toBe('bible-gateway-web');
     expect(result.content).toEqual([
-      { type: 'paragraph', children: [{ type: 'text', text: '16', marks: ['superscript'] }, { type: 'text', text: 'For God so loved the world that he gave his one and only Son.' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: '16', marks: ['superscript'] }, { type: 'text', text: 'For God so loved the world' }, { type: 'lineBreak' }, { type: 'text', text: 'that he gave his one and only Son.' }] },
       { type: 'paragraph', children: [{ type: 'text', text: 'Whoever believes in him shall not perish but have eternal life.' }] }
     ]);
     expect(result.attribution).toContain('Copyright © Biblica, Inc.');

@@ -2,7 +2,8 @@ export type Marks = Array<'bold' | 'italic' | 'smallCaps' | 'superscript'>;
 
 export interface TextRun { type: 'text'; text: string; marks?: Marks }
 export interface SymbolRun { type: 'symbol'; name: 'cross' }
-export type Inline = TextRun | SymbolRun;
+export interface LineBreakRun { type: 'lineBreak' }
+export type Inline = TextRun | SymbolRun | LineBreakRun;
 
 export interface Paragraph {
   type: 'paragraph';

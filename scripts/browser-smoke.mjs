@@ -137,14 +137,22 @@ if (process.env.BULLETIN_SONG_LINES_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_VERSE_NUMBERS_ONLY === '1') {
-  const passage = '16 For God so loved the world\n17 For God did not send his Son to condemn the world';
-  const scriptureBlockId = await evaluate(`document.querySelector('.editor-pane textarea[placeholder="Paste the approved passage text here…"]').closest('[data-editor-block-id]').dataset.editorBlockId`);
-  await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(element=>element.dataset.editorBlockId===${JSON.stringify(scriptureBlockId)});const textarea=editor.querySelector('textarea[placeholder="Paste the approved passage text here…"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(textarea,${JSON.stringify(passage)});textarea.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
-  await wait(`(()=>{const numbers=Array.from(document.querySelectorAll('.preview-pane [data-block-id="${scriptureBlockId}"] .mark-superscript'));return numbers.length===2&&numbers.map(element=>element.textContent).join(',')==='16,17'&&numbers.every(element=>getComputedStyle(element).verticalAlign==='super')})()`, 'superscripted manual verse numbers');
-  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved scripture verse marks');
-  const storedMarks = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(scriptureBlockId)}).resolved.content.map(paragraph=>paragraph.children[0].marks))`);
-  if (storedMarks.length !== 2 || storedMarks.some(marks => marks?.[0] !== 'superscript')) throw new Error(`Scripture verse marks were not persisted: ${JSON.stringify(storedMarks)}`);
-  pass('renders and persists scripture verse numbers as superscripts');
+  const scriptureBlockId = await evaluate(`document.querySelector('.editor-pane .scripture-rich-editor').closest('[data-editor-block-id]').dataset.editorBlockId`);
+  const pastedPassage = '16 For God so loved the world\nthat he gave his only Son for 40 days.\n\n17 He came to save.';
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane .scripture-rich-editor');editor.focus();const selection=getSelection();const range=document.createRange();range.selectNodeContents(editor);selection.removeAllRanges();selection.addRange(range);const clipboardData=new DataTransfer();clipboardData.setData('text/plain',${JSON.stringify(pastedPassage)});editor.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData}));return true})()`);
+  await wait(`(()=>{const block=document.querySelector('.preview-pane [data-block-id="${scriptureBlockId}"]');const paragraphs=block?.querySelectorAll(':scope > p:not(.caption):not(.missing)');return paragraphs?.length===2&&paragraphs[0].querySelector('br')&&block.querySelectorAll('.mark-superscript').length===2})()`, 'structured scripture line and paragraph breaks');
+  const editProbe = ` Edited without moving either marker ${Date.now()}.`;
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane .scripture-rich-editor');editor.querySelector('div').append(${JSON.stringify(editProbe)});editor.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'}));return true})()`);
+  await wait(`(()=>{const block=document.querySelector('.preview-pane [data-block-id="${scriptureBlockId}"]');return block?.textContent.includes(${JSON.stringify(editProbe.trim())})&&block.querySelectorAll('.mark-superscript').length===2&&block.querySelectorAll(':scope > p:not(.caption):not(.missing)').length===2})()`, 'preserved markers while editing surrounding scripture');
+  await evaluate(`document.querySelector('.editor-pane .scripture-rich-editor [data-verse-marker]').click()`);
+  await fill('Verse number', '18');
+  await evaluate(`Array.from(document.querySelectorAll('.scripture-editor-toolbar button')).find(button=>button.textContent.includes('Update verse')).click()`);
+  await wait(`document.querySelector('.preview-pane [data-block-id="${scriptureBlockId}"] .mark-superscript')?.textContent==='18'`, 'edited an explicit verse marker');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved structured scripture');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(scriptureBlockId)}).resolved.content)`);
+  const storedRuns = stored.flatMap(paragraph => paragraph.children);
+  if (stored.length !== 2 || storedRuns.filter(run => run.type === 'lineBreak').length !== 1 || storedRuns.filter(run => run.marks?.includes('superscript')).map(run => run.text).join(',') !== '18,17' || storedRuns.some(run => run.text === '40' && run.marks?.includes('superscript'))) throw new Error(`Structured scripture was not persisted: ${JSON.stringify(stored)}`);
+  pass('preserves scripture newlines and editable superscript verse markers');
   console.log(`\n${results.length} browser MVP checks passed.`);
   socket.close();
   process.exit(0);

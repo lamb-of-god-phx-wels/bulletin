@@ -5,7 +5,7 @@ import { customBlockDefinitionIssues, customBlockFromDefinition } from '../share
 import { childBlocks, defaultChurchInfoChildren, findBlock, updateBlockTree } from '../shared/blocks';
 import type { BulletinBlock, CustomBlockDefinitionV1, TemplateV1 } from '../shared/types';
 
-const contentText = (block: Extract<BulletinBlock, { type: 'richText' }>) => block.content.map(paragraph => paragraph.children.map(child => child.type === 'text' ? child.text : '✠').join('')).join('\n\n');
+const contentText = (block: Extract<BulletinBlock, { type: 'richText' }>) => block.content.map(paragraph => paragraph.children.map(child => child.type === 'text' ? child.text : child.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n');
 const textContent = (value: string) => value.split(/\n\s*\n/).map(text => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text: text.replace(/\n/g, ' ') }] }));
 
 function builtInBlock(type: BulletinBlock['type']): BulletinBlock {

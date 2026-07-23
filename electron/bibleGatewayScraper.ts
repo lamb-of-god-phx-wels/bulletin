@@ -1,5 +1,11 @@
 import type { ScriptureBlock } from '../src/shared/types.js';
-import { scriptureParagraphsFromText, VERSE_NUMBER_END, VERSE_NUMBER_START } from '../src/shared/scriptureText.js';
+import {
+  SCRIPTURE_LINE_BREAK,
+  SCRIPTURE_PARAGRAPH_BREAK,
+  scriptureParagraphsFromText,
+  VERSE_NUMBER_END,
+  VERSE_NUMBER_START
+} from '../src/shared/scriptureText.js';
 
 export interface BibleGatewayWebRequest {
   reference: string;
@@ -17,18 +23,23 @@ function decodeEntities(value: string) {
   });
 }
 
-function plainText(html: string) {
+function plainText(html: string, structured = false) {
+  const lineBreak = structured ? SCRIPTURE_LINE_BREAK : '\n';
+  const paragraphBreak = structured ? SCRIPTURE_PARAGRAPH_BREAK : '\n';
   return decodeEntities(html
     .replace(/<(script|style|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/<sup\b[^>]*class=["'][^"']*(?:footnote|crossreference)[^"']*["'][^>]*>[\s\S]*?<\/sup>/gi, '')
     .replace(/<sup\b[^>]*class=["'][^"']*\bversenum\b[^"']*["'][^>]*>([\s\S]*?)<\/sup>/gi, (_match, number: string) => `${VERSE_NUMBER_START}${decodeEntities(number.replace(/<[^>]+>/g, '')).trim()}${VERSE_NUMBER_END} `)
     .replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, '')
-    .replace(/<br\s*\/?\s*>|<\/(?:p|div|li|blockquote)>/gi, '\n')
+    .replace(/<br\s*\/?\s*>/gi, lineBreak)
+    .replace(/<\/(?:p|div|li|blockquote)>/gi, paragraphBreak)
     .replace(/<[^>]+>/g, ''))
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n[ \t]+/g, '\n')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
+    .replace(new RegExp(`${SCRIPTURE_LINE_BREAK}{3,}`, 'g'), `${SCRIPTURE_LINE_BREAK}${SCRIPTURE_LINE_BREAK}`)
+    .replace(new RegExp(`${SCRIPTURE_PARAGRAPH_BREAK}{2,}`, 'g'), SCRIPTURE_PARAGRAPH_BREAK)
     .trim();
 }
 
@@ -69,7 +80,7 @@ export async function lookupBibleGatewayWeb(input: BibleGatewayWebRequest, fetch
     if (response.status === 403 || response.status === 429) throw new Error('BibleGateway.com blocked or rate-limited the request. Open the passage in your browser and paste the approved text manually.');
     if (!response.ok) throw new Error(`BibleGateway.com returned ${response.status}. Open the passage and use the manual fallback.`);
     const html = await response.text();
-    const text = plainText(passageSection(html));
+    const text = plainText(passageSection(html), true);
     if (!text && /captcha|verify you are human|cf-chl-/i.test(html)) throw new Error('BibleGateway.com requested browser verification. Open the passage and paste the approved text manually.');
     if (!text) throw new Error('BibleGateway.com did not return recognizable passage text. The page may have changed; use the manual fallback.');
     const attribution = publisherAttribution(html);

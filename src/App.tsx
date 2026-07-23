@@ -16,7 +16,7 @@ type Screen = 'weekly' | 'templates' | 'library';
 type Confirmation = { title: string; message: string; confirmLabel: string; action(): Promise<void> };
 type LibraryDraft = { id: string; title: string; kind: LibraryItemV1['kind']; text: string; notice: string; asset?: NonNullable<LibraryItemV1['assets']>[number] };
 const emptyLibraryDraft = (): LibraryDraft => ({ id: '', title: '', kind: 'song', text: '', notice: '' });
-const libraryContentText = (item: LibraryItemV1) => item.content?.map(paragraph => paragraph.children.map(child => child.type === 'text' ? child.text : '✠').join('')).join('\n\n') ?? '';
+const libraryContentText = (item: LibraryItemV1) => item.content?.map(paragraph => paragraph.children.map(child => child.type === 'text' ? child.text : child.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
 const previewZooms = [.5, .6, .72, .85, 1, 1.25];
 const storedPreviewZoom = () => {
   const raw = localStorage.getItem('bulletin-preview-zoom');

@@ -328,6 +328,19 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .scripture-source-note { display: flex; flex-direction: column; gap: 3px; margin: 14px 0 4px; padding: 11px 12px; border: 1px solid #ddd8cc; border-radius: 8px; color: #6d716b; background: #f8f5ee; font-size: 11px; line-height: 1.4; }.scripture-source-note b { color: #3d4943; font-size: 12px; }
 .scripture-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
 .scripture-fetch { flex: 0 0 auto; }
+.scripture-editor-shell { border-top: 1px solid #e2ded5; background: #fff; }
+.scripture-editor-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 7px; padding: 9px 10px; border-bottom: 1px solid #e2ded5; background: #f8f6f1; }
+.scripture-editor-toolbar label { width: 94px; }
+.scripture-editor-toolbar input { height: 32px; background: #fff; }
+.scripture-editor-toolbar button { min-height: 32px; padding: 0 10px; }
+.scripture-editor-toolbar > span { flex: 1; min-width: 190px; padding-bottom: 7px; color: #777c77; font-size: 10px; text-align: right; }
+.scripture-rich-editor { min-height: 180px; max-height: 420px; padding: 12px; overflow: auto; outline: none; color: #29332f; background: #fcfcfa; font: 14px/1.55 Calibri, Arial, sans-serif; white-space: pre-wrap; }
+.scripture-rich-editor:focus { box-shadow: inset 0 0 0 2px #a55b3d35; }
+.scripture-rich-editor > div { min-height: 1.55em; margin-bottom: .65em; }
+.scripture-rich-editor > div:last-child { margin-bottom: 0; }
+.scripture-rich-editor [data-verse-marker] { display: inline-block; margin-right: .18em; padding: 0 2px; border-radius: 3px; color: #8f452b; font-size: .72em; font-weight: 700; line-height: 1; vertical-align: super; cursor: pointer; user-select: all; }
+.scripture-rich-editor [data-verse-marker]:hover,
+.scripture-rich-editor [data-verse-marker].is-selected { outline: 2px solid #c56d4b; outline-offset: 1px; background: #fff0e8; }
 .text-button { padding: 6px 2px; border: 0; color: #8d4b32; background: transparent; font-size: 12px; font-weight: 750; }
 .lookup-status { margin: 0 0 10px; padding: 9px 11px; border-radius: 7px; font-size: 12px; line-height: 1.4; }
 .lookup-status.loading { color: #6e664f; background: #f5f0df; }

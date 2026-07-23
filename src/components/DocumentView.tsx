@@ -97,9 +97,10 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
 
 function RenderedBlock({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
   const style = presentationStyle(block);
-  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={block.id} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div>;
+  const editorBlockId = block.sourceBlockId ?? block.id;
+  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div>;
   const view = BlockView({ block, library, assets, document }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
-  return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': block.id });
+  return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId });
 }
 
 export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, onBlockSelect, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; onBlockSelect?(blockId: string): void; onReady?(): void }) {

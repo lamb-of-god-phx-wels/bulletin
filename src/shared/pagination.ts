@@ -1,7 +1,7 @@
 import type { BulletinBlock, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
 import { childBlocks } from './blocks.js';
 
-export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean };
+export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[] }
 
 const paragraphLength = (paragraph: Paragraph) => paragraph.children.reduce((count, child) => count + (child.type === 'text' ? child.text.length : 1), 0);
@@ -105,7 +105,7 @@ function groupParagraphs(content: Paragraph[], capacity: number, template: Templ
 }
 
 function contentFragment(block: PaginatedBlock, content: Paragraph[], index: number): PaginatedBlock {
-  const common = { id: `${block.id}-part-${index + 1}`, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } };
+  const common = { id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } };
   if (block.type === 'richText') return { ...block, ...common, content };
   if (block.type === 'scriptureReading') return { ...block, ...common, label: index ? `${block.label ?? 'Reading'} (continued)` : block.label, caption: index ? undefined : block.caption, resolved: { ...block.resolved!, content } };
   if (block.type === 'song') return { ...block, ...common, label: index ? `${block.label ?? block.songType} (continued)` : block.label, pageContent: content };
@@ -134,7 +134,7 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
         group.push(entry); used += height;
       }
       if (group.length) groups.push(group);
-      return groups.map((entries, index) => ({ ...block, id: `${block.id}-part-${index + 1}`, entries, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
+      return groups.map((entries, index) => ({ ...block, id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, entries, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
     }
     if (block.type === 'announcements' && block.items.length) {
       const capacity = usable - basePoints(block, template);
@@ -149,7 +149,7 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
         group.push(item); used += height;
       }
       if (group.length) groups.push(group);
-      return groups.map((items, index) => ({ ...block, id: `${block.id}-part-${index + 1}`, items, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
+      return groups.map((items, index) => ({ ...block, id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, items, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
     }
     return [block];
   });

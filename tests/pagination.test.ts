@@ -30,6 +30,7 @@ describe('pagination', () => {
     const pages = paginate([{ id: 'song', type: 'song', songType: 'song', libraryItemId: 'long-song', libraryItemVersion: 1, selection: { mode: 'all' }, renderMode: 'lyrics' }], defaultTemplate, library);
     const fragments = pages.flatMap(page => page.blocks).filter(block => block.type === 'song');
     expect(fragments.length).toBeGreaterThan(1);
+    expect(fragments.every(fragment => fragment.sourceBlockId === 'song')).toBe(true);
     expect(fragments.flatMap(fragment => fragment.pageContent ?? []).length).toBe(content.length);
   });
 

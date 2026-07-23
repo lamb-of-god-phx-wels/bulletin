@@ -62,6 +62,20 @@ if (process.env.BULLETIN_EXAMPLE_ONLY === '1') {
   process.exit(result.pages === 12 && result.missing.length === 0 ? 0 : 1);
 }
 
+if (process.env.BULLETIN_MARGIN_ONLY === '1') {
+  await fill('Page margin (inches)', '0.65');
+  await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.65in'`, 'weekly page margin preview');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'weekly page margin autosave');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins.find(item=>item.document.id==='bulletin-2026-06-07').document.layout?.marginIn)`);
+  if (stored !== 0.65) throw new Error(`Weekly page margin was not persisted: ${stored}`);
+  await click('Use template margin');
+  await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.3in'`, 'restored template page margin');
+  pass('overrides and restores page margins for one bulletin');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_NESTED_TEXT_ONLY === '1') {
   await wait(`Boolean(Array.from(document.querySelectorAll('.nested-block-editor textarea')).find(element=>element.value==='Welcome'))`, 'structured church information text blocks');
   await evaluate(`(()=>{const input=Array.from(document.querySelectorAll('.nested-block-editor textarea')).find(element=>element.value==='Welcome');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Welcome to Worship');input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);

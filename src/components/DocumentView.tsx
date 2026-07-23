@@ -3,6 +3,7 @@ import type { AssetRef, BulletinDocumentV1, CustomBlock, LibraryManifestV1, Para
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
 import { childBlocks, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
+import { templateForBulletin } from '../shared/documentLayout';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'symbol'
   ? <span className="cross" key={index}>✠</span>
@@ -100,6 +101,7 @@ function RenderedBlock({ block, library, assets, document }: { block: PaginatedB
 }
 
 export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; onReady?(): void }) {
+  const effectiveTemplate = templateForBulletin(template, bulletin);
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
     const result: AssetRef[] = [];
@@ -121,12 +123,12 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     if (!onReady || Object.keys(assets).length < expected) return;
     void window.document.fonts.ready.then(() => new Promise<void>(resolve => setTimeout(resolve, 500))).then(onReady);
   }, [assets, refs, onReady]);
-  const pages = paginate(bulletin.blocks, template, library);
+  const pages = paginate(bulletin.blocks, effectiveTemplate, library);
   return <div className={`document-stack ${print ? 'is-print' : ''}`} style={{
-    '--body-font': template.theme.bodyFont, '--display-font': template.theme.displayFont,
-    '--ink': template.theme.ink, '--accent': template.theme.accent,
-    '--body-size': `${template.theme.bodySizePt}pt`, '--line-height': template.theme.lineHeight,
-    '--page-margin': `${template.theme.marginIn}in`
+    '--body-font': effectiveTemplate.theme.bodyFont, '--display-font': effectiveTemplate.theme.displayFont,
+    '--ink': effectiveTemplate.theme.ink, '--accent': effectiveTemplate.theme.accent,
+    '--body-size': `${effectiveTemplate.theme.bodySizePt}pt`, '--line-height': effectiveTemplate.theme.lineHeight,
+    '--page-margin': `${effectiveTemplate.theme.marginIn}in`
   } as React.CSSProperties}>
     {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}

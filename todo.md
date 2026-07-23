@@ -16,4 +16,3 @@
 # Intro page - remove "Windows and Arch Linux · local-first · no account required" statement and other superfluous messaging.
 * Ability to select bulletin (not just from recent bulletins)
 * Change "Guides on/off" and "Rulers on/off" to simply "Guides" and "Rulers" (state implied by existing coloring)
-* Allow editing layout in bulletin (e.g., margins)

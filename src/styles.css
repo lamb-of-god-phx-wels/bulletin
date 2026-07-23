@@ -75,6 +75,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .editor-card h2, .editor-card h3 { margin: 0; }
 .essentials { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .essentials .eyebrow { grid-column: 1 / -1; }
+.page-margin-control { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; padding-top: 3px; }.page-margin-control .text-button { min-height: 38px; }
 label { display: grid; gap: 6px; color: #5d625e; font-size: 12px; font-weight: 700; }
 input, textarea, select { width: 100%; border: 1px solid #d5d2c9; border-radius: 7px; outline: none; color: #29332f; background: #fcfcfa; }
 input, select { height: 38px; padding: 0 10px; }

@@ -131,6 +131,7 @@ export interface BulletinDocumentV1 {
   template: { id: string; version: number };
   church: { name: string };
   info: { title: string; series?: string; date: string; churchWeek: string };
+  layout?: { marginIn?: number };
   blocks: BulletinBlock[];
   sourceNotes?: string;
   updatedAt: string;

@@ -9,6 +9,7 @@ import { paginate } from './shared/pagination';
 import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, type TemplateRecord } from './shared/templates';
 import type { BulletinDocumentV1, LibraryItemV1, LibraryManifestV1, TemplateV1, ValidationIssue, WorkspaceSummary } from './shared/types';
 import { validateBulletin } from './shared/validation';
+import { templateForBulletin } from './shared/documentLayout';
 
 type Screen = 'weekly' | 'templates' | 'library';
 type Confirmation = { title: string; message: string; confirmLabel: string; action(): Promise<void> };
@@ -173,7 +174,7 @@ function DesktopApp() {
 
   if (!workspace) return <div className="welcome-screen"><div className="brand-mark">✠</div><div className="eyebrow">Bulletin Builder</div><h1>Sunday’s bulletin,<br />without the busywork.</h1><p>Choose the folder your church already syncs with SharePoint. Templates, approved content, and weekly projects will live there together.</p><button className="primary large" onClick={chooseWorkspace}>Choose bulletin workspace</button><small>Windows and Arch Linux · local-first · no account required</small></div>;
 
-  const pageCount = document ? paginate(document.blocks, template, workspace.library).length : 0;
+  const pageCount = document ? paginate(document.blocks, templateForBulletin(template, document), workspace.library).length : 0;
   const issues = document ? validateBulletin(document, workspace.library) : [];
   const statusIsError = /blocked|conflict|required|failed|error|missing|unavailable|does not|could not|invalid|enter |choose |paste |fetch /i.test(status);
   const workspaceName = availableWorkspaces.find(item => item.root === workspace.root)?.name ?? (workspace.root.startsWith('local:') ? workspace.root.slice(6).replaceAll('-', ' ') : workspace.root);

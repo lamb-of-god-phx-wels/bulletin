@@ -27,6 +27,8 @@ Every block has a stable `id` and discriminating `type`. Supported types are:
 
 Rich text is represented as paragraphs containing text or named-symbol runs. It deliberately excludes arbitrary HTML and CSS. Every block can carry `layout` flow hints (`pageBreakBefore`, `keepTogether`, `density`, `fit`, and `cropAnchor`) and a structured `presentation` override. Presentation supports width, horizontal placement, four-side padding, before/after spacing, text alignment, typography, colors, fill, and borders. A template block establishes the default; a copied block in a weekly bulletin can override it without modifying the template.
 
+A bulletin may set `layout.marginIn` to override the template's uniform page margin for that bulletin only. Preview pagination, guides, print rendering, and PDF export all use the effective override. Omitting it restores the pinned template's margin.
+
 Container blocks use a recursive `children` array. For example, `churchInfo` contains `paragraph` containers, and each paragraph contains an optional header `richText` child plus a body `richText` child. The container keeps them together semantically while each text child retains its own margins, padding, typography, ID, and presentation override. Setting the header’s bottom margin and body’s top margin to zero produces no forced gap.
 
 A reusable custom-block definition is stored in the workspace library. It has a human-readable `name`, a `layoutText` string, named `bindings`, and presentation settings for width, placement, padding, spacing, alignment, typography, fill, and border. Placeholders use double braces, such as `{{serviceTime}}`. A binding can expose a new weekly input or read `info.title`, `info.date`, `info.churchWeek`, `info.series`, or `church.name`.

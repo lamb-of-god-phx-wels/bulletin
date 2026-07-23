@@ -7,6 +7,7 @@ import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
 import { createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, readAssetData, saveBulletin, saveLibrary, saveTemplate } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
+import { templateForBulletin } from '../src/shared/documentLayout.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
@@ -97,7 +98,8 @@ async function replacePdfPages(raw: Buffer, root: string, document: BulletinDocu
   const output = await PDFDocument.load(raw);
   // Replacement runs from the back so earlier page indexes remain stable.
   const workspace = await openWorkspace(root);
-  const pages = paginate(document.blocks, workspace.templates.find(t => t.template.id === document.template.id && t.template.version === document.template.version)?.template ?? (await import('../src/shared/defaults.js')).defaultTemplate, workspace.library);
+  const storedTemplate = workspace.templates.find(t => t.template.id === document.template.id && t.template.version === document.template.version)?.template ?? (await import('../src/shared/defaults.js')).defaultTemplate;
+  const pages = paginate(document.blocks, templateForBulletin(storedTemplate, document), workspace.library);
   for (let index = pages.length - 1; index >= 0; index--) {
     const block = pages[index].blocks[0];
     if (!block || (block.type !== 'fullPageAsset' && block.type !== 'titlePage') || !block.asset || block.asset.mediaType !== 'application/pdf') continue;

@@ -202,8 +202,8 @@ if (process.env.BULLETIN_CUSTOM_BLOCKS_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_GUIDES_ONLY === '1') {
-  if (await evaluate(`document.querySelector('.guide-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Guides on');
-  await click('Guides off');
+  if (await evaluate(`document.querySelector('.guide-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Guides');
+  await click('Guides');
   await wait(`document.querySelectorAll('.page-guides').length === document.querySelectorAll('.page-frame').length`, 'weekly margin guides');
   const weeklyGuide = await evaluate(`(()=>{const page=document.querySelector('.document-page').getBoundingClientRect();const guide=document.querySelector('.page-guides').getBoundingClientRect();const content=document.querySelector('.document-page > .page-content > :first-child').getBoundingClientRect();return {pageLeft:page.left,pageTop:page.top,pageRight:page.right,pageBottom:page.bottom,guideLeft:guide.left,guideTop:guide.top,guideRight:guide.right,guideBottom:guide.bottom,contentLeft:content.left,contentTop:content.top}})()`);
   if (Math.abs(weeklyGuide.guideLeft - weeklyGuide.contentLeft) > 1 || Math.abs(weeklyGuide.guideTop - weeklyGuide.contentTop) > 1 || Math.abs((weeklyGuide.guideLeft - weeklyGuide.pageLeft) - (weeklyGuide.pageRight - weeklyGuide.guideRight)) > 1 || Math.abs((weeklyGuide.guideTop - weeklyGuide.pageTop) - (weeklyGuide.pageBottom - weeklyGuide.guideBottom)) > 1) throw new Error(`Weekly guides do not align with the content margin: ${JSON.stringify(weeklyGuide)}`);
@@ -211,12 +211,12 @@ if (process.env.BULLETIN_GUIDES_ONLY === '1') {
   await wait(`Boolean(document.querySelector('.builder-preview .page-guides'))`, 'template margin guides');
   await fill('Page margin (inches)', '0.5');
   await wait(`(()=>{const page=document.querySelector('.builder-preview .document-page')?.getBoundingClientRect();const guide=document.querySelector('.builder-preview .page-guides')?.getBoundingClientRect();if(!page||!guide)return false;const inch=page.width/7;return Math.abs((guide.left-page.left)/inch-.5)<.01&&Math.abs((guide.top-page.top)/inch-.5)<.01})()`, 'half-inch guide alignment');
-  if (await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers on');
+  if (await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers');
   await wait(`!document.querySelector('.page-rulers') && Boolean(document.querySelector('.page-guides'))`, 'guides without rulers');
-  await click('Guides on');
+  await click('Guides');
   await wait(`!document.querySelector('.page-guides')`, 'hidden guides');
   if (await evaluate(`localStorage.getItem('bulletin-show-guides') !== 'false'`)) throw new Error('Hidden guide preference was not saved.');
-  await click('Guides off');
+  await click('Guides');
   await wait(`Boolean(document.querySelector('.builder-preview .page-guides'))`, 'restored guides');
   if (await evaluate(`localStorage.getItem('bulletin-show-guides') !== 'true'`)) throw new Error('Visible guide preference was not saved.');
   pass('renders optional margin guides in weekly and template previews');
@@ -259,7 +259,7 @@ if (process.env.BULLETIN_TEMPLATES_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_RULERS_ONLY === '1') {
-  if (!await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers off');
+  if (!await evaluate(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'true'`)) await click('Rulers');
   await wait(`document.querySelectorAll('.ruler-horizontal .ruler-tick').length === document.querySelectorAll('.page-frame').length * 29`, 'horizontal ruler ticks');
   const ruler = await evaluate(`(()=>{const frame=document.querySelector('.page-frame');const page=frame.querySelector('.document-page');const ticks=frame.querySelectorAll('.ruler-horizontal .ruler-tick');const vertical=frame.querySelectorAll('.ruler-vertical .ruler-tick');return {pageWidth:page.getBoundingClientRect().width,pageHeight:page.getBoundingClientRect().height,frameHeight:frame.getBoundingClientRect().height,quarter:ticks[1].getBoundingClientRect().left-ticks[0].getBoundingClientRect().left,horizontal:ticks.length,vertical:vertical.length,lastLabel:vertical[vertical.length-1].textContent}})()`);
   if (ruler.horizontal !== 29 || ruler.vertical !== 35 || ruler.lastLabel !== '8.5' || Math.abs(ruler.quarter - ruler.pageWidth / 28) > .25 || Math.abs(ruler.pageHeight - ruler.frameHeight) > .25 || Math.abs(ruler.pageHeight / ruler.pageWidth - 8.5 / 7) > .001) throw new Error(`Ruler or page measurements are inaccurate: ${JSON.stringify(ruler)}`);
@@ -278,12 +278,12 @@ if (process.env.BULLETIN_RULERS_ONLY === '1') {
   const compactFrame = await evaluate(`(()=>{const bounds=document.querySelector('.page-frame').getBoundingClientRect();return {left:bounds.left,top:bounds.top}})()`);
   if (Math.abs(compactCrosshair.x - (compactFrame.left + compactHover.offsetX)) > 1 || Math.abs(compactCrosshair.y - (compactFrame.top + compactHover.offsetY)) > 1) throw new Error(`Compact crosshair does not track the cursor accurately: ${JSON.stringify({ compactHover, compactCrosshair, compactFrame })}`);
   await command('Emulation.clearDeviceMetricsOverride');
-  await click('Rulers on');
+  await click('Rulers');
   await wait(`!document.querySelector('.page-rulers') && !document.querySelector('.page-crosshairs') && !document.querySelector('.page-frame.with-rulers')`, 'hidden rulers, crosshairs, and spacing');
   if (await evaluate(`localStorage.getItem('bulletin-show-rulers') !== 'false'`)) throw new Error('Hidden ruler preference was not saved.');
   await click('Templates');
-  await wait(`document.querySelector('.ruler-toggle')?.textContent.includes('off') && !document.querySelector('.page-rulers')`, 'hidden template rulers');
-  await click('Rulers off');
+  await wait(`document.querySelector('.ruler-toggle')?.getAttribute('aria-pressed') === 'false' && !document.querySelector('.page-rulers')`, 'hidden template rulers');
+  await click('Rulers');
   await wait(`Boolean(document.querySelector('.builder-preview .page-rulers'))`, 'visible template rulers');
   if (await evaluate(`localStorage.getItem('bulletin-show-rulers') !== 'true'`)) throw new Error('Visible ruler preference was not saved.');
   for (const margin of [0, .25, .5]) {

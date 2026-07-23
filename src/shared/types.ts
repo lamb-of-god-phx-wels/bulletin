@@ -1,4 +1,4 @@
-export type Marks = Array<'bold' | 'italic' | 'smallCaps'>;
+export type Marks = Array<'bold' | 'italic' | 'smallCaps' | 'superscript'>;
 
 export interface TextRun { type: 'text'; text: string; marks?: Marks }
 export interface SymbolRun { type: 'symbol'; name: 'cross' }

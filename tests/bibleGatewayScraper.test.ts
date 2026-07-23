@@ -22,9 +22,9 @@ describe('Bible Gateway public-page importer', () => {
     expect(url.searchParams.get('search')).toBe('John 3:16');
     expect(url.searchParams.get('version')).toBe('NIV');
     expect(result.source).toBe('bible-gateway-web');
-    expect(result.content.map(paragraph => paragraph.children[0])).toEqual([
-      { type: 'text', text: '16 For God so loved the world that he gave his one and only Son.' },
-      { type: 'text', text: 'Whoever believes in him shall not perish but have eternal life.' }
+    expect(result.content).toEqual([
+      { type: 'paragraph', children: [{ type: 'text', text: '16', marks: ['superscript'] }, { type: 'text', text: 'For God so loved the world that he gave his one and only Son.' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: 'Whoever believes in him shall not perish but have eternal life.' }] }
     ]);
     expect(result.attribution).toContain('Copyright © Biblica, Inc.');
     expect(result.attribution).toContain('Retrieved from BibleGateway.com');

@@ -205,6 +205,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .pdf-placeholder { display: grid; place-content: center; height: 100%; color: #6a6e69; text-align: center; background: #f5f3ed; }
 .pdf-placeholder span { margin-top: 7px; font-size: 9pt; }
 .mark-bold { font-weight: 700; } .mark-italic { font-style: italic; } .mark-smallCaps { font-variant: small-caps; }
+.mark-superscript { display: inline-block; margin-right: .08em; font-size: .7em; line-height: 0; vertical-align: super; }
 .cross { font-family: Georgia, serif; }
 .spacer-small { height: .08in; } .spacer-medium { height: .18in; } .spacer-large { height: .36in; }
 .template-screen { display: grid; grid-template-columns: minmax(410px, .8fr) minmax(470px, 1.2fr); height: calc(100vh - 84px); }

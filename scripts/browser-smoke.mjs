@@ -132,6 +132,20 @@ if (process.env.BULLETIN_SONG_LINES_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_VERSE_NUMBERS_ONLY === '1') {
+  const passage = '16 For God so loved the world\n17 For God did not send his Son to condemn the world';
+  const scriptureBlockId = await evaluate(`document.querySelector('.editor-pane textarea[placeholder="Paste the approved passage text here…"]').closest('[data-editor-block-id]').dataset.editorBlockId`);
+  await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(element=>element.dataset.editorBlockId===${JSON.stringify(scriptureBlockId)});const textarea=editor.querySelector('textarea[placeholder="Paste the approved passage text here…"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(textarea,${JSON.stringify(passage)});textarea.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`(()=>{const numbers=Array.from(document.querySelectorAll('.preview-pane [data-block-id="${scriptureBlockId}"] .mark-superscript'));return numbers.length===2&&numbers.map(element=>element.textContent).join(',')==='16,17'&&numbers.every(element=>getComputedStyle(element).verticalAlign==='super')})()`, 'superscripted manual verse numbers');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved scripture verse marks');
+  const storedMarks = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(scriptureBlockId)}).resolved.content.map(paragraph=>paragraph.children[0].marks))`);
+  if (storedMarks.length !== 2 || storedMarks.some(marks => marks?.[0] !== 'superscript')) throw new Error(`Scripture verse marks were not persisted: ${JSON.stringify(storedMarks)}`);
+  pass('renders and persists scripture verse numbers as superscripts');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_MARGIN_ONLY === '1') {
   await fill('Page margin (inches)', '0.65');
   await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.65in'`, 'weekly page margin preview');

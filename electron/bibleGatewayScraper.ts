@@ -1,4 +1,5 @@
 import type { ScriptureBlock } from '../src/shared/types.js';
+import { scriptureParagraphsFromText, VERSE_NUMBER_END, VERSE_NUMBER_START } from '../src/shared/scriptureText.js';
 
 export interface BibleGatewayWebRequest {
   reference: string;
@@ -20,6 +21,7 @@ function plainText(html: string) {
   return decodeEntities(html
     .replace(/<(script|style|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/<sup\b[^>]*class=["'][^"']*(?:footnote|crossreference)[^"']*["'][^>]*>[\s\S]*?<\/sup>/gi, '')
+    .replace(/<sup\b[^>]*class=["'][^"']*\bversenum\b[^"']*["'][^>]*>([\s\S]*?)<\/sup>/gi, (_match, number: string) => `${VERSE_NUMBER_START}${decodeEntities(number.replace(/<[^>]+>/g, '')).trim()}${VERSE_NUMBER_END} `)
     .replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, '')
     .replace(/<br\s*\/?\s*>|<\/(?:p|div|li|blockquote)>/gi, '\n')
     .replace(/<[^>]+>/g, ''))
@@ -73,7 +75,7 @@ export async function lookupBibleGatewayWeb(input: BibleGatewayWebRequest, fetch
     const attribution = publisherAttribution(html);
     if (!attribution) throw new Error('BibleGateway.com did not return the translation copyright notice. Open the passage and paste both the text and required attribution manually.');
     return {
-      content: text.split(/\n\s*\n|\n+/).filter(Boolean).map(value => ({ type: 'paragraph', children: [{ type: 'text', text: value.trim() }] })),
+      content: scriptureParagraphsFromText(text),
       source: 'bible-gateway-web',
       retrievedAt: new Date().toISOString(),
       attribution: `${attribution} · Retrieved from BibleGateway.com`

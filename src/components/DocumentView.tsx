@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { cloneElement, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { AssetRef, BulletinDocumentV1, CustomBlock, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
 import { childBlocks, flattenBlocks } from '../shared/blocks';
@@ -97,10 +97,12 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
 
 function RenderedBlock({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
   const style = presentationStyle(block);
-  return style ? <div className={`block-presentation has-presentation ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div> : <BlockView block={block} library={library} assets={assets} document={document} />;
+  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={block.id} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div>;
+  const view = BlockView({ block, library, assets, document }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
+  return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': block.id });
 }
 
-export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; onReady?(): void }) {
+export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, onBlockSelect, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; onBlockSelect?(blockId: string): void; onReady?(): void }) {
   const effectiveTemplate = templateForBulletin(template, bulletin);
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
@@ -124,7 +126,10 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     void window.document.fonts.ready.then(() => new Promise<void>(resolve => setTimeout(resolve, 500))).then(onReady);
   }, [assets, refs, onReady]);
   const pages = paginate(bulletin.blocks, effectiveTemplate, library);
-  return <div className={`document-stack ${print ? 'is-print' : ''}`} style={{
+  return <div className={`document-stack ${print ? 'is-print' : ''} ${onBlockSelect && !print ? 'is-interactive' : ''}`} onClick={onBlockSelect && !print ? event => {
+    const block = (event.target as Element).closest<HTMLElement>('[data-block-id]');
+    if (block && event.currentTarget.contains(block) && block.dataset.blockId) onBlockSelect(block.dataset.blockId);
+  } : undefined} style={{
     '--body-font': effectiveTemplate.theme.bodyFont, '--display-font': effectiveTemplate.theme.displayFont,
     '--ink': effectiveTemplate.theme.ink, '--accent': effectiveTemplate.theme.accent,
     '--body-size': `${effectiveTemplate.theme.bodySizePt}pt`, '--line-height': effectiveTemplate.theme.lineHeight,

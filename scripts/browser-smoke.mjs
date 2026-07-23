@@ -94,6 +94,22 @@ if (process.env.BULLETIN_ZOOM_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_PREVIEW_NAV_ONLY === '1') {
+  const nestedId = await evaluate(`Array.from(document.querySelectorAll('.preview-pane [data-block-id]')).map(element => element.dataset.blockId).find(id => Array.from(document.querySelectorAll('.editor-pane .nested-block-editor')).some(editor => editor.dataset.editorBlockId === id))`);
+  if (!nestedId) throw new Error('No nested preview block has a matching weekly editor.');
+  await evaluate(`document.querySelector('.preview-pane [data-block-id="${nestedId}"]').click()`);
+  await wait(`(()=>{const target=Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(element=>element.dataset.editorBlockId===${JSON.stringify(nestedId)});return target?.open&&target.closest('.block-editor')?.open&&target.classList.contains('editor-block-focus')&&document.activeElement===target})()`, 'expanded and highlighted weekly block editor');
+  await wait(`!Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(element=>element.dataset.editorBlockId===${JSON.stringify(nestedId)})?.classList.contains('editor-block-focus')`, 'temporary weekly editor highlight', 4000);
+  await click('Templates');
+  await wait(`Boolean(Array.from(document.querySelectorAll('.builder-preview [data-block-id]')).find(element=>element.dataset.blockId===${JSON.stringify(nestedId)}))`, 'matching nested template preview block');
+  await evaluate(`Array.from(document.querySelectorAll('.builder-preview [data-block-id]')).find(element=>element.dataset.blockId===${JSON.stringify(nestedId)}).click()`);
+  await wait(`(()=>{const target=Array.from(document.querySelectorAll('.template-workbench [data-editor-block-id]')).find(element=>element.dataset.editorBlockId===${JSON.stringify(nestedId)});return target?.classList.contains('editor-block-focus')&&document.activeElement===target})()`, 'highlighted template block editor');
+  pass('jumps from nested preview blocks to their weekly and template editors');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_MARGIN_ONLY === '1') {
   await fill('Page margin (inches)', '0.65');
   await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.65in'`, 'weekly page margin preview');

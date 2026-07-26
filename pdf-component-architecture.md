@@ -386,7 +386,8 @@ The initial component set requires these domain-specific types:
 - `responsiveReadingItem`
 - `structuredText`
 - `songVerse`
-- `leadSheet`
+- `imageSource` for lead sheets and other image content
+- `songContentMode`
 - length unit
 
 ### 8.4 Component value versus component instance
@@ -563,6 +564,16 @@ For the initial implementation, nested semantic values should preferably be plai
     "verseNumber": {
       "type": ["string", "integer", "null"]
     },
+    "speakerType": {
+      "oneOf": [
+        {
+          "$ref": "speakerType"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "lines": {
       "type": "array",
       "items": {
@@ -589,7 +600,7 @@ A plain string is insufficient because the system must preserve:
 - Inline emphasis.
 - Future footnotes or annotations.
 
-### 10.1 Recommended representation
+### 10. Recommended representation
 
 ```json
 {
@@ -632,26 +643,6 @@ A plain string is insufficient because the system must preserve:
 }
 ```
 
-### 10.2 Minimal first version
-
-The first version may support:
-
-```json
-{
-  "verses": [
-    {
-      "number": "1",
-      "text": "In the beginning was the Word..."
-    },
-    {
-      "number": "2",
-      "text": "He was in the beginning with God."
-    }
-  ]
-}
-```
-
-The richer block-and-inline representation is recommended long-term because it avoids later migrations when inline formatting is added.
 
 ---
 
@@ -686,10 +677,112 @@ A `contentNode` may initially permit:
 - `text`
 - `paragraph`
 - `heading`
+- `image`
 - `inlineScriptureReading`
 - `spacer`
 
 This creates a controlled way to build complex announcement bodies without accepting arbitrary JSON.
+
+### 11.1 Image content
+
+Images should be represented by a dedicated `image` content node rather than embedded as arbitrary objects.
+
+```json
+{
+  "type": "image",
+  "inputs": {
+    "source": {
+      "assetId": "announcement-community-dinner"
+    },
+    "altText": "Volunteers serving dinner in the fellowship hall",
+    "width": {
+      "value": 3.5,
+      "unit": "in"
+    },
+    "height": null,
+    "fit": "contain",
+    "alignment": "center"
+  }
+}
+```
+
+Recommended initial image inputs:
+
+| Input | Type | Required |
+|---|---|---:|
+| `source` | `imageSource` | Yes |
+| `altText` | `string` | No |
+| `width` | `length` | No |
+| `height` | `length` | No |
+| `fit` | `imageFit` | No |
+| `alignment` | `horizontalAlignment` | No |
+| `caption` | `string \| structuredText` | No |
+
+`imageSource` should be a controlled union supporting registered assets and embedded image data:
+
+```json
+{
+  "$id": "imageSource",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["assetId"],
+      "properties": {
+        "assetId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["data", "mediaType"],
+      "properties": {
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64"
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
+```
+
+Direct filesystem paths and arbitrary remote URLs should not be accepted by default. External image resolution should occur through the registered `ImageAssetProvider`.
+
+Recommended enums:
+
+```json
+{
+  "$id": "imageFit",
+  "type": "string",
+  "enum": ["contain", "cover", "fill", "scale-down"]
+}
+```
+
+```json
+{
+  "$id": "horizontalAlignment",
+  "type": "string",
+  "enum": ["left", "center", "right"]
+}
+```
+
+Image rendering behavior:
+
+- Preserve the intrinsic aspect ratio when only one dimension is supplied.
+- Use intrinsic dimensions when neither width nor height is supplied, subject to available page width.
+- Reject or downscale images that exceed renderer resource limits.
+- Resolve image assets before layout measurement.
+- Keep an optional caption with the image.
+- Permit page breaks before or after an image, but never split a raster image itself.
+- Treat SVG as a vector asset when supported by the PDF backend.
+- Preserve `altText` for tagged or accessible PDF output.
 
 Example:
 
@@ -709,6 +802,20 @@ Example:
       "type": "text",
       "inputs": {
         "text": "Volunteers are needed."
+      }
+    },
+    {
+      "type": "image",
+      "inputs": {
+        "source": {
+          "assetId": "community-dinner"
+        },
+        "altText": "Community dinner tables prepared for guests",
+        "width": {
+          "value": 100,
+          "unit": "%"
+        },
+        "fit": "contain"
       }
     }
   ]
@@ -760,9 +867,9 @@ Renders a text value with paragraph layout behavior.
 
 | Input | Type | Required |
 |---|---|---:|
-| `text` | `string` or `structuredText` | Yes |
+| `text` | `string \| structuredText` | Yes |
 
-Although the initial list specifies `string`, accepting `structuredText` is recommended to preserve formatting and reduce future migration.
+`paragraph` accepts both plain strings and `structuredText`. Plain strings are normalized internally into a single-paragraph structured-text value before layout.
 
 ### Layout behavior
 
@@ -811,11 +918,30 @@ Renders a primary heading with optional secondary and caption text.
 ### Layout behavior
 
 - Should generally be kept with at least the first following content block.
-- Empty optional values must not produce empty layout blocks.
+- Empty optional values must not produce empty layout nodes.
+- `subHeading` is modeled as a distinct text span associated with the main heading.
+- The theme or instance style may place `subHeading` inline with `text` or on a separate line.
+- `text`, `subHeading`, and `caption` must each support independent formatting.
+- Inline placement must preserve a semantic boundary between the main heading and sub-heading so spacing, punctuation, font, size, weight, emphasis, and color can be styled independently.
 - May create a document outline or bookmark annotation.
 - May expose a normalized `headingData` export.
 
 ### Expansion
+
+Inline sub-heading:
+
+```text
+heading
+    ↓
+KeepWithNext
+    └── Stack
+        ├── InlineGroup
+        │   ├── HeadingTextSpan
+        │   └── OptionalSubHeadingSpan
+        └── OptionalCaptionText
+```
+
+Separate-line sub-heading:
 
 ```text
 heading
@@ -1055,12 +1181,14 @@ Renders one verse or refrain-like unit.
 | Input | Type | Required |
 |---|---|---:|
 | `verseNumber` | `string \| integer` | No |
+| `speakerType` | `speakerType` | No |
 | `lines` | `array<string>` | Yes |
 
 ### Behavior
 
 - `verseNumber` may contain values such as `1`, `"1"`, `"Refrain"`, `"Chorus"`, or `"Bridge"`.
-- The renderer should normalize integer values to strings.
+- `speakerType` may be `leader` or `follower` and controls semantic styling in the same manner as responsive readings.
+- The renderer should normalize integer verse numbers to strings.
 - Empty line arrays should be rejected unless explicitly allowed.
 - A verse should preferably remain together on one page.
 - When a verse cannot fit on one page, it may split between lines.
@@ -1070,6 +1198,7 @@ Renders one verse or refrain-like unit.
 ```json
 {
   "verseNumber": "Refrain",
+  "speakerType": "follower",
   "lines": [
     "Alleluia, alleluia,",
     "Sing to the Lord."
@@ -1091,8 +1220,9 @@ Renders a song, hymn, or psalm.
 | `songId` | `string` | Yes |
 | `displayName` | `string` | Yes |
 | `showVerseNumber` | `boolean` | Yes |
-| `verses` | `array<songVerseData>` | Yes |
-| `music` | `leadSheet` | No |
+| `contentMode` | `songContentMode` | Yes |
+| `verses` | `array<songVerseData>` | No |
+| `music` | `imageSource` | No |
 
 Although the initial list specifies a free-form string for `type`, an enum is recommended:
 
@@ -1105,9 +1235,26 @@ Although the initial list specifies a free-form string for `type`, an enum is re
 
 Additional values can be introduced later through a versioned schema.
 
+The visible content is selected with `contentMode`:
+
+```json
+{
+  "$id": "songContentMode",
+  "type": "string",
+  "enum": ["verses", "leadSheet"]
+}
+```
+
+Validation rules:
+
+- `contentMode: "verses"` requires `verses`.
+- `contentMode: "leadSheet"` requires `music`.
+- Both `verses` and `music` may be stored so the display mode can change without re-importing content.
+- Only the selected content representation is rendered.
+
 ### `songId`
 
-`songId` is a library key, not necessarily a display value. The rendering engine should not fetch remote data implicitly. Library resolution should occur before or during the component resolution phase through a registered content provider.
+`songId` is a library key, not necessarily a display value. Library data supplements embedded song data and is primarily used for initial import or an explicit re-import. Rendering should use the embedded inputs and must not silently refresh or replace them from the library. Library resolution occurs only through an explicit import workflow or registered content-provider operation.
 
 ### `verses`
 
@@ -1131,20 +1278,33 @@ This avoids a heterogeneous array and simplifies validation.
 - Displays or suppresses verse labels using `showVerseNumber`.
 - Preserves verse order.
 - Attempts to keep individual verses together.
-- May render optional lead-sheet notation when supported.
-- The presence of `music` should not change the semantic meaning of the lyrics.
+- Uses `contentMode` to render either verses or the lead-sheet image.
+- `music` is an image asset and uses the same resolution, sizing, accessibility, and pagination rules as other images.
+- The presence of both representations does not imply that both are rendered.
+- Switching display modes must not mutate the embedded verses or lead-sheet image.
 
 ### Expansion
+
+Verse mode:
 
 ```text
 song
     ↓
 Stack
     ├── SongHeading
-    ├── OptionalLeadSheet
     ├── songVerse
     ├── songVerse
     └── songVerse
+```
+
+Lead-sheet mode:
+
+```text
+song
+    ↓
+Stack
+    ├── SongHeading
+    └── Image
 ```
 
 ---
@@ -1547,8 +1707,10 @@ schemas/
 ├── common.schema.json
 ├── structured-text.schema.json
 ├── rich-content.schema.json
+├── image-source.schema.json
 ├── components/
 │   ├── text.schema.json
+│   ├── image.schema.json
 │   ├── paragraph.schema.json
 │   ├── heading.schema.json
 │   ├── announcements.schema.json
@@ -1726,6 +1888,10 @@ interface RenderEnvironment {
           "$bind": "data.closingSong.name"
         },
         "showVerseNumber": true,
+        "contentMode": {
+          "$bind": "data.closingSong.contentMode",
+          "default": "verses"
+        },
         "verses": {
           "$bind": "data.closingSong.verses"
         },
@@ -1749,23 +1915,19 @@ interface RenderEnvironment {
 
 ---
 
-## 24. Recommended Normalizations
+## 24. Schema Normalizations
 
-The following changes are recommended before locking the first schema version.
+The following changes are part of the initial schema design.
 
 ### 24.1 Correct naming
 
-Change:
-
-```text
-reasponsiveReadingItem
-```
-
-to:
+Use:
 
 ```text
 responsiveReadingItem
 ```
+
+The misspelled form `reasponsiveReadingItem` is invalid.
 
 ### 24.2 Use `number` rather than `float`
 
@@ -1773,106 +1935,82 @@ JSON Schema uses `number`. The implementation may represent it as a floating-poi
 
 ### 24.3 Normalize song verses
 
-Do not allow raw strings inside `song.inputs.verses`. Represent refrains and one-off lines as `songVerseData`.
+Raw strings are not permitted inside `song.inputs.verses`. Refrains, choruses, bridges, and one-off lines use `songVerseData`.
 
 ```json
 {
   "verseNumber": "Refrain",
+  "speakerType": "follower",
   "lines": ["Sing praise to God."]
 }
 ```
 
 ### 24.4 Replace `any`
 
-Replace `announcement.inputs.body: any` with `richContent`.
+`announcement.inputs.body` uses `richContent`, which supports:
+
+- plain strings
+- `structuredText`
+- restricted component arrays
+- images
 
 ### 24.5 Separate data types from component types
 
-Use names such as:
+Plain data types use names such as:
 
 - `headingData`
 - `announcementData`
 - `songVerseData`
 
-for plain data, and:
+Renderable components use names such as:
 
 - `heading`
 - `announcement`
 - `songVerse`
 
-for renderable component types.
-
 ### 24.6 Constrain semantic strings
 
-Use enums for values such as:
+Enums are used for:
 
 - `speakerType`
 - `songType`
+- `songContentMode`
 - `lengthUnit`
+- `imageFit`
+- `horizontalAlignment`
 
-This permits reliable styling and validation.
-
----
+This enables reliable validation and styling.
 
 ## 25. Open Design Decisions
 
 ### 25.1 Announcement body format
 
-Choose whether `richContent` initially supports:
+`richContent` supports all three content forms:
 
-1. Plain string only.
+1. Plain strings.
 2. `structuredText`.
 3. A restricted array of component descriptors.
 
-The recommended first version supports all three through a controlled union.
+Images are permitted within restricted component arrays through the `image` content node.
 
-### 25.2 Structured scripture representation
-
-Choose between:
-
-- Verse-oriented data.
-- Block-and-inline rich text.
-
-The block-and-inline representation is more extensible. The verse-oriented representation is simpler to author.
 
 ### 25.3 Lead-sheet representation
 
-`leadSheet` remains unresolved. It should eventually define:
-
-- Metadata.
-- Musical key.
-- Meter.
-- Tempo.
-- Measures.
-- Chords.
-- Lyrics alignment.
-- Repeats.
-- Endings.
-- Rendering assets or notation primitives.
-
-Until defined, `music` should be treated as an opaque, versioned object accepted only by a registered lead-sheet renderer.
-
-```json
-{
-  "format": "leadSheet",
-  "version": "0.1",
-  "data": {}
-}
-```
+A lead sheet is represented as an image through `imageSource`. It uses the standard image asset pipeline, including intrinsic-size measurement, scaling, accessibility metadata, and pagination behavior.
 
 ### 25.4 Library resolution
 
-Determine whether `songId`:
+`songId` supplements embedded song data. It is used for initial import or an explicit re-import operation.
 
-- supplements embedded song data,
-- replaces embedded song data,
-- or validates that embedded data matches a library record.
-
-The recommended policy is that explicit descriptor inputs override resolved library defaults.
+Imported library values populate the embedded song fields. Subsequent PDF rendering uses the embedded data and does not silently refresh it from the library.
 
 ### 25.5 Inline versus block semantics
 
-Define whether `text` is always inline, always block, or context-sensitive. The recommended approach is context-sensitive expansion into a `TextRun` when placed inside inline content and a text block otherwise.
+`text` is context-sensitive:
+
+- Inside inline-capable content, it expands to a `TextRun`.
+- Inside block-only content, it expands to a text block.
+- The compiler determines the valid expansion from the parent content model.
 
 ---
 
@@ -1888,7 +2026,8 @@ Implement:
 - Component registry.
 - Immutable evaluation contexts.
 - Initial semantic components.
-- `headingData`, `announcementData`, `responsiveReadingItemData`, `structuredText`, and `songVerseData`.
+- `headingData`, `announcementData`, `responsiveReadingItemData`, `structuredText`, `songVerseData`, `imageSource`, and `songContentMode`.
+- Image asset resolution and intrinsic-size measurement.
 - Native layout primitives.
 - Basic pagination.
 - PDF text rendering.

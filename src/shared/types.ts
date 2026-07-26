@@ -32,7 +32,13 @@ export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: A
 export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
 export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string }
 export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
-export interface RichTextBlock extends BlockBase { type: 'richText'; role?: 'header' | 'body'; content: Paragraph[] }
+export type ScriptureElementRole = 'heading' | 'reference' | 'caption' | 'body';
+export interface RichTextBlock extends BlockBase {
+  type: 'richText';
+  role?: 'header' | 'body';
+  scriptureRole?: ScriptureElementRole;
+  content: Paragraph[];
+}
 export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string }
 export type ResponsiveReadingRole = 'leader' | 'follower';
 export interface ResponsiveReadingEntry {
@@ -49,6 +55,7 @@ export interface ScriptureBlock extends BlockBase {
   reference: string;
   translation: string;
   caption?: string;
+  elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints }>>;
   resolved?: { content: Paragraph[]; source: 'bible-gateway-web' | 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
 }
 export interface SongBlock extends BlockBase {
@@ -100,18 +107,8 @@ export interface CustomBlockStyle {
   borderColor: string;
   borderRadiusPt: number;
 }
-export interface CustomBlockDefinitionV1 {
-  id: string;
-  name: string;
-  showName: boolean;
-  layoutText: string;
-  bindings: CustomBlockBinding[];
-  style: CustomBlockStyle;
-  updatedAt: string;
-}
 export interface CustomBlock extends BlockBase {
   type: 'custom';
-  definitionId?: string;
   name: string;
   showName?: boolean;
   layoutText: string;
@@ -123,6 +120,17 @@ export interface CustomBlock extends BlockBase {
 export type BulletinBlock = TitlePageBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
+
+export interface BlockDescriptorV1 {
+  schemaVersion: 1;
+  id: string;
+  version: number;
+  name: string;
+  description: string;
+  icon?: string;
+  order: number;
+  block: BulletinBlock;
+}
 
 export interface AssetRef {
   path: string;
@@ -178,7 +186,12 @@ export interface LibraryItemV1 {
   assets?: Array<AssetRef & { variant?: string }>;
   license?: { notice: string; licenseNumber?: string };
 }
-export interface LibraryManifestV1 { schemaVersion: 1; name: string; items: LibraryItemV1[]; blocks?: CustomBlockDefinitionV1[] }
+export interface LibraryManifestV1 {
+  schemaVersion: 1;
+  name: string;
+  items: LibraryItemV1[];
+  blockDescriptors?: BlockDescriptorV1[];
+}
 
 export interface ValidationIssue { path: string; message: string }
 export interface WorkspaceSummary { root: string; bulletins: Array<{ path: string; document: BulletinDocumentV1 }>; templates: Array<{ path: string; template: TemplateV1 }>; library?: LibraryManifestV1 }

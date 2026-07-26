@@ -21,7 +21,7 @@ const evaluate = async expression => (await command('Runtime.evaluate', { expres
 const wait = async (expression, label, timeout = 8000) => {
   const started = Date.now();
   while (Date.now() - started < timeout) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)); }
-  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
+  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,viteError:document.querySelector('vite-error-overlay')?.shadowRoot?.textContent?.trim().slice(0,1200),body:document.body.innerText.trim().slice(0,500),rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
   throw new Error(`Timed out waiting for ${label}: ${JSON.stringify(context)}`);
 };
 const buttonExpression = text => `Array.from(document.querySelectorAll('button')).find(element => element.textContent.trim().includes(${JSON.stringify(text)}))`;
@@ -258,44 +258,63 @@ if (process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1') {
   process.exit(0);
 }
 
-if (process.env.BULLETIN_CUSTOM_BLOCKS_ONLY === '1') {
+if (process.env.BULLETIN_DESCRIPTORS_ONLY === '1') {
   await click('Templates');
-  await click('Add block'); await wait(`Boolean(document.querySelector('.block-library-modal'))`, 'first-class block library');
-  if (!await evaluate(`document.querySelector('.block-library-modal')?.textContent.includes('Scripture reading')`)) throw new Error('Built-in blocks are missing from the block library.');
-  await click('Create custom block'); await wait(`Boolean(document.querySelector('.custom-block-designer'))`, 'separate custom block designer');
-  await fill('Block name', 'Service invitation');
-  await fill('Field label', 'Service time');
-  await fill('Placeholder', 'serviceTime');
-  await fill('Default value', '9:00 AM');
-  await click('Add binding');
-  await evaluate(`(()=>{const element=document.querySelectorAll('.binding-row')[1].querySelectorAll('input')[0];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'Sermon title');element.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
-  await evaluate(`(()=>{const element=document.querySelectorAll('.binding-row')[1].querySelectorAll('input')[1];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'sermonTitle');element.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
-  await evaluate(`(()=>{const element=document.querySelectorAll('.binding-row')[1].querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(element,'info.title');element.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
-  await fill('Content layout', 'Worship begins at {{serviceTime}}.\n\nToday: {{sermonTitle}}');
-  await fill('Width (%)', '60');
-  await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Text alignment');const button=Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Center');button.click();return true})()`);
-  await click('Create block'); await wait(`document.querySelectorAll('.custom-choices .block-choice').length === 1`, 'saved reusable block definition');
-  await evaluate(`document.querySelector('.custom-choices .block-choice .secondary').click()`);
-  await wait(`document.querySelector('.builder-preview .document-stack')?.textContent.includes('Worship begins at 9:00 AM.') && document.querySelector('.builder-preview .document-stack')?.textContent.includes('Today: Sermon title')`, 'bound custom block preview');
-  const renderedStyle = await evaluate(`(()=>{const block=Array.from(document.querySelectorAll('.builder-preview .custom-block')).at(-1);return {width:block.style.width,textAlign:block.style.textAlign}})()`);
-  if (renderedStyle.width !== '60%' || renderedStyle.textAlign !== 'center') throw new Error(`Custom layout controls were not rendered: ${JSON.stringify(renderedStyle)}`);
-  await click('Add block'); await pointerClick('Edit'); await fill('Block name', 'Service invitation updated'); await click('Save changes');
-  await wait(`document.querySelector('.custom-choices .block-choice b')?.textContent === 'Service invitation updated'`, 'edited reusable block');
-  await evaluate(`document.querySelector('.custom-choices .block-choice .secondary').click()`);
-  await wait(`document.querySelectorAll('.outline .outline-main b').length > 1 && Array.from(document.querySelectorAll('.outline .outline-main b')).filter(element=>element.textContent==='Service invitation updated').length === 2`, 'reused custom block');
-  await click('Add block'); await pointerClick('Edit'); await click('Delete from block library'); await click('Delete reusable block');
-  await wait(`document.querySelector('.block-library-empty')?.textContent.includes('No custom blocks')`, 'deleted reusable block definition');
-  await evaluate(`document.querySelector('button[aria-label="Close block library"]').click()`);
-  await wait(`!document.querySelector('.block-library-modal') && document.querySelector('.builder-preview .document-stack')?.textContent.includes('Service invitation updated')`, 'preserved template snapshots after definition deletion');
-  await click('Publish new version');
-  await wait(`document.querySelector('.template-save-status')?.textContent.includes('New version published')`, 'custom block template publication');
-  await click('This week'); await click('New week');
-  await wait(`Array.from(document.querySelectorAll('.block-editor h3')).some(element=>element.textContent==='Service invitation updated')`, 'custom block weekly editor');
-  await fill('Service time', '10:30 AM');
-  await wait(`document.querySelector('.preview-pane .document-stack')?.textContent.includes('Worship begins at 10:30 AM.')`, 'custom weekly value preview');
-  const savedBlocks = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.find(item=>item.template.version===2)?.template.starterBlocks.filter(block=>block.type==='custom'))`);
-  if (savedBlocks?.length !== 2 || savedBlocks[0].name !== 'Service invitation updated' || savedBlocks[0].style?.widthPercent !== 60) throw new Error(`Custom blocks were not persisted correctly: ${JSON.stringify(savedBlocks)}`);
-  pass('creates, edits, deletes, reuses, styles, publishes, and weekly-edits first-class blocks');
+  const initialCount = await evaluate(`document.querySelectorAll('.outline > li').length`);
+  await click('Add block');
+  await wait(`document.querySelectorAll('.block-library-modal .built-in-choice').length === 12`, 'pre-packaged JSON block catalog');
+  if (!await evaluate(`document.querySelector('.block-library-toolbar.built-in-heading')?.textContent.includes('Pre-packaged blocks') && document.querySelector('.descriptor-source-note')?.textContent.includes('JSON descriptors')`)) throw new Error('The pre-packaged descriptor catalog is not identified in the block library.');
+  await evaluate(`(()=>{const choice=Array.from(document.querySelectorAll('.block-library-modal .built-in-choice')).find(element=>element.querySelector('b')?.textContent==='Paragraph');if(!choice)throw new Error('Paragraph descriptor missing');choice.querySelector('.secondary').click();return true})()`);
+  await wait(`document.querySelectorAll('.outline > li').length === ${initialCount + 1} && document.querySelector('.builder-preview .document-stack')?.textContent.includes('New paragraph')`, 'paragraph instantiated from descriptor');
+  await click('Save draft');
+  await wait(`document.querySelector('.template-save-status')?.textContent.includes('Draft saved')`, 'descriptor-backed template save');
+  const saved = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.find(item=>item.template.status==='draft').template.starterBlocks.at(-1))`);
+  if (saved?.type !== 'paragraph' || saved.children?.length !== 2 || saved.children[0]?.presentation?.fontWeight !== 'bold' || saved.presentation?.marginIn?.bottom !== 0.16 || saved.layout?.keepTogether !== true || !saved.id.startsWith('paragraph-')) throw new Error(`Descriptor instance was not persisted correctly: ${JSON.stringify(saved)}`);
+  pass('loads and instantiates the pre-packaged block catalog from JSON descriptors');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
+if (process.env.BULLETIN_DESCRIPTOR_IMPORT_ONLY === '1') {
+  const invalidFile = '/tmp/bulletin-invalid-block.json';
+  const validFile = '/tmp/bulletin-valid-block.json';
+  await writeFile(invalidFile, '{"schemaVersion":1,"id":"Bad ID","block":{"id":"root","type":"song"}}');
+  await writeFile(validFile, JSON.stringify({
+    schemaVersion: 1,
+    id: 'imported-welcome',
+    version: 1,
+    name: 'Imported welcome',
+    description: 'A validated imported heading.',
+    icon: '◇',
+    order: 10,
+    block: { id: 'root', type: 'heading', text: 'Imported content', weeklyEditable: true, presentation: { textAlign: 'center', fontWeight: 'bold' } }
+  }));
+  await click('Templates');
+  await click('Add block');
+  await setFileForButton('Import JSON', invalidFile);
+  await wait(`document.querySelector('.descriptor-validation.invalid')?.textContent.includes('validation') && document.querySelector('.descriptor-preview-empty')?.textContent.includes('Preview unavailable')`, 'invalid descriptor feedback');
+  if (!await evaluate(`document.querySelector('.descriptor-modal footer .primary')?.disabled === true`)) throw new Error('Invalid descriptor can be imported.');
+  await click('Cancel');
+  await setFileForButton('Import JSON', validFile);
+  await wait(`document.querySelector('.descriptor-validation.valid')?.textContent.includes('Valid block descriptor') && document.querySelector('.descriptor-document-preview .document-page')?.textContent.includes('Imported content')`, 'valid descriptor preview');
+  await click('Import block');
+  await wait(`document.querySelector('.workspace-descriptor-choices')?.textContent.includes('Imported welcome')`, 'versioned workspace descriptor');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.blockDescriptors.find(item=>item.id==='imported-welcome'))`);
+  if (stored?.version !== 1 || stored.block?.presentation?.fontWeight !== 'bold') throw new Error(`Imported descriptor was not persisted: ${JSON.stringify(stored)}`);
+  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.textContent.includes('imported-welcome')&&element.textContent.includes('v1'));card.querySelectorAll('.text-button')[1].click();return true})()`);
+  await wait(`document.querySelector('.descriptor-modal footer .primary')?.textContent.includes('Save new version') && document.querySelector('.descriptor-modal textarea')?.value.includes('"version": 2')`, 'JSON descriptor version editor');
+  await evaluate(`(()=>{const area=document.querySelector('.descriptor-modal textarea');const value=JSON.parse(area.value);value.block.text='Imported content v2';Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(area,JSON.stringify(value,null,2));area.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`document.querySelector('.descriptor-document-preview .document-page')?.textContent.includes('Imported content v2')`, 'edited descriptor preview');
+  await click('Save new version');
+  await wait(`document.querySelectorAll('.workspace-descriptor-choices .block-choice').length === 2`, 'saved second descriptor version');
+  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.textContent.includes('imported-welcome')&&element.textContent.includes('v1'));card.querySelector('.danger-text').click();return true})()`);
+  await wait(`document.querySelector('.confirmation-modal')?.textContent.includes('Imported welcome v1')`, 'descriptor delete confirmation');
+  await evaluate(`document.querySelector('.confirmation-modal .danger').click()`);
+  await wait(`document.querySelectorAll('.workspace-descriptor-choices .block-choice').length === 1 && document.querySelector('.workspace-descriptor-choices')?.textContent.includes('v2')`, 'deleted one descriptor version');
+  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.querySelector('b')?.textContent==='Imported welcome');card.querySelector('.secondary').click();return true})()`);
+  await wait(`document.querySelector('.builder-preview .document-stack')?.textContent.includes('Imported content v2')`, 'imported descriptor template block');
+  pass('validates, previews, versions, edits, deletes, saves, and reuses imported JSON blocks');
   console.log(`\n${results.length} browser MVP checks passed.`);
   socket.close();
   process.exit(0);

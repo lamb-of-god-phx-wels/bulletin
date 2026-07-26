@@ -7,26 +7,53 @@
   "properties": {
     "schemaVersion": { "const": 1 }, "name": { "type": "string" },
     "items": { "type": "array", "items": { "type": "object", "required": ["id", "version", "kind", "title"], "properties": { "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["song", "liturgy", "image", "font", "church-info"] }, "title": { "type": "string" } }, "additionalProperties": true } },
-    "blocks": { "type": "array", "items": { "$ref": "#/$defs/customBlockDefinition" } }
+    "blockDescriptors": { "type": "array", "items": { "$ref": "#/$defs/blockDescriptor" } }
   },
   "$defs": {
-    "customBlockDefinition": {
+    "blockDescriptor": {
       "type": "object",
-      "required": ["id", "name", "showName", "layoutText", "bindings", "style", "updatedAt"],
+      "required": ["schemaVersion", "id", "version", "name", "description", "order", "block"],
       "properties": {
-        "id": { "type": "string", "minLength": 1 }, "name": { "type": "string", "minLength": 1 }, "showName": { "type": "boolean" }, "layoutText": { "type": "string", "minLength": 1 },
-        "bindings": { "type": "array", "items": { "type": "object", "required": ["key", "label", "source"], "properties": { "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "label": { "type": "string" }, "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.series", "church.name"] }, "defaultValue": { "type": "string" }, "multiline": { "type": "boolean" } }, "additionalProperties": false } },
-        "style": { "$ref": "#/$defs/customBlockStyle" }, "updatedAt": { "type": "string", "format": "date-time" }
-      }, "additionalProperties": false
+        "schemaVersion": { "const": 1 },
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "icon": { "type": "string" },
+        "order": { "type": "integer", "minimum": 0 },
+        "block": { "$ref": "#/$defs/descriptorBlock" }
+      },
+      "additionalProperties": false
     },
-    "customBlockStyle": {
-      "type": "object", "required": ["widthPercent", "placement", "textAlign", "paddingIn", "marginIn", "fontFamily", "fontSizePt", "lineHeight", "fontWeight", "fontStyle", "textTransform", "color", "borderWidthPt", "borderColor", "borderRadiusPt"],
+    "descriptorBlock": {
+      "type": "object",
+      "required": ["id", "type"],
       "properties": {
-        "widthPercent": { "type": "number", "minimum": 10, "maximum": 100 }, "placement": { "enum": ["left", "center", "right"] }, "textAlign": { "enum": ["left", "center", "right", "justify"] },
-        "paddingIn": { "type": "object", "required": ["top", "right", "bottom", "left"], "properties": { "top": { "type": "number", "minimum": 0 }, "right": { "type": "number", "minimum": 0 }, "bottom": { "type": "number", "minimum": 0 }, "left": { "type": "number", "minimum": 0 } }, "additionalProperties": false },
-        "marginIn": { "type": "object", "required": ["top", "bottom"], "properties": { "top": { "type": "number", "minimum": 0 }, "bottom": { "type": "number", "minimum": 0 } }, "additionalProperties": false },
-        "fontFamily": { "type": "string" }, "fontSizePt": { "type": "number", "minimum": 1 }, "lineHeight": { "type": "number", "minimum": 0.5 }, "fontWeight": { "enum": ["normal", "bold"] }, "fontStyle": { "enum": ["normal", "italic"] }, "textTransform": { "enum": ["none", "uppercase", "small-caps"] }, "color": { "type": "string" }, "backgroundColor": { "type": "string" }, "borderWidthPt": { "type": "number", "minimum": 0 }, "borderColor": { "type": "string" }, "borderRadiusPt": { "type": "number", "minimum": 0 }
-      }, "additionalProperties": false
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "layout": { "type": "object" },
+        "presentation": { "type": "object" },
+        "elements": {
+          "type": "object",
+          "properties": {
+            "heading": { "$ref": "#/$defs/elementFormatting" },
+            "reference": { "$ref": "#/$defs/elementFormatting" },
+            "caption": { "$ref": "#/$defs/elementFormatting" },
+            "body": { "$ref": "#/$defs/elementFormatting" }
+          },
+          "additionalProperties": false
+        },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/descriptorBlock" } }
+      },
+      "additionalProperties": true
+    },
+    "elementFormatting": {
+      "type": "object",
+      "properties": {
+        "layout": { "type": "object" },
+        "presentation": { "type": "object" }
+      },
+      "additionalProperties": false
     }
   }, "additionalProperties": false
 }

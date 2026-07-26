@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "spacer",
+  "version": 1,
+  "name": "Spacer",
+  "description": "Controlled vertical space between blocks.",
+  "icon": "↕",
+  "order": 110,
+  "block": {
+    "id": "root",
+    "type": "spacer",
+    "size": "medium",
+    "layout": { "keepTogether": true, "density": "normal" },
+    "presentation": {
+      "widthPercent": 100,
+      "placement": "left",
+      "textAlign": "left",
+      "paddingIn": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "marginIn": { "top": 0, "bottom": 0 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "textTransform": "none",
+      "color": "#25302d",
+      "borderWidthPt": 0,
+      "borderColor": "#a44d2a",
+      "borderRadiusPt": 0
+    }
+  }
+}

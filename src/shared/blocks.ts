@@ -1,4 +1,5 @@
 import type { BulletinBlock, ChurchInfoBlock, CustomBlockStyle, Paragraph } from './types.js';
+import { scriptureElementBlocks, updateScriptureElement } from './scriptureReading.js';
 
 const text = (value: string): Paragraph[] => [{ type: 'paragraph', children: [{ type: 'text', text: value }] }];
 const presentation = (changes: Partial<CustomBlockStyle>): Partial<CustomBlockStyle> => changes;
@@ -29,6 +30,7 @@ export function childBlocks(block: BulletinBlock): BulletinBlock[] | undefined {
       { id: `${block.id}-body`, type: 'richText', role: 'body', content: legacy.content ?? text(''), presentation: presentation({ marginIn: { top: 0, bottom: 0 }, paddingIn: { top: 0, right: 0, bottom: 0, left: 0 } }) }
     ];
   }
+  if (block.type === 'scriptureReading') return scriptureElementBlocks(block);
   return undefined;
 }
 
@@ -49,6 +51,10 @@ export function updateBlockTree(blocks: BulletinBlock[], id: string, next: Bulle
     if (block.type === 'churchInfo') return { ...block, children: updatedChildren } satisfies ChurchInfoBlock;
     if (block.type === 'group') return { ...block, children: updatedChildren };
     if (block.type === 'paragraph') return { ...block, children: updatedChildren.filter(child => child.type === 'richText') };
+    if (block.type === 'scriptureReading') {
+      const element = updatedChildren.find(child => child.id === id);
+      return element?.type === 'richText' ? updateScriptureElement(block, element) : block;
+    }
     return block;
   });
 }

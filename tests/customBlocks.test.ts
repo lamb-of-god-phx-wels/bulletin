@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bindingKey, customBlockFromDefinition, customBlockParagraphs, customLayoutKeys, newCustomBlockDefinition, renderCustomBlockText } from '../src/shared/customBlocks';
+import { customBlockParagraphs, customLayoutKeys, renderCustomBlockText } from '../src/shared/customBlocks';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 import type { CustomBlock } from '../src/shared/types';
 
@@ -17,12 +17,6 @@ const block: CustomBlock = {
 };
 
 describe('custom bulletin blocks', () => {
-  it('normalizes binding labels into safe keys', () => {
-    expect(bindingKey('Service time')).toBe('serviceTime');
-    expect(bindingKey('9 AM location')).toBe('_9AMLocation');
-    expect(bindingKey('serviceTime')).toBe('serviceTime');
-  });
-
   it('resolves weekly and bulletin bindings in the layout', () => {
     const document = createBulletin(defaultTemplate);
     document.info.date = '2026-06-07';
@@ -40,17 +34,5 @@ describe('custom bulletin blocks', () => {
       { type: 'paragraph', children: [{ type: 'text', text: 'Welcome!' }] },
       { type: 'paragraph', children: [{ type: 'text', text: '{{missing}}' }] }
     ]);
-  });
-
-  it('creates independent reusable block snapshots', () => {
-    const definition = newCustomBlockDefinition('Service box');
-    definition.style.widthPercent = 60;
-    const first = customBlockFromDefinition(definition);
-    const second = customBlockFromDefinition(definition);
-    expect(first.definitionId).toBe(definition.id);
-    expect(first.style?.widthPercent).toBe(60);
-    first.bindings[0].label = 'Changed instance';
-    expect(second.bindings[0].label).toBe('Text');
-    expect(definition.bindings[0].label).toBe('Text');
   });
 });

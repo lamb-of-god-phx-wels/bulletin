@@ -19,4 +19,50 @@ describe('nested blocks', () => {
     expect(findBlock(updated, 'church-welcome-body')).toEqual(findBlock([church], 'church-welcome-body'));
     expect(flattenBlocks(updated)).toHaveLength(11);
   });
+
+  it('materializes and independently updates all four Scripture elements', () => {
+    const scripture: BulletinBlock = {
+      id: 'reading',
+      type: 'scriptureReading',
+      label: 'First Reading',
+      reference: 'Genesis 1:1-5',
+      caption: 'The beginning of creation.',
+      translation: 'NIV',
+      resolved: {
+        content: [{ type: 'paragraph', children: [{ type: 'text', text: 'In the beginning God created.' }] }],
+        source: 'manual',
+        retrievedAt: '2026-07-24T00:00:00.000Z',
+        attribution: 'NIV — text supplied by user'
+      }
+    };
+
+    expect(childBlocks(scripture)?.map(block => block.type === 'richText' ? block.scriptureRole : undefined)).toEqual([
+      'heading',
+      'reference',
+      'caption',
+      'body'
+    ]);
+
+    const reference = findBlock([scripture], 'reading-reference')!;
+    const updated = updateBlockTree([scripture], reference.id, {
+      ...reference,
+      content: [{ type: 'paragraph', children: [{ type: 'text', text: 'John 1:1-5' }] }],
+      presentation: { ...reference.presentation, textAlign: 'right', widthPercent: 60 }
+    } as BulletinBlock);
+
+    expect(updated[0]).toMatchObject({
+      type: 'scriptureReading',
+      reference: 'John 1:1-5',
+      resolved: undefined,
+      elements: {
+        reference: {
+          presentation: { textAlign: 'right', widthPercent: 60 }
+        }
+      }
+    });
+    expect(findBlock(updated, 'reading-heading')).toMatchObject({
+      scriptureRole: 'heading',
+      content: [{ children: [{ text: 'First Reading' }] }]
+    });
+  });
 });

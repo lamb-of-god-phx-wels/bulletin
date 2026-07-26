@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { defaultCustomBlockStyle } from '../shared/customBlocks';
 import { childBlocks } from '../shared/blocks';
+import { scriptureElementNames } from '../shared/scriptureReading';
 import type { BulletinBlock, CustomBlockStyle, LayoutHints, TemplateV1 } from '../shared/types';
 
 function NumberField({ label, value, min, max, step = .05, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange(value: number): void }) {
@@ -18,7 +19,7 @@ function displayName(block: BulletinBlock) {
   const paragraphHeader = headerBlock?.type === 'richText'
     ? headerBlock.content.flatMap(paragraph => paragraph.children).map(child => child.type === 'text' ? child.text : child.type === 'lineBreak' ? '\n' : '✠').join('')
     : undefined;
-  return block.type === 'custom' ? block.name : block.type === 'paragraph' ? paragraphHeader || 'Paragraph' : block.type === 'richText' && block.role ? (block.role === 'header' ? 'Header text' : 'Paragraph text') : block.label ?? ('text' in block ? block.text : block.type === 'titlePage' ? 'Cover' : block.type);
+  return block.type === 'custom' ? block.name : block.type === 'paragraph' ? paragraphHeader || 'Paragraph' : block.type === 'richText' && block.scriptureRole ? scriptureElementNames[block.scriptureRole] : block.type === 'richText' && block.role ? (block.role === 'header' ? 'Header text' : 'Paragraph text') : block.label ?? ('text' in block ? block.text : block.type === 'titlePage' ? 'Cover' : block.type);
 }
 
 export function BlockFormattingModal({ block, template, scope, onClose, onSave }: { block: BulletinBlock; template: TemplateV1; scope: 'template' | 'weekly'; onClose(): void; onSave(presentation: Partial<CustomBlockStyle> | undefined, layout: LayoutHints | undefined): void }) {

@@ -1,4 +1,4 @@
-import type { BulletinDocumentV1, CustomBlock, CustomBlockBinding, CustomBlockDefinitionV1, CustomBlockStyle, CustomBindingSource, Paragraph } from './types.js';
+import type { BulletinDocumentV1, CustomBlock, CustomBlockBinding, CustomBlockStyle, Paragraph } from './types.js';
 
 export const defaultCustomBlockStyle: CustomBlockStyle = {
   widthPercent: 100,
@@ -18,52 +18,11 @@ export const defaultCustomBlockStyle: CustomBlockStyle = {
   borderRadiusPt: 0
 };
 
-export function newCustomBlockDefinition(name = 'Custom block'): CustomBlockDefinitionV1 {
-  return {
-    id: `${bindingKey(name).replace(/([A-Z])/g, '-$1').toLowerCase() || 'custom-block'}-${Date.now()}`,
-    name,
-    showName: true,
-    layoutText: '{{text}}',
-    bindings: [{ key: 'text', label: 'Text', source: 'weekly', multiline: true }],
-    style: structuredClone(defaultCustomBlockStyle),
-    updatedAt: new Date().toISOString()
-  };
-}
-
-export function customBlockFromDefinition(definition: CustomBlockDefinitionV1): CustomBlock {
-  return {
-    id: `${definition.id}-${Date.now()}`,
-    type: 'custom',
-    definitionId: definition.id,
-    name: definition.name,
-    label: definition.name,
-    showName: definition.showName,
-    layoutText: definition.layoutText,
-    bindings: structuredClone(definition.bindings),
-    style: structuredClone(definition.style),
-    values: {},
-    weeklyEditable: definition.bindings.some(binding => binding.source === 'weekly')
-  };
-}
-
-export const customBindingSources: Array<{ value: CustomBindingSource; label: string }> = [
-  { value: 'weekly', label: 'Weekly input' },
-  { value: 'info.title', label: 'Sermon title' },
-  { value: 'info.date', label: 'Service date' },
-  { value: 'info.churchWeek', label: 'Church week' },
-  { value: 'info.series', label: 'Series' },
-  { value: 'church.name', label: 'Church name' }
-];
-
-export function bindingKey(value: string): string {
-  return value.trim().replace(/[^a-zA-Z0-9_]+(.)/g, (_match, next: string) => next.toUpperCase()).replace(/[^a-zA-Z0-9_]/g, '').replace(/^[A-Z]/, first => first.toLowerCase()).replace(/^([0-9])/, '_$1');
-}
-
 export function customLayoutKeys(layoutText: string): string[] {
   return [...layoutText.matchAll(/{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}/g)].map(match => match[1]);
 }
 
-export function customBlockDefinitionIssues(block: Pick<CustomBlock, 'name' | 'layoutText' | 'bindings'>): string[] {
+export function customBlockIssues(block: Pick<CustomBlock, 'name' | 'layoutText' | 'bindings'>): string[] {
   const issues: string[] = [];
   if (!block.name.trim()) issues.push('Enter a block name.');
   if (!block.layoutText.trim()) issues.push('Enter a layout for this block.');

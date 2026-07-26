@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "library-text",
+  "version": 1,
+  "name": "Reusable library text",
+  "description": "Approved text stored in the content library.",
+  "icon": "T",
+  "order": 80,
+  "block": {
+    "id": "root",
+    "type": "libraryText",
+    "libraryItemId": "",
+    "title": "Reusable text",
+    "weeklyEditable": true,
+    "layout": { "keepTogether": true, "density": "normal" },
+    "presentation": {
+      "widthPercent": 100,
+      "placement": "left",
+      "textAlign": "left",
+      "paddingIn": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "marginIn": { "top": 0, "bottom": 0.12 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "textTransform": "none",
+      "color": "#25302d",
+      "borderWidthPt": 0,
+      "borderColor": "#a44d2a",
+      "borderRadiusPt": 0
+    }
+  }
+}

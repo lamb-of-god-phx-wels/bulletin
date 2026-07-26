@@ -27,6 +27,16 @@
         "weeklyEditable": { "type": "boolean" },
         "layout": { "type": "object" },
         "presentation": { "type": "object" },
+        "elements": {
+          "type": "object",
+          "properties": {
+            "heading": { "$ref": "#/$defs/elementFormatting" },
+            "reference": { "$ref": "#/$defs/elementFormatting" },
+            "caption": { "$ref": "#/$defs/elementFormatting" },
+            "body": { "$ref": "#/$defs/elementFormatting" }
+          },
+          "additionalProperties": false
+        },
         "name": { "type": "string", "minLength": 1 },
         "definitionId": { "type": "string" },
         "showName": { "type": "boolean" },
@@ -38,6 +48,14 @@
       },
       "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
       "additionalProperties": true
+    },
+    "elementFormatting": {
+      "type": "object",
+      "properties": {
+        "layout": { "type": "object" },
+        "presentation": { "type": "object" }
+      },
+      "additionalProperties": false
     },
     "customBinding": {
       "type": "object",

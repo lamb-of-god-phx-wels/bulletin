@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mylambofgod.org/schemas/block-descriptor-v1.schema.json",
+  "title": "BlockDescriptorV1",
+  "type": "object",
+  "required": ["schemaVersion", "id", "version", "name", "description", "order", "block"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "icon": { "type": "string", "minLength": 1, "maxLength": 4 },
+    "order": { "type": "integer", "minimum": 0 },
+    "block": { "$ref": "#/$defs/block" }
+  },
+  "$defs": {
+    "block": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "titlePage", "churchInfo", "heading", "paragraph", "richText",
+            "sermonTitle", "responsiveReading", "scriptureReading", "song",
+            "libraryText", "announcements", "copyright", "fullPageAsset",
+            "spacer", "group", "custom", "sectionHeading"
+          ]
+        },
+        "layout": { "$ref": "#/$defs/layout" },
+        "presentation": { "$ref": "#/$defs/presentation" },
+        "elements": { "$ref": "#/$defs/scriptureElements" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/block" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "layout": {
+      "type": "object",
+      "properties": {
+        "pageBreakBefore": { "type": "boolean" },
+        "keepTogether": { "type": "boolean" },
+        "density": { "enum": ["normal", "compact"] },
+        "fit": { "enum": ["contain", "cover"] },
+        "cropAnchor": { "enum": ["center", "top", "bottom", "left", "right"] }
+      },
+      "additionalProperties": false
+    },
+    "scriptureElements": {
+      "type": "object",
+      "properties": {
+        "heading": { "$ref": "#/$defs/elementFormatting" },
+        "reference": { "$ref": "#/$defs/elementFormatting" },
+        "caption": { "$ref": "#/$defs/elementFormatting" },
+        "body": { "$ref": "#/$defs/elementFormatting" }
+      },
+      "additionalProperties": false
+    },
+    "elementFormatting": {
+      "type": "object",
+      "properties": {
+        "layout": { "$ref": "#/$defs/layout" },
+        "presentation": { "$ref": "#/$defs/presentation" }
+      },
+      "additionalProperties": false
+    },
+    "presentation": {
+      "type": "object",
+      "properties": {
+        "widthPercent": { "type": "number", "minimum": 10, "maximum": 100 },
+        "placement": { "enum": ["left", "center", "right"] },
+        "textAlign": { "enum": ["left", "center", "right", "justify"] },
+        "paddingIn": {
+          "type": "object",
+          "properties": {
+            "top": { "type": "number", "minimum": 0 },
+            "right": { "type": "number", "minimum": 0 },
+            "bottom": { "type": "number", "minimum": 0 },
+            "left": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "marginIn": {
+          "type": "object",
+          "properties": {
+            "top": { "type": "number", "minimum": 0 },
+            "bottom": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "fontFamily": { "type": "string" },
+        "fontSizePt": { "type": "number", "minimum": 1 },
+        "lineHeight": { "type": "number", "minimum": 0.5 },
+        "fontWeight": { "enum": ["normal", "bold"] },
+        "fontStyle": { "enum": ["normal", "italic"] },
+        "textTransform": { "enum": ["none", "uppercase", "small-caps"] },
+        "color": { "type": "string" },
+        "backgroundColor": { "type": "string" },
+        "borderWidthPt": { "type": "number", "minimum": 0 },
+        "borderColor": { "type": "string" },
+        "borderRadiusPt": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

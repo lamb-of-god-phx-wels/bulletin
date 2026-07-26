@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "kind": "component",
+  "type": "bulletin:scriptureReading",
+  "version": 1,
+  "name": "Scripture reading",
+  "description": "An optional heading and caption, Scripture reference, and structured passage body.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["reference", "body"],
+    "properties": {
+      "heading": { "type": ["string", "null"] },
+      "reference": { "type": "string" },
+      "caption": { "type": ["string", "null"] },
+      "body": {
+        "type": "object",
+        "required": ["blocks"],
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": { "enum": ["paragraph", "lineBreak"] },
+                "inlines": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["type", "value"],
+                    "properties": {
+                      "type": { "enum": ["text", "verseNumber"] },
+                      "value": { "type": "string" },
+                      "emphasis": { "enum": ["bold", "italic"] },
+                      "marks": {
+                        "type": "array",
+                        "items": { "enum": ["bold", "italic", "smallCaps", "superscript"] },
+                        "uniqueItems": true
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:stack",
+    "id": "root",
+    "children": [
+      {
+        "type": "core:text",
+        "id": "heading",
+        "part": "heading",
+        "when": {
+          "$expr": {
+            "op": "notEmpty",
+            "args": [{ "$bind": "inputs.heading" }]
+          }
+        },
+        "inputs": {
+          "text": { "$bind": "inputs.heading", "required": true }
+        }
+      },
+      {
+        "type": "core:text",
+        "id": "reference",
+        "part": "reference",
+        "inputs": {
+          "text": { "$bind": "inputs.reference", "required": true }
+        }
+      },
+      {
+        "type": "core:text",
+        "id": "caption",
+        "part": "caption",
+        "when": {
+          "$expr": {
+            "op": "notEmpty",
+            "args": [{ "$bind": "inputs.caption" }]
+          }
+        },
+        "inputs": {
+          "text": { "$bind": "inputs.caption", "required": true }
+        }
+      },
+      {
+        "type": "core:structuredText",
+        "id": "body",
+        "part": "body",
+        "inputs": {
+          "content": { "$bind": "inputs.body", "required": true }
+        }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "placement": "left",
+      "keepTogether": false
+    },
+    "parts": {
+      "heading": {
+        "marginIn": { "top": 0.2, "bottom": 0.02 },
+        "fontFamily": "body",
+        "fontSizePt": 10,
+        "lineHeight": 1.15,
+        "fontWeight": "bold",
+        "textTransform": "uppercase",
+        "keepWithNext": true
+      },
+      "reference": {
+        "marginIn": { "top": 0, "bottom": 0.08 },
+        "fontFamily": "body",
+        "fontSizePt": 10,
+        "lineHeight": 1.15,
+        "fontWeight": "normal",
+        "keepWithNext": true
+      },
+      "caption": {
+        "marginIn": { "top": 0, "bottom": 0.12 },
+        "fontFamily": "body",
+        "fontSizePt": 10,
+        "lineHeight": 1.28,
+        "fontStyle": "italic",
+        "keepWithNext": true
+      },
+      "body": {
+        "marginIn": { "top": 0, "bottom": 0 },
+        "fontFamily": "body",
+        "fontSizePt": 10,
+        "lineHeight": 1.28,
+        "orphanLines": 2,
+        "widowLines": 2
+      }
+    }
+  },
+  "editor": {
+    "icon": "¶",
+    "fields": [
+      { "input": "heading", "label": "Heading", "control": "text", "optional": true },
+      { "input": "reference", "label": "Scripture reference", "control": "text" },
+      { "input": "caption", "label": "Caption", "control": "textarea", "optional": true },
+      { "input": "body", "label": "Body", "control": "structuredText" }
+    ]
+  },
+  "sampleInputs": {
+    "heading": "First Reading",
+    "reference": "John 1:1–5",
+    "caption": "The Word became flesh.",
+    "body": {
+      "blocks": [
+        {
+          "type": "paragraph",
+          "inlines": [
+            { "type": "verseNumber", "value": "1" },
+            { "type": "text", "value": "In the beginning was the Word." }
+          ]
+        }
+      ]
+    }
+  }
+}

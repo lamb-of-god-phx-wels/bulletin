@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mylambofgod.org/schemas/component-definition-v1.schema.json",
+  "title": "DeclarativeComponentDefinitionV1",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "type", "version", "name", "description", "inputSchema", "template"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "component" },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*:[a-z][A-Za-z0-9-]*$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "inputSchema": { "type": "object" },
+    "template": { "$ref": "#/$defs/node" },
+    "defaultStyles": { "$ref": "#/$defs/styleOverrides" },
+    "editor": {
+      "type": "object",
+      "required": ["fields"],
+      "properties": {
+        "icon": { "type": "string", "minLength": 1, "maxLength": 4 },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["input", "label", "control"],
+            "properties": {
+              "input": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 },
+              "control": {
+                "enum": ["text", "textarea", "structuredText", "number", "checkbox", "select", "asset"]
+              },
+              "optional": { "type": "boolean" },
+              "help": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sampleInputs": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "part": { "type": "string", "minLength": 1 },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "when": {},
+        "style": { "$ref": "#/$defs/styleOverrides" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/node" }
+        },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "styleOverrides": {
+      "type": "object",
+      "properties": {
+        "root": { "$ref": "#/$defs/style" },
+        "parts": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/style" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "box": {
+      "type": "object",
+      "properties": {
+        "top": { "type": "number", "minimum": 0 },
+        "right": { "type": "number", "minimum": 0 },
+        "bottom": { "type": "number", "minimum": 0 },
+        "left": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "style": {
+      "type": "object",
+      "properties": {
+        "widthPercent": { "type": "number", "minimum": 1, "maximum": 100 },
+        "placement": { "enum": ["left", "center", "right"] },
+        "textAlign": { "enum": ["left", "center", "right", "justify"] },
+        "paddingIn": { "$ref": "#/$defs/box" },
+        "marginIn": { "$ref": "#/$defs/box" },
+        "fontFamily": { "type": "string" },
+        "fontSizePt": { "type": "number", "minimum": 1 },
+        "lineHeight": { "type": "number", "minimum": 0.5 },
+        "fontWeight": {
+          "oneOf": [
+            { "enum": ["normal", "bold"] },
+            { "type": "number", "minimum": 100, "maximum": 900 }
+          ]
+        },
+        "fontStyle": { "enum": ["normal", "italic"] },
+        "textTransform": { "enum": ["none", "uppercase", "small-caps"] },
+        "color": { "type": "string" },
+        "backgroundColor": { "type": "string" },
+        "borderWidthPt": { "type": "number", "minimum": 0 },
+        "borderColor": { "type": "string" },
+        "borderRadiusPt": { "type": "number", "minimum": 0 },
+        "keepTogether": { "type": "boolean" },
+        "keepWithNext": { "type": "boolean" },
+        "pageBreakBefore": { "type": "boolean" },
+        "orphanLines": { "type": "integer", "minimum": 1 },
+        "widowLines": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

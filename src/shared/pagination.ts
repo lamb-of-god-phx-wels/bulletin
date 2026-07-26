@@ -1,5 +1,6 @@
 import type { BulletinBlock, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
 import { childBlocks } from './blocks.js';
+import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureReading.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[] }
@@ -58,6 +59,11 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
   if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + 8);
+  if (block.type === 'scriptureReading') {
+    const elements = scriptureElementBlocks(block)
+      .filter(element => element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
+    return formatted(elements.reduce((total, element) => total + estimateBlockPoints(element, template, library), 0) + 10);
+  }
   if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template) + (item.asset ? 54 : 0), 0));
   if (block.type === 'song' && block.renderMode === 'asset') return formatted((block.showHeading === false ? 0 : 30) + (block.assetHeightIn ?? 5.6) * 72);
   const content = contentFor(block, library);

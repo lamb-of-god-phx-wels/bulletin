@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "section-heading",
+  "version": 1,
+  "name": "Section heading",
+  "description": "A centered divider for a major service section.",
+  "icon": "T",
+  "order": 50,
+  "block": {
+    "id": "root",
+    "type": "sectionHeading",
+    "text": "New heading",
+    "layout": { "keepTogether": true, "density": "normal" },
+    "presentation": {
+      "widthPercent": 100,
+      "placement": "center",
+      "textAlign": "center",
+      "paddingIn": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "marginIn": { "top": 0.18, "bottom": 0.24 },
+      "fontFamily": "display",
+      "fontSizePt": 13,
+      "lineHeight": 1.28,
+      "fontWeight": "bold",
+      "fontStyle": "normal",
+      "textTransform": "none",
+      "color": "#25302d",
+      "borderWidthPt": 0,
+      "borderColor": "#a44d2a",
+      "borderRadiusPt": 0
+    }
+  }
+}

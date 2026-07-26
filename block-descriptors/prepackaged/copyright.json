@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "copyright",
+  "version": 1,
+  "name": "Copyright",
+  "description": "Generated music and Scripture notices.",
+  "icon": "T",
+  "order": 120,
+  "block": {
+    "id": "root",
+    "type": "copyright",
+    "layout": { "keepTogether": true, "density": "compact" },
+    "presentation": {
+      "widthPercent": 100,
+      "placement": "left",
+      "textAlign": "left",
+      "paddingIn": { "top": 0.15, "right": 0, "bottom": 0, "left": 0 },
+      "marginIn": { "top": 0.3, "bottom": 0 },
+      "fontFamily": "body",
+      "fontSizePt": 6.5,
+      "lineHeight": 1.25,
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "textTransform": "none",
+      "color": "#25302d",
+      "borderWidthPt": 1,
+      "borderColor": "#777777",
+      "borderRadiusPt": 0
+    }
+  }
+}

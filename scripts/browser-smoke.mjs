@@ -276,6 +276,34 @@ if (process.env.BULLETIN_DESCRIPTORS_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_WEEKLY_BLOCKS_ONLY === '1') {
+  const initialIds = await evaluate(`Array.from(document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]')).map(element=>element.dataset.editorBlockId)`);
+  await click('Add block');
+  await wait(`Boolean(document.querySelector('.block-library-modal'))`, 'weekly block palette');
+  await evaluate(`(()=>{const choice=Array.from(document.querySelectorAll('.block-library-modal .built-in-choice')).find(element=>element.querySelector('b')?.textContent==='Heading');if(!choice)throw new Error('Heading descriptor missing');choice.querySelector('.secondary').click();return true})()`);
+  await wait(`document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]').length === ${initialIds.length + 1}`, 'weekly block insertion');
+  const addedId = await evaluate(`Array.from(document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]')).map(element=>element.dataset.editorBlockId).find(id=>!${JSON.stringify(initialIds)}.includes(id))`);
+  await wait(`document.querySelector('.editor-pane [data-editor-block-id="${addedId}"]')?.open === true`, 'opened newly inserted weekly block');
+  const editedText = `Weekly inserted heading ${Date.now()}`;
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane [data-editor-block-id="${addedId}"]');const input=Array.from(editor.querySelectorAll('input')).find(element=>element.closest('label')?.textContent.startsWith('Text'));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(editedText)});input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`document.querySelector('.preview-pane [data-block-id="${addedId}"]')?.textContent.includes(${JSON.stringify(editedText)})`, 'edited inserted weekly block');
+  const indexBeforeMove = await evaluate(`Array.from(document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]')).findIndex(element=>element.dataset.editorBlockId===${JSON.stringify(addedId)})`);
+  await evaluate(`document.querySelector('.editor-pane [data-editor-block-id="${addedId}"] button[title="Move up"]').click()`);
+  await wait(`Array.from(document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]')).findIndex(element=>element.dataset.editorBlockId===${JSON.stringify(addedId)}) === ${indexBeforeMove - 1}`, 'reordered weekly block');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved inserted weekly block');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(addedId)}))`);
+  if (stored?.type !== 'heading' || stored.text !== editedText) throw new Error(`Inserted weekly block was not saved: ${JSON.stringify(stored)}`);
+  await evaluate(`document.querySelector('.editor-pane [data-editor-block-id="${addedId}"] button[aria-label^="Remove "]').click()`);
+  await wait(`!document.querySelector('.editor-pane [data-editor-block-id="${addedId}"]') && !document.querySelector('.preview-pane [data-block-id="${addedId}"]')`, 'removed weekly block');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved weekly block removal');
+  const remains = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.some(block=>block.id===${JSON.stringify(addedId)}))`);
+  if (remains) throw new Error('Removed weekly block remains in storage.');
+  pass('adds, edits, reorders, saves, and removes blocks in the weekly workflow');
+  console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_DESCRIPTOR_IMPORT_ONLY === '1') {
   const invalidFile = '/tmp/bulletin-invalid-block.json';
   const validFile = '/tmp/bulletin-valid-block.json';

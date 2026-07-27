@@ -10,8 +10,10 @@ await new Promise((resolve, reject) => { socket.addEventListener('open', resolve
 let sequence = 0;
 const pending = new Map();
 const events = new Map();
+const runtimeErrors = [];
 socket.addEventListener('message', message => {
   const value = JSON.parse(message.data);
+  if (value.method === 'Runtime.exceptionThrown') runtimeErrors.push(value.params?.exceptionDetails?.exception?.description ?? value.params?.exceptionDetails?.text ?? 'Unknown runtime error');
   if (value.id && pending.has(value.id)) { const { resolve, reject } = pending.get(value.id); pending.delete(value.id); value.error ? reject(new Error(value.error.message)) : resolve(value.result); return; }
   for (const resolve of events.get(value.method) ?? []) resolve(value.params);
   events.delete(value.method);
@@ -48,6 +50,15 @@ const results = [];
 const pass = message => { results.push(message); console.log(`✓ ${message}`); };
 
 await command('Emulation.clearDeviceMetricsOverride');
+await command('Runtime.enable');
+if (process.env.BULLETIN_DEBUG_RUNTIME === '1') {
+  runtimeErrors.length = 0;
+  await command('Page.reload');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  console.log(JSON.stringify({ runtimeErrors, body: await evaluate('document.body.innerText') }, null, 2));
+  socket.close();
+  process.exit(runtimeErrors.length ? 1 : 0);
+}
 await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
@@ -305,18 +316,30 @@ if (process.env.BULLETIN_WEEKLY_BLOCKS_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_DESCRIPTOR_IMPORT_ONLY === '1') {
+  const firstScriptureId = await evaluate(`Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(element=>element.querySelector('.block-type')?.textContent.startsWith('scriptureReading'))?.dataset.editorBlockId`);
+  if (!firstScriptureId) throw new Error('No Scripture reading was available for the layout check.');
+  await wait(`Boolean(document.querySelector('.preview-pane [data-block-id="${firstScriptureId}"] .scripture-heading-line'))`, 'inline Scripture heading and reference');
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane [data-editor-block-id="${firstScriptureId}"]');editor.open=true;const select=Array.from(editor.querySelectorAll('select')).find(element=>element.closest('label')?.textContent.startsWith('Heading and reference'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'stacked');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`!document.querySelector('.preview-pane [data-block-id="${firstScriptureId}"] .scripture-heading-line')`, 'stacked Scripture heading and reference');
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane [data-editor-block-id="${firstScriptureId}"]');const select=Array.from(editor.querySelectorAll('select')).find(element=>element.closest('label')?.textContent.startsWith('Heading and reference'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'inline');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`Boolean(document.querySelector('.preview-pane [data-block-id="${firstScriptureId}"] .scripture-heading-line'))`, 'restored inline Scripture heading and reference');
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane [data-editor-block-id="${firstScriptureId}"]');const input=Array.from(editor.querySelectorAll('input[type=number]')).find(element=>element.closest('label')?.textContent.startsWith('Space between'));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0');input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`getComputedStyle(document.querySelector('.preview-pane [data-block-id="${firstScriptureId}"] .scripture-heading-line')).columnGap === '0px'`, 'zero Scripture heading/reference gap');
   const invalidFile = '/tmp/bulletin-invalid-block.json';
   const validFile = '/tmp/bulletin-valid-block.json';
-  await writeFile(invalidFile, '{"schemaVersion":1,"id":"Bad ID","block":{"id":"root","type":"song"}}');
+  await writeFile(invalidFile, '{"schemaVersion":2,"kind":"component","type":"Bad ID"}');
   await writeFile(validFile, JSON.stringify({
-    schemaVersion: 1,
-    id: 'imported-welcome',
+    schemaVersion: 2,
+    kind: 'component',
+    type: 'custom:importedWelcome',
     version: 1,
     name: 'Imported welcome',
     description: 'A validated imported heading.',
-    icon: '◇',
-    order: 10,
-    block: { id: 'root', type: 'heading', text: 'Imported content', weeklyEditable: true, presentation: { textAlign: 'center', fontWeight: 'bold' } }
+    inputSchema: { type: 'object', required: ['message'], properties: { message: { type: 'string' } }, additionalProperties: false },
+    template: { type: 'core:text', id: 'message', part: 'message', inputs: { text: { $bind: 'inputs.message', required: true } } },
+    defaultStyles: { root: { textAlign: 'center', fontWeight: 'bold' } },
+    editor: { icon: '◇', fields: [{ input: 'message', label: 'Message', control: 'text' }] },
+    sampleInputs: { message: 'Imported content' }
   }));
   await click('Templates');
   await click('Add block');
@@ -325,18 +348,18 @@ if (process.env.BULLETIN_DESCRIPTOR_IMPORT_ONLY === '1') {
   if (!await evaluate(`document.querySelector('.descriptor-modal footer .primary')?.disabled === true`)) throw new Error('Invalid descriptor can be imported.');
   await click('Cancel');
   await setFileForButton('Import JSON', validFile);
-  await wait(`document.querySelector('.descriptor-validation.valid')?.textContent.includes('Valid block descriptor') && document.querySelector('.descriptor-document-preview .document-page')?.textContent.includes('Imported content')`, 'valid descriptor preview');
-  await click('Import block');
+  await wait(`document.querySelector('.descriptor-validation.valid')?.textContent.includes('Valid component definition') && document.querySelector('.descriptor-document-preview .document-page')?.textContent.includes('Imported content')`, 'valid component preview');
+  await click('Import component');
   await wait(`document.querySelector('.workspace-descriptor-choices')?.textContent.includes('Imported welcome')`, 'versioned workspace descriptor');
-  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.blockDescriptors.find(item=>item.id==='imported-welcome'))`);
-  if (stored?.version !== 1 || stored.block?.presentation?.fontWeight !== 'bold') throw new Error(`Imported descriptor was not persisted: ${JSON.stringify(stored)}`);
-  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.textContent.includes('imported-welcome')&&element.textContent.includes('v1'));card.querySelectorAll('.text-button')[1].click();return true})()`);
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.componentDefinitions.find(item=>item.type==='custom:importedWelcome'))`);
+  if (stored?.version !== 1 || stored.defaultStyles?.root?.fontWeight !== 'bold') throw new Error(`Imported component was not persisted: ${JSON.stringify(stored)}`);
+  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.textContent.includes('custom:importedWelcome')&&element.textContent.includes('v1'));card.querySelectorAll('.text-button')[1].click();return true})()`);
   await wait(`document.querySelector('.descriptor-modal footer .primary')?.textContent.includes('Save new version') && document.querySelector('.descriptor-modal textarea')?.value.includes('"version": 2')`, 'JSON descriptor version editor');
-  await evaluate(`(()=>{const area=document.querySelector('.descriptor-modal textarea');const value=JSON.parse(area.value);value.block.text='Imported content v2';Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(area,JSON.stringify(value,null,2));area.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await evaluate(`(()=>{const area=document.querySelector('.descriptor-modal textarea');const value=JSON.parse(area.value);value.sampleInputs.message='Imported content v2';Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(area,JSON.stringify(value,null,2));area.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
   await wait(`document.querySelector('.descriptor-document-preview .document-page')?.textContent.includes('Imported content v2')`, 'edited descriptor preview');
   await click('Save new version');
   await wait(`document.querySelectorAll('.workspace-descriptor-choices .block-choice').length === 2`, 'saved second descriptor version');
-  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.textContent.includes('imported-welcome')&&element.textContent.includes('v1'));card.querySelector('.danger-text').click();return true})()`);
+  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.workspace-descriptor-choices .block-choice')).find(element=>element.textContent.includes('custom:importedWelcome')&&element.textContent.includes('v1'));card.querySelector('.danger-text').click();return true})()`);
   await wait(`document.querySelector('.confirmation-modal')?.textContent.includes('Imported welcome v1')`, 'descriptor delete confirmation');
   await evaluate(`document.querySelector('.confirmation-modal .danger').click()`);
   await wait(`document.querySelectorAll('.workspace-descriptor-choices .block-choice').length === 1 && document.querySelector('.workspace-descriptor-choices')?.textContent.includes('v2')`, 'deleted one descriptor version');

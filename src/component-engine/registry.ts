@@ -1,9 +1,8 @@
-import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020';
+import { schemaDefinitionIssues, validateSchemaValue } from './schemaValidation.js';
 import type { ComponentDiagnostic, ComponentReference, DeclarativeComponentDefinition } from './types.js';
 
 interface RegisteredDefinition {
   definition: DeclarativeComponentDefinition;
-  validateInputs: ValidateFunction;
   sourceId?: string;
 }
 
@@ -12,7 +11,6 @@ const componentTypePattern = /^[a-z][a-z0-9-]*:[a-z][A-Za-z0-9-]*$/;
 export class ComponentRegistry {
   readonly #definitions = new Map<string, RegisteredDefinition>();
   readonly #diagnostics: ComponentDiagnostic[] = [];
-  readonly #ajv = new Ajv2020({ allErrors: true, strict: true });
 
   register(definition: DeclarativeComponentDefinition, sourceId?: string): ComponentDiagnostic[] {
     const diagnostics: ComponentDiagnostic[] = [];
@@ -39,25 +37,20 @@ export class ComponentRegistry {
       sourceId
     });
 
-    let validateInputs: ValidateFunction | undefined;
-    if (!diagnostics.length) {
-      try { validateInputs = this.#ajv.compile(definition.inputSchema); }
-      catch (error) {
-        diagnostics.push({
-          severity: 'error',
-          code: 'COMPONENT_SCHEMA_INVALID',
-          message: error instanceof Error ? error.message : String(error),
-          componentType: definition.type,
-          sourceId
-        });
-      }
-    }
+    diagnostics.push(...schemaDefinitionIssues(definition.inputSchema).map(issue => ({
+      severity: 'error' as const,
+      code: 'COMPONENT_SCHEMA_INVALID',
+      message: issue.message,
+      componentType: definition.type,
+      jsonPointer: issue.path,
+      sourceId
+    })));
 
-    if (diagnostics.length || !validateInputs) {
+    if (diagnostics.length) {
       this.#diagnostics.push(...diagnostics);
       return diagnostics;
     }
-    this.#definitions.set(key, { definition: structuredClone(definition), validateInputs, sourceId });
+    this.#definitions.set(key, { definition: structuredClone(definition), sourceId });
     return [];
   }
 
@@ -80,13 +73,12 @@ export class ComponentRegistry {
       message: `Component ${reference.type}@${reference.version} is unavailable.`,
       componentType: reference.type
     }];
-    if (registered.validateInputs(inputs)) return [];
-    return (registered.validateInputs.errors ?? []).map(error => ({
+    return validateSchemaValue(registered.definition.inputSchema, inputs).map(issue => ({
       severity: 'error',
       code: 'COMPONENT_INPUT_INVALID',
-      message: error.message ?? 'Component input is invalid.',
+      message: issue.message,
       componentType: reference.type,
-      jsonPointer: error.instancePath || '/'
+      jsonPointer: issue.path
     }));
   }
 

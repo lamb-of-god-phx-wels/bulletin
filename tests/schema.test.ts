@@ -6,7 +6,7 @@ import templateSchema from '../schemas/template-v1.schema.json';
 import librarySchema from '../schemas/library-v1.schema.json';
 import example from '../example_bulletin.json';
 import { defaultTemplate } from '../src/shared/defaults';
-import { prepackagedBlockDescriptors } from '../src/prepackagedBlocks';
+import { prepackagedComponentDefinitions } from '../src/componentDefinitions';
 
 describe('public JSON contracts', () => {
   const ajv = new Ajv2020({ allErrors: true }); addFormats(ajv);
@@ -17,6 +17,6 @@ describe('public JSON contracts', () => {
   it('validates the default template and an empty library', () => {
     expect(ajv.compile(templateSchema)(defaultTemplate)).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [] })).toBe(true);
-    expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], blockDescriptors: [prepackagedBlockDescriptors[0]] })).toBe(true);
+    expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], componentDefinitions: [prepackagedComponentDefinitions[0]] })).toBe(true);
   });
 });

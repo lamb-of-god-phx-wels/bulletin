@@ -29,6 +29,7 @@ export type BoundValue = JsonValue | PathBinding | ExpressionBinding;
 
 export interface ComponentStyle {
   widthPercent?: number;
+  gapIn?: number;
   placement?: 'left' | 'center' | 'right';
   textAlign?: 'left' | 'center' | 'right' | 'justify';
   paddingIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
@@ -79,13 +80,13 @@ export interface ComponentInstanceV2 extends Omit<ComponentNodeDescriptor, 'type
 export interface ComponentEditorField {
   input: string;
   label: string;
-  control: 'text' | 'textarea' | 'structuredText' | 'number' | 'checkbox' | 'select' | 'asset';
+  control: 'text' | 'textarea' | 'structuredText' | 'number' | 'checkbox' | 'select' | 'asset' | 'collection';
   optional?: boolean;
   help?: string;
 }
 
 export interface DeclarativeComponentDefinition {
-  schemaVersion: 1;
+  schemaVersion: 2;
   kind: 'component';
   type: string;
   version: number;
@@ -96,6 +97,7 @@ export interface DeclarativeComponentDefinition {
   defaultStyles?: ComponentStyleOverrides;
   editor?: {
     icon?: string;
+    palette?: boolean;
     fields: ComponentEditorField[];
   };
   sampleInputs?: Record<string, JsonValue>;
@@ -123,6 +125,11 @@ interface LayoutNodeBase {
 
 export interface StackLayoutNode extends LayoutNodeBase {
   type: 'stack';
+  children: LayoutNode[];
+}
+
+export interface RowLayoutNode extends LayoutNodeBase {
+  type: 'row';
   children: LayoutNode[];
 }
 
@@ -157,7 +164,18 @@ export interface SpacerLayoutNode extends LayoutNodeBase {
   sizePt: number;
 }
 
-export type LayoutNode = StackLayoutNode | TextLayoutNode | StructuredTextLayoutNode | SpacerLayoutNode;
+export interface ImageLayoutNode extends LayoutNodeBase {
+  type: 'image';
+  image: {
+    assetId?: string;
+    path?: string;
+    mediaType?: string;
+    altText?: string;
+  };
+  fit?: 'contain' | 'cover' | 'fill' | 'scale-down';
+}
+
+export type LayoutNode = StackLayoutNode | RowLayoutNode | TextLayoutNode | StructuredTextLayoutNode | SpacerLayoutNode | ImageLayoutNode;
 
 export interface EvaluationResult {
   node?: LayoutNode;

@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:inlineScriptureReading",
+  "version": 1,
+  "name": "Inline Scripture reading",
+  "description": "A Scripture reference and passage body without a section heading.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["reference", "body"],
+    "properties": {
+      "reference": { "type": "string" },
+      "body": { "type": "object", "required": ["blocks"], "properties": { "blocks": { "type": "array" } } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:stack",
+    "id": "root",
+    "children": [
+      {
+        "type": "core:text",
+        "id": "reference",
+        "part": "reference",
+        "inputs": { "text": { "$bind": "inputs.reference", "required": true } }
+      },
+      {
+        "type": "core:structuredText",
+        "id": "body",
+        "part": "body",
+        "inputs": { "content": { "$bind": "inputs.body", "required": true } }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d"
+    },
+    "parts": {
+      "reference": { "marginIn": { "bottom": 0.08 }, "keepWithNext": true },
+      "body": { "orphanLines": 2, "widowLines": 2 }
+    }
+  },
+  "editor": {
+    "icon": "¶",
+    "palette": false,
+    "fields": [
+      { "input": "reference", "label": "Scripture reference", "control": "text" },
+      { "input": "body", "label": "Body", "control": "structuredText" }
+    ]
+  },
+  "sampleInputs": {
+    "reference": "John 1:1–5",
+    "body": {
+      "blocks": [
+        {
+          "type": "paragraph",
+          "inlines": [
+            { "type": "verseNumber", "value": "1" },
+            { "type": "text", "value": "In the beginning was the Word." }
+          ]
+        }
+      ]
+    }
+  }
+}

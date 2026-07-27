@@ -55,6 +55,8 @@ export interface ScriptureBlock extends BlockBase {
   reference: string;
   translation: string;
   caption?: string;
+  headingReferenceLayout?: 'inline' | 'stacked';
+  headingReferenceGapIn?: number;
   elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints }>>;
   resolved?: { content: Paragraph[]; source: 'bible-gateway-web' | 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
 }
@@ -121,17 +123,6 @@ export type BulletinBlock = TitlePageBlock | ChurchInfoBlock | HeadingBlock | Pa
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 
-export interface BlockDescriptorV1 {
-  schemaVersion: 1;
-  id: string;
-  version: number;
-  name: string;
-  description: string;
-  icon?: string;
-  order: number;
-  block: BulletinBlock;
-}
-
 export interface AssetRef {
   path: string;
   mediaType: 'image/png' | 'image/jpeg' | 'image/svg+xml' | 'application/pdf';
@@ -190,7 +181,7 @@ export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
   items: LibraryItemV1[];
-  blockDescriptors?: BlockDescriptorV1[];
+  componentDefinitions?: DeclarativeComponentDefinition[];
 }
 
 export interface ValidationIssue { path: string; message: string }
@@ -214,3 +205,4 @@ export interface BulletinApi {
   lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;
   openScripture(reference: string, translation: string): Promise<void>;
 }
+import type { DeclarativeComponentDefinition } from '../component-engine/types.js';

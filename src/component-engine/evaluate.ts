@@ -14,7 +14,7 @@ import type {
   StructuredText
 } from './types.js';
 
-const coreTypes = new Set(['core:stack', 'core:text', 'core:structuredText', 'core:spacer']);
+const coreTypes = new Set(['core:stack', 'core:row', 'core:repeat', 'core:text', 'core:structuredText', 'core:spacer', 'core:image']);
 
 function mergeStyle(...styles: Array<ComponentStyle | undefined>): ComponentStyle | undefined {
   const values = styles.filter((style): style is ComponentStyle => Boolean(style));
@@ -87,19 +87,54 @@ function expandNode(
   const style = styleFor(node, definitionStyles, instanceStyles);
   const nodeSource = source(instanceId, ownerType, node.part);
 
-  if (node.type === 'core:stack') {
+  if (node.type === 'core:stack' || node.type === 'core:row') {
     const children: LayoutNode[] = [];
     for (const [index, child] of (node.children ?? []).entries()) {
       const result = expandNode(child, context, registry, instanceId, ownerType, definitionStyles, instanceStyles, `${path}/children/${index}`);
       diagnostics.push(...result.diagnostics);
       if (result.node) children.push(result.node);
     }
+    const containerStyle = node.type === 'core:row' && typeof evaluated.inputs.gapIn === 'number' && evaluated.inputs.gapIn >= 0
+      ? mergeStyle(style, { gapIn: evaluated.inputs.gapIn })
+      : style;
+    return { node: { id, type: node.type === 'core:row' ? 'row' : 'stack', children, style: containerStyle, source: nodeSource }, diagnostics };
+  }
+
+  if (node.type === 'core:repeat') {
+    const items = evaluated.inputs.items;
+    const alias = typeof node.metadata?.as === 'string' ? node.metadata.as : 'item';
+    const keyField = typeof node.metadata?.key === 'string' ? node.metadata.key : undefined;
+    if (!Array.isArray(items)) return {
+      diagnostics: [...diagnostics, {
+        severity: 'error',
+        code: 'REPEAT_ITEMS_INVALID',
+        message: 'core:repeat requires an array input named items.',
+        componentType: ownerType,
+        instanceId,
+        jsonPointer: `${path}/inputs/items`
+      }]
+    };
+    const children: LayoutNode[] = [];
+    for (const [index, item] of items.entries()) {
+      const stableKey = keyField && item && typeof item === 'object' && keyField in item
+        ? String((item as Record<string, unknown>)[keyField])
+        : String(index);
+      const itemContext: EvaluationContext = {
+        ...context,
+        locals: Object.freeze({ ...context.locals, [alias]: structuredClone(item) })
+      };
+      for (const [childIndex, child] of (node.children ?? []).entries()) {
+        const result = expandNode(child, itemContext, registry, instanceId, ownerType, definitionStyles, instanceStyles, `${path}/items/${stableKey}/${childIndex}`);
+        diagnostics.push(...result.diagnostics);
+        if (result.node) children.push(result.node);
+      }
+    }
     return { node: { id, type: 'stack', children, style, source: nodeSource }, diagnostics };
   }
 
   if (node.type === 'core:text') {
     const value = evaluated.inputs.text;
-    if (typeof value !== 'string') diagnostics.push({
+    if (typeof value !== 'string' && typeof value !== 'number') diagnostics.push({
       severity: 'error',
       code: 'LAYOUT_TEXT_INVALID',
       message: 'core:text requires a string input named text.',
@@ -107,8 +142,8 @@ function expandNode(
       instanceId,
       jsonPointer: `${path}/inputs/text`
     });
-    return typeof value === 'string'
-      ? { node: { id, type: 'text', text: value, style, source: nodeSource }, diagnostics }
+    return typeof value === 'string' || typeof value === 'number'
+      ? { node: { id, type: 'text', text: String(value), style, source: nodeSource }, diagnostics }
       : { diagnostics };
   }
 
@@ -140,6 +175,39 @@ function expandNode(
     return sizePt !== undefined
       ? { node: { id, type: 'spacer', sizePt, style, source: nodeSource }, diagnostics }
       : { diagnostics };
+  }
+
+  if (node.type === 'core:image') {
+    const value = evaluated.inputs.source;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {
+      diagnostics: [...diagnostics, {
+        severity: 'error',
+        code: 'LAYOUT_IMAGE_INVALID',
+        message: 'core:image requires an image source object.',
+        componentType: ownerType,
+        instanceId,
+        jsonPointer: `${path}/inputs/source`
+      }]
+    };
+    const image = value as Record<string, unknown>;
+    return {
+      node: {
+        id,
+        type: 'image',
+        source: nodeSource,
+        image: {
+          ...(typeof image.assetId === 'string' ? { assetId: image.assetId } : {}),
+          ...(typeof image.path === 'string' ? { path: image.path } : {}),
+          ...(typeof image.mediaType === 'string' ? { mediaType: image.mediaType } : {}),
+          ...(typeof evaluated.inputs.altText === 'string' ? { altText: evaluated.inputs.altText } : {})
+        },
+        fit: ['contain', 'cover', 'fill', 'scale-down'].includes(String(evaluated.inputs.fit))
+          ? evaluated.inputs.fit as 'contain' | 'cover' | 'fill' | 'scale-down'
+          : undefined,
+        style
+      },
+      diagnostics
+    };
   }
 
   if (!coreTypes.has(node.type)) {

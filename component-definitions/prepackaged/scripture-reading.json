@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "component",
   "type": "bulletin:scriptureReading",
   "version": 1,
@@ -8,10 +8,12 @@
   "inputSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
-    "required": ["reference", "body"],
+    "required": ["reference", "headingReferenceLayout", "headingReferenceGapIn", "body"],
     "properties": {
       "heading": { "type": ["string", "null"] },
       "reference": { "type": "string" },
+      "headingReferenceLayout": { "enum": ["inline", "stacked"] },
+      "headingReferenceGapIn": { "type": "number", "minimum": 0 },
       "caption": { "type": ["string", "null"] },
       "body": {
         "type": "object",
@@ -57,13 +59,77 @@
     "id": "root",
     "children": [
       {
+        "type": "core:row",
+        "id": "heading-reference-inline",
+        "part": "headingReferenceRow",
+        "when": {
+          "$expr": {
+            "op": "equals",
+            "args": [{ "$bind": "inputs.headingReferenceLayout" }, "inline"]
+          }
+        },
+        "inputs": {
+          "gapIn": { "$bind": "inputs.headingReferenceGapIn", "required": true }
+        },
+        "children": [
+          {
+            "type": "core:text",
+            "id": "heading-inline",
+            "part": "heading",
+            "when": {
+              "$expr": {
+                "op": "notEmpty",
+                "args": [{ "$bind": "inputs.heading" }]
+              }
+            },
+            "inputs": {
+              "text": { "$bind": "inputs.heading", "required": true }
+            },
+            "style": {
+              "root": { "marginIn": { "top": 0, "bottom": 0 } }
+            }
+          },
+          {
+            "type": "core:text",
+            "id": "reference-inline",
+            "part": "reference",
+            "inputs": {
+              "text": { "$bind": "inputs.reference", "required": true }
+            },
+            "style": {
+              "root": { "marginIn": { "top": 0, "bottom": 0 } }
+            }
+          }
+        ]
+      },
+      {
         "type": "core:text",
-        "id": "heading",
+        "id": "heading-stacked",
         "part": "heading",
         "when": {
           "$expr": {
-            "op": "notEmpty",
-            "args": [{ "$bind": "inputs.heading" }]
+            "op": "and",
+            "args": [
+              {
+                "$expr": {
+                  "op": "not",
+                  "args": [
+                    {
+                      "$expr": {
+                        "op": "equals",
+                        "args": [{ "$bind": "inputs.headingReferenceLayout" }, "inline"]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$expr": {
+                  "op": "notEmpty",
+                  "args": [{ "$bind": "inputs.heading" }]
+                }
+              }
+            ]
           }
         },
         "inputs": {
@@ -72,8 +138,21 @@
       },
       {
         "type": "core:text",
-        "id": "reference",
+        "id": "reference-stacked",
         "part": "reference",
+        "when": {
+          "$expr": {
+            "op": "not",
+            "args": [
+              {
+                "$expr": {
+                  "op": "equals",
+                  "args": [{ "$bind": "inputs.headingReferenceLayout" }, "inline"]
+                }
+              }
+            ]
+          }
+        },
         "inputs": {
           "text": { "$bind": "inputs.reference", "required": true }
         }
@@ -118,6 +197,12 @@
         "textTransform": "uppercase",
         "keepWithNext": true
       },
+      "headingReferenceRow": {
+        "widthPercent": 100,
+        "marginIn": { "top": 0.2, "bottom": 0.08 },
+        "keepTogether": true,
+        "keepWithNext": true
+      },
       "reference": {
         "marginIn": { "top": 0, "bottom": 0.08 },
         "fontFamily": "body",
@@ -149,6 +234,8 @@
     "fields": [
       { "input": "heading", "label": "Heading", "control": "text", "optional": true },
       { "input": "reference", "label": "Scripture reference", "control": "text" },
+      { "input": "headingReferenceLayout", "label": "Heading and reference", "control": "select" },
+      { "input": "headingReferenceGapIn", "label": "Space between (inches)", "control": "number" },
       { "input": "caption", "label": "Caption", "control": "textarea", "optional": true },
       { "input": "body", "label": "Body", "control": "structuredText" }
     ]
@@ -156,6 +243,8 @@
   "sampleInputs": {
     "heading": "First Reading",
     "reference": "John 1:1–5",
+    "headingReferenceLayout": "inline",
+    "headingReferenceGapIn": 0.12,
     "caption": "The Word became flesh.",
     "body": {
       "blocks": [

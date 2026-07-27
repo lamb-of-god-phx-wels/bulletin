@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mylambofgod.org/schemas/component-definition-v1.schema.json",
-  "title": "DeclarativeComponentDefinitionV1",
+  "$id": "https://mylambofgod.org/schemas/component-definition.schema.json",
+  "title": "DeclarativeComponentDefinition",
   "type": "object",
   "required": ["schemaVersion", "kind", "type", "version", "name", "description", "inputSchema", "template"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "kind": { "const": "component" },
     "type": {
       "type": "string",
@@ -22,6 +22,7 @@
       "required": ["fields"],
       "properties": {
         "icon": { "type": "string", "minLength": 1, "maxLength": 4 },
+        "palette": { "type": "boolean" },
         "fields": {
           "type": "array",
           "items": {
@@ -31,7 +32,7 @@
               "input": { "type": "string", "minLength": 1 },
               "label": { "type": "string", "minLength": 1 },
               "control": {
-                "enum": ["text", "textarea", "structuredText", "number", "checkbox", "select", "asset"]
+                "enum": ["text", "textarea", "structuredText", "number", "checkbox", "select", "asset", "collection"]
               },
               "optional": { "type": "boolean" },
               "help": { "type": "string" }
@@ -93,6 +94,7 @@
       "type": "object",
       "properties": {
         "widthPercent": { "type": "number", "minimum": 1, "maximum": 100 },
+        "gapIn": { "type": "number", "minimum": 0 },
         "placement": { "enum": ["left", "center", "right"] },
         "textAlign": { "enum": ["left", "center", "right", "justify"] },
         "paddingIn": { "$ref": "#/$defs/box" },

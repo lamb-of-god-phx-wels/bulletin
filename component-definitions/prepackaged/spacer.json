@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:spacer",
+  "version": 1,
+  "name": "Spacer",
+  "description": "Controlled vertical space between components.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["size", "unit"],
+    "properties": {
+      "size": { "type": "number", "minimum": 0 },
+      "unit": { "enum": ["pt", "in", "mm", "cm"] }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:spacer",
+    "id": "space",
+    "part": "space",
+    "inputs": {
+      "size": { "$bind": "inputs.size", "required": true },
+      "unit": { "$bind": "inputs.unit", "required": true }
+    }
+  },
+  "defaultStyles": { "root": { "widthPercent": 100, "keepTogether": true } },
+  "editor": {
+    "icon": "↕",
+    "fields": [
+      { "input": "size", "label": "Size", "control": "number" },
+      { "input": "unit", "label": "Unit", "control": "select" }
+    ]
+  },
+  "sampleInputs": { "size": 12, "unit": "pt" }
+}

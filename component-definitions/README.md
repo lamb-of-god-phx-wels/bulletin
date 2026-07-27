@@ -11,6 +11,6 @@ missing dependencies, and duplicate identities are quarantined individually;
 they must never prevent the application from opening.
 
 The definition contract is
-[`schemas/component-definition-v1.schema.json`](../schemas/component-definition-v1.schema.json).
+[`schemas/component-definition.schema.json`](../schemas/component-definition.schema.json).
 Component definitions are distinct from template instances and weekly bulletin
 data.

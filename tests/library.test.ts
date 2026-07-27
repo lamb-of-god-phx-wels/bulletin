@@ -3,6 +3,16 @@ import { libraryFamilies, normalizeLibrary } from '../src/shared/library';
 import type { LibraryManifestV1 } from '../src/shared/types';
 
 describe('library normalization', () => {
+  it('removes the retired block-descriptor catalog from stored libraries', () => {
+    const legacy = {
+      schemaVersion: 1,
+      name: 'Library',
+      items: [],
+      blockDescriptors: [{ schemaVersion: 1, id: 'old' }]
+    } as unknown as LibraryManifestV1;
+    expect(normalizeLibrary(legacy)).toEqual({ schemaVersion: 1, name: 'Library', items: [] });
+  });
+
   it('converts legacy music items into songs', () => {
     const legacy = { schemaVersion: 1, name: 'Library', items: [{ id: 'anthem', version: 1, kind: 'music', title: 'Anthem', assets: [{ path: 'anthem.pdf', mediaType: 'application/pdf' }] }] } as unknown as LibraryManifestV1;
     expect(normalizeLibrary(legacy).items[0]).toMatchObject({ id: 'anthem', version: 1, kind: 'song' });

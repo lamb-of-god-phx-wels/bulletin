@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:songVerse",
+  "version": 1,
+  "name": "Song verse",
+  "description": "One numbered or named song verse.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["body"],
+    "properties": {
+      "label": { "type": ["string", "null"] },
+      "body": { "type": "object", "required": ["blocks"], "properties": { "blocks": { "type": "array" } } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:row",
+    "id": "root",
+    "children": [
+      {
+        "type": "core:text",
+        "id": "label",
+        "part": "label",
+        "when": { "$expr": { "op": "notEmpty", "args": [{ "$bind": "inputs.label" }] } },
+        "inputs": { "text": { "$bind": "inputs.label" } }
+      },
+      {
+        "type": "core:structuredText",
+        "id": "body",
+        "part": "body",
+        "inputs": { "content": { "$bind": "inputs.body", "required": true } }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "marginIn": { "bottom": 0.08 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d",
+      "keepTogether": true
+    },
+    "parts": {
+      "label": { "widthPercent": 8, "fontWeight": "bold", "paddingIn": { "right": 0.08 } },
+      "body": { "widthPercent": 92 }
+    }
+  },
+  "editor": {
+    "icon": "♫",
+    "palette": false,
+    "fields": [
+      { "input": "label", "label": "Verse label", "control": "text", "optional": true },
+      { "input": "body", "label": "Lyrics", "control": "structuredText" }
+    ]
+  },
+  "sampleInputs": {
+    "label": "1",
+    "body": {
+      "blocks": [
+        { "type": "paragraph", "inlines": [{ "type": "text", "value": "New verse" }] }
+      ]
+    }
+  }
+}

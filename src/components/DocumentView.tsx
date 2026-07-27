@@ -90,12 +90,17 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
     })}</div>;
     case 'scriptureReading': {
       const elements = scriptureElementBlocks(block);
+      const visible = elements.filter(element => element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
+      const renderElement = (element: typeof elements[number]) =>
+        element.scriptureRole === 'body' && !block.resolved
+          ? <div className="missing preview-block" data-block-id={element.id} key={element.id}>Passage text has not been resolved. Add it before export.</div>
+          : <RenderedBlock block={element as PaginatedBlock} library={library} assets={assets} document={document} key={element.id} />;
+      const heading = visible.find(element => element.scriptureRole === 'heading');
+      const reference = visible.find(element => element.scriptureRole === 'reference');
+      const inlineHeading = (block.headingReferenceLayout ?? 'inline') === 'inline' && heading && reference;
       return <section className="scripture">
-        {elements.filter(element => element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element)).map(element =>
-          element.scriptureRole === 'body' && !block.resolved
-            ? <div className="missing preview-block" data-block-id={element.id} key={element.id}>Passage text has not been resolved. Add it before export.</div>
-            : <RenderedBlock block={element as PaginatedBlock} library={library} assets={assets} document={document} key={element.id} />
-        )}
+        {inlineHeading && <div className="scripture-heading-line" style={{ '--scripture-heading-gap': `${Math.max(0, block.headingReferenceGapIn ?? 0.12)}in` } as React.CSSProperties}>{renderElement(heading)}{renderElement(reference)}</div>}
+        {visible.filter(element => !inlineHeading || (element !== heading && element !== reference)).map(renderElement)}
         <div className="translation">{block.translation}</div>
       </section>;
     }

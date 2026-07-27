@@ -202,6 +202,10 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .response-leader { font-weight: 400; }
 .response-follower { font-weight: 700; }
 .scripture > .block-presentation:first-child { margin-top: 0 !important; }
+.scripture-heading-line { display: flex; align-items: baseline; gap: var(--scripture-heading-gap, .12in); width: 100%; }
+.scripture-heading-line > .block-presentation { width: auto !important; }
+.scripture-heading-line > [data-block-id$="-heading"] { flex: 0 0 auto; }
+.scripture-heading-line > [data-block-id$="-reference"] { flex: 1 1 auto; min-width: 0; }
 .scripture .scripture-heading p,
 .scripture .scripture-reference p,
 .scripture .scripture-caption p,
@@ -240,6 +244,9 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .outline .outline-main { display: flex; flex-direction: column; }
 .outline small { margin-top: 2px; color: #8b8d88; }
 .outline .outline-main .check { flex-direction: row; margin-top: 6px; color: #777b75; font-size: 10px; }
+.outline .outline-options { display: grid; gap: 5px; margin-top: 7px; }
+.outline .outline-option { display: grid; grid-template-columns: auto 112px; align-items: center; gap: 8px; color: #777b75; font-size: 10px; }
+.outline .outline-option select, .outline .outline-option input { height: 29px; padding: 3px 7px; font-size: 10px; }
 .outline li.outline-container { display: grid; grid-template-columns: 1fr auto; align-items: start; }
 .nested-outline { grid-column: 1 / -1; width: 100%; margin: 8px 0 0; padding: 5px 0 0 15px; border-left: 2px solid #e1ddd4; list-style: none; }.outline .nested-outline li { padding: 7px 0 7px 10px; }
 .outline-text-editor { min-width: 240px; margin-top: 7px; font-weight: 400; }

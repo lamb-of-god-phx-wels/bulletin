@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:churchInformation",
+  "version": 1,
+  "name": "Church information page",
+  "description": "A reusable collection of independently editable church-information paragraphs.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["sections"],
+    "properties": {
+      "sections": { "type": "array", "items": { "type": "object" } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:repeat",
+    "id": "sections",
+    "inputs": { "items": { "$bind": "inputs.sections", "required": true } },
+    "metadata": { "as": "section", "key": "id" },
+    "children": [
+      {
+        "type": "bulletin:paragraph",
+        "inputs": {
+          "heading": { "$bind": "locals.section.heading" },
+          "body": { "$bind": "locals.section.body", "required": true }
+        }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d"
+    }
+  },
+  "editor": {
+    "icon": "⌂",
+    "fields": [{ "input": "sections", "label": "Church information", "control": "collection" }]
+  },
+  "sampleInputs": {
+    "sections": [
+      {
+        "id": "tagline",
+        "body": {
+          "blocks": [
+            { "type": "paragraph", "inlines": [{ "type": "text", "value": "Reaching Up. Reaching Out. Reaching Across.", "marks": ["italic"] }] }
+          ]
+        }
+      },
+      {
+        "id": "welcome",
+        "heading": "WELCOME",
+        "body": {
+          "blocks": [
+            { "type": "paragraph", "inlines": [{ "type": "text", "value": "Thank you for joining us for worship." }] }
+          ]
+        }
+      },
+      {
+        "id": "children",
+        "heading": "CHILDREN’S ROOM",
+        "body": {
+          "blocks": [
+            { "type": "paragraph", "inlines": [{ "type": "text", "value": "Children are always welcome in worship." }] }
+          ]
+        }
+      }
+    ]
+  }
+}

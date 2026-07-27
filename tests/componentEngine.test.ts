@@ -6,7 +6,6 @@ import { structuredTextFromV1Paragraphs } from '../src/component-engine/compatib
 import { evaluateComponent, rootEvaluationContext } from '../src/component-engine/evaluate';
 import { ComponentRegistry } from '../src/component-engine/registry';
 import type { ComponentInstanceV2, DeclarativeComponentDefinition } from '../src/component-engine/types';
-import { loadBlockDescriptorCatalog } from '../src/prepackagedBlocks';
 
 const definition = scriptureDefinition as unknown as DeclarativeComponentDefinition;
 const body = {
@@ -20,24 +19,6 @@ const body = {
 };
 
 describe('v2 component engine', () => {
-  it('quarantines duplicate packaged descriptors rather than throwing at startup', () => {
-    const raw = JSON.stringify({
-      schemaVersion: 1,
-      id: 'heading',
-      version: 1,
-      name: 'Heading',
-      description: 'Heading',
-      order: 1,
-      block: { id: 'root', type: 'heading', text: 'Heading' }
-    });
-    const catalog = loadBlockDescriptorCatalog({ 'heading.json': raw, 'duplicate.json': raw });
-    expect(catalog.descriptors).toHaveLength(1);
-    expect(catalog.diagnostics).toEqual([expect.objectContaining({
-      key: 'heading@1',
-      message: expect.stringContaining('duplicate')
-    })]);
-  });
-
   it('validates and quarantines duplicate component definitions', () => {
     const raw = JSON.stringify(definition);
     const catalog = loadComponentCatalog({ 'scripture.json': raw, 'duplicate.json': raw });
@@ -46,6 +27,27 @@ describe('v2 component engine', () => {
       code: 'COMPONENT_DUPLICATE',
       componentType: 'bulletin:scriptureReading'
     })]);
+  });
+
+  it('rejects missing and cyclic component dependencies', () => {
+    const missing = {
+      ...definition,
+      type: 'custom:missingDependency',
+      template: { type: 'custom:notInstalled' }
+    };
+    expect(loadComponentCatalog({ 'missing.json': JSON.stringify(missing) }).diagnostics).toContainEqual(expect.objectContaining({
+      code: 'COMPONENT_DEPENDENCY_MISSING',
+      componentType: 'custom:missingDependency'
+    }));
+    const cycle = {
+      ...definition,
+      type: 'custom:cycle',
+      template: { type: 'custom:cycle' }
+    };
+    expect(loadComponentCatalog({ 'cycle.json': JSON.stringify(cycle) }).diagnostics).toContainEqual(expect.objectContaining({
+      code: 'COMPONENT_DEPENDENCY_CYCLE',
+      componentType: 'custom:cycle'
+    }));
   });
 
   it('uses explicit binding namespaces and required-value diagnostics', () => {
@@ -71,6 +73,8 @@ describe('v2 component engine', () => {
       inputs: {
         heading: { $bind: 'data.heading' },
         reference: { $bind: 'data.reference', required: true },
+        headingReferenceLayout: 'inline',
+        headingReferenceGapIn: 0,
         caption: { $bind: 'data.caption' },
         body: { $bind: 'data.body', required: true }
       },
@@ -93,14 +97,30 @@ describe('v2 component engine', () => {
       source: { instanceId: 'first-reading', componentType: 'bulletin:scriptureReading' }
     });
     if (result.node?.type !== 'stack') throw new Error('Expected a stack.');
-    expect(result.node.children.map(child => child.source.part)).toEqual(['heading', 'reference', 'body']);
-    expect(result.node.children[1].style).toMatchObject({
+    expect(result.node.children.map(child => child.source.part)).toEqual(['headingReferenceRow', 'body']);
+    const headingReference = result.node.children[0];
+    if (headingReference.type !== 'row') throw new Error('Expected an inline heading/reference row.');
+    expect(headingReference.style?.gapIn).toBe(0);
+    expect(headingReference.children.map(child => child.source.part)).toEqual(['heading', 'reference']);
+    expect(headingReference.children[1].style).toMatchObject({
       widthPercent: 60,
       placement: 'right',
       textAlign: 'right',
       keepWithNext: true
     });
-    expect(result.node.children[2].style?.fontSizePt).toBe(9.5);
+    expect(result.node.children[1].style?.fontSizePt).toBe(9.5);
+
+    const stacked = evaluateComponent({
+      ...instance,
+      inputs: { ...instance.inputs, headingReferenceLayout: 'stacked' }
+    }, registry, rootEvaluationContext({
+      heading: 'First Reading',
+      reference: 'John 1:1–5',
+      caption: null,
+      body
+    }));
+    if (stacked.node?.type !== 'stack') throw new Error('Expected a stack.');
+    expect(stacked.node.children.map(child => child.source.part)).toEqual(['heading', 'reference', 'body']);
   });
 
   it('adapts existing Scripture paragraphs without losing verse markers or line breaks', () => {

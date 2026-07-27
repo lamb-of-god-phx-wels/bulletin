@@ -29,10 +29,12 @@ function mergeSongItems(first: LibraryItemV1, second: LibraryItemV1): LibraryIte
 }
 
 export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 {
-  let changed = false;
+  const stored = library as LibraryManifestV1 & { blockDescriptors?: unknown };
+  const { blockDescriptors: removedLegacyDescriptors, ...currentLibrary } = stored;
+  let changed = removedLegacyDescriptors !== undefined;
   const items: LibraryItemV1[] = [];
   const songs = new Map<string, number>();
-  for (const original of library.items) {
+  for (const original of currentLibrary.items) {
     const legacyMusic = (original.kind as string) === 'music';
     const item: LibraryItemV1 = legacyMusic ? { ...original, kind: 'song' } : original;
     changed ||= legacyMusic;
@@ -42,5 +44,5 @@ export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 
     if (existingIndex === undefined) { songs.set(key, items.length); items.push(item); continue; }
     items[existingIndex] = mergeSongItems(items[existingIndex], item); changed = true;
   }
-  return changed ? { ...library, items } : library;
+  return changed ? { ...currentLibrary, items } : library;
 }

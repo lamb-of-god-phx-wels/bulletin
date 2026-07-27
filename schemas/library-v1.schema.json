@@ -7,53 +7,23 @@
   "properties": {
     "schemaVersion": { "const": 1 }, "name": { "type": "string" },
     "items": { "type": "array", "items": { "type": "object", "required": ["id", "version", "kind", "title"], "properties": { "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["song", "liturgy", "image", "font", "church-info"] }, "title": { "type": "string" } }, "additionalProperties": true } },
-    "blockDescriptors": { "type": "array", "items": { "$ref": "#/$defs/blockDescriptor" } }
-  },
-  "$defs": {
-    "blockDescriptor": {
-      "type": "object",
-      "required": ["schemaVersion", "id", "version", "name", "description", "order", "block"],
-      "properties": {
-        "schemaVersion": { "const": 1 },
-        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-        "version": { "type": "integer", "minimum": 1 },
-        "name": { "type": "string", "minLength": 1 },
-        "description": { "type": "string", "minLength": 1 },
-        "icon": { "type": "string" },
-        "order": { "type": "integer", "minimum": 0 },
-        "block": { "$ref": "#/$defs/descriptorBlock" }
-      },
-      "additionalProperties": false
-    },
-    "descriptorBlock": {
-      "type": "object",
-      "required": ["id", "type"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "type": { "type": "string", "minLength": 1 },
-        "layout": { "type": "object" },
-        "presentation": { "type": "object" },
-        "elements": {
-          "type": "object",
-          "properties": {
-            "heading": { "$ref": "#/$defs/elementFormatting" },
-            "reference": { "$ref": "#/$defs/elementFormatting" },
-            "caption": { "$ref": "#/$defs/elementFormatting" },
-            "body": { "$ref": "#/$defs/elementFormatting" }
-          },
-          "additionalProperties": false
+    "componentDefinitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["schemaVersion", "kind", "type", "version", "name", "description", "inputSchema", "template"],
+        "properties": {
+          "schemaVersion": { "const": 2 },
+          "kind": { "const": "component" },
+          "type": { "type": "string", "pattern": "^[a-z][a-z0-9-]*:[a-z][A-Za-z0-9-]*$" },
+          "version": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "inputSchema": { "type": "object" },
+          "template": { "type": "object" }
         },
-        "children": { "type": "array", "items": { "$ref": "#/$defs/descriptorBlock" } }
-      },
-      "additionalProperties": true
-    },
-    "elementFormatting": {
-      "type": "object",
-      "properties": {
-        "layout": { "type": "object" },
-        "presentation": { "type": "object" }
-      },
-      "additionalProperties": false
+        "additionalProperties": true
+      }
     }
   }, "additionalProperties": false
 }

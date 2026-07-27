@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:song",
+  "version": 1,
+  "name": "Song or hymn",
+  "description": "A song heading with selected lyrics or a music asset.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["title", "contentMode"],
+    "properties": {
+      "label": { "type": ["string", "null"] },
+      "title": { "type": "string" },
+      "contentMode": { "enum": ["lyrics", "asset"] },
+      "verses": { "type": "array", "items": { "type": "object" } },
+      "asset": { "type": ["object", "null"] }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:stack",
+    "id": "root",
+    "children": [
+      {
+        "type": "core:text",
+        "id": "label",
+        "part": "label",
+        "when": { "$expr": { "op": "notEmpty", "args": [{ "$bind": "inputs.label" }] } },
+        "inputs": { "text": { "$bind": "inputs.label" } }
+      },
+      {
+        "type": "core:text",
+        "id": "title",
+        "part": "title",
+        "inputs": { "text": { "$bind": "inputs.title", "required": true } }
+      },
+      {
+        "type": "core:repeat",
+        "id": "verses",
+        "part": "verses",
+        "when": { "$expr": { "op": "equals", "args": [{ "$bind": "inputs.contentMode" }, "lyrics"] } },
+        "inputs": { "items": { "$bind": "inputs.verses", "default": [] } },
+        "metadata": { "as": "verse", "key": "id" },
+        "children": [
+          {
+            "type": "bulletin:songVerse",
+            "inputs": {
+              "label": { "$bind": "locals.verse.label" },
+              "body": { "$bind": "locals.verse.body", "required": true }
+            }
+          }
+        ]
+      },
+      {
+        "type": "core:image",
+        "id": "asset",
+        "part": "asset",
+        "when": {
+          "$expr": {
+            "op": "and",
+            "args": [
+              { "$expr": { "op": "equals", "args": [{ "$bind": "inputs.contentMode" }, "asset"] } },
+              { "$expr": { "op": "notEmpty", "args": [{ "$bind": "inputs.asset" }] } }
+            ]
+          }
+        },
+        "inputs": {
+          "source": { "$bind": "inputs.asset" },
+          "fit": "contain",
+          "altText": { "$bind": "inputs.title" }
+        }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "marginIn": { "bottom": 0.12 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d",
+      "keepTogether": true
+    },
+    "parts": {
+      "label": { "fontWeight": "bold", "textTransform": "uppercase", "keepWithNext": true },
+      "title": { "fontWeight": "bold", "marginIn": { "bottom": 0.08 }, "keepWithNext": true },
+      "asset": { "widthPercent": 100 }
+    }
+  },
+  "editor": {
+    "icon": "♫",
+    "fields": [
+      { "input": "label", "label": "Heading", "control": "text", "optional": true },
+      { "input": "title", "label": "Title", "control": "text" },
+      { "input": "contentMode", "label": "Content", "control": "select" },
+      { "input": "verses", "label": "Verses", "control": "collection", "optional": true },
+      { "input": "asset", "label": "Music image or PDF", "control": "asset", "optional": true }
+    ]
+  },
+  "sampleInputs": {
+    "label": "Hymn",
+    "title": "New song",
+    "contentMode": "lyrics",
+    "verses": [
+      {
+        "id": "verse-1",
+        "label": "1",
+        "body": {
+          "blocks": [
+            { "type": "paragraph", "inlines": [{ "type": "text", "value": "New verse" }] }
+          ]
+        }
+      }
+    ]
+  }
+}

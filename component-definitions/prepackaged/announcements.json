@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:announcements",
+  "version": 1,
+  "name": "Announcements",
+  "description": "A reusable list of individually editable announcements.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["items"],
+    "properties": { "items": { "type": "array", "items": { "type": "object" } } },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:repeat",
+    "id": "items",
+    "inputs": { "items": { "$bind": "inputs.items", "required": true } },
+    "metadata": { "as": "announcement", "key": "id" },
+    "children": [
+      {
+        "type": "bulletin:announcement",
+        "inputs": {
+          "heading": { "$bind": "locals.announcement.heading" },
+          "body": { "$bind": "locals.announcement.body", "required": true },
+          "image": { "$bind": "locals.announcement.image" }
+        }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d"
+    }
+  },
+  "editor": {
+    "icon": "A",
+    "fields": [{ "input": "items", "label": "Announcements", "control": "collection" }]
+  },
+  "sampleInputs": {
+    "items": [
+      {
+        "id": "announcement-1",
+        "heading": "New announcement",
+        "body": {
+          "blocks": [
+            { "type": "paragraph", "inlines": [{ "type": "text", "value": "Add announcement details here." }] }
+          ]
+        }
+      }
+    ]
+  }
+}

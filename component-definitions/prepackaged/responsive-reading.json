@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:responsiveReading",
+  "version": 1,
+  "name": "Responsive reading",
+  "description": "A sequence of independently editable leader and congregation responses.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["items"],
+    "properties": { "items": { "type": "array", "items": { "type": "object" } } },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:repeat",
+    "id": "items",
+    "inputs": { "items": { "$bind": "inputs.items", "required": true } },
+    "metadata": { "as": "reading", "key": "id" },
+    "children": [
+      {
+        "type": "bulletin:responsiveReadingItem",
+        "inputs": {
+          "reader": { "$bind": "locals.reading.reader", "required": true },
+          "role": { "$bind": "locals.reading.role" },
+          "body": { "$bind": "locals.reading.body", "required": true }
+        }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "marginIn": { "bottom": 0.12 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d"
+    }
+  },
+  "editor": {
+    "icon": "R",
+    "fields": [{ "input": "items", "label": "Responses", "control": "collection" }]
+  },
+  "sampleInputs": {
+    "items": [
+      {
+        "id": "leader-1",
+        "reader": "M",
+        "role": "leader",
+        "body": { "blocks": [{ "type": "paragraph", "inlines": [{ "type": "text", "value": "New leader response" }] }] }
+      },
+      {
+        "id": "follower-1",
+        "reader": "C",
+        "role": "follower",
+        "body": { "blocks": [{ "type": "paragraph", "inlines": [{ "type": "text", "value": "New follower response" }] }] }
+      }
+    ]
+  }
+}

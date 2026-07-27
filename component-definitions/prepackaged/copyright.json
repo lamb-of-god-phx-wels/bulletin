@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:copyright",
+  "version": 1,
+  "name": "Copyright",
+  "description": "Generated music and Scripture notices with optional additional text.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["notices"],
+    "properties": {
+      "notices": { "type": "object", "required": ["blocks"], "properties": { "blocks": { "type": "array" } } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:structuredText",
+    "id": "notices",
+    "part": "notices",
+    "inputs": { "content": { "$bind": "inputs.notices", "required": true } }
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "paddingIn": { "top": 0.15 },
+      "marginIn": { "top": 0.3 },
+      "fontFamily": "body",
+      "fontSizePt": 6.5,
+      "lineHeight": 1.25,
+      "color": "#25302d",
+      "borderWidthPt": 1,
+      "borderColor": "#777777",
+      "keepTogether": true
+    }
+  },
+  "editor": {
+    "icon": "©",
+    "fields": [{ "input": "notices", "label": "Notices", "control": "structuredText" }]
+  },
+  "sampleInputs": {
+    "notices": {
+      "blocks": [
+        { "type": "paragraph", "inlines": [{ "type": "text", "value": "Licensing notices are generated from the bulletin’s content." }] }
+      ]
+    }
+  }
+}

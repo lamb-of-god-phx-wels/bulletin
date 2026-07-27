@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:heading",
+  "version": 1,
+  "name": "Heading",
+  "description": "A heading with optional subheading and caption.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["text"],
+    "properties": {
+      "text": { "type": "string" },
+      "subHeading": { "type": ["string", "null"] },
+      "caption": { "type": ["string", "null"] }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:stack",
+    "id": "root",
+    "children": [
+      {
+        "type": "core:text",
+        "id": "text",
+        "part": "text",
+        "inputs": { "text": { "$bind": "inputs.text", "required": true } }
+      },
+      {
+        "type": "core:text",
+        "id": "subheading",
+        "part": "subHeading",
+        "when": { "$expr": { "op": "notEmpty", "args": [{ "$bind": "inputs.subHeading" }] } },
+        "inputs": { "text": { "$bind": "inputs.subHeading" } }
+      },
+      {
+        "type": "core:text",
+        "id": "caption",
+        "part": "caption",
+        "when": { "$expr": { "op": "notEmpty", "args": [{ "$bind": "inputs.caption" }] } },
+        "inputs": { "text": { "$bind": "inputs.caption" } }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "marginIn": { "top": 0.2, "bottom": 0.08 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d",
+      "keepTogether": true
+    },
+    "parts": {
+      "text": { "fontWeight": "bold", "textTransform": "uppercase", "keepWithNext": true },
+      "subHeading": { "fontStyle": "italic", "keepWithNext": true },
+      "caption": { "fontSizePt": 9, "color": "#696d68" }
+    }
+  },
+  "editor": {
+    "icon": "H",
+    "fields": [
+      { "input": "text", "label": "Heading", "control": "text" },
+      { "input": "subHeading", "label": "Subheading", "control": "text", "optional": true },
+      { "input": "caption", "label": "Caption", "control": "textarea", "optional": true }
+    ]
+  },
+  "sampleInputs": {
+    "text": "New heading",
+    "subHeading": "Optional subheading",
+    "caption": "Optional caption"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:text",
+  "version": 1,
+  "name": "Text",
+  "description": "Structured body text with preserved paragraphs, line breaks, and inline marks.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["content"],
+    "properties": {
+      "content": { "type": "object", "required": ["blocks"], "properties": { "blocks": { "type": "array" } } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:structuredText",
+    "id": "content",
+    "part": "content",
+    "inputs": { "content": { "$bind": "inputs.content", "required": true } }
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "textAlign": "left",
+      "marginIn": { "bottom": 0.12 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d"
+    }
+  },
+  "editor": {
+    "icon": "T",
+    "fields": [
+      { "input": "content", "label": "Text", "control": "structuredText" }
+    ]
+  },
+  "sampleInputs": {
+    "content": {
+      "blocks": [
+        { "type": "paragraph", "inlines": [{ "type": "text", "value": "New text" }] }
+      ]
+    }
+  }
+}

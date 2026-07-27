@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:responsiveReadingItem",
+  "version": 1,
+  "name": "Responsive reading item",
+  "description": "One leader or congregation response with a reader label.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["reader", "body"],
+    "properties": {
+      "reader": { "type": "string" },
+      "role": { "enum": ["leader", "follower"] },
+      "body": { "type": "object", "required": ["blocks"], "properties": { "blocks": { "type": "array" } } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:row",
+    "id": "root",
+    "children": [
+      {
+        "type": "core:text",
+        "id": "reader",
+        "part": "reader",
+        "inputs": { "text": { "$bind": "inputs.reader", "required": true } }
+      },
+      {
+        "type": "core:structuredText",
+        "id": "body",
+        "part": "body",
+        "inputs": { "content": { "$bind": "inputs.body", "required": true } }
+      }
+    ]
+  },
+  "defaultStyles": {
+    "root": {
+      "widthPercent": 100,
+      "marginIn": { "bottom": 0.05 },
+      "fontFamily": "body",
+      "fontSizePt": 10,
+      "lineHeight": 1.28,
+      "color": "#25302d",
+      "keepTogether": true
+    },
+    "parts": {
+      "reader": {
+        "widthPercent": 7,
+        "fontWeight": "bold",
+        "paddingIn": { "right": 0.08 }
+      },
+      "body": { "widthPercent": 93 }
+    }
+  },
+  "editor": {
+    "icon": "R",
+    "palette": false,
+    "fields": [
+      { "input": "reader", "label": "Reader label", "control": "text" },
+      { "input": "role", "label": "Role", "control": "select" },
+      { "input": "body", "label": "Response", "control": "structuredText" }
+    ]
+  },
+  "sampleInputs": {
+    "reader": "M",
+    "role": "leader",
+    "body": {
+      "blocks": [
+        { "type": "paragraph", "inlines": [{ "type": "text", "value": "New response" }] }
+      ]
+    }
+  }
+}

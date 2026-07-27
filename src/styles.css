@@ -265,6 +265,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .announcements article h3 { margin: .14in 0 .04in; font-size: 9pt; text-transform: uppercase; }
 .announcement-with-asset { display: grid; grid-template-columns: .66in 1fr; gap: .12in; align-items: center; }.announcement-with-asset.asset-right { grid-template-columns: 1fr .66in; }.announcement-with-asset.asset-right > .flow-pdf, .announcement-with-asset.asset-right > img { grid-column: 2; grid-row: 1; }.announcement-with-asset.asset-right > div { grid-column: 1; grid-row: 1; }.announcement-with-asset > img, .announcement-with-asset > .flow-pdf { width: .66in; height: .66in; object-fit: contain; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }
+.copyright > p { margin-bottom: 0; }
+.copyright > p + p { margin-top: 1.25em; }
 .full-page-asset { position: absolute; inset: 0; }
 .full-page-asset img { width: 100%; height: 100%; object-fit: contain; }
 .pdf-placeholder { display: grid; place-content: center; height: 100%; color: #6a6e69; text-align: center; background: #f5f3ed; }

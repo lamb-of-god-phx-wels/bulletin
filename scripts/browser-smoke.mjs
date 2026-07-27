@@ -63,6 +63,63 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_CANVAS_ONLY === '1') {
+  if (!await evaluate(`Boolean(document.querySelector('.preview-pane [data-canvas-coordinate-space="fullPage"]'))`)) {
+    await command('Runtime.evaluate', { expression: `window.__canvasSetupDone=false;window.__canvasSetupError='';(async()=>{const root=await window.bulletin.createWorkspace('Canvas browser smoke '+Date.now());const workspace=await window.bulletin.openWorkspace(root);const template=workspace.templates.find(item=>item.template.starterBlocks.some(block=>block.type==='canvasCover')).template;const date='2026-07-27';const document={schemaVersion:1,id:'canvas-browser-smoke',revision:0,template:{id:template.id,version:template.version},church:{name:'Canvas Test Church'},info:{title:'Canvas Test',date,churchWeek:'Sunday',series:'Grace'},blocks:structuredClone(template.starterBlocks),updatedAt:new Date().toISOString()};await window.bulletin.saveBulletin(root,'bulletins/2026-07-27/bulletin.json',document,0);localStorage.setItem('bulletin-workspace',root);window.__canvasSetupDone=true;setTimeout(()=>location.reload(),500)})().catch(error=>{window.__canvasSetupError=String(error)});true`, returnByValue: true });
+    await new Promise(resolve => setTimeout(resolve, 700));
+  }
+  await wait(`Boolean(document.querySelector('.preview-pane [data-canvas-coordinate-space="fullPage"]'))`, 'new-workspace canvas preview');
+  pass('renders a newly created canvas-cover workspace');
+  await command('Runtime.evaluate', { expression: `(()=>{const editor=Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(editor=>editor.querySelector('.block-type')?.textContent.startsWith('canvasCover'));editor.setAttribute('open','');const scroll=editor.closest('.editor-scroll');scroll.scrollTop=Math.max(0,editor.offsetTop-scroll.clientHeight/2)})()` });
+  pass('opens the canvas cover editor card');
+  const openDesigner = await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.editor-pane button')).find(button=>button.textContent.includes('Open cover designer'));const rect=button.getBoundingClientRect();return [rect.left+rect.width/2,rect.top+rect.height/2]})()`);
+  console.log(`Canvas designer action at ${JSON.stringify(openDesigner)}`);
+  pass('locates the cover designer action');
+  try {
+    await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: openDesigner[0], y: openDesigner[1], button: 'left', clickCount: 1 });
+    await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: openDesigner[0], y: openDesigner[1], button: 'left', clickCount: 1 });
+  } catch (error) {
+    if (!String(error).includes('Object reference chain is too long')) throw error;
+  }
+  pass('dispatches the cover designer action');
+  const canvasScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  pass('captures the cover designer');
+  await writeFile('/tmp/bulletin-canvas-designer.png', Buffer.from(canvasScreenshot.data, 'base64'));
+  const domRoot = async () => (await command('DOM.getDocument')).root.nodeId;
+  const queryAll = async selector => (await command('DOM.querySelectorAll', { nodeId: await domRoot(), selector })).nodeIds;
+  const clickNode = async nodeId => {
+    await command('DOM.scrollIntoViewIfNeeded', { nodeId });
+    const model = (await command('DOM.getBoxModel', { nodeId })).model;
+    const x = (model.content[0] + model.content[2] + model.content[4] + model.content[6]) / 4;
+    const y = (model.content[1] + model.content[3] + model.content[5] + model.content[7]) / 4;
+    await command('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  };
+  const selections = await queryAll('.canvas-designer .canvas-selection');
+  if (!selections.length) throw new Error('Canvas designer has no scene objects.');
+  await clickNode(selections[0]);
+  const selectedNodes = await queryAll('.canvas-designer .canvas-selection.selected');
+  if (!selectedNodes.length) throw new Error('Canvas object selection failed.');
+  const toolButtons = await queryAll('.canvas-designer .canvas-tools > button');
+  const before = selections.length;
+  await clickNode(toolButtons[2]);
+  const after = (await queryAll('.canvas-designer .canvas-selection')).length;
+  if (after !== before + 1) throw new Error(`Canvas rectangle was not added: ${before} → ${after}`);
+  const stageNode = (await queryAll('.canvas-stage'))[0];
+  const stageModel = (await command('DOM.getBoxModel', { nodeId: stageNode })).model;
+  if (Math.abs(stageModel.width - 672) > 1 || Math.abs(stageModel.height - 816) > 1) throw new Error(`Canvas stage is not 7 × 8.5 inches: ${stageModel.width} × ${stageModel.height}`);
+  const doneNode = (await queryAll('.canvas-designer-toolbar > .primary'))[0];
+  await clickNode(doneNode);
+  await new Promise(resolve => setTimeout(resolve, 150));
+  const remainingDesigners = (await queryAll('.canvas-designer')).length;
+  const previewCanvases = (await queryAll('.preview-pane [data-canvas-coordinate-space="fullPage"]')).length;
+  if (remainingDesigners || !previewCanvases) throw new Error(`Canvas designer did not return to the weekly preview (${remainingDesigners} designers, ${previewCanvases} previews).`);
+  pass('adds, designs, and previews an inch-based canvas cover');
+  console.log(`\n${results.length} browser canvas checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_EXAMPLE_ONLY === '1') {
   await wait('document.querySelectorAll(".preview-pane .document-page").length > 0 && Array.from(document.querySelectorAll(".preview-pane img")).every(image=>image.complete)', 'rendered example bulletin');
   const result = await evaluate('({pages:document.querySelectorAll(".preview-pane .document-page").length,missing:Array.from(document.querySelectorAll(".preview-pane .missing")).map(element=>element.textContent),titles:Array.from(document.querySelectorAll(".preview-pane .document-page")).map(page=>page.textContent.trim().slice(0,80)),images:document.querySelectorAll(".preview-pane img").length})');

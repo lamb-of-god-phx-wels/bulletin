@@ -22,7 +22,7 @@
       "required": ["id", "type"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["titlePage", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer", "group", "custom"] },
+        "type": { "enum": ["titlePage", "canvasCover", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer", "group", "custom"] },
         "label": { "type": "string" },
         "weeklyEditable": { "type": "boolean" },
         "layout": { "type": "object" },
@@ -44,7 +44,10 @@
         "bindings": { "type": "array", "items": { "$ref": "#/$defs/customBinding" } },
         "values": { "type": "object", "additionalProperties": { "type": "string" } },
         "style": { "type": "object" },
-        "children": { "type": "array", "items": { "$ref": "#/$defs/block" } }
+        "children": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+        "scene": { "$ref": "#/$defs/canvasScene" },
+        "weeklyScene": { "$ref": "#/$defs/canvasScene" },
+        "weeklyUnlockedElementIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
       },
       "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
       "additionalProperties": true
@@ -68,6 +71,31 @@
         "multiline": { "type": "boolean" }
       },
       "additionalProperties": false
+    },
+    "canvasScene": {
+      "type": "object",
+      "required": ["coordinateSpace", "elements"],
+      "properties": {
+        "coordinateSpace": { "enum": ["fullPage", "contentBox"] },
+        "background": { "type": "object" },
+        "elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "x", "y", "width", "height"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "type": { "enum": ["text", "image", "rectangle", "line"] },
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "width": { "type": "number", "exclusiveMinimum": 0 },
+              "height": { "type": "number", "minimum": 0 }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": false

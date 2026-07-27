@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { BlockFormattingModal } from './BlockFormattingModal';
 import { BlockLibraryModal } from './BlockLibraryModal';
 import { ScriptureEditor } from './ScriptureEditor';
+import { CanvasCoverDesigner } from './CanvasCoverDesigner';
 import { instantiateComponentDefinition } from '../componentDefinitions';
 import { childBlocks, findBlock, flattenBlocks, updateBlockTree } from '../shared/blocks';
 import { libraryFamilies } from '../shared/library';
@@ -15,6 +16,7 @@ const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) => content.map(p => p.children.map(c => c.type === 'text' ? c.text : c.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n');
 export function WeeklyEditor({ document, template, library, root, relativePath, onChange, onLibraryChange, onError }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; relativePath: string; onChange(document: BulletinDocumentV1): void; onLibraryChange(library: LibraryManifestV1): Promise<void>; onError(message: string): void }) {
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
+  const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [formatPickerOpen, setFormatPickerOpen] = useState(false);
   const [blockLibraryIndex, setBlockLibraryIndex] = useState<number>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
@@ -29,7 +31,7 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
   const resetPageMargin = () => { const layout = { ...document.layout }; delete layout.marginIn; onChange({ ...document, layout: Object.keys(layout).length ? layout : undefined }); };
   const updateBlock = (id: string, next: BulletinBlock) => onChange({ ...document, blocks: updateBlockTree(document.blocks, id, next) });
   const paragraphHeader = (block: BulletinBlock) => { const header = block.type === 'paragraph' ? childBlocks(block)?.find(child => child.type === 'richText' && child.role === 'header') : undefined; return header?.type === 'richText' ? paragraphText(header.content) : ''; };
-  const blockName = (block: BulletinBlock) => block.type === 'custom' ? block.name : block.type === 'paragraph' ? paragraphHeader(block) || 'Paragraph' : block.type === 'richText' && block.scriptureRole ? scriptureElementNames[block.scriptureRole] : block.type === 'richText' && block.role ? (block.role === 'header' ? 'Header text' : 'Paragraph text') : block.label ?? ('text' in block ? block.text : block.type === 'announcements' ? 'Announcements' : block.type === 'titlePage' ? 'Cover' : block.type);
+  const blockName = (block: BulletinBlock) => block.type === 'custom' ? block.name : block.type === 'paragraph' ? paragraphHeader(block) || 'Paragraph' : block.type === 'richText' && block.scriptureRole ? scriptureElementNames[block.scriptureRole] : block.type === 'richText' && block.role ? (block.role === 'header' ? 'Header text' : 'Paragraph text') : block.label ?? ('text' in block ? block.text : block.type === 'announcements' ? 'Announcements' : block.type === 'titlePage' || block.type === 'canvasCover' ? 'Cover' : block.type);
   const updateChildren = (parent: BulletinBlock, children: BulletinBlock[]) => {
     if (parent.type === 'churchInfo' || parent.type === 'group') updateBlock(parent.id, { ...parent, children });
     if (parent.type === 'paragraph') updateBlock(parent.id, { ...parent, children: children.filter(child => child.type === 'richText') });
@@ -75,6 +77,11 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
       const asset = await window.bulletin.importAsset(root, `${relativePath.replace(/[/\\]bulletin\.json$/, '')}/assets`);
       if (asset) updateBlock(block.id, { ...block, asset });
     } catch (error) { onError(error instanceof Error ? error.message : String(error)); }
+  };
+  const chooseCanvasAsset = async () => {
+    if (!root || !window.bulletin) return null;
+    try { return await window.bulletin.importAsset(root, `${relativePath.replace(/[/\\]bulletin\.json$/, '')}/assets`); }
+    catch (error) { onError(error instanceof Error ? error.message : String(error)); return null; }
   };
   const lookup = async (block: Extract<BulletinBlock, { type: 'scriptureReading' }>) => {
     if (!window.bulletin) {
@@ -154,6 +161,7 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
         ? <textarea rows={4} value={block.values?.[binding.key] ?? binding.defaultValue ?? ''} onChange={event => updateBlock(block.id, { ...block, values: { ...block.values, [binding.key]: event.target.value } })} />
         : <input value={block.values?.[binding.key] ?? binding.defaultValue ?? ''} onChange={event => updateBlock(block.id, { ...block, values: { ...block.values, [binding.key]: event.target.value } })} />}</label>)}{!hasWeeklyCustomBindings(block) && <p className="helper">This block is filled automatically from bulletin details.</p>}</div>}
       {block.type === 'titlePage' && <><p className="helper">Use the standard cover or replace it for this week with a complete image/PDF page.</p><button className="secondary" onClick={() => chooseBlockAsset(block)}>{block.asset ? `Replace ${block.asset.alt ?? 'cover'}` : 'Choose custom cover'}</button>{block.asset && <button className="danger-text" onClick={() => { const { asset: _asset, ...standard } = block; updateBlock(block.id, standard); }}>Use standard cover</button>}</>}
+      {block.type === 'canvasCover' && <><p className="helper">Position cover text, artwork, shapes, and bound bulletin fields on a precise inch-based canvas.</p><button className="primary" onClick={() => setCanvasBlockId(block.id)}>Open cover designer</button>{block.weeklyScene && <button className="danger-text" onClick={() => { const { weeklyScene: _weeklyScene, weeklyUnlockedElementIds: _unlocked, ...templateCover } = block; updateBlock(block.id, templateCover); }}>Reset all weekly cover changes</button>}</>}
       {(block.type === 'churchInfo' || block.type === 'group') && nestedEditors(block)}
       {block.type === 'copyright' && <label>Additional copyright text<textarea rows={5} value={paragraphText(block.extra ?? [])} placeholder="Library and Scripture notices are generated automatically." onChange={event => updateBlock(block.id, { ...block, extra: paragraphs(event.target.value) })} /></label>}
       {block.type === 'spacer' && <label>Spacer size<select value={block.size} onChange={event => updateBlock(block.id, { ...block, size: event.target.value as 'small' | 'medium' | 'large' })}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>}
@@ -164,5 +172,6 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
     {blockLibraryIndex !== undefined && <BlockLibraryModal workspaceDefinitions={library?.componentDefinitions ?? []} template={template} library={library} root={root} onClose={() => setBlockLibraryIndex(undefined)} onUsePrepackaged={addBlock} onUseDefinition={addBlock} onSaveDefinition={async definition => onLibraryChange({ ...(library ?? { schemaVersion: 1, name: 'Shared Library', items: [] }), componentDefinitions: [...(library?.componentDefinitions ?? []), definition] })} onDeleteDefinition={async definition => onLibraryChange({ ...(library ?? { schemaVersion: 1, name: 'Shared Library', items: [] }), componentDefinitions: (library?.componentDefinitions ?? []).filter(item => item.type !== definition.type || item.version !== definition.version) })} />}
     {formatPickerOpen && <div className="modal-backdrop block-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setFormatPickerOpen(false); }}><section className="weekly-block-picker" role="dialog" aria-modal="true" aria-labelledby="weekly-format-title"><header><div><div className="eyebrow">This bulletin only</div><h2 id="weekly-format-title">Choose a block to fine-tune</h2><p>Every block and nested element can have its own weekly layout override.</p></div><button aria-label="Close block picker" onClick={() => setFormatPickerOpen(false)}>×</button></header><div>{flattenBlocks(document.blocks).map((block, index) => <button key={block.id} onClick={() => { setFormattingBlockId(block.id); setFormatPickerOpen(false); }}><span>{index + 1}</span><div><b>{blockName(block)}</b><small>{block.type}{block.presentation ? ' · Formatted' : ''}</small></div><strong>Format</strong></button>)}</div></section></div>}
     {formattingBlockId && (() => { const block = findBlock(document.blocks, formattingBlockId); return block ? <BlockFormattingModal block={block} template={template} scope="weekly" onClose={() => setFormattingBlockId(undefined)} onSave={(presentation, layout) => { updateBlock(block.id, { ...block, presentation, layout }); setFormattingBlockId(undefined); }} /> : null; })()}
+    {canvasBlockId && (() => { const block = findBlock(document.blocks, canvasBlockId); return block?.type === 'canvasCover' ? <CanvasCoverDesigner block={block} document={document} mode="weekly" marginIn={document.layout?.marginIn ?? template.theme.marginIn} assets={{}} root={root} onChooseAsset={chooseCanvasAsset} onChange={next => updateBlock(next.id, next)} onClose={() => setCanvasBlockId(undefined)} /> : null; })()}
   </div>;
 }

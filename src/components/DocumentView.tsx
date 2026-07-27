@@ -6,6 +6,8 @@ import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
 import { responsiveEntryRole } from '../shared/responsiveReading';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
+import { canvasAssetRefs, effectiveCanvasScene } from '../shared/canvas';
+import { CanvasSceneView } from './CanvasSceneView';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
   ? <br key={index} />
@@ -67,7 +69,7 @@ function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
   event.currentTarget.parentElement?.classList.remove('tracking-cursor');
 }
 
-function BlockView({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
+function BlockView({ block, library, assets, document, marginIn }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
     case 'titlePage': return <div className="cover">
@@ -76,12 +78,13 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
       {!block.asset && <>{block.seriesAsset && assets[block.seriesAsset.path] ? <img className="cover-series-image" src={assets[block.seriesAsset.path]} alt={document.info.series ?? ''} /> : <div className="cover-series">{document.info.series ?? 'Worship'}</div>}<h1>{document.info.title}</h1></>}
       {!block.asset && <><div className="cover-date"><strong>{document.info.churchWeek}</strong><span>{new Date(`${document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span></div>{block.churchLogoAsset && assets[block.churchLogoAsset.path] ? <img className="cover-church-logo" src={assets[block.churchLogoAsset.path]} alt={document.church.name} /> : <div className="cover-church">{document.church.name}</div>}</>}
     </div>;
-    case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</div>;
-    case 'group': return <section className="block-group">{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</section>;
+    case 'canvasCover': return <CanvasSceneView scene={effectiveCanvasScene(block)} document={document} assets={assets} marginIn={marginIn} />;
+    case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</div>;
+    case 'group': return <section className="block-group">{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
     case 'sermonTitle': return <h1 className="sermon-title">{block.text}</h1>;
     case 'sectionHeading': return <h2 className="section-heading">✠ {block.text} ✠</h2>;
     case 'heading': return <h3 className="block-heading">{block.text}</h3>;
-    case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} key={child.id} />)}</section>;
+    case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
     case 'richText': return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><Paragraphs content={block.content} /></div>;
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
     case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => {
@@ -94,7 +97,7 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
       const renderElement = (element: typeof elements[number]) =>
         element.scriptureRole === 'body' && !block.resolved
           ? <div className="missing preview-block" data-block-id={element.id} key={element.id}>Passage text has not been resolved. Add it before export.</div>
-          : <RenderedBlock block={element as PaginatedBlock} library={library} assets={assets} document={document} key={element.id} />;
+          : <RenderedBlock block={element as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={element.id} />;
       const heading = visible.find(element => element.scriptureRole === 'heading');
       const reference = visible.find(element => element.scriptureRole === 'reference');
       const inlineHeading = (block.headingReferenceLayout ?? 'inline') === 'inline' && heading && reference;
@@ -117,11 +120,11 @@ function BlockView({ block, library, assets, document }: { block: PaginatedBlock
   }
 }
 
-function RenderedBlock({ block, library, assets, document }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1 }) {
+function RenderedBlock({ block, library, assets, document, marginIn }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number }) {
   const style = presentationStyle(block);
   const editorBlockId = block.sourceBlockId ?? block.id;
-  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} /></div>;
-  const view = BlockView({ block, library, assets, document }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
+  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} marginIn={marginIn} /></div>;
+  const view = BlockView({ block, library, assets, document, marginIn }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
   return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId });
 }
 
@@ -132,6 +135,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     const result: AssetRef[] = [];
     if ('asset' in block && block.asset) result.push(block.asset);
     if (block.type === 'titlePage') result.push(...[block.seriesAsset, block.churchLogoAsset].filter((asset): asset is AssetRef => Boolean(asset)));
+    if (block.type === 'canvasCover') result.push(...canvasAssetRefs(effectiveCanvasScene(block)));
     if (block.type === 'churchInfo' && block.heroAsset) result.push(block.heroAsset);
     if (block.type === 'announcements') result.push(...block.items.flatMap(item => item.asset ? [item.asset] : []));
     if ('libraryItemId' in block) result.push(...(library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
@@ -163,7 +167,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   } as React.CSSProperties}>
     {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
-      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} />)}</div>
+      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} marginIn={effectiveTemplate.theme.marginIn} />)}</div>
       {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
     </article></div>)}
   </div>;

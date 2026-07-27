@@ -1,5 +1,6 @@
 import type { BulletinDocumentV1, LibraryManifestV1, ValidationIssue } from './types.js';
 import { customBlockIssues } from './customBlocks.js';
+import { effectiveCanvasScene, validateCanvasScene } from './canvas.js';
 
 export function validateBulletin(value: unknown, library?: LibraryManifestV1): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -24,6 +25,11 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1): V
     }
     if (block.type === 'song' && block.renderMode === 'asset' && !block.asset && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion) && item.assets?.length)) issues.push({ path: `/blocks/${index}/asset`, message: 'Choose a music image or PDF.' });
     if (block.type === 'fullPageAsset' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an asset.' });
+    if (block.type === 'canvasCover') {
+      validateCanvasScene(effectiveCanvasScene(block), doc.layout?.marginIn ?? .4, `/blocks/${index}/scene`)
+        .filter(issue => issue.severity === 'error')
+        .forEach(({ path, message }) => issues.push({ path, message }));
+    }
     if (block.type === 'custom') customBlockIssues(block).forEach(message => issues.push({ path: `/blocks/${index}`, message }));
   });
   return issues;

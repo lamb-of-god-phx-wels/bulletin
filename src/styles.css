@@ -181,6 +181,53 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .cover-date { position: absolute; top: 0; right: 0; left: 0; display: flex; justify-content: space-between; padding-bottom: .08in; border-bottom: 1px solid currentColor; font-size: 9pt; }
 .cover-church { position: absolute; right: 0; bottom: .1in; left: 0; font: 15pt var(--display-font); text-transform: uppercase; }
 .cover > .cover-church-logo { top: auto; right: 0; bottom: .02in; left: auto; width: 1.82in; height: auto; }
+.canvas-cover { position: absolute; z-index: 0; overflow: hidden; }
+.canvas-elements { position: absolute; z-index: 1; inset: 0; }
+.canvas-background-image, .canvas-pdf-background { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; border: 0; }
+.canvas-element { position: absolute; box-sizing: border-box; }
+.canvas-text { display: flex; flex-direction: column; min-width: 0; }
+.canvas-text p { margin: 0; }
+.canvas-image { overflow: hidden; }
+.canvas-image img { display: block; width: 100%; height: 100%; }
+.canvas-line { height: 0; transform-origin: 0 0; }
+.canvas-missing-asset { display: grid; place-items: center; width: 100%; height: 100%; border: 1px dashed #b16d58; color: #934734; background: #fff7f3; font: 8pt sans-serif; }
+.canvas-designer { position: fixed; z-index: 90; inset: 0; display: grid; grid-template: 64px minmax(0, 1fr) / 230px minmax(560px, 1fr) 280px; color: #27322e; background: #d9d7d0; }
+.canvas-designer-toolbar { grid-column: 1 / -1; display: grid; grid-template-columns: 210px 1fr auto; gap: 14px; align-items: center; padding: 8px 100px 8px 14px; border-bottom: 1px solid #c8c4bb; background: #faf9f6; box-shadow: 0 2px 10px #26352e1c; }
+.canvas-designer-toolbar > .primary { position: fixed; z-index: 2; top: 12px; right: 14px; }
+.canvas-designer-toolbar h2 { margin: 2px 0 0; font: 20px Georgia, serif; }
+.canvas-tools { display: flex; flex-wrap: wrap; gap: 5px; }
+.canvas-tools button, .canvas-align-tools button, .canvas-layers button { min-height: 29px; padding: 0 8px; border: 1px solid #d4d0c7; border-radius: 6px; color: #47514c; background: #fff; font-size: 10px; font-weight: 750; }
+.canvas-layers, .canvas-properties { min-height: 0; padding: 16px 12px; overflow: auto; background: #f6f4ef; }
+.canvas-layers { border-right: 1px solid #cac6bd; }
+.canvas-properties { border-left: 1px solid #cac6bd; }
+.canvas-layers ol { margin: 12px 0 0; padding: 0; list-style: none; }
+.canvas-layers li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px; margin-bottom: 4px; border: 1px solid transparent; border-radius: 7px; }
+.canvas-layers li.selected { border-color: #b76a4b; background: #fff6f0; }
+.canvas-layers li > button { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; width: 100%; border: 0; background: transparent; text-align: left; }
+.canvas-layers li > button b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-layers li > div { display: flex; align-items: center; }
+.canvas-layers li > div button { width: 22px; padding: 0; border: 0; background: transparent; }
+.canvas-workarea { position: relative; min-width: 0; min-height: 0; padding: 34px 30px 52px 44px; overflow: auto; background: #cbc9c3; }
+.canvas-stage { position: relative; width: 7in; height: 8.5in; margin: 0 auto; overflow: hidden; background-color: white; background-image: linear-gradient(#69706c1b 1px, transparent 1px), linear-gradient(90deg, #69706c1b 1px, transparent 1px); background-size: .0625in .0625in; box-shadow: 0 8px 28px #20282338; touch-action: none; }
+.canvas-stage .canvas-cover { pointer-events: none; }
+.canvas-ruler-label { position: absolute; color: #676c68; font: 9px monospace; white-space: pre; }
+.canvas-ruler-label.horizontal { top: 17px; left: 50%; width: 7in; transform: translateX(-50%); word-spacing: 42px; }
+.canvas-ruler-label.vertical { top: 42px; left: calc(50% - 3.85in); width: 12px; line-height: 72px; white-space: normal; }
+.canvas-safe-guide { position: absolute; z-index: 3; border: 1px dashed #4c8eaa; pointer-events: none; }
+.canvas-selection-layer { position: absolute; z-index: 4; overflow: visible; pointer-events: none; }
+.canvas-selection { position: absolute; border: 1px solid transparent; pointer-events: auto; cursor: move; }
+.canvas-selection.selected { border-color: #b34f2d; outline: 1px solid white; }
+.canvas-selection.locked { cursor: not-allowed; }
+.canvas-selection.locked.selected::before { content: '🔒'; position: absolute; top: -18px; left: -1px; font-size: 11px; }
+.canvas-resize-handle { position: absolute; right: -5px; bottom: -5px; width: 9px; height: 9px; border: 1px solid white; background: #b34f2d; cursor: nwse-resize; }
+.canvas-align-tools { position: absolute; right: 20px; bottom: 10px; left: 44px; display: flex; justify-content: center; align-items: center; gap: 4px; }
+.canvas-align-tools span { margin-right: 5px; color: #676c68; font-size: 10px; font-weight: 750; }
+.canvas-properties { display: flex; flex-direction: column; gap: 11px; }
+.canvas-properties h3 { margin: 4px 0 -2px; font: 18px Georgia, serif; }
+.canvas-properties .check { display: flex; }
+.canvas-geometry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.canvas-issues { padding: 10px; border: 1px solid #dbc59d; border-radius: 7px; background: #fff8e9; font-size: 10px; }
+.canvas-issues p { margin: 5px 0 0; line-height: 1.35; }.canvas-issues p.error { color: #a43f32; }.canvas-issues p.warning { color: #8a632d; }
 .church-info { position: relative; }.church-info-image { float: left; width: 1.05in; height: .57in; margin: 0 .12in .05in 0; object-fit: cover; }
 .church-info h1 { padding: .12in 0; border-bottom: 3px solid var(--accent); font: 19pt var(--display-font); }
 .church-info h2 { margin: .25in 0 .05in; font-size: 10pt; text-transform: uppercase; }
@@ -381,5 +428,10 @@ code { padding: 2px 5px; border-radius: 4px; background: #ebe8e0; }
   .page-frame { width: 7in; height: 8.5in; margin: 0; break-after: page; page-break-after: always; }
   .page-frame:last-child { break-after: auto; }
   .document-page { left: 0; width: 7in; height: 8.5in; min-height: 8.5in; max-height: 8.5in; box-shadow: none; transform: none; }
+  .canvas-pdf-background { visibility: hidden; }
+  .browser-print .canvas-pdf-background { visibility: visible; }
+  .document-page:has(.canvas-cover.has-pdf-background) { background: transparent; }
+  html:has(.electron-print), body:has(.electron-print), body:has(.electron-print) #root, .electron-print, .electron-print .document-stack { background: transparent !important; }
+  .electron-print .canvas-cover.has-pdf-background { background-color: transparent !important; }
 }
 @media (max-width: 1120px) { .app-shell { grid-template-columns: 200px 1fr; }.weekly-layout { grid-template-columns: minmax(370px, 1fr) minmax(420px, 1fr); } }

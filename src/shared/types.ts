@@ -29,6 +29,64 @@ interface BlockBase {
 }
 
 export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: AssetRef; seriesAsset?: AssetRef; churchLogoAsset?: AssetRef }
+export type CanvasCoordinateSpace = 'fullPage' | 'contentBox';
+export type CanvasTextBinding = 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
+export interface CanvasGeometry { x: number; y: number; width: number; height: number }
+export interface CanvasTextSource {
+  literal?: Paragraph[];
+  binding?: CanvasTextBinding;
+  override?: Paragraph[];
+  dateFormat?: 'long' | 'medium' | 'short' | 'iso';
+}
+interface CanvasElementBase extends CanvasGeometry {
+  id: string;
+  name?: string;
+  locked?: boolean;
+  groupId?: string;
+}
+export interface CanvasTextElement extends CanvasElementBase {
+  type: 'text';
+  source: CanvasTextSource;
+  paddingIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
+  fontFamily?: string;
+  fontSizePt?: number;
+  lineHeight?: number;
+  fontWeight?: 'normal' | 'bold' | number;
+  fontStyle?: 'normal' | 'italic';
+  color?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  overflow?: 'autoHeight' | 'shrinkToFit' | 'fixed';
+}
+export interface CanvasImageElement extends CanvasElementBase {
+  type: 'image';
+  asset: AssetRef;
+  fit?: 'contain' | 'cover' | 'fill';
+}
+export interface CanvasRectangleElement extends CanvasElementBase {
+  type: 'rectangle';
+  fill?: string;
+  borderColor?: string;
+  borderWidthPt?: number;
+}
+export interface CanvasLineElement extends CanvasElementBase {
+  type: 'line';
+  color?: string;
+  widthPt?: number;
+  dash?: 'solid' | 'dashed' | 'dotted';
+}
+export type CanvasElement = CanvasTextElement | CanvasImageElement | CanvasRectangleElement | CanvasLineElement;
+export interface CanvasScene {
+  coordinateSpace: CanvasCoordinateSpace;
+  background?: { color?: string; asset?: AssetRef; fit?: 'contain' | 'cover' | 'fill' };
+  elements: CanvasElement[];
+}
+export interface CanvasCoverBlock extends BlockBase {
+  type: 'canvasCover';
+  scene: CanvasScene;
+  weeklyScene?: CanvasScene;
+  weeklyUnlockedElementIds?: string[];
+}
 export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
 export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string }
 export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
@@ -119,7 +177,7 @@ export interface CustomBlock extends BlockBase {
   style?: CustomBlockStyle;
 }
 
-export type BulletinBlock = TitlePageBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
+export type BulletinBlock = TitlePageBlock | CanvasCoverBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 

@@ -175,7 +175,12 @@ export interface ImageLayoutNode extends LayoutNodeBase {
   fit?: 'contain' | 'cover' | 'fill' | 'scale-down';
 }
 
-export type LayoutNode = StackLayoutNode | RowLayoutNode | TextLayoutNode | StructuredTextLayoutNode | SpacerLayoutNode | ImageLayoutNode;
+export interface CanvasLayoutNode extends LayoutNodeBase {
+  type: 'canvas';
+  scene: import('../shared/types.js').CanvasScene;
+}
+
+export type LayoutNode = StackLayoutNode | RowLayoutNode | TextLayoutNode | StructuredTextLayoutNode | SpacerLayoutNode | ImageLayoutNode | CanvasLayoutNode;
 
 export interface EvaluationResult {
   node?: LayoutNode;

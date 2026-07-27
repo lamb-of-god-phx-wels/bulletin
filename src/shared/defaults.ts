@@ -1,5 +1,6 @@
 import type { BulletinDocumentV1, TemplateV1 } from './types.js';
 import { defaultChurchInfoChildren } from './blocks.js';
+import { defaultCanvasScene } from './canvas.js';
 
 const now = () => new Date().toISOString();
 
@@ -20,7 +21,7 @@ export const defaultTemplate: TemplateV1 = {
     marginIn: 0.4
   },
   starterBlocks: [
-    { id: 'cover', type: 'titlePage', weeklyEditable: true },
+    { id: 'cover', type: 'canvasCover', scene: defaultCanvasScene(), weeklyEditable: true },
     { id: 'church-info', type: 'churchInfo', children: defaultChurchInfoChildren() },
     { id: 'sermon-title', type: 'sermonTitle', text: 'Sermon title', weeklyEditable: true },
     { id: 'gathering', type: 'sectionHeading', text: 'The Gathering' },

@@ -2,12 +2,13 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
 import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
 import { createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, readAssetData, saveBulletin, saveLibrary, saveTemplate } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
+import { canvasAssetRefs, canvasSpace, effectiveCanvasScene } from '../src/shared/canvas.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
@@ -68,6 +69,7 @@ async function exportPdf(root: string, relative: string, document: BulletinDocum
   const workspace = await openWorkspace(root);
   const referencedAssets = document.blocks.flatMap(block => {
     const assets = 'asset' in block && block.asset ? [block.asset] : [];
+    if (block.type === 'canvasCover') assets.push(...canvasAssetRefs(effectiveCanvasScene(block)));
     if ('libraryItemId' in block) assets.push(...(workspace.library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
     return assets;
   });
@@ -96,12 +98,39 @@ async function exportPdf(root: string, relative: string, document: BulletinDocum
 
 async function replacePdfPages(raw: Buffer, root: string, document: BulletinDocumentV1) {
   const output = await PDFDocument.load(raw);
+  const chromium = await PDFDocument.load(raw);
   // Replacement runs from the back so earlier page indexes remain stable.
   const workspace = await openWorkspace(root);
   const storedTemplate = workspace.templates.find(t => t.template.id === document.template.id && t.template.version === document.template.version)?.template ?? (await import('../src/shared/defaults.js')).defaultTemplate;
   const pages = paginate(document.blocks, templateForBulletin(storedTemplate, document), workspace.library);
   for (let index = pages.length - 1; index >= 0; index--) {
     const block = pages[index].blocks[0];
+    if (block?.type === 'canvasCover') {
+      const scene = effectiveCanvasScene(block);
+      const background = scene.background?.asset;
+      if (background?.mediaType === 'application/pdf') {
+        const source = await PDFDocument.load(await readFile(inside(root, background.path)));
+        const sourceIndex = Math.max(0, Math.min(source.getPageCount() - 1, (background.page ?? 1) - 1));
+        const embeddedBackground = await output.embedPage(source.getPage(sourceIndex));
+        const embeddedOverlay = await output.embedPage(chromium.getPage(index));
+        const margin = document.layout?.marginIn ?? storedTemplate.theme.marginIn;
+        const space = canvasSpace(scene, margin);
+        const box = { x: space.x * 72, y: 612 - (space.y + space.height) * 72, width: space.width * 72, height: space.height * 72 };
+        const fit = scene.background?.fit ?? 'cover';
+        const scaleX = box.width / embeddedBackground.width;
+        const scaleY = box.height / embeddedBackground.height;
+        const scale = fit === 'fill' ? undefined : fit === 'contain' ? Math.min(scaleX, scaleY) : Math.max(scaleX, scaleY);
+        const width = scale === undefined ? box.width : embeddedBackground.width * scale;
+        const height = scale === undefined ? box.height : embeddedBackground.height * scale;
+        output.removePage(index);
+        const page = output.insertPage(index, [504, 612]);
+        page.pushOperators(pushGraphicsState(), rectangle(box.x, box.y, box.width, box.height), clip(), endPath());
+        page.drawPage(embeddedBackground, { x: box.x + (box.width - width) / 2, y: box.y + (box.height - height) / 2, width, height });
+        page.pushOperators(popGraphicsState());
+        page.drawPage(embeddedOverlay, { x: 0, y: 0, width: 504, height: 612 });
+      }
+      continue;
+    }
     if (!block || (block.type !== 'fullPageAsset' && block.type !== 'titlePage') || !block.asset || block.asset.mediaType !== 'application/pdf') continue;
     const source = await PDFDocument.load(await readFile(inside(root, block.asset.path)));
     const sourceIndex = Math.max(0, (block.asset.page ?? 1) - 1);

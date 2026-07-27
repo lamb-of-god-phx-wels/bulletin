@@ -21,7 +21,8 @@
         "name": { "type": "string", "minLength": 1 },
         "layoutText": { "type": "string", "minLength": 1 },
         "bindings": { "type": "array", "items": { "$ref": "#/$defs/customBinding" } },
-        "values": { "type": "object", "additionalProperties": { "type": "string" } }
+        "values": { "type": "object", "additionalProperties": { "type": "string" } },
+        "scene": { "$ref": "#/$defs/canvasScene" }
       },
       "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
       "additionalProperties": true
@@ -37,6 +38,16 @@
         "multiline": { "type": "boolean" }
       },
       "additionalProperties": false
+    },
+    "canvasScene": {
+      "type": "object",
+      "required": ["coordinateSpace", "elements"],
+      "properties": {
+        "coordinateSpace": { "enum": ["fullPage", "contentBox"] },
+        "background": { "type": "object" },
+        "elements": { "type": "array", "items": { "type": "object", "required": ["id", "type", "x", "y", "width", "height"], "additionalProperties": true } }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": false

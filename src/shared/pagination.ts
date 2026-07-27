@@ -55,7 +55,7 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   };
   if (block.type === 'group') return formatted(block.children.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'paragraph') return formatted(childBlocks(block)!.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
-  if (block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
+  if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
   if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
   if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + 8);
@@ -171,7 +171,7 @@ export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?
   let current: PaginatedBlock[] = []; let used = 0;
   const flush = () => { if (current.length) pages.push({ number: pages.length + 1, kind: 'content', blocks: current }); current = []; used = 0; };
   for (const block of splitLongBlocks(blocks, template, library)) {
-    if (block.type === 'titlePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') {
+    if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'churchInfo' || block.type === 'fullPageAsset') {
       flush(); pages.push({ number: pages.length + 1, kind: block.type === 'fullPageAsset' ? 'fullPage' : 'content', blocks: [block] }); continue;
     }
     const height = estimateBlockPoints(block, template, library);

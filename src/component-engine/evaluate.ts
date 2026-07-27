@@ -13,8 +13,10 @@ import type {
   LayoutNode,
   StructuredText
 } from './types.js';
+import { validateCanvasScene } from '../shared/canvas.js';
+import type { CanvasScene } from '../shared/types.js';
 
-const coreTypes = new Set(['core:stack', 'core:row', 'core:repeat', 'core:text', 'core:structuredText', 'core:spacer', 'core:image']);
+const coreTypes = new Set(['core:stack', 'core:row', 'core:repeat', 'core:text', 'core:structuredText', 'core:spacer', 'core:image', 'core:canvas']);
 
 function mergeStyle(...styles: Array<ComponentStyle | undefined>): ComponentStyle | undefined {
   const values = styles.filter((style): style is ComponentStyle => Boolean(style));
@@ -208,6 +210,32 @@ function expandNode(
       },
       diagnostics
     };
+  }
+
+  if (node.type === 'core:canvas') {
+    const value = evaluated.inputs.scene;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {
+      diagnostics: [...diagnostics, {
+        severity: 'error',
+        code: 'LAYOUT_CANVAS_INVALID',
+        message: 'core:canvas requires a scene object.',
+        componentType: ownerType,
+        instanceId,
+        jsonPointer: `${path}/inputs/scene`
+      }]
+    };
+    const scene = value as unknown as CanvasScene;
+    diagnostics.push(...validateCanvasScene(scene, .4, `${path}/inputs/scene`).map(issue => ({
+      severity: issue.severity,
+      code: issue.severity === 'error' ? 'LAYOUT_CANVAS_INVALID' : 'LAYOUT_CANVAS_BOUNDS',
+      message: issue.message,
+      componentType: ownerType,
+      instanceId,
+      jsonPointer: issue.path
+    } satisfies ComponentDiagnostic)));
+    return diagnostics.some(item => item.severity === 'error')
+      ? { diagnostics }
+      : { node: { id, type: 'canvas', scene, style, source: nodeSource }, diagnostics };
   }
 
   if (!coreTypes.has(node.type)) {

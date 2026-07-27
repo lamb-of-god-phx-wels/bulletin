@@ -85,7 +85,7 @@ export function loadComponentCatalog(files: Record<string, string>): ComponentCa
       if (!registration.length) sources.set(`${parsed.definition.type}@${parsed.definition.version}`, sourceId);
     }
   }
-  const coreTypes = new Set(['core:stack', 'core:row', 'core:repeat', 'core:text', 'core:structuredText', 'core:spacer', 'core:image']);
+  const coreTypes = new Set(['core:stack', 'core:row', 'core:repeat', 'core:text', 'core:structuredText', 'core:spacer', 'core:image', 'core:canvas']);
   const inspect = (definition: DeclarativeComponentDefinition, node: DeclarativeComponentDefinition['template'], pointer: string) => {
     if (!coreTypes.has(node.type) && !registry.latest(node.type)) diagnostics.push({
       severity: 'error',

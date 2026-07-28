@@ -210,7 +210,7 @@ export async function installBrowserApi() {
     },
     importAsset: async (root, targetFolder) => {
       const file = await chooseFile(); if (!file) return null;
-      const path = `${targetFolder}/${Date.now()}-${file.name}`;
+      const path = `${targetFolder}/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
       await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
       return { path, mediaType: mediaType(file), alt: file.name };
     },

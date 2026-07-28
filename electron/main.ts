@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
 import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
@@ -9,6 +9,7 @@ import { createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, 
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
 import { canvasAssetRefs, canvasSpace, effectiveCanvasScene } from '../src/shared/canvas.js';
+import { copyAssetWithoutOverwrite } from './assets.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
@@ -49,7 +50,7 @@ function registerIpc() {
     if (result.canceled) return null;
     const source = result.filePaths[0];
     const folder = inside(root, targetFolder); await mkdir(folder, { recursive: true });
-    const destination = path.join(folder, path.basename(source)); await copyFile(source, destination);
+    const destination = await copyAssetWithoutOverwrite(source, folder);
     const extension = path.extname(source).toLowerCase();
     const mediaType = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf' : 'image/jpeg';
     return { path: path.relative(root, destination), mediaType, alt: path.basename(source) };

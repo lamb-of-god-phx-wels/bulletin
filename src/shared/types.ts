@@ -235,10 +235,15 @@ export interface LibraryItemV1 {
   assets?: Array<AssetRef & { variant?: string }>;
   license?: { notice: string; licenseNumber?: string };
 }
+export interface ChurchWeekName {
+  sourceName: string;
+  displayName: string;
+}
 export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
   items: LibraryItemV1[];
+  churchWeekNames?: ChurchWeekName[];
   componentDefinitions?: DeclarativeComponentDefinition[];
 }
 

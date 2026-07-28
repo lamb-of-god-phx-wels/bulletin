@@ -7,6 +7,18 @@
   "properties": {
     "schemaVersion": { "const": 1 }, "name": { "type": "string" },
     "items": { "type": "array", "items": { "type": "object", "required": ["id", "version", "kind", "title"], "properties": { "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["song", "liturgy", "image", "font", "church-info"] }, "title": { "type": "string" } }, "additionalProperties": true } },
+    "churchWeekNames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sourceName", "displayName"],
+        "properties": {
+          "sourceName": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
     "componentDefinitions": {
       "type": "array",
       "items": {

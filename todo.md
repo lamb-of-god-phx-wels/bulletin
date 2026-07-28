@@ -1,6 +1,5 @@
 # TODO
 
-* Remember last file dialog location
 * Add a "church week" weekly field that can be bound
   * It would be good to be able to pull the church week from https://builder.christianworship.com/
   * It would also be good to keep an asset which can be used to  or change the display name for these weeks since the ones on the website are terse.

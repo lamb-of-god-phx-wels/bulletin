@@ -10,11 +10,13 @@ import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
 import { canvasAssetRefs, canvasSpace, effectiveCanvasScene } from '../src/shared/canvas.js';
 import { copyAssetWithoutOverwrite } from './assets.js';
+import { DialogPathStore } from './dialogPaths.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
 let printJob: { root: string; document: BulletinDocumentV1 } | undefined;
 let printReady: (() => void) | undefined;
+let dialogPaths: DialogPathStore;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -28,14 +30,21 @@ function createWindow() {
   else void mainWindow.loadFile(path.join(dirname, '../../dist/index.html'));
 }
 
-app.whenReady().then(() => { app.on('session-created', session => session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))); registerIpc(); createWindow(); });
+app.whenReady().then(() => {
+  dialogPaths = new DialogPathStore(path.join(app.getPath('userData'), 'dialog-paths.json'));
+  app.on('session-created', session => session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false)));
+  registerIpc();
+  createWindow();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 
 function registerIpc() {
   ipcMain.handle('workspace:choose', async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: 'Choose the synced bulletin workspace' });
-    return result.canceled ? null : result.filePaths[0];
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: 'Choose the synced bulletin workspace', defaultPath: await dialogPaths.get('workspace') });
+    if (result.canceled) return null;
+    await dialogPaths.remember('workspace', result.filePaths[0]);
+    return result.filePaths[0];
   });
   ipcMain.handle('workspace:open', (_event, root: string) => openWorkspace(root));
   ipcMain.handle('bulletin:save', (_event, ...args: Parameters<BulletinApi['saveBulletin']>) => saveBulletin(...args));
@@ -46,9 +55,10 @@ function registerIpc() {
   ipcMain.handle('revision:create', (_event, ...args: Parameters<BulletinApi['createRevision']>) => createRevision(...args));
   ipcMain.handle('asset:read', (_event, root: string, relative: string) => readAssetData(root, relative));
   ipcMain.handle('asset:import', async (_event, root: string, targetFolder: string) => {
-    const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Page assets', extensions: ['png', 'jpg', 'jpeg', 'svg', 'pdf'] }] });
+    const result = await dialog.showOpenDialog({ properties: ['openFile'], defaultPath: await dialogPaths.get('asset'), filters: [{ name: 'Page assets', extensions: ['png', 'jpg', 'jpeg', 'svg', 'pdf'] }] });
     if (result.canceled) return null;
     const source = result.filePaths[0];
+    await dialogPaths.remember('asset', path.dirname(source));
     const folder = inside(root, targetFolder); await mkdir(folder, { recursive: true });
     const destination = await copyAssetWithoutOverwrite(source, folder);
     const extension = path.extname(source).toLowerCase();
@@ -76,9 +86,11 @@ async function exportPdf(root: string, relative: string, document: BulletinDocum
   });
   await Promise.all(referencedAssets.map(asset => readFile(inside(root, asset.path))));
   const suggested = `${document.info.date} ${document.info.title}.pdf`.replace(/[<>:"/\\|?*]/g, '-');
-  const options = { title: 'Export bulletin PDF', defaultPath: inside(root, path.join(path.dirname(relative), 'exports', suggested)), filters: [{ name: 'PDF', extensions: ['pdf'] }] };
+  const rememberedExportFolder = await dialogPaths.get('export');
+  const options = { title: 'Export bulletin PDF', defaultPath: rememberedExportFolder ? path.join(rememberedExportFolder, suggested) : inside(root, path.join(path.dirname(relative), 'exports', suggested)), filters: [{ name: 'PDF', extensions: ['pdf'] }] };
   const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
   if (choice.canceled || !choice.filePath) return null;
+  await dialogPaths.remember('export', path.dirname(choice.filePath));
   printJob = { root, document };
   const printWindow = new BrowserWindow({ show: false, webPreferences: { preload: path.join(dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   try {

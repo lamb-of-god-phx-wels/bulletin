@@ -63,6 +63,29 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_SORTABLE_ONLY === '1') {
+  await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));blocks.forEach(block=>block.removeAttribute('open'));const copyright=blocks.find(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));copyright?.scrollIntoView({block:'center'});return blocks.length})()`);
+  const start = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));const sourceIndex=blocks.findIndex(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));if(sourceIndex<2)throw new Error('Copyright block is unavailable for sorting');const source=blocks[sourceIndex];const target=blocks[sourceIndex-2];const handle=source.querySelector('.drag-handle');const handleRect=handle.getBoundingClientRect();const targetRect=target.getBoundingClientRect();return {sourceId:source.dataset.editorBlockId,sourceIndex,start:{x:handleRect.left+handleRect.width/2,y:handleRect.top+handleRect.height/2},target:{x:handleRect.left+handleRect.width/2,y:targetRect.top+targetRect.height*.25}}})()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: start.start.x, y: start.start.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 6; step += 1) {
+    const ratio = step / 6;
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: start.start.x + (start.target.x - start.start.x) * ratio, y: start.start.y + (start.target.y - start.start.y) * ratio, button: 'left', buttons: 1 });
+    await new Promise(resolve => setTimeout(resolve, 40));
+  }
+  await wait(`Boolean(document.querySelector('.editor-scroll > .block-editor.is-dragging'))`, 'picked-up sortable block');
+  const motion = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));return {active:blocks.some(block=>block.classList.contains('is-dragging')&&block.style.transform&&block.style.transform!=='none'),shifted:blocks.some(block=>!block.classList.contains('is-dragging')&&block.style.transform&&block.style.transform!=='none')}})()`);
+  if (!motion.active || !motion.shifted) throw new Error(`Sortable blocks did not move together: ${JSON.stringify(motion)}`);
+  pass('moves the picked-up block with the pointer while neighboring blocks shift');
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: start.target.x, y: start.target.y, button: 'left', buttons: 0, clickCount: 1 });
+  await wait(`Array.from(document.querySelectorAll('.editor-scroll > .block-editor')).findIndex(block=>block.dataset.editorBlockId===${JSON.stringify(start.sourceId)})<${start.sourceIndex}`, 'committed sortable order');
+  pass('commits the pointer-selected block order');
+  if (await evaluate(`document.querySelector('[data-editor-block-id="${start.sourceId}"]')?.hasAttribute('open')`)) throw new Error('Dragging expanded the copyright block.');
+  pass('keeps the dragged copyright block collapsed');
+  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_CANVAS_ONLY === '1') {
   if (!await evaluate(`Boolean(document.querySelector('.preview-pane [data-canvas-coordinate-space="fullPage"]'))`)) {
     await command('Runtime.evaluate', { expression: `window.__canvasSetupDone=false;window.__canvasSetupError='';(async()=>{const root=await window.bulletin.createWorkspace('Canvas browser smoke '+Date.now());const workspace=await window.bulletin.openWorkspace(root);const template=workspace.templates.find(item=>item.template.starterBlocks.some(block=>block.type==='canvasCover')).template;const date='2026-07-27';const document={schemaVersion:1,id:'canvas-browser-smoke',revision:0,template:{id:template.id,version:template.version},church:{name:'Canvas Test Church'},info:{title:'Canvas Test',date,churchWeek:'Sunday',series:'Grace'},blocks:structuredClone(template.starterBlocks),updatedAt:new Date().toISOString()};await window.bulletin.saveBulletin(root,'bulletins/2026-07-27/bulletin.json',document,0);localStorage.setItem('bulletin-workspace',root);window.__canvasSetupDone=true;setTimeout(()=>location.reload(),500)})().catch(error=>{window.__canvasSetupError=String(error)});true`, returnByValue: true });

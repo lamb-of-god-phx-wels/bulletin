@@ -117,6 +117,8 @@ input:focus, textarea:focus, select:focus { border-color: #a55b3d; box-shadow: 0
 .block-type { color: #9a6c56; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .reorder { display: flex; gap: 3px; }
 .reorder button { width: 29px; height: 29px; padding: 0; border: 1px solid #ddd9d0; border-radius: 6px; color: #656b67; background: #faf9f6; }
+.reorder .drag-handle { display: grid; place-items: center; align-self: stretch; width: 27px; margin-left: 3px; color: #9a6c56; cursor: grab; font-size: 19px; line-height: 1; touch-action: none; user-select: none; }.reorder .drag-handle:hover { color: #a44d2a; }.reorder .drag-handle:active { cursor: grabbing; }
+.block-editor.is-dragging, .nested-block-editor.is-dragging, .outline li.is-dragging { opacity: .96; box-shadow: 0 12px 30px #18221d35; cursor: grabbing; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 11px; }
 .block-editor > label, .block-editor > details { margin-bottom: 11px; }
 details { border: 1px solid #e2ded5; border-radius: 7px; }

@@ -1,5 +1,15 @@
 # TODO
 
+* In the cover editor, when images have the same base name, they overwrite the other. For example:
+  * Add one "logo.png" from the church - the correct image is displayed
+  * Add a different "logo.png" from the sermon series - both images are now the sermon series "logo.png"
+* Remember last file dialog location
+* Add a "church week" weekly field that can be bound
+  * It would be good to be able to pull the church week from https://builder.christianworship.com/
+  * It would also be good to keep an asset which can be used to  or change the display name for these weeks since the ones on the website are terse.
+* Italics for song/asset names in copyright block
+
+* Extra "OneLicense.net copyright notice automatically at end
 * Allow scripture blocks to span pages (unless keep together option is checked)
   * Don't add a "Continued" header on page break
 * Text and inline scripture elements should be separate in the editable fields (think responsiveReading)

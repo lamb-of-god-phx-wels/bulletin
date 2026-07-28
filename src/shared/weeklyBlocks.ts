@@ -5,14 +5,6 @@ export function insertWeeklyBlock(blocks: BulletinBlock[], block: BulletinBlock,
   return [...blocks.slice(0, target), block, ...blocks.slice(target)];
 }
 
-export function moveWeeklyBlock(blocks: BulletinBlock[], index: number, by: number): BulletinBlock[] {
-  const target = index + by;
-  if (index < 0 || index >= blocks.length || target < 0 || target >= blocks.length) return blocks;
-  const next = [...blocks];
-  [next[index], next[target]] = [next[target], next[index]];
-  return next;
-}
-
 export function reorderBlocks<T extends { id: string }>(blocks: T[], draggedId: string, targetId: string, position: 'before' | 'after'): T[] {
   const sourceIndex = blocks.findIndex(block => block.id === draggedId);
   if (sourceIndex < 0 || draggedId === targetId || !blocks.some(block => block.id === targetId)) return blocks;

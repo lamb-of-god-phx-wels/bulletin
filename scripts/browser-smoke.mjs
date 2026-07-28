@@ -378,9 +378,8 @@ if (process.env.BULLETIN_WEEKLY_BLOCKS_ONLY === '1') {
   const editedText = `Weekly inserted heading ${Date.now()}`;
   await evaluate(`(()=>{const editor=document.querySelector('.editor-pane [data-editor-block-id="${addedId}"]');const input=Array.from(editor.querySelectorAll('input')).find(element=>element.closest('label')?.textContent.startsWith('Text'));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(editedText)});input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
   await wait(`document.querySelector('.preview-pane [data-block-id="${addedId}"]')?.textContent.includes(${JSON.stringify(editedText)})`, 'edited inserted weekly block');
-  const indexBeforeMove = await evaluate(`Array.from(document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]')).findIndex(element=>element.dataset.editorBlockId===${JSON.stringify(addedId)})`);
-  await evaluate(`document.querySelector('.editor-pane [data-editor-block-id="${addedId}"] button[title="Move up"]').click()`);
-  await wait(`Array.from(document.querySelectorAll('.editor-pane > .editor-scroll > [data-editor-block-id]')).findIndex(element=>element.dataset.editorBlockId===${JSON.stringify(addedId)}) === ${indexBeforeMove - 1}`, 'reordered weekly block');
+  if (await evaluate(`Boolean(document.querySelector('.editor-pane [data-editor-block-id="${addedId}"] button[title="Move up"], .editor-pane [data-editor-block-id="${addedId}"] button[title="Move down"]'))`)) throw new Error('Legacy block move arrows remain.');
+  if (!await evaluate(`Boolean(document.querySelector('.editor-pane [data-editor-block-id="${addedId}"] .drag-handle')`)) throw new Error('Inserted weekly block has no drag handle.');
   await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved inserted weekly block');
   const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(addedId)}))`);
   if (stored?.type !== 'heading' || stored.text !== editedText) throw new Error(`Inserted weekly block was not saved: ${JSON.stringify(stored)}`);

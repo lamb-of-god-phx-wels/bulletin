@@ -10,7 +10,7 @@ import { libraryFamilies } from '../shared/library';
 import { paragraphsFromPlainText } from '../shared/plainText';
 import { defaultReaderForRole, responsiveEntryRole } from '../shared/responsiveReading';
 import { scriptureElementNames } from '../shared/scriptureReading';
-import { insertWeeklyBlock, moveWeeklyBlock, removeWeeklyBlock } from '../shared/weeklyBlocks';
+import { insertWeeklyBlock, removeWeeklyBlock } from '../shared/weeklyBlocks';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
@@ -42,11 +42,10 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
     const isParagraph = parent.type === 'paragraph';
     const isScripture = parent.type === 'scriptureReading';
     const reorderable = !isParagraph && !isScripture;
-    const editors = children.map((child, childIndex) => {
+    const editors = children.map(child => {
       const editor = <details className="nested-block-editor collapsible-editor" data-editor-block-id={child.id} tabIndex={-1}>
         <summary><div><span className="block-type">{child.type}{child.presentation ? ' · formatted' : ''}</span><b>{blockName(child)}</b></div><div className="reorder" onClick={event => event.preventDefault()}>
           <button className="format-block-button" onClick={() => setFormattingBlockId(child.id)}>Format</button>
-          {reorderable && <><button title="Move up" disabled={childIndex === 0} onClick={() => { const next = [...children]; if (childIndex > 0) [next[childIndex - 1], next[childIndex]] = [next[childIndex], next[childIndex - 1]]; updateChildren(parent, next); }}>↑</button><button title="Move down" disabled={childIndex === children.length - 1} onClick={() => { const next = [...children]; if (childIndex < next.length - 1) [next[childIndex + 1], next[childIndex]] = [next[childIndex], next[childIndex + 1]]; updateChildren(parent, next); }}>↓</button></>}
           {!isScripture && (!isParagraph || child.role === 'header') && <button className="danger-text" title="Remove element" onClick={() => updateChildren(parent, children.filter(item => item.id !== child.id))}>×</button>}
           {reorderable && <SortableHandle label={`Drag ${blockName(child)} to reorder`} />}
         </div></summary>
@@ -62,10 +61,6 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
       {reorderable ? <SortableList items={children} onChange={next => updateChildren(parent, next)}>{editors}</SortableList> : editors}
       {!isScripture && <div className="nested-add-actions">{isParagraph ? !children.some(child => child.type === 'richText' && child.role === 'header') && <button className="secondary" onClick={() => updateChildren(parent, [{ id: `${parent.id}-header`, type: 'richText', role: 'header', content: paragraphs('New heading'), presentation: { fontWeight: 'bold', marginIn: { top: 0, bottom: 0 }, paddingIn: { top: 0, right: 0, bottom: 0, left: 0 } } }, ...children])}>＋ Header</button> : <button className="secondary" onClick={() => updateChildren(parent, [...children, { id: `paragraph-${Date.now()}`, type: 'paragraph', children: [{ id: `paragraph-body-${Date.now()}`, type: 'richText', role: 'body', content: paragraphs('New text'), presentation: { marginIn: { top: 0, bottom: 0 }, paddingIn: { top: 0, right: 0, bottom: 0, left: 0 } } }] }])}>＋ Paragraph</button>}</div>}
     </div>;
-  };
-  const move = (index: number, by: number) => {
-    const next = moveWeeklyBlock(document.blocks, index, by);
-    if (next !== document.blocks) onChange({ ...document, blocks: next });
   };
   const addBlock = (definition: Parameters<typeof instantiateComponentDefinition>[0]) => {
     const block = { ...instantiateComponentDefinition(definition), weeklyEditable: true } as BulletinBlock;
@@ -131,7 +126,7 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
     <div className="scripture-source-note"><b>Bible Gateway passage import</b><span>No login required. The displayed publisher notice is saved with the passage; verify that your bulletin stays within the translation’s quotation terms.</span></div>
     <div className="editor-section-title"><div><div className="eyebrow">Order of worship</div><h2>Weekly content</h2><small>{document.blocks.length} blocks · changes apply only to this bulletin</small></div><div className="weekly-content-actions"><button className="primary" onClick={() => setBlockLibraryIndex(document.blocks.length)}>＋ Add block</button><button className="secondary" onClick={() => setFormatPickerOpen(true)}>Fine-tune layout</button><button className="secondary" onClick={addPage}>＋ One-off page</button></div></div>
     <SortableList items={document.blocks} onChange={blocks => onChange({ ...document, blocks })}>{document.blocks.map((block, index) => <SortableItem id={block.id} key={block.id}><details className="editor-card block-editor collapsible-editor" data-editor-block-id={block.id} tabIndex={-1}>
-      <summary><div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><h3>{blockName(block)}</h3></div><div className="reorder" onClick={event => event.preventDefault()}><button className="format-block-button" title="Format block" onClick={() => setFormattingBlockId(block.id)}>Format</button><button title={`Add block after ${blockName(block)}`} aria-label={`Add block after ${blockName(block)}`} onClick={() => setBlockLibraryIndex(index + 1)}>＋</button><button title="Move up" disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button title="Move down" disabled={index === document.blocks.length - 1} onClick={() => move(index, 1)}>↓</button><button className="danger-text" title={`Remove ${blockName(block)}`} aria-label={`Remove ${blockName(block)}`} onClick={() => onChange({ ...document, blocks: removeWeeklyBlock(document.blocks, block.id) })}>×</button><SortableHandle label={`Drag ${blockName(block)} to reorder`} /></div></summary><div className="collapsible-editor-fields">
+      <summary><div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><h3>{blockName(block)}</h3></div><div className="reorder" onClick={event => event.preventDefault()}><button className="format-block-button" title="Format block" onClick={() => setFormattingBlockId(block.id)}>Format</button><button title={`Add block after ${blockName(block)}`} aria-label={`Add block after ${blockName(block)}`} onClick={() => setBlockLibraryIndex(index + 1)}>＋</button><button className="danger-text" title={`Remove ${blockName(block)}`} aria-label={`Remove ${blockName(block)}`} onClick={() => onChange({ ...document, blocks: removeWeeklyBlock(document.blocks, block.id) })}>×</button><SortableHandle label={`Drag ${blockName(block)} to reorder`} /></div></summary><div className="collapsible-editor-fields">
       {missingLibraryReference(block) && !block.weeklyEditable && <div className="missing-template-content"><b>Template content needs attention</b><span>This block is normally hidden during weekly editing, but its library item is missing. Choose a replacement below or remove it from this bulletin.</span></div>}
       {(block.type === 'sermonTitle' || block.type === 'heading' || block.type === 'sectionHeading') && <label>Text<input value={block.text} onChange={e => updateBlock(block.id, { ...block, text: e.target.value })} /></label>}
       {block.type === 'richText' && <label>Text<textarea rows={6} value={paragraphText(block.content)} onChange={event => updateBlock(block.id, { ...block, content: paragraphs(event.target.value) })} /></label>}

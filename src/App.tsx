@@ -12,6 +12,7 @@ import type { BulletinDocumentV1, LibraryItemV1, LibraryManifestV1, TemplateV1, 
 import { validateBulletin } from './shared/validation';
 import { templateForBulletin } from './shared/documentLayout';
 import { prepackagedComponentDiagnostics } from './componentDefinitions';
+import { filterBulletins, sortedBulletins, type BulletinRecord } from './shared/bulletins';
 
 type Screen = 'weekly' | 'templates' | 'library';
 type Confirmation = { title: string; message: string; confirmLabel: string; action(): Promise<void> };
@@ -66,6 +67,7 @@ function DesktopApp() {
   const [templatePath, setTemplatePath] = useState('');
   const [status, setStatus] = useState('Ready');
   const [workspacePicker, setWorkspacePicker] = useState(false);
+  const [bulletinPicker, setBulletinPicker] = useState(false);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<Array<{ root: string; name: string }>>([]);
   const [exportIssues, setExportIssues] = useState<ValidationIssue[]>([]);
   const [exporting, setExporting] = useState(false);
@@ -313,7 +315,7 @@ function DesktopApp() {
   const statusIsError = /blocked|conflict|required|failed|error|missing|unavailable|does not|could not|invalid|enter |choose |paste |fetch /i.test(status);
   const workspaceName = availableWorkspaces.find(item => item.root === workspace.root)?.name ?? (workspace.root.startsWith('local:') ? workspace.root.slice(6).replaceAll('-', ' ') : workspace.root);
   return <div className="app-shell">
-    <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={showWeekly}><span>◫</span>This week</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{workspace.bulletins.slice().sort((a, b) => b.document.info.date.localeCompare(a.document.info.date)).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom"><button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span></div></aside>
+    <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={showWeekly}><span>◫</span>This week</button><button onClick={() => setBulletinPicker(true)}><span>▦</span>Bulletins</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{sortedBulletins(workspace.bulletins).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom"><button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span></div></aside>
     <main className="main-area">
       <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" onClick={confirmBulletinDelete}>Delete</button>}<button className="secondary" onClick={beginNewBulletin}>New week</button><button type="button" className="primary" disabled={!window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
       {prepackagedComponentDiagnostics.length > 0 && <div className="component-diagnostics-banner" role="status"><b>{prepackagedComponentDiagnostics.length} packaged component issue{prepackagedComponentDiagnostics.length === 1 ? '' : 's'}</b><span>{prepackagedComponentDiagnostics[0].message} The application skipped the affected definition and continued.</span></div>}
@@ -326,6 +328,7 @@ function DesktopApp() {
     {exportIssues.length > 0 && <div className="modal-backdrop" role="presentation"><section className="export-issues-modal" role="dialog" aria-modal="true" aria-labelledby="export-issues-title"><header><div><div className="eyebrow">Export checklist</div><h2 id="export-issues-title">Review {exportIssues.length} item{exportIssues.length === 1 ? '' : 's'}</h2></div><button aria-label="Close export checklist" onClick={() => setExportIssues([])}>×</button></header><div className="export-issue-list">{exportIssues.map((issue, index) => <div key={`${issue.path}-${index}`}><span>{index + 1}</span><div><b>{issue.message}</b><small>{issue.path}</small></div></div>)}</div><footer><p>You can return to the editor to fix these items, or export the current preview as it appears now.</p><div className="export-checklist-actions"><button className="secondary" onClick={() => setExportIssues([])}>Back to editor</button><button className="primary" onClick={() => void performExport()}>Export anyway</button></div></footer></section></div>}
     {confirmation && <ConfirmDialog confirmation={confirmation} onCancel={() => setConfirmation(undefined)} onConfirm={async () => { const action = confirmation.action; setConfirmation(undefined); await action(); }} />}
     {newBulletinPicker && <NewBulletinDialog templates={templateChoices(workspace.templates)} onCancel={() => setNewBulletinPicker(false)} onSelect={record => { setNewBulletinPicker(false); selectTemplate(record); startNew(record.template); }} />}
+    {bulletinPicker && <BulletinPicker bulletins={workspace.bulletins} currentPath={relativePath} onClose={() => setBulletinPicker(false)} onSelect={record => { setBulletinPicker(false); openDocument(record.document, record.path); }} />}
     {workspacePicker && <WorkspacePicker workspaces={availableWorkspaces} current={workspace.root} onClose={() => setWorkspacePicker(false)} onSelect={async root => { setWorkspacePicker(false); await loadWorkspace(root); }} onCreate={async name => { try { const root = await window.bulletin!.createWorkspace!(name); setAvailableWorkspaces(await window.bulletin!.listWorkspaces!()); setWorkspacePicker(false); await loadWorkspace(root); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); } }} />}
   </div>;
 }
@@ -336,6 +339,29 @@ function ConfirmDialog({ confirmation, onCancel, onConfirm }: { confirmation: Co
 
 function NewBulletinDialog({ templates, onCancel, onSelect }: { templates: TemplateRecord[]; onCancel(): void; onSelect(record: TemplateRecord): void }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onCancel(); }}><section className="new-bulletin-modal" role="dialog" aria-modal="true" aria-labelledby="new-bulletin-title"><header><div><div className="eyebrow">New week</div><h2 id="new-bulletin-title">Choose a template</h2></div><button aria-label="Close" onClick={onCancel}>×</button></header><div className="template-choice-list">{templates.map(record => <button key={record.path} onClick={() => onSelect(record)}><span>◇</span><div><b>{record.template.name}</b><small>Version {record.template.version}{record.template.status === 'draft' ? ' · Draft' : ' · Published'}</small></div><strong>Use template</strong></button>)}</div></section></div>;
+}
+
+function BulletinPicker({ bulletins, currentPath, onClose, onSelect }: {
+  bulletins: BulletinRecord[];
+  currentPath: string;
+  onClose(): void;
+  onSelect(record: BulletinRecord): void;
+}) {
+  const [query, setQuery] = useState('');
+  const matches = useMemo(() => filterBulletins(bulletins, query), [bulletins, query]);
+  return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="bulletin-picker-modal" role="dialog" aria-modal="true" aria-labelledby="bulletin-picker-title">
+    <header><div><div className="eyebrow">Workspace history</div><h2 id="bulletin-picker-title">Choose a bulletin</h2><p>{bulletins.length} saved bulletin{bulletins.length === 1 ? '' : 's'} in this workspace.</p></div><button aria-label="Close bulletin picker" onClick={onClose}>×</button></header>
+    <div className="bulletin-picker-search"><label>Search all bulletins<input autoFocus type="search" value={query} placeholder="Title, series, date, or church week" onChange={event => setQuery(event.target.value)} /></label><span>{matches.length} result{matches.length === 1 ? '' : 's'}</span></div>
+    <div className="bulletin-picker-list">{matches.map(record => {
+      const current = record.path === currentPath;
+      const date = new Date(`${record.document.info.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+      return <button className={current ? 'current' : ''} key={record.path} onClick={() => onSelect(record)}>
+        <time dateTime={record.document.info.date}><b>{date}</b><small>{record.document.info.churchWeek}</small></time>
+        <span><b>{record.document.info.title || 'Untitled bulletin'}</b><small>{record.document.info.series || record.document.church.name}</small></span>
+        <strong>{current ? 'Current' : 'Open'}</strong>
+      </button>;
+    })}{!matches.length && <div className="bulletin-picker-empty"><span>⌕</span><b>No matching bulletins</b><p>Try a title, date, series, or church-week name.</p></div>}</div>
+  </section></div>;
 }
 
 function WorkspacePicker({ workspaces, current, onClose, onSelect, onCreate }: { workspaces: Array<{ root: string; name: string }>; current: string; onClose(): void; onSelect(root: string): void; onCreate(name: string): void }) {

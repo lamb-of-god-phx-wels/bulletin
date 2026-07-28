@@ -1,6 +1,5 @@
 # TODO
 
-* Ability to select bulletin (not just from recent bulletins)
 * Allow scripture blocks to span pages (unless keep together option is checked)
   * Don't add a "Continued" header on page break
 * Text and inline scripture elements should be separate in the editable fields (think responsiveReading)

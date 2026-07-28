@@ -45,6 +45,14 @@ describe('component definitions', () => {
     expect(flattenBlocks([first]).map(block => block.id)).not.toEqual(flattenBlocks([second]).map(block => block.id));
   });
 
+  it('creates copyright blocks without default extra text', () => {
+    const definition = prepackagedComponentDefinitions.find(item => item.type === 'bulletin:copyright')!;
+    const block = instantiateComponentDefinition(definition);
+    expect(block.type).toBe('copyright');
+    expect(block).not.toHaveProperty('extra');
+    expect(block.presentation?.borderWidthPt).toBe(1);
+  });
+
   it('validates imported definitions with the same contract as packaged components', () => {
     const source = JSON.stringify({
       ...prepackagedComponentDefinitions[0],

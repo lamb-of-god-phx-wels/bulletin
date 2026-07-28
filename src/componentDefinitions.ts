@@ -261,8 +261,10 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
         title: typeof sample.title === 'string' ? sample.title : definition.name,
         contentOverride: paragraphs(sample.content)
       };
-    case 'bulletin:copyright':
-      return { ...base, type: 'copyright', extra: paragraphs(sample.notices) };
+    case 'bulletin:copyright': {
+      const extra = paragraphs(sample.notices);
+      return { ...base, type: 'copyright', ...(extra.length ? { extra } : {}) };
+    }
     case 'bulletin:spacer': {
       const points = typeof sample.size === 'number' ? sample.size : 12;
       return { ...base, type: 'spacer', size: points <= 8 ? 'small' : points >= 20 ? 'large' : 'medium' };

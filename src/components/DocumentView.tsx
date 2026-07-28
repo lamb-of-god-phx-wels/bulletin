@@ -27,6 +27,7 @@ function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefin
     paddingIn: { ...defaultCustomBlockStyle.paddingIn, ...base?.paddingIn, ...block.presentation?.paddingIn },
     marginIn: { ...defaultCustomBlockStyle.marginIn, ...base?.marginIn, ...block.presentation?.marginIn }
   };
+  const border = style.borderWidthPt ? `${style.borderWidthPt}pt solid ${style.borderColor}` : undefined;
   return {
     boxSizing: 'border-box', width: `${style.widthPercent}%`,
     marginTop: `${style.marginIn.top}in`, marginBottom: `${style.marginIn.bottom}in`,
@@ -37,8 +38,9 @@ function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefin
     fontVariant: style.textTransform === 'small-caps' ? 'small-caps' : undefined,
     textTransform: style.textTransform === 'uppercase' ? 'uppercase' : undefined,
     color: style.color, backgroundColor: style.backgroundColor ?? 'transparent',
-    border: style.borderWidthPt ? `${style.borderWidthPt}pt solid ${style.borderColor}` : undefined,
-    borderRadius: `${style.borderRadiusPt}pt`
+    border: block.type === 'copyright' ? undefined : border,
+    borderTop: block.type === 'copyright' ? border : undefined,
+    borderRadius: block.type === 'copyright' ? undefined : `${style.borderRadiusPt}pt`
   };
 }
 

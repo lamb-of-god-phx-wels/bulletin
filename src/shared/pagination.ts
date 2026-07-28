@@ -49,7 +49,8 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
     const widthFactor = Math.min(4, 100 / Math.max(10, presentation.widthPercent ?? 100));
     const padding = presentation.paddingIn ?? { top: 0, bottom: 0 };
     const margin = presentation.marginIn ?? { top: 0, bottom: 0 };
-    const verticalBox = ((padding.top ?? 0) + (padding.bottom ?? 0) + (margin.top ?? 0) + (margin.bottom ?? 0)) * 72 + (presentation.borderWidthPt ?? 0) * 2;
+    const borderPoints = (presentation.borderWidthPt ?? 0) * (block.type === 'copyright' ? 1 : 2);
+    const verticalBox = ((padding.top ?? 0) + (padding.bottom ?? 0) + (margin.top ?? 0) + (margin.bottom ?? 0)) * 72 + borderPoints;
     const fontFactor = (presentation.fontSizePt ?? template.theme.bodySizePt) / template.theme.bodySizePt * ((presentation.lineHeight ?? template.theme.lineHeight) / template.theme.lineHeight);
     return points * widthFactor * fontFactor + verticalBox;
   };

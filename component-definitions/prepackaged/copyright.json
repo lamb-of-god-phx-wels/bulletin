@@ -40,9 +40,7 @@
   },
   "sampleInputs": {
     "notices": {
-      "blocks": [
-        { "type": "paragraph", "inlines": [{ "type": "text", "value": "Licensing notices are generated from the bulletin’s content." }] }
-      ]
+      "blocks": []
     }
   }
 }

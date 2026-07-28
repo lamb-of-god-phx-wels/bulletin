@@ -163,7 +163,13 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
       {block.type === 'titlePage' && <><p className="helper">Use the standard cover or replace it for this week with a complete image/PDF page.</p><button className="secondary" onClick={() => chooseBlockAsset(block)}>{block.asset ? `Replace ${block.asset.alt ?? 'cover'}` : 'Choose custom cover'}</button>{block.asset && <button className="danger-text" onClick={() => { const { asset: _asset, ...standard } = block; updateBlock(block.id, standard); }}>Use standard cover</button>}</>}
       {block.type === 'canvasCover' && <><p className="helper">Position cover text, artwork, shapes, and bound bulletin fields on a precise inch-based canvas.</p><button className="primary" onClick={() => setCanvasBlockId(block.id)}>Open cover designer</button>{block.weeklyScene && <button className="danger-text" onClick={() => { const { weeklyScene: _weeklyScene, weeklyUnlockedElementIds: _unlocked, ...templateCover } = block; updateBlock(block.id, templateCover); }}>Reset all weekly cover changes</button>}</>}
       {(block.type === 'churchInfo' || block.type === 'group') && nestedEditors(block)}
-      {block.type === 'copyright' && <label>Additional copyright text<textarea rows={5} value={paragraphText(block.extra ?? [])} placeholder="Library and Scripture notices are generated automatically." onChange={event => updateBlock(block.id, { ...block, extra: paragraphs(event.target.value) })} /></label>}
+      {block.type === 'copyright' && <label>Additional copyright text<textarea rows={5} value={paragraphText(block.extra ?? [])} placeholder="Library and Scripture notices are generated automatically." onChange={event => {
+        const text = event.target.value;
+        const next = { ...block };
+        if (text.trim()) next.extra = paragraphs(text);
+        else delete next.extra;
+        updateBlock(block.id, next);
+      }} /></label>}
       {block.type === 'spacer' && <label>Spacer size<select value={block.size} onChange={event => updateBlock(block.id, { ...block, size: event.target.value as 'small' | 'medium' | 'large' })}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>}
       {block.type === 'fullPageAsset' && <><p className="helper">{block.asset.alt ?? block.asset.path}</p><div className="builder-actions"><button className="secondary" onClick={() => chooseBlockAsset(block)}>Replace page asset</button><button className="danger-text" onClick={() => onChange({ ...document, blocks: removeWeeklyBlock(document.blocks, block.id) })}>Remove page</button></div></>}
       {missingLibraryReference(block) && !block.weeklyEditable && <button className="danger-text" onClick={() => onChange({ ...document, blocks: document.blocks.filter(item => item.id !== block.id) })}>Remove from this bulletin</button>}

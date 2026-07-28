@@ -19,18 +19,6 @@
         "additionalProperties": false
       }
     },
-    "churchWeekCalendar": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["date", "sourceName"],
-        "properties": {
-          "date": { "type": "string", "format": "date" },
-          "sourceName": { "type": "string", "minLength": 1 }
-        },
-        "additionalProperties": false
-      }
-    },
     "componentDefinitions": {
       "type": "array",
       "items": {

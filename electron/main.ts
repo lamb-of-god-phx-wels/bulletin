@@ -11,6 +11,7 @@ import { templateForBulletin } from '../src/shared/documentLayout.js';
 import { canvasAssetRefs, canvasSpace, effectiveCanvasScene } from '../src/shared/canvas.js';
 import { copyAssetWithoutOverwrite } from './assets.js';
 import { DialogPathStore } from './dialogPaths.js';
+import { lookupServiceBuilderChurchWeek } from './serviceBuilder.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
@@ -71,7 +72,7 @@ function registerIpc() {
     url.searchParams.set('search', reference); url.searchParams.set('version', translation.toUpperCase());
     await shell.openExternal(url.toString());
   });
-  ipcMain.handle('church-year:open', () => shell.openExternal('https://builder.christianworship.com/'));
+  ipcMain.handle('church-week:lookup', (_event, date: string) => lookupServiceBuilderChurchWeek(date));
   ipcMain.handle('print:job', () => printJob);
   ipcMain.on('print:ready', () => printReady?.());
   ipcMain.handle('pdf:export', (_event, root: string, relative: string, document: BulletinDocumentV1) => exportPdf(root, relative, document));

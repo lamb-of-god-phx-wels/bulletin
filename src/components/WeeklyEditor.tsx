@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BlockFormattingModal } from './BlockFormattingModal';
 import { BlockLibraryModal } from './BlockLibraryModal';
 import { ScriptureEditor } from './ScriptureEditor';
@@ -12,7 +12,7 @@ import { paragraphsFromPlainText } from '../shared/plainText';
 import { defaultReaderForRole, responsiveEntryRole } from '../shared/responsiveReading';
 import { scriptureElementNames } from '../shared/scriptureReading';
 import { insertWeeklyBlock, removeWeeklyBlock } from '../shared/weeklyBlocks';
-import { churchWeekDisplayName, churchWeekForDate } from '../shared/churchWeeks';
+import { churchWeekDisplayName, churchWeekNameOverride } from '../shared/churchWeeks';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
@@ -24,13 +24,21 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
   const [blockLibraryIndex, setBlockLibraryIndex] = useState<number>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
   const [lookupStatus, setLookupStatus] = useState<Record<string, { state: 'loading' | 'success' | 'error'; text: string }>>({});
+  const [churchWeekLookup, setChurchWeekLookup] = useState<{ state: 'loading' | 'success' | 'error'; text: string }>();
+  const [pendingChurchWeek, setPendingChurchWeek] = useState<{ date: string; sourceName: string }>();
+  const [churchWeekDisplayDraft, setChurchWeekDisplayDraft] = useState('');
+  const churchWeekLookupSequence = useRef(0);
+  const documentRef = useRef(document);
+  const libraryRef = useRef(library);
+  documentRef.current = document;
+  libraryRef.current = library;
   const songFamilies = libraryFamilies(library?.items.filter(item => item.kind === 'song') ?? []);
   const liturgyFamilies = libraryFamilies(library?.items.filter(item => item.kind === 'liturgy') ?? []);
   const missingLibraryReference = (block: BulletinBlock) => (block.type === 'song' || block.type === 'libraryText') && Boolean(library) && !library!.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion));
   const hasWeeklyCustomBindings = (block: BulletinBlock) => block.type === 'custom' && block.bindings.some(binding => binding.source === 'weekly');
   const updateInfo = (key: keyof BulletinDocumentV1['info'], value: string) => {
-    const importedWeek = key === 'date' ? churchWeekForDate(value, library?.churchWeekCalendar, library?.churchWeekNames) : undefined;
-    onChange({ ...document, info: { ...document.info, [key]: value, ...(importedWeek ? { churchWeek: importedWeek } : {}) } });
+    if (key === 'date') { void updateDateFromServiceBuilder(value); return; }
+    onChange({ ...document, info: { ...document.info, [key]: value } });
   };
   const updateChurchName = (name: string) => onChange({ ...document, church: { ...document.church, name } });
   const updatePageMargin = (marginIn: number) => onChange({ ...document, layout: { ...document.layout, marginIn: Math.max(0, Math.min(1.25, marginIn)) } });
@@ -126,9 +134,50 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
       else window.open(`https://www.biblegateway.com/passage/?search=${encodeURIComponent(block.reference)}&version=${encodeURIComponent(block.translation)}`, '_blank', 'noopener,noreferrer');
     } catch (error) { onError(error instanceof Error ? error.message : String(error)); }
   };
+  async function updateDateFromServiceBuilder(date: string) {
+    const sequence = ++churchWeekLookupSequence.current;
+    setPendingChurchWeek(undefined);
+    setChurchWeekLookup(date ? { state: 'loading', text: 'Looking up the designated church week in Service Builder…' } : undefined);
+    onChange({ ...documentRef.current, info: { ...documentRef.current.info, date, churchWeek: '' } });
+    if (!date) return;
+    try {
+      if (!window.bulletin) throw new Error('Service Builder lookup is unavailable.');
+      const { sourceName } = await window.bulletin.lookupChurchWeek(date);
+      if (sequence !== churchWeekLookupSequence.current) return;
+      const override = churchWeekNameOverride(sourceName, libraryRef.current?.churchWeekNames);
+      if (override) {
+        onChange({ ...documentRef.current, info: { ...documentRef.current.info, date, churchWeek: override.displayName } });
+        setChurchWeekLookup({ state: 'success', text: `Service Builder: ${sourceName} → ${override.displayName}` });
+      } else {
+        setPendingChurchWeek({ date, sourceName });
+        setChurchWeekDisplayDraft(sourceName);
+        setChurchWeekLookup({ state: 'success', text: `Service Builder returned a new church-week name: ${sourceName}` });
+      }
+    } catch (error) {
+      if (sequence !== churchWeekLookupSequence.current) return;
+      const message = error instanceof Error ? error.message : String(error);
+      setChurchWeekLookup({ state: 'error', text: message });
+      onError(message);
+    }
+  }
+  const saveChurchWeekOverride = async () => {
+    if (!pendingChurchWeek || !churchWeekDisplayDraft.trim()) return;
+    const currentLibrary = library ?? { schemaVersion: 1 as const, name: 'Church Library', items: [] };
+    const churchWeekNames = [...(currentLibrary.churchWeekNames ?? []).filter(name => name.sourceName.toLocaleLowerCase() !== pendingChurchWeek.sourceName.toLocaleLowerCase()), { sourceName: pendingChurchWeek.sourceName, displayName: churchWeekDisplayDraft.trim() }];
+    try {
+      await onLibraryChange({ ...currentLibrary, churchWeekNames });
+      onChange({ ...documentRef.current, info: { ...documentRef.current.info, date: pendingChurchWeek.date, churchWeek: churchWeekDisplayDraft.trim() } });
+      setChurchWeekLookup({ state: 'success', text: `Saved display-name override for ${pendingChurchWeek.sourceName}.` });
+      setPendingChurchWeek(undefined);
+    } catch {
+      // The parent reports the save error.
+    }
+  };
   return <div className="editor-scroll">
-    <ChurchWeekNamesEditor library={library ?? { schemaVersion: 1, name: 'Church Library', items: [] }} serviceDate={document.info.date} onChurchWeekImported={value => updateInfo('churchWeek', value)} onSave={onLibraryChange} />
+    <ChurchWeekNamesEditor library={library ?? { schemaVersion: 1, name: 'Church Library', items: [] }} onSave={onLibraryChange} />
     <section className="editor-card essentials"><div className="eyebrow">This Sunday</div><label>Service date<input type="date" value={document.info.date} onChange={e => updateInfo('date', e.target.value)} /></label><label>Church week<input list="church-week-names" value={document.info.churchWeek} onChange={e => updateInfo('churchWeek', e.target.value)} onBlur={e => updateInfo('churchWeek', churchWeekDisplayName(e.target.value, library?.churchWeekNames))} /><datalist id="church-week-names">{library?.churchWeekNames?.flatMap((name, index) => [<option value={name.displayName} label={name.sourceName} key={`${index}-display`} />, <option value={name.sourceName} label={name.displayName} key={`${index}-source`} />])}</datalist><small className="field-help">Available to cover and custom-block bindings. Saved library aliases expand to their preferred display name.</small></label><label>Series<input value={document.info.series ?? ''} onChange={e => updateInfo('series', e.target.value)} /></label><label>Sermon title<input value={document.info.title} onChange={e => updateInfo('title', e.target.value)} /></label><label>Church name<input value={document.church.name} onChange={e => updateChurchName(e.target.value)} /></label><div className="page-margin-control"><label>Page margin (inches)<input type="number" min="0" max="1.25" step="0.05" value={document.layout?.marginIn ?? template.theme.marginIn} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) updatePageMargin(event.currentTarget.valueAsNumber); }} /><small className="field-help">Applies to this bulletin only. Template default: {template.theme.marginIn} in.</small></label><button type="button" className="text-button" disabled={document.layout?.marginIn === undefined} onClick={resetPageMargin}>Use template margin</button></div></section>
+    {churchWeekLookup && <div className={`church-week-lookup-status ${churchWeekLookup.state}`} role="status" aria-live="polite">{churchWeekLookup.text}</div>}
+    {pendingChurchWeek && <div className="modal-backdrop" role="presentation"><section className="church-week-override-dialog" role="dialog" aria-modal="true" aria-labelledby="church-week-override-title"><header><div><div className="eyebrow">New Service Builder name</div><h2 id="church-week-override-title">Create a display-name override</h2></div></header><p>Service Builder designates <b>{pendingChurchWeek.sourceName}</b> for {pendingChurchWeek.date}. Choose how it should appear in this bulletin and future bound text.</p><label>Bulletin display name<input autoFocus value={churchWeekDisplayDraft} onChange={event => setChurchWeekDisplayDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void saveChurchWeekOverride(); }} /></label><div className="builder-actions"><button className="secondary" onClick={() => setPendingChurchWeek(undefined)}>Cancel</button><button className="primary" disabled={!churchWeekDisplayDraft.trim()} onClick={() => void saveChurchWeekOverride()}>Save override and use</button></div></section></div>}
     <div className="scripture-source-note"><b>Bible Gateway passage import</b><span>No login required. The displayed publisher notice is saved with the passage; verify that your bulletin stays within the translation’s quotation terms.</span></div>
     <div className="editor-section-title"><div><div className="eyebrow">Order of worship</div><h2>Weekly content</h2><small>{document.blocks.length} blocks · changes apply only to this bulletin</small></div><div className="weekly-content-actions"><button className="primary" onClick={() => setBlockLibraryIndex(document.blocks.length)}>＋ Add block</button><button className="secondary" onClick={() => setFormatPickerOpen(true)}>Fine-tune layout</button><button className="secondary" onClick={addPage}>＋ One-off page</button></div></div>
     <SortableList items={document.blocks} onChange={blocks => onChange({ ...document, blocks })}>{document.blocks.map((block, index) => <SortableItem id={block.id} key={block.id}><details className="editor-card block-editor collapsible-editor" data-editor-block-id={block.id} tabIndex={-1}>

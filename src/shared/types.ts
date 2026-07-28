@@ -239,11 +239,16 @@ export interface ChurchWeekName {
   sourceName: string;
   displayName: string;
 }
+export interface ChurchWeekCalendarEntry {
+  date: string;
+  sourceName: string;
+}
 export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
   items: LibraryItemV1[];
   churchWeekNames?: ChurchWeekName[];
+  churchWeekCalendar?: ChurchWeekCalendarEntry[];
   componentDefinitions?: DeclarativeComponentDefinition[];
 }
 
@@ -267,5 +272,6 @@ export interface BulletinApi {
   readAsset(root: string, relativePath: string): Promise<string>;
   lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;
   openScripture(reference: string, translation: string): Promise<void>;
+  openChurchYearSource(): Promise<void>;
 }
 import type { DeclarativeComponentDefinition } from '../component-engine/types.js';

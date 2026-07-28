@@ -220,6 +220,7 @@ export async function installBrowserApi() {
       const payload = await response.json(); if (!response.ok) throw new Error(payload.error ?? 'BibleGateway.com import failed.'); return payload;
     },
     openScripture: async (reference, translation) => { window.open(`https://www.biblegateway.com/passage/?search=${encodeURIComponent(reference)}&version=${encodeURIComponent(translation)}`, '_blank', 'noopener,noreferrer'); },
+    openChurchYearSource: async () => { window.open('https://builder.christianworship.com/', '_blank', 'noopener,noreferrer'); },
     getPrintJob: async () => JSON.parse(localStorage.getItem('bulletin-print-job') ?? 'null'),
     printReady: () => undefined
   };

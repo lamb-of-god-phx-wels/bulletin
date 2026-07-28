@@ -12,7 +12,7 @@ import { paragraphsFromPlainText } from '../shared/plainText';
 import { defaultReaderForRole, responsiveEntryRole } from '../shared/responsiveReading';
 import { scriptureElementNames } from '../shared/scriptureReading';
 import { insertWeeklyBlock, removeWeeklyBlock } from '../shared/weeklyBlocks';
-import { churchWeekDisplayName } from '../shared/churchWeeks';
+import { churchWeekDisplayName, churchWeekForDate } from '../shared/churchWeeks';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
@@ -28,7 +28,10 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
   const liturgyFamilies = libraryFamilies(library?.items.filter(item => item.kind === 'liturgy') ?? []);
   const missingLibraryReference = (block: BulletinBlock) => (block.type === 'song' || block.type === 'libraryText') && Boolean(library) && !library!.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion));
   const hasWeeklyCustomBindings = (block: BulletinBlock) => block.type === 'custom' && block.bindings.some(binding => binding.source === 'weekly');
-  const updateInfo = (key: keyof BulletinDocumentV1['info'], value: string) => onChange({ ...document, info: { ...document.info, [key]: value } });
+  const updateInfo = (key: keyof BulletinDocumentV1['info'], value: string) => {
+    const importedWeek = key === 'date' ? churchWeekForDate(value, library?.churchWeekCalendar, library?.churchWeekNames) : undefined;
+    onChange({ ...document, info: { ...document.info, [key]: value, ...(importedWeek ? { churchWeek: importedWeek } : {}) } });
+  };
   const updateChurchName = (name: string) => onChange({ ...document, church: { ...document.church, name } });
   const updatePageMargin = (marginIn: number) => onChange({ ...document, layout: { ...document.layout, marginIn: Math.max(0, Math.min(1.25, marginIn)) } });
   const resetPageMargin = () => { const layout = { ...document.layout }; delete layout.marginIn; onChange({ ...document, layout: Object.keys(layout).length ? layout : undefined }); };
@@ -124,7 +127,7 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
     } catch (error) { onError(error instanceof Error ? error.message : String(error)); }
   };
   return <div className="editor-scroll">
-    <ChurchWeekNamesEditor library={library ?? { schemaVersion: 1, name: 'Church Library', items: [] }} onSave={onLibraryChange} />
+    <ChurchWeekNamesEditor library={library ?? { schemaVersion: 1, name: 'Church Library', items: [] }} serviceDate={document.info.date} onChurchWeekImported={value => updateInfo('churchWeek', value)} onSave={onLibraryChange} />
     <section className="editor-card essentials"><div className="eyebrow">This Sunday</div><label>Service date<input type="date" value={document.info.date} onChange={e => updateInfo('date', e.target.value)} /></label><label>Church week<input list="church-week-names" value={document.info.churchWeek} onChange={e => updateInfo('churchWeek', e.target.value)} onBlur={e => updateInfo('churchWeek', churchWeekDisplayName(e.target.value, library?.churchWeekNames))} /><datalist id="church-week-names">{library?.churchWeekNames?.flatMap((name, index) => [<option value={name.displayName} label={name.sourceName} key={`${index}-display`} />, <option value={name.sourceName} label={name.displayName} key={`${index}-source`} />])}</datalist><small className="field-help">Available to cover and custom-block bindings. Saved library aliases expand to their preferred display name.</small></label><label>Series<input value={document.info.series ?? ''} onChange={e => updateInfo('series', e.target.value)} /></label><label>Sermon title<input value={document.info.title} onChange={e => updateInfo('title', e.target.value)} /></label><label>Church name<input value={document.church.name} onChange={e => updateChurchName(e.target.value)} /></label><div className="page-margin-control"><label>Page margin (inches)<input type="number" min="0" max="1.25" step="0.05" value={document.layout?.marginIn ?? template.theme.marginIn} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) updatePageMargin(event.currentTarget.valueAsNumber); }} /><small className="field-help">Applies to this bulletin only. Template default: {template.theme.marginIn} in.</small></label><button type="button" className="text-button" disabled={document.layout?.marginIn === undefined} onClick={resetPageMargin}>Use template margin</button></div></section>
     <div className="scripture-source-note"><b>Bible Gateway passage import</b><span>No login required. The displayed publisher notice is saved with the passage; verify that your bulletin stays within the translation’s quotation terms.</span></div>
     <div className="editor-section-title"><div><div className="eyebrow">Order of worship</div><h2>Weekly content</h2><small>{document.blocks.length} blocks · changes apply only to this bulletin</small></div><div className="weekly-content-actions"><button className="primary" onClick={() => setBlockLibraryIndex(document.blocks.length)}>＋ Add block</button><button className="secondary" onClick={() => setFormatPickerOpen(true)}>Fine-tune layout</button><button className="secondary" onClick={addPage}>＋ One-off page</button></div></div>

@@ -71,6 +71,7 @@ function registerIpc() {
     url.searchParams.set('search', reference); url.searchParams.set('version', translation.toUpperCase());
     await shell.openExternal(url.toString());
   });
+  ipcMain.handle('church-year:open', () => shell.openExternal('https://builder.christianworship.com/'));
   ipcMain.handle('print:job', () => printJob);
   ipcMain.on('print:ready', () => printReady?.());
   ipcMain.handle('pdf:export', (_event, root: string, relative: string, document: BulletinDocumentV1) => exportPdf(root, relative, document));

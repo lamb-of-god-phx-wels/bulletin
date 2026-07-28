@@ -413,7 +413,6 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .church-week-override-dialog { width: min(520px, calc(100vw - 36px)); padding: 22px; border-radius: 12px; background: #fff; box-shadow: 0 20px 70px #1d272250; }
 .church-week-override-dialog h2 { margin: 4px 0 0; font: 24px Georgia, serif; }
 .church-week-override-dialog p { color: #5f655f; line-height: 1.5; }
-.scripture-source-note { display: flex; flex-direction: column; gap: 3px; margin: 14px 0 4px; padding: 11px 12px; border: 1px solid #ddd8cc; border-radius: 8px; color: #6d716b; background: #f8f5ee; font-size: 11px; line-height: 1.4; }.scripture-source-note b { color: #3d4943; font-size: 12px; }
 .scripture-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
 .scripture-fetch { flex: 0 0 auto; }
 .scripture-editor-shell { border-top: 1px solid #e2ded5; background: #fff; }

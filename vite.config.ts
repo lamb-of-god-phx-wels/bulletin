@@ -30,5 +30,6 @@ function bibleGatewayProxy(): Plugin {
 export default defineConfig({
   plugins: [bibleGatewayProxy(), react()],
   base: './',
+  server: { host: true },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] }
 });

@@ -9,6 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on tcp:5173 dist-electron/electron/main.js && electron .\"",
+    "dev-headless": "vite",
     "build": "tsc -b && vite build && tsc -p tsconfig.electron.json",
     "test": "vitest run",
     "test:watch": "vitest",

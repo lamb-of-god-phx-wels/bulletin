@@ -320,10 +320,7 @@ if (process.env.BULLETIN_NESTED_TEXT_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1') {
-  await click('Fine-tune layout'); await wait(`Boolean(document.querySelector('.weekly-block-picker'))`, 'weekly all-block formatting picker');
-  const pickerCounts = await evaluate(`({choices:document.querySelectorAll('.weekly-block-picker > div > button').length,blocks:window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.length)})`);
-  if (pickerCounts.choices < 10) throw new Error(`Weekly formatter does not expose all blocks: ${JSON.stringify(pickerCounts)}`);
-  await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.weekly-block-picker > div > button')).find(element=>element.textContent.includes('Opening Hymn'));if(!button)throw new Error('Opening Hymn formatting choice missing');button.click();return true})()`);
+  await evaluate(`(()=>{const block=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.textContent.includes('Opening Hymn'));const button=block?.querySelector('.format-block-button');if(!button)throw new Error('Opening Hymn format button missing');button.click();return true})()`);
   await wait(`Boolean(document.querySelector('.block-formatting-modal'))`, 'weekly block formatting modal');
   await fill('Width (%)', '70'); await fill('Left padding (in)', '0.2');
   await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.block-formatting-modal .segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Text alignment');Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Right').click();return true})()`);

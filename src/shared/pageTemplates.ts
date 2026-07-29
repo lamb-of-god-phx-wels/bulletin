@@ -1,0 +1,132 @@
+import type { BulletinBlock, PageMarginSetting, PageTemplateV1, TemplatePageBlock, WorkspaceSummary } from './types.js';
+import { flattenBlocks } from './blocks.js';
+
+export type PageTemplateRecord = WorkspaceSummary['pageTemplates'][number];
+
+export const pageTemplateDigest = (page: Pick<PageTemplateV1, 'layout' | 'margin' | 'blocks'>) => {
+  const input = JSON.stringify({ layout: pageTemplateLayout(page), margin: page.margin, blocks: page.blocks });
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index++) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
+export const pageTemplateVersions = (records: PageTemplateRecord[], id: string) =>
+  records.filter(record => record.pageTemplate.id === id)
+    .sort((left, right) => right.pageTemplate.version - left.pageTemplate.version || Number(left.pageTemplate.status === 'draft') - Number(right.pageTemplate.status === 'draft'));
+
+export const pageTemplateChoices = (records: PageTemplateRecord[]) => {
+  const ids = [...new Set(records.map(record => record.pageTemplate.id))];
+  return ids.map(id => pageTemplateVersions(records, id).find(record => record.pageTemplate.status === 'published') ?? pageTemplateVersions(records, id)[0])
+    .filter(Boolean)
+    .sort((left, right) => left.pageTemplate.name.localeCompare(right.pageTemplate.name));
+};
+
+export const nextPageTemplateVersion = (records: PageTemplateRecord[], id: string) =>
+  Math.max(0, ...records.filter(record => record.pageTemplate.id === id).map(record => record.pageTemplate.version)) + 1;
+
+export const uniquePageTemplateId = (name: string, records: PageTemplateRecord[]) => {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'page';
+  const used = new Set(records.map(record => record.pageTemplate.id));
+  let id = base;
+  let suffix = 2;
+  while (used.has(id)) id = `${base}-${suffix++}`;
+  return id;
+};
+
+export function pageTemplateLayout(page: Pick<PageTemplateV1, 'layout' | 'blocks'>): NonNullable<PageTemplateV1['layout']> {
+  return page.layout ?? (page.blocks.length === 1 && page.blocks[0].type === 'canvas' ? 'canvas' : 'regular');
+}
+
+export function createPageTemplate(
+  name: string,
+  records: PageTemplateRecord[],
+  blocks: BulletinBlock[] = [],
+  margin: PageMarginSetting = { mode: 'inherit', referenceMarginIn: .4 },
+  layout: NonNullable<PageTemplateV1['layout']> = blocks.length === 1 && blocks[0].type === 'canvas' ? 'canvas' : 'regular'
+): PageTemplateV1 {
+  return {
+    schemaVersion: 1,
+    id: uniquePageTemplateId(name, records),
+    version: 1,
+    name,
+    status: 'draft',
+    layout,
+    margin: structuredClone(margin),
+    blocks: structuredClone(blocks),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function duplicatePageTemplate(source: PageTemplateV1, name: string, records: PageTemplateRecord[]) {
+  return {
+    ...structuredClone(source),
+    id: uniquePageTemplateId(name, records),
+    version: 1,
+    name,
+    status: 'draft' as const,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function instantiatePageTemplate(source: PageTemplateV1, id: string = crypto.randomUUID()): TemplatePageBlock {
+  return {
+    id,
+    type: 'templatePage',
+    name: source.name,
+    source: { id: source.id, version: source.version },
+    sourceDigest: pageTemplateDigest(source),
+    pageLayout: pageTemplateLayout(source),
+    margin: structuredClone(source.margin),
+    blocks: structuredClone(source.blocks)
+  };
+}
+
+function freshId(id: string, used: Set<string>) {
+  if (!used.has(id)) { used.add(id); return id; }
+  let suffix = 2;
+  while (used.has(`${id}-${suffix}`)) suffix++;
+  const next = `${id}-${suffix}`;
+  used.add(next);
+  return next;
+}
+
+function remapBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
+  const next = { ...structuredClone(block), id: freshId(block.id, used) } as BulletinBlock;
+  if (next.type === 'group' || next.type === 'churchInfo') next.children = next.children?.map(child => remapBlock(child, used));
+  if (next.type === 'paragraph') next.children = next.children.map(child => remapBlock(child, used) as typeof child);
+  return next;
+}
+
+export function explodeTemplatePage(host: BulletinBlock[], instanceId: string): BulletinBlock[] {
+  const used = new Set(flattenBlocks(host.filter(block => block.id !== instanceId)).map(block => block.id));
+  return host.flatMap(block => {
+    if (block.id !== instanceId || block.type !== 'templatePage') return [block];
+    return block.blocks.map((child, index) => {
+      const next = remapBlock(child, used);
+      return index === 0 ? { ...next, layout: { ...next.layout, pageBreakBefore: true } } as BulletinBlock : next;
+    });
+  });
+}
+
+export function pageTemplateMargin(margin: PageMarginSetting, hostMarginIn: number) {
+  return margin.mode === 'fixed' ? margin.marginIn : hostMarginIn;
+}
+
+export function pageTemplateIssues(page: Pick<PageTemplateV1, 'blocks' | 'margin' | 'layout'>) {
+  const issues: string[] = [];
+  const layout = pageTemplateLayout(page);
+  if (layout === 'canvas' && (page.blocks.length !== 1 || page.blocks[0].type !== 'canvas')) {
+    issues.push('Canvas page templates must contain exactly one canvas.');
+  }
+  if (layout === 'regular' && page.blocks.some(block => block.type === 'canvas')) {
+    issues.push('Regular page templates cannot contain canvas blocks.');
+  }
+  if (page.blocks.some(block => block.type === 'templatePage')) issues.push('Page templates cannot contain another template page.');
+  if (page.blocks.some(block => block.type === 'titlePage' || block.type === 'canvasCover')) issues.push('Legacy cover blocks are not supported.');
+  const margin = page.margin.mode === 'fixed' ? page.margin.marginIn : page.margin.referenceMarginIn;
+  if (!Number.isFinite(margin) || margin < 0 || margin >= 3.5) issues.push('Choose a valid page margin.');
+  return issues;
+}

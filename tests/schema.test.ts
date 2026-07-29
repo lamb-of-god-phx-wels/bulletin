@@ -4,18 +4,21 @@ import { describe, expect, it } from 'vitest';
 import bulletinSchema from '../schemas/bulletin-v1.schema.json';
 import templateSchema from '../schemas/template-v1.schema.json';
 import librarySchema from '../schemas/library-v1.schema.json';
+import pageTemplateSchema from '../schemas/page-template-v1.schema.json';
 import example from '../example_bulletin.json';
-import { defaultTemplate } from '../src/shared/defaults';
+import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults';
 import { prepackagedComponentDefinitions } from '../src/componentDefinitions';
 
 describe('public JSON contracts', () => {
   const ajv = new Ajv2020({ allErrors: true }); addFormats(ajv);
-  it('validates the migrated real bulletin', () => {
+  it('rejects a historical bulletin containing a removed cover type', () => {
     const validate = ajv.compile(bulletinSchema);
-    expect(validate(example), JSON.stringify(validate.errors, null, 2)).toBe(true);
+    expect(validate(example)).toBe(false);
+    expect(validate.errors?.[0].instancePath).toBe('/blocks/0/type');
   });
   it('validates the default template and an empty library', () => {
     expect(ajv.compile(templateSchema)(defaultTemplate)).toBe(true);
+    expect(ajv.compile(pageTemplateSchema)(defaultPageTemplate)).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], churchWeekNames: [{ sourceName: 'Epiphany 2', displayName: 'Second Sunday after Epiphany' }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], componentDefinitions: [prepackagedComponentDefinitions[0]] })).toBe(true);

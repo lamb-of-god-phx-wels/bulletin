@@ -1,5 +1,5 @@
 import legacyExample from '../example_bulletin.json';
-import { defaultTemplate } from './shared/defaults';
+import { defaultPageTemplate, defaultTemplate } from './shared/defaults';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
@@ -95,6 +95,7 @@ async function createWorkspace(name: string, seedExample = false) {
     templates: seedExample
       ? [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }, { path: `templates/${exampleTemplate.id}/v1.json`, template: clone(exampleTemplate) }]
       : [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }],
+    pageTemplates: [{ path: `page-templates/${defaultPageTemplate.id}/v1.json`, pageTemplate: clone(defaultPageTemplate) }],
     bulletins: seedExample ? [{ path: 'bulletins/2026-06-07/bulletin.json', document: migrateLegacyBulletin(legacyExample) }] : [],
     library: { schemaVersion: 1, name: `${name} Library`, items: [] }
   };
@@ -106,7 +107,7 @@ async function createWorkspace(name: string, seedExample = false) {
 async function ensureDefaultWorkspace() {
   const existing = workspaceList();
   if (existing.length) return existing[0].root;
-  return createWorkspace('Lamb of God', true);
+  return createWorkspace('Lamb of God');
 }
 
 function chooseFile(): Promise<File | null> {
@@ -139,21 +140,7 @@ function mediaType(file: File): AssetRef['mediaType'] {
 async function summary(root: string) {
   let value = await getRecord<WorkspaceSummary>(workspaceStore, root);
   if (!value) throw new Error(`Workspace “${root}” no longer exists.`);
-  const example = migrateLegacyBulletin(legacyExample);
-  const exampleRecord = value.bulletins.find(item => item.document.id === example.id);
-  const storedExampleTemplate = value.templates.find(item => item.template.id === exampleTemplate.id && item.template.version === exampleTemplate.version);
-  if (!exampleRecord || (exampleRecord.document.revision === 0 && exampleRecord.document.sourceNotes !== example.sourceNotes) || !storedExampleTemplate) {
-    value = {
-      ...value,
-      bulletins: exampleRecord
-        ? value.bulletins.map(item => item === exampleRecord && item.document.revision === 0 ? { ...item, document: clone(example) } : item)
-        : [...value.bulletins, { path: 'bulletins/2026-06-07/bulletin.json', document: clone(example) }],
-      templates: storedExampleTemplate
-        ? value.templates.map(item => item === storedExampleTemplate ? { ...item, template: clone(exampleTemplate) } : item)
-        : [...value.templates, { path: `templates/${exampleTemplate.id}/v1.json`, template: clone(exampleTemplate) }]
-    };
-    await putRecord(workspaceStore, root, value);
-  }
+  value = { ...value, pageTemplates: value.pageTemplates ?? [] };
   if (!value.library) return value;
   const library = normalizeLibrary(value.library);
   if (library === value.library) return value;
@@ -196,6 +183,18 @@ export async function installBrowserApi() {
     deleteTemplate: async (root, path) => {
       const current = await summary(root);
       await putRecord(workspaceStore, root, { ...current, templates: current.templates.filter(item => item.path !== path) });
+    },
+    savePageTemplate: async (root, pageTemplate) => {
+      const current = await summary(root);
+      const path = `page-templates/${pageTemplate.id}/v${pageTemplate.version}${pageTemplate.status === 'draft' ? '-draft' : ''}.json`;
+      const existing = current.pageTemplates.find(item => item.path === path);
+      const pageTemplates = existing ? current.pageTemplates.map(item => item.path === path ? { path, pageTemplate } : item) : [...current.pageTemplates, { path, pageTemplate }];
+      await putRecord(workspaceStore, root, { ...current, pageTemplates });
+      return path;
+    },
+    deletePageTemplate: async (root, path) => {
+      const current = await summary(root);
+      await putRecord(workspaceStore, root, { ...current, pageTemplates: current.pageTemplates.filter(item => item.path !== path) });
     },
     saveLibrary: async (root, library) => { const current = await summary(root); await putRecord(workspaceStore, root, { ...current, library: normalizeLibrary(library) }); },
     createRevision: async (root, bulletinPath, document, label) => {

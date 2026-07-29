@@ -1,8 +1,10 @@
-import type { BulletinDocumentV1, LibraryManifestV1, ValidationIssue } from './types.js';
+import type { BulletinDocumentV1, LibraryManifestV1, TemplateV1, ValidationIssue } from './types.js';
 import { customBlockIssues } from './customBlocks.js';
-import { effectiveCanvasScene, validateCanvasScene } from './canvas.js';
+import { validateCanvasScene } from './canvas.js';
+import { pageTemplateIssues, pageTemplateMargin } from './pageTemplates.js';
+import { estimateBlockPoints } from './pagination.js';
 
-export function validateBulletin(value: unknown, library?: LibraryManifestV1): ValidationIssue[] {
+export function validateBulletin(value: unknown, library?: LibraryManifestV1, template?: TemplateV1): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (!value || typeof value !== 'object') return [{ path: '', message: 'Bulletin must be an object.' }];
   const doc = value as Partial<BulletinDocumentV1>;
@@ -16,6 +18,9 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1): V
     if (!block.id) issues.push({ path: `/blocks/${index}/id`, message: 'Every block needs an ID.' });
     else if (ids.has(block.id)) issues.push({ path: `/blocks/${index}/id`, message: `Duplicate block ID: ${block.id}` });
     ids.add(block.id);
+    if (block.type === 'titlePage' || block.type === 'canvasCover') {
+      issues.push({ path: `/blocks/${index}/type`, message: `Legacy ${block.type} blocks are unsupported. Remove the block and insert a reusable page template.` });
+    }
     if (block.type === 'scriptureReading' && !block.reference) issues.push({ path: `/blocks/${index}/reference`, message: 'Enter a Scripture reference.' });
     else if (block.type === 'scriptureReading' && !block.resolved) issues.push({ path: `/blocks/${index}/resolved`, message: 'Fetch or paste the approved passage text.' });
     if ((block.type === 'song' || block.type === 'libraryText') && !block.libraryItemId) issues.push({ path: `/blocks/${index}/libraryItemId`, message: 'Choose an approved library item.' });
@@ -25,10 +30,28 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1): V
     }
     if (block.type === 'song' && block.renderMode === 'asset' && !block.asset && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion) && item.assets?.length)) issues.push({ path: `/blocks/${index}/asset`, message: 'Choose a music image or PDF.' });
     if (block.type === 'fullPageAsset' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an asset.' });
-    if (block.type === 'canvasCover') {
-      validateCanvasScene(effectiveCanvasScene(block), doc.layout?.marginIn ?? .4, `/blocks/${index}/scene`)
+    if (block.type === 'canvas') {
+      validateCanvasScene(block.scene, 0, `/blocks/${index}/scene`, block.widthMode === 'fullPage' ? 7 : 7 - (doc.layout?.marginIn ?? .4) * 2, block.heightIn)
         .filter(issue => issue.severity === 'error')
         .forEach(({ path, message }) => issues.push({ path, message }));
+    }
+    if (block.type === 'templatePage') {
+      pageTemplateIssues({ blocks: block.blocks, margin: block.margin, layout: block.pageLayout }).forEach(message => issues.push({ path: `/blocks/${index}`, message }));
+      const margin = pageTemplateMargin(block.margin, doc.layout?.marginIn ?? .4);
+      block.blocks.filter(child => child.type === 'canvas').forEach((child, childIndex) => {
+        validateCanvasScene(child.scene, 0, `/blocks/${index}/blocks/${childIndex}/scene`, child.widthMode === 'fullPage' ? 7 : 7 - margin * 2, child.heightIn)
+          .filter(issue => issue.severity === 'error')
+          .forEach(({ path, message }) => issues.push({ path, message }));
+      });
+      if (template) {
+        const effectiveTemplate = { ...template, theme: { ...template.theme, marginIn: margin } };
+        const used = block.blocks.reduce((total, child) => total + estimateBlockPoints(child, effectiveTemplate, library), 0);
+        const capacity = (template.page.heightIn - margin * 2) * 72;
+        if (used > capacity + .5) issues.push({
+          path: `/blocks/${index}`,
+          message: `Page template “${block.name}” overflows by ${((used - capacity) / 72).toFixed(2)} inches at the current host margin. Edit or explode it before export.`
+        });
+      }
     }
     if (block.type === 'custom') customBlockIssues(block).forEach(message => issues.push({ path: `/blocks/${index}`, message }));
   });

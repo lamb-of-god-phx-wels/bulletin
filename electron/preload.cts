@@ -23,6 +23,8 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   deleteBulletin: (...args) => ipcRenderer.invoke('bulletin:delete', ...args),
   saveTemplate: (...args) => ipcRenderer.invoke('template:save', ...args),
   deleteTemplate: (...args) => ipcRenderer.invoke('template:delete', ...args),
+  savePageTemplate: (...args) => ipcRenderer.invoke('page-template:save', ...args),
+  deletePageTemplate: (...args) => ipcRenderer.invoke('page-template:delete', ...args),
   saveLibrary: (...args) => ipcRenderer.invoke('library:save', ...args),
   restoreArchived: (...args) => ipcRenderer.invoke('archive:restore', ...args),
   permanentlyDeleteArchived: (...args) => ipcRenderer.invoke('archive:delete', ...args),

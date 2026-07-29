@@ -6,7 +6,7 @@ import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
 import { responsiveEntryRole } from '../shared/responsiveReading';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
-import { canvasAssetRefs, effectiveCanvasScene } from '../shared/canvas';
+import { boundRichTextParagraphs, canvasAssetRefs } from '../shared/canvas';
 import { CanvasSceneView } from './CanvasSceneView';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
@@ -74,20 +74,25 @@ function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
 function BlockView({ block, library, assets, document, marginIn }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
-    case 'titlePage': return <div className="cover">
-      {block.asset && block.asset.mediaType !== 'application/pdf' && <img src={assets[block.asset.path]} alt={block.asset.alt ?? ''} />}
-      {block.asset?.mediaType === 'application/pdf' && <div className="pdf-placeholder"><b>{block.asset.alt ?? 'Custom cover PDF'}</b><span>Original PDF page inserted during export</span></div>}
-      {!block.asset && <>{block.seriesAsset && assets[block.seriesAsset.path] ? <img className="cover-series-image" src={assets[block.seriesAsset.path]} alt={document.info.series ?? ''} /> : <div className="cover-series">{document.info.series ?? 'Worship'}</div>}<h1>{document.info.title}</h1></>}
-      {!block.asset && <><div className="cover-date"><strong>{document.info.churchWeek}</strong><span>{new Date(`${document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span></div>{block.churchLogoAsset && assets[block.churchLogoAsset.path] ? <img className="cover-church-logo" src={assets[block.churchLogoAsset.path]} alt={document.church.name} /> : <div className="cover-church">{document.church.name}</div>}</>}
-    </div>;
-    case 'canvasCover': return <CanvasSceneView scene={effectiveCanvasScene(block)} document={document} assets={assets} marginIn={marginIn} />;
+    case 'titlePage': case 'canvasCover': return <div className="missing">This document contains an unsupported legacy cover. Insert a reusable page template instead.</div>;
+    case 'canvas': {
+      const fullPage = (block.widthMode ?? 'contentBox') === 'fullPage';
+      const widthIn = fullPage ? 7 : 7 - marginIn * 2;
+      return <div className={`canvas-block ${fullPage ? 'canvas-block-full-page' : ''}`} style={{
+        height: `${block.heightIn}in`,
+        ...(fullPage ? { width: '7in', marginLeft: `${-marginIn}in` } : {})
+      }}><CanvasSceneView scene={block.scene} document={document} assets={assets} marginIn={0} widthIn={widthIn} heightIn={block.heightIn} /></div>;
+    }
+    case 'templatePage': return <section className="template-page-instance" data-template-page-id={`${block.source.id}@${block.source.version}`}>{block.blocks.map(child =>
+      <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />
+    )}</section>;
     case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</div>;
     case 'group': return <section className="block-group">{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
     case 'sermonTitle': return <h1 className="sermon-title">{block.text}</h1>;
     case 'sectionHeading': return <h2 className="section-heading">✠ {block.text} ✠</h2>;
     case 'heading': return <h3 className="block-heading">{block.text}</h3>;
     case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
-    case 'richText': return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><Paragraphs content={block.content} /></div>;
+    case 'richText': return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><Paragraphs content={boundRichTextParagraphs(block, document)} /></div>;
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
     case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => {
       const role = responsiveEntryRole(entry);
@@ -125,19 +130,18 @@ function BlockView({ block, library, assets, document, marginIn }: { block: Pagi
 function RenderedBlock({ block, library, assets, document, marginIn }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number }) {
   const style = presentationStyle(block);
   const editorBlockId = block.sourceBlockId ?? block.id;
-  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} marginIn={marginIn} /></div>;
+  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} marginIn={marginIn} /></div>;
   const view = BlockView({ block, library, assets, document, marginIn }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
   return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId });
 }
 
-export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, onBlockSelect, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; onBlockSelect?(blockId: string): void; onReady?(): void }) {
+export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, singlePage = false, onBlockSelect, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; singlePage?: boolean; onBlockSelect?(blockId: string): void; onReady?(): void }) {
   const effectiveTemplate = templateForBulletin(template, bulletin);
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
     const result: AssetRef[] = [];
     if ('asset' in block && block.asset) result.push(block.asset);
-    if (block.type === 'titlePage') result.push(...[block.seriesAsset, block.churchLogoAsset].filter((asset): asset is AssetRef => Boolean(asset)));
-    if (block.type === 'canvasCover') result.push(...canvasAssetRefs(effectiveCanvasScene(block)));
+    if (block.type === 'canvas') result.push(...canvasAssetRefs(block.scene));
     if (block.type === 'churchInfo' && block.heroAsset) result.push(block.heroAsset);
     if (block.type === 'announcements') result.push(...block.items.flatMap(item => item.asset ? [item.asset] : []));
     if ('libraryItemId' in block) result.push(...(library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
@@ -154,7 +158,8 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     if (!onReady || Object.keys(assets).length < expected) return;
     void window.document.fonts.ready.then(() => new Promise<void>(resolve => setTimeout(resolve, 500))).then(onReady);
   }, [assets, refs, onReady]);
-  const pages = paginate(bulletin.blocks, effectiveTemplate, library);
+  const allPages = paginate(bulletin.blocks, effectiveTemplate, library);
+  const pages = singlePage ? allPages.slice(0, 1) : allPages;
   return <div className={`document-stack ${print ? 'is-print' : ''} ${onBlockSelect && !print ? 'is-interactive' : ''}`} onClick={onBlockSelect && !print ? event => {
     const block = (event.target as Element).closest<HTMLElement>('[data-block-id]');
     if (block && event.currentTarget.contains(block) && block.dataset.blockId) onBlockSelect(block.dataset.blockId);
@@ -167,10 +172,10 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--preview-page-width': `${672 * zoom}px`,
     '--preview-page-height': `${816 * zoom}px`
   } as React.CSSProperties}>
-    {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
+    {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number} style={page.marginIn !== undefined ? { '--page-margin': `${page.marginIn}in` } as React.CSSProperties : undefined}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
-      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} marginIn={effectiveTemplate.theme.marginIn} />)}</div>
-      {page.kind === 'content' && page.number > 1 && <div className="page-number">{page.number}</div>}
+      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} marginIn={page.marginIn ?? effectiveTemplate.theme.marginIn} />)}</div>
+      {page.kind === 'content' && page.number > 1 && page.blocks[0]?.type !== 'templatePage' && <div className="page-number">{page.number}</div>}
     </article></div>)}
   </div>;
 }

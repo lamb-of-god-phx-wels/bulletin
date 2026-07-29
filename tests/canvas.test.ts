@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canvasBindingText,
   convertCanvasCoordinateSpace,
+  createCanvasBlock,
   defaultCanvasScene,
   snapCanvasValue,
   snapCanvasPosition,
@@ -10,6 +11,16 @@ import {
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 
 describe('canvas cover scenes', () => {
+  it('creates canvases at the full physical page size', () => {
+    expect(createCanvasBlock('new-canvas')).toMatchObject({
+      id: 'new-canvas',
+      type: 'canvas',
+      heightIn: 8.5,
+      widthMode: 'fullPage',
+      scene: { coordinateSpace: 'fullPage' }
+    });
+  });
+
   it('uses deterministic bindings and date formats', () => {
     const document = createBulletin(defaultTemplate, '2026-07-27');
     document.info.title = 'The Good Shepherd';

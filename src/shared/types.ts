@@ -28,7 +28,7 @@ interface BlockBase {
   presentation?: Partial<CustomBlockStyle>;
 }
 
-export interface TitlePageBlock extends BlockBase { type: 'titlePage'; asset?: AssetRef; seriesAsset?: AssetRef; churchLogoAsset?: AssetRef }
+export interface UnsupportedLegacyCoverBlock extends BlockBase { type: 'titlePage' | 'canvasCover' }
 export type CanvasCoordinateSpace = 'fullPage' | 'contentBox';
 export type CanvasTextBinding = 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
 export interface CanvasGeometry { x: number; y: number; width: number; height: number }
@@ -81,11 +81,11 @@ export interface CanvasScene {
   background?: { color?: string; asset?: AssetRef; fit?: 'contain' | 'cover' | 'fill' };
   elements: CanvasElement[];
 }
-export interface CanvasCoverBlock extends BlockBase {
-  type: 'canvasCover';
+export interface CanvasBlock extends BlockBase {
+  type: 'canvas';
   scene: CanvasScene;
-  weeklyScene?: CanvasScene;
-  weeklyUnlockedElementIds?: string[];
+  heightIn: number;
+  widthMode?: 'contentBox' | 'fullPage';
 }
 export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
 export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string }
@@ -96,6 +96,9 @@ export interface RichTextBlock extends BlockBase {
   role?: 'header' | 'body';
   scriptureRole?: ScriptureElementRole;
   content: Paragraph[];
+  binding?: CanvasTextBinding;
+  bindingOverride?: Paragraph[];
+  dateFormat?: 'long' | 'medium' | 'short' | 'iso';
 }
 export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string }
 export type ResponsiveReadingRole = 'leader' | 'follower';
@@ -140,6 +143,18 @@ export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: P
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }
 export interface GroupBlock extends BlockBase { type: 'group'; children: BulletinBlock[] }
+export type PageMarginSetting =
+  | { mode: 'inherit'; referenceMarginIn: number }
+  | { mode: 'fixed'; marginIn: number };
+export interface TemplatePageBlock extends BlockBase {
+  type: 'templatePage';
+  source: { id: string; version: number };
+  sourceDigest: string;
+  name: string;
+  pageLayout?: 'canvas' | 'regular';
+  margin: PageMarginSetting;
+  blocks: BulletinBlock[];
+}
 
 export type CustomBindingSource = 'weekly' | 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
 export interface CustomBlockBinding {
@@ -177,7 +192,7 @@ export interface CustomBlock extends BlockBase {
   style?: CustomBlockStyle;
 }
 
-export type BulletinBlock = TitlePageBlock | CanvasCoverBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
+export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 
@@ -224,6 +239,18 @@ export interface TemplateV1 {
   updatedAt: string;
 }
 
+export interface PageTemplateV1 {
+  schemaVersion: 1;
+  id: string;
+  version: number;
+  name: string;
+  status: 'draft' | 'published';
+  layout?: 'canvas' | 'regular';
+  margin: PageMarginSetting;
+  blocks: BulletinBlock[];
+  updatedAt: string;
+}
+
 export type LibraryKind = 'song' | 'liturgy' | 'image' | 'font' | 'church-info';
 export interface LibraryItemV1 {
   id: string;
@@ -239,7 +266,7 @@ export interface ChurchWeekName {
   sourceName: string;
   displayName: string;
 }
-export type SharedRecordKind = 'bulletin' | 'template' | 'library-item' | 'church-week' | 'component';
+export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'church-week' | 'component';
 export interface WorkspaceConflict {
   id: string;
   kind: SharedRecordKind;
@@ -296,6 +323,7 @@ export interface WorkspaceSummary {
   root: string;
   bulletins: Array<{ path: string; document: BulletinDocumentV1 }>;
   templates: Array<{ path: string; template: TemplateV1 }>;
+  pageTemplates: Array<{ path: string; pageTemplate: PageTemplateV1 }>;
   library?: LibraryManifestV1;
   sync?: WorkspaceSyncStatus;
   compatibility?: WorkspaceCompatibility;
@@ -312,6 +340,8 @@ export interface BulletinApi {
   deleteBulletin(root: string, relativePath: string): Promise<void>;
   saveTemplate(root: string, template: TemplateV1, expectedUpdatedAt?: string, force?: boolean): Promise<string>;
   deleteTemplate(root: string, relativePath: string): Promise<void>;
+  savePageTemplate(root: string, pageTemplate: PageTemplateV1, expectedUpdatedAt?: string, force?: boolean): Promise<string>;
+  deletePageTemplate(root: string, relativePath: string): Promise<void>;
   saveLibrary(root: string, library: LibraryManifestV1, previous?: LibraryManifestV1, force?: boolean): Promise<void>;
   onWorkspaceChanged?(listener: (change: WorkspaceChange) => void): () => void;
   getUpdateStatus?(): Promise<AppUpdateStatus>;

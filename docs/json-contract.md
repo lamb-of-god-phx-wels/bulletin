@@ -1,9 +1,10 @@
 # JSON contract v1
 
-Three versioned documents form the durable interface:
+Four versioned documents form the durable interface:
 
 - `BulletinDocumentV1` contains the complete weekly semantic block sequence, a pinned template version, resolved Scripture snapshots, and narrow per-week layout hints.
 - `TemplateV1` contains the 7 × 8.5-inch page contract, theme, reusable starter blocks, and filler-page policy.
+- `PageTemplateV1` contains one publishable physical page, its margin policy, and an ordered mixture of native and canvas blocks.
 - `LibraryManifestV1` catalogs immutable versions of church-approved text and assets with their copyright notices.
 
 The corresponding JSON Schemas are the machine-readable source of truth in `schemas/`.
@@ -14,7 +15,8 @@ Every block has a stable `id` and discriminating `type`. Supported types are:
 
 | Type | Purpose |
 | --- | --- |
-| `titlePage`, `churchInfo` | Full-page identity content |
+| `templatePage`, `churchInfo` | Full-page reusable or identity content |
+| `canvas` | An explicitly sized inch-based positioned region |
 | `heading`, `sectionHeading`, `sermonTitle` | Document hierarchy |
 | `paragraph`, `richText`, `responsiveReading` | Optional-header paragraphs, free text, and minister/congregation responses |
 | `scriptureReading` | Reference, translation, caption, and a reproducible resolved snapshot |
@@ -29,6 +31,10 @@ Rich text is represented as paragraphs containing text or named-symbol runs. It 
 
 A bulletin may set `layout.marginIn` to override the template's uniform page margin for that bulletin only. Preview pagination, guides, print rendering, and PDF export all use the effective override. Omitting it restores the pinned template's margin.
 
+An inserted `templatePage` pins a page-template ID and version and embeds a complete snapshot. Local edits therefore remain available if the shared source is archived. Upgrading deliberately replaces the snapshot; exploding removes the wrapper and inserts its blocks into normal host flow. Fixed-margin pages use their saved margin, while inherited pages use the host margin.
+
+Native `richText` and canvas text may bind to bulletin fields. Bound text supports deterministic date formats and a local override that can be reset to the host value.
+
 Container blocks use a recursive `children` array. For example, `churchInfo` contains `paragraph` containers, and each paragraph contains an optional header `richText` child plus a body `richText` child. The container keeps them together semantically while each text child retains its own margins, padding, typography, ID, and presentation override. Setting the header’s bottom margin and body’s top margin to zero produces no forced gap.
 
 A reusable custom-block definition is stored in the workspace library. It has a human-readable `name`, a `layoutText` string, named `bindings`, and presentation settings for width, placement, padding, spacing, alignment, typography, fill, and border. Placeholders use double braces, such as `{{serviceTime}}`. A binding can expose a new weekly input or read `info.title`, `info.date`, `info.churchWeek`, `info.series`, or `church.name`.
@@ -39,6 +45,7 @@ Adding a custom block to a template creates a self-contained snapshot with a `de
 
 - Bible passage text is copied into the bulletin with its source, retrieval timestamp, translation, and attribution. A later network failure therefore cannot change an existing bulletin.
 - Bulletins pin template and selected library-item versions. Legacy unpinned references resolve to the highest available version, while old versions remain in the manifest for reproducible published projects.
+- Reusable page instances pin and embed their published source version. The synchronized source lives under `page-templates/<id>/`.
 - Weekly edits to shared song lyrics or reusable text are stored as `contentOverride` paragraphs on that bulletin block. The source library version remains unchanged and can be restored at any time.
 - One-off assets are copied into that week's project folder. All paths are workspace-relative, and paths escaping the workspace are rejected.
 - Export snapshots are stored in `revisions/`; PDF output is padded to a multiple of four pages.

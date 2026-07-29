@@ -77,13 +77,15 @@ function CanvasElementView({ element, document, assets }: {
   </div>;
 }
 
-export function CanvasSceneView({ scene, document, assets, marginIn }: {
+export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7, heightIn = 8.5 }: {
   scene: CanvasScene;
   document: BulletinDocumentV1;
   assets: Record<string, string>;
   marginIn: number;
+  widthIn?: number;
+  heightIn?: number;
 }) {
-  const space = canvasSpace(scene, marginIn);
+  const space = canvasSpace(scene, marginIn, widthIn, heightIn);
   const background = scene.background;
   const pdfBackground = background?.asset?.mediaType === 'application/pdf';
   return <div

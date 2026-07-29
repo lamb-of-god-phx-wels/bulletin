@@ -3,10 +3,10 @@ import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:
 import path from 'node:path';
 import type {
   ArchivedWorkspaceRecord, AssetRef, BulletinDocumentV1, ChurchWeekName, LibraryItemV1, LibraryManifestV1, SharedRecordKind,
-  TemplateV1, WorkspaceConflict, WorkspaceSummary
+  PageTemplateV1, TemplateV1, WorkspaceConflict, WorkspaceSummary
 } from '../src/shared/types.js';
 import type { DeclarativeComponentDefinition } from '../src/component-engine/types.js';
-import { defaultTemplate } from '../src/shared/defaults.js';
+import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults.js';
 import { normalizeLibrary } from '../src/shared/library.js';
 import { meetsMinimumVersion } from '../src/shared/version.js';
 
@@ -140,7 +140,7 @@ export async function assertWorkspaceWritable(root: string, currentVersion: stri
 export async function ensureWorkspace(root: string) {
   await Promise.all([
     'bulletins', 'templates', 'assets', 'assets/blobs', 'library/items', 'library/church-weeks',
-    'library/components', 'archive', 'tombstones'
+    'library/components', 'page-templates', 'archive', 'tombstones'
   ].map(folder => mkdir(inside(root, folder), { recursive: true })));
   const legacyLibrary = inside(root, 'library.json');
   if (!await exists(legacyLibrary)) await atomicJson(legacyLibrary, { schemaVersion: 1, name: 'Lamb of God Library', items: [] } satisfies LibraryManifestV1);
@@ -154,9 +154,13 @@ export async function ensureWorkspace(root: string) {
     } satisfies WorkspaceFileV2);
   }
   const templatePath = inside(root, `templates/${defaultTemplate.id}/v${defaultTemplate.version}.json`);
+  const pageTemplatePath = inside(root, `page-templates/${defaultPageTemplate.id}/v${defaultPageTemplate.version}.json`);
   const hasActiveTemplates = (await jsonFiles(inside(root, 'templates'))).length > 0;
   const hasArchivedTemplates = (await jsonFiles(inside(root, 'archive/templates'))).length > 0;
   if (!hasActiveTemplates && !hasArchivedTemplates && !await exists(templatePath)) await atomicJson(templatePath, defaultTemplate);
+  const hasActivePageTemplates = (await jsonFiles(inside(root, 'page-templates'))).length > 0;
+  const hasArchivedPageTemplates = (await jsonFiles(inside(root, 'archive/page-templates'))).length > 0;
+  if (!hasActivePageTemplates && !hasArchivedPageTemplates && !await exists(pageTemplatePath)) await atomicJson(pageTemplatePath, defaultPageTemplate);
   await migrateLegacyLibrary(root);
 }
 
@@ -315,7 +319,7 @@ async function archivedRawRecords(root: string): Promise<ArchivedWorkspaceRecord
       const originalPath = normalizeWorkspacePath(archived?.originalPath ?? derivedOriginalPath);
       const value = (archived?.value ?? stored) as Record<string, unknown>;
       const syncKind = value.format === 'bulletin-shared-record-v2' ? value.kind as SharedRecordKind : undefined;
-      const kind: SharedRecordKind = syncKind ?? (originalPath.startsWith('bulletins/') ? 'bulletin' : 'template');
+      const kind: SharedRecordKind = syncKind ?? (originalPath.startsWith('bulletins/') ? 'bulletin' : originalPath.startsWith('page-templates/') ? 'page-template' : 'template');
       const displayValue = (value.value && typeof value.value === 'object' ? value.value : value) as Record<string, unknown>;
       const label = kind === 'bulletin'
         ? String((displayValue.info as { title?: string } | undefined)?.title ?? displayValue.id ?? path.basename(originalPath))
@@ -337,13 +341,14 @@ function assetRefs(value: unknown, result: AssetRef[] = []): AssetRef[] {
 export async function openWorkspace(root: string, currentVersion = '0.0.0'): Promise<WorkspaceSummary> {
   const compatibility = await workspaceCompatibility(root, currentVersion);
   if (compatibility.writable) await ensureWorkspace(root);
-  const [bulletinRecords, templateRecords, records, archivedRaw, tombstones] = await Promise.all([
+  const [bulletinRecords, templateRecords, pageTemplateRecords, records, archivedRaw, tombstones] = await Promise.all([
     rawRecords<BulletinDocumentV1>(
       root, 'bulletins', 'bulletin',
       file => !file.includes(`${path.sep}revisions${path.sep}`) && path.basename(file).startsWith('bulletin'),
       value => value.id
     ),
     rawRecords<TemplateV1>(root, 'templates', 'template', file => !file.includes(`${path.sep}revisions${path.sep}`), value => `${value.id}:${value.version}:${value.status}`),
+    rawRecords<PageTemplateV1>(root, 'page-templates', 'page-template', file => !file.includes(`${path.sep}revisions${path.sep}`), value => `${value.id}:${value.version}:${value.status}`),
     loadLibraryRecords(root),
     archivedRawRecords(root),
     loadTombstones(root)
@@ -355,20 +360,22 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
   for (const [key] of records.components) if (deletedRecordIds.has(`component:${key}`)) records.components.delete(key);
   const bulletins = bulletinRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, document: record.value }));
   const templates = templateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, template: record.value }));
+  const pageTemplates = pageTemplateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, pageTemplate: record.value }));
   const library = libraryManifest(records);
-  const refs = assetRefs({ bulletins, templates, library });
+  const refs = assetRefs({ bulletins, templates, pageTemplates, library });
   const unavailableAssets: string[] = [];
   for (const asset of refs) if (!await exists(inside(root, asset.path))) unavailableAssets.push(asset.path);
   return {
     root,
     bulletins,
     templates,
+    pageTemplates,
     library,
     compatibility,
     sync: {
       schemaVersion: 2,
       lastScannedAt: new Date().toISOString(),
-      conflicts: [...bulletinRecords.conflicts, ...templateRecords.conflicts, ...records.conflicts],
+      conflicts: [...bulletinRecords.conflicts, ...templateRecords.conflicts, ...pageTemplateRecords.conflicts, ...records.conflicts],
       unavailableAssets: [...new Set(unavailableAssets)],
       archivedRecords: [
         ...archivedRaw,
@@ -435,6 +442,23 @@ export async function saveTemplate(root: string, template: TemplateV1, expectedU
 }
 
 export const deleteTemplate = (root: string, relative: string) => archiveJson(root, relative);
+
+export async function savePageTemplate(root: string, pageTemplate: PageTemplateV1, expectedUpdatedAt?: string, force = false) {
+  const relative = `page-templates/${pageTemplate.id}/v${pageTemplate.version}${pageTemplate.status === 'draft' ? '-draft' : ''}.json`;
+  const file = inside(root, relative);
+  if (await exists(file)) {
+    const existing = await readJson<PageTemplateV1>(file);
+    if (pageTemplate.status === 'published' && !same(existing, pageTemplate)) throw new Error(`Conflict: published page template ${pageTemplate.id} v${pageTemplate.version} is immutable.`);
+    if (!force && expectedUpdatedAt !== undefined && existing.updatedAt !== expectedUpdatedAt) {
+      throw new Error(`Conflict: this page template changed at ${existing.updatedAt}. Reload it or save a copy.`);
+    }
+    if (force && !same(existing, pageTemplate)) await archiveJson(root, relative);
+  }
+  await atomicJson(file, pageTemplate);
+  return relative;
+}
+
+export const deletePageTemplate = (root: string, relative: string) => archiveJson(root, relative);
 
 export async function restoreArchived(root: string, record: ArchivedWorkspaceRecord) {
   const source = inside(root, record.path);

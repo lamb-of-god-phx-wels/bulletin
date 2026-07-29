@@ -6,7 +6,7 @@ import type { BulletinBlock, LibraryManifestV1 } from '../src/shared/types';
 describe('pagination', () => {
   it('puts fixed pages on their own and pads to a four-page signature', () => {
     const blocks: BulletinBlock[] = [
-      { id: 'cover', type: 'titlePage' },
+      structuredClone(defaultTemplate.starterBlocks[0]),
       { id: 'heading', type: 'heading', text: 'Invocation' },
       { id: 'page', type: 'fullPageAsset', asset: { path: 'assets/music.pdf', mediaType: 'application/pdf' } }
     ];

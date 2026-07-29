@@ -1,8 +1,21 @@
-import type { BulletinDocumentV1, TemplateV1 } from './types.js';
+import type { BulletinDocumentV1, PageTemplateV1, TemplateV1 } from './types.js';
 import { defaultChurchInfoChildren } from './blocks.js';
-import { defaultCanvasScene } from './canvas.js';
+import { createCanvasBlock, defaultCanvasScene } from './canvas.js';
+import { instantiatePageTemplate } from './pageTemplates.js';
 
 const now = () => new Date().toISOString();
+
+export const defaultPageTemplate: PageTemplateV1 = {
+  schemaVersion: 1,
+  id: 'default-cover',
+  version: 1,
+  name: 'Default cover',
+  status: 'published',
+  layout: 'canvas',
+  margin: { mode: 'fixed', marginIn: 0 },
+  blocks: [createCanvasBlock('cover-canvas', defaultCanvasScene())],
+  updatedAt: now()
+};
 
 export const defaultTemplate: TemplateV1 = {
   schemaVersion: 1,
@@ -21,7 +34,7 @@ export const defaultTemplate: TemplateV1 = {
     marginIn: 0.4
   },
   starterBlocks: [
-    { id: 'cover', type: 'canvasCover', scene: defaultCanvasScene(), weeklyEditable: true },
+    instantiatePageTemplate(defaultPageTemplate, 'cover'),
     { id: 'church-info', type: 'churchInfo', children: defaultChurchInfoChildren() },
     { id: 'sermon-title', type: 'sermonTitle', text: 'Sermon title', weeklyEditable: true },
     { id: 'gathering', type: 'sectionHeading', text: 'The Gathering' },

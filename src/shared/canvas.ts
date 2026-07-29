@@ -1,7 +1,7 @@
 import type {
   AssetRef,
   BulletinDocumentV1,
-  CanvasCoverBlock,
+  CanvasBlock,
   CanvasElement,
   CanvasGeometry,
   CanvasScene,
@@ -12,6 +12,20 @@ import type {
 
 export const CANVAS_PAGE = Object.freeze({ width: 7, height: 8.5 });
 export const CANVAS_GRID_IN = 1 / 16;
+
+export function createCanvasBlock(id: string, scene: CanvasScene = {
+  coordinateSpace: 'fullPage',
+  background: { color: '#ffffff' },
+  elements: []
+}): CanvasBlock {
+  return {
+    id,
+    type: 'canvas',
+    heightIn: CANVAS_PAGE.height,
+    widthMode: 'fullPage',
+    scene: structuredClone(scene)
+  };
+}
 
 const paragraph = (text: string): Paragraph[] => [{
   type: 'paragraph',
@@ -111,18 +125,14 @@ export function defaultCanvasScene(): CanvasScene {
   };
 }
 
-export function effectiveCanvasScene(block: CanvasCoverBlock): CanvasScene {
-  return block.weeklyScene ?? block.scene;
-}
-
-export function canvasSpace(scene: CanvasScene, marginIn: number) {
+export function canvasSpace(scene: CanvasScene, marginIn: number, widthIn: number = CANVAS_PAGE.width, heightIn: number = CANVAS_PAGE.height) {
   return scene.coordinateSpace === 'fullPage'
-    ? { x: 0, y: 0, width: CANVAS_PAGE.width, height: CANVAS_PAGE.height }
+    ? { x: 0, y: 0, width: widthIn, height: heightIn }
     : {
         x: marginIn,
         y: marginIn,
-        width: CANVAS_PAGE.width - marginIn * 2,
-        height: CANVAS_PAGE.height - marginIn * 2
+        width: widthIn - marginIn * 2,
+        height: heightIn - marginIn * 2
       };
 }
 
@@ -163,6 +173,13 @@ export function canvasBindingText(binding: CanvasTextBinding, document: Bulletin
   return new Intl.DateTimeFormat('en-US', options).format(date);
 }
 
+export function boundRichTextParagraphs(block: Extract<import('./types.js').BulletinBlock, { type: 'richText' }>, document: BulletinDocumentV1): Paragraph[] {
+  if (block.bindingOverride) return block.bindingOverride;
+  if (!block.binding) return block.content;
+  const value = canvasBindingText(block.binding, document, block.dateFormat);
+  return value ? paragraph(value) : block.content;
+}
+
 export function canvasTextParagraphs(element: Extract<CanvasElement, { type: 'text' }>, document: BulletinDocumentV1): Paragraph[] {
   if (element.source.override) return element.source.override;
   if (element.source.binding) {
@@ -187,7 +204,7 @@ export interface CanvasSceneIssue extends ValidationIssue {
   severity: 'error' | 'warning';
 }
 
-export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath = '/scene'): CanvasSceneIssue[] {
+export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath = '/scene', widthIn: number = CANVAS_PAGE.width, heightIn: number = CANVAS_PAGE.height): CanvasSceneIssue[] {
   const issues: CanvasSceneIssue[] = [];
   if (!scene || typeof scene !== 'object') return [{ path: basePath, message: 'Canvas scene must be an object.', severity: 'error' }];
   if (scene.coordinateSpace !== 'fullPage' && scene.coordinateSpace !== 'contentBox') {
@@ -199,7 +216,7 @@ export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath 
     return issues;
   }
   const ids = new Set<string>();
-  const space = canvasSpace(scene, marginIn);
+  const space = canvasSpace(scene, marginIn, widthIn, heightIn);
   scene.elements.forEach((element, index) => {
     const path = `${basePath}/elements/${index}`;
     if (!element || typeof element !== 'object') {

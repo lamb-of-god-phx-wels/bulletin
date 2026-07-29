@@ -47,6 +47,8 @@ shared-bulletins/
 │   └── blobs/<sha256>.<extension>
 ├── templates/
 │   └── <template-id>/v<version>.json
+├── page-templates/
+│   └── <page-template-id>/v<version>.json
 ├── bulletins/
     └── YYYY-MM-DD/
         ├── bulletin.json

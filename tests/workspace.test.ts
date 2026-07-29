@@ -2,10 +2,10 @@ import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createBulletin, defaultTemplate } from '../src/shared/defaults';
+import { createBulletin, defaultPageTemplate, defaultTemplate } from '../src/shared/defaults';
 import {
-  assertWorkspaceWritable, createRevision, deleteBulletin, deleteTemplate, openWorkspace, permanentlyDeleteArchived,
-  resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, saveTemplate
+  assertWorkspaceWritable, createRevision, deleteBulletin, deletePageTemplate, deleteTemplate, openWorkspace, permanentlyDeleteArchived,
+  resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, savePageTemplate, saveTemplate
 } from '../electron/workspace';
 
 const roots: string[] = [];
@@ -79,6 +79,21 @@ describe('shared workspace', () => {
     const workspace = await openWorkspace(root);
     expect(workspace.templates.filter(item => item.template.id === 'festival-service').map(item => item.template.version).sort()).toEqual([1, 2]);
     expect(new Set(workspace.templates.map(item => item.template.id))).toEqual(new Set(['lamb-of-god-weekly', 'festival-service']));
+  });
+
+  it('persists, versions, and archives synchronized page templates', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    await openWorkspace(root);
+    const draft = { ...structuredClone(defaultPageTemplate), id: 'festival-cover', name: 'Festival Cover', status: 'draft' as const };
+    const draftPath = await savePageTemplate(root, draft);
+    const published = { ...draft, version: 2, status: 'published' as const, updatedAt: new Date().toISOString() };
+    await savePageTemplate(root, published);
+    let workspace = await openWorkspace(root);
+    expect(workspace.pageTemplates.filter(record => record.pageTemplate.id === 'festival-cover').map(record => record.pageTemplate.version).sort()).toEqual([1, 2]);
+    await deletePageTemplate(root, draftPath);
+    workspace = await openWorkspace(root);
+    expect(workspace.pageTemplates.some(record => record.path === draftPath)).toBe(false);
+    expect(workspace.sync?.archivedRecords.some(record => record.kind === 'page-template')).toBe(true);
   });
 
   it('persists the legacy music-to-song library migration when opening', async () => {

@@ -21,6 +21,7 @@ export function defaultChurchInfoChildren(): BulletinBlock[] {
 
 export function childBlocks(block: BulletinBlock): BulletinBlock[] | undefined {
   if (block.type === 'group') return block.children;
+  if (block.type === 'templatePage') return block.blocks;
   if (block.type === 'churchInfo') return block.children ?? defaultChurchInfoChildren();
   if (block.type === 'paragraph') {
     if (Array.isArray(block.children)) return block.children;
@@ -50,6 +51,7 @@ export function updateBlockTree(blocks: BulletinBlock[], id: string, next: Bulle
     const updatedChildren = updateBlockTree(children, id, next);
     if (block.type === 'churchInfo') return { ...block, children: updatedChildren } satisfies ChurchInfoBlock;
     if (block.type === 'group') return { ...block, children: updatedChildren };
+    if (block.type === 'templatePage') return { ...block, blocks: updatedChildren };
     if (block.type === 'paragraph') return { ...block, children: updatedChildren.filter(child => child.type === 'richText') };
     if (block.type === 'scriptureReading') {
       const element = updatedChildren.find(child => child.id === id);

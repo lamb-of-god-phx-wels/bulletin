@@ -55,16 +55,6 @@ export function duplicateTemplate(source: TemplateV1, name: string, records: Tem
 
 function reusableBlock(source: BulletinBlock): BulletinBlock {
   const block = structuredClone(source);
-  if (block.type === 'canvasCover' && block.weeklyScene) {
-    block.scene = block.weeklyScene;
-    delete block.weeklyScene;
-    delete block.weeklyUnlockedElementIds;
-    block.scene.elements = block.scene.elements.map(element => {
-      if (element.type !== 'text' || !element.source.override) return element;
-      const { override: _override, ...textSource } = element.source;
-      return { ...element, source: textSource };
-    });
-  }
   if (block.type === 'churchInfo' || block.type === 'group') block.children = block.children?.map(reusableBlock);
   if (block.type === 'paragraph') block.children = block.children.map(child => reusableBlock(child) as typeof child);
   return block;

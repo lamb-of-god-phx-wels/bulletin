@@ -4,7 +4,6 @@ import {
   canvasSpace,
   canvasTextParagraphs,
   convertCanvasCoordinateSpace,
-  effectiveCanvasScene,
   snapCanvasPosition,
   snapCanvasValue,
   validateCanvasScene
@@ -12,7 +11,7 @@ import {
 import type {
   AssetRef,
   BulletinDocumentV1,
-  CanvasCoverBlock,
+  CanvasBlock,
   CanvasElement,
   CanvasScene,
   CanvasTextBinding,
@@ -27,29 +26,28 @@ const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => 
 const plainText = (content: Paragraph[] | undefined) => content?.map(item => item.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
 const clone = <T,>(value: T): T => structuredClone(value);
 
-export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, root, onChooseAsset, onChange, onClose }: {
-  block: CanvasCoverBlock;
+export function CanvasDesigner({ block, document, marginIn, assets, root, onChooseAsset, onChange, onClose }: {
+  block: CanvasBlock;
   document: BulletinDocumentV1;
-  mode: 'template' | 'weekly';
   marginIn: number;
   assets: Record<string, string>;
   root?: string;
   onChooseAsset?(): Promise<AssetRef | null>;
-  onChange(block: CanvasCoverBlock): void;
+  onChange(block: CanvasBlock): void;
   onClose(): void;
 }) {
-  const initial = effectiveCanvasScene(block);
+  const initial = block.scene;
   const [scene, setScene] = useState<CanvasScene>(() => clone(initial));
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [past, setPast] = useState<CanvasScene[]>([]);
   const [future, setFuture] = useState<CanvasScene[]>([]);
-  const [unlocked, setUnlocked] = useState<Set<string>>(() => new Set(block.weeklyUnlockedElementIds ?? []));
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const drag = useRef<{ x: number; y: number; scene: CanvasScene; resize: boolean } | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
+  const canvasWidth = (block.widthMode ?? 'contentBox') === 'fullPage' ? 7 : 7 - marginIn * 2;
   const elements = useMemo(() => new Map(scene.elements.map(element => [element.id, element])), [scene.elements]);
   const primary = [...selected].map(id => elements.get(id)).find(Boolean);
-  const issues = validateCanvasScene(scene, marginIn);
+  const issues = validateCanvasScene(scene, marginIn, '/scene', 7, block.heightIn);
 
   useEffect(() => {
     if (!root || !window.bulletin) return;
@@ -67,17 +65,11 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
     setPast(value => [...value.slice(-49), clone(previous)]);
     setFuture([]);
     setScene(next);
-    onChange(mode === 'template'
-      ? { ...block, scene: next }
-      : { ...block, weeklyScene: next, weeklyUnlockedElementIds: [...unlocked] });
-  };
-  const publishUnlocked = (next: Set<string>) => {
-    setUnlocked(next);
-    onChange({ ...block, ...(mode === 'weekly' ? { weeklyScene: scene, weeklyUnlockedElementIds: [...next] } : {}) });
+    onChange({ ...block, scene: next });
   };
   const updateElements = (updater: (element: CanvasElement) => CanvasElement, ids = selected) =>
     publish({ ...scene, elements: scene.elements.map(element => ids.has(element.id) ? updater(element) : element) });
-  const editable = (element: CanvasElement) => mode === 'template' || !element.locked || unlocked.has(element.id);
+  const editable = (_element: CanvasElement) => true;
 
   const selectionFor = (id: string) => {
     const element = elements.get(id);
@@ -102,7 +94,7 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
   };
   const moveDrag = (event: React.PointerEvent) => {
     if (!drag.current || !stage.current) return;
-    const pixelsPerInch = stage.current.getBoundingClientRect().width / 7;
+    const pixelsPerInch = stage.current.getBoundingClientRect().width / canvasWidth;
     const dx = (event.clientX - drag.current.x) / pixelsPerInch;
     const dy = (event.clientY - drag.current.y) / pixelsPerInch;
     setScene({
@@ -110,7 +102,7 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
       elements: drag.current.scene.elements.map(element => {
         if (!selected.has(element.id) || !editable(element)) return element;
         const others = drag.current!.scene.elements.filter(item => !selected.has(item.id));
-        const space = canvasSpace(drag.current!.scene, marginIn);
+        const space = canvasSpace(drag.current!.scene, 0, canvasWidth, block.heightIn);
         return drag.current!.resize
           ? { ...element, width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: Math.max(element.type === 'line' ? 0 : 1 / 16, snapCanvasValue(element.height + dy, event.altKey)) }
           : {
@@ -160,13 +152,13 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
     const previous = past.at(-1);
     if (!previous) return;
     setPast(value => value.slice(0, -1)); setFuture(value => [clone(scene), ...value]); setScene(previous);
-    onChange(mode === 'template' ? { ...block, scene: previous } : { ...block, weeklyScene: previous, weeklyUnlockedElementIds: [...unlocked] });
+    onChange({ ...block, scene: previous });
   };
   const redo = () => {
     const next = future[0];
     if (!next) return;
     setFuture(value => value.slice(1)); setPast(value => [...value, clone(scene)]); setScene(next);
-    onChange(mode === 'template' ? { ...block, scene: next } : { ...block, weeklyScene: next, weeklyUnlockedElementIds: [...unlocked] });
+    onChange({ ...block, scene: next });
   };
   const nextId = (prefix: string) => {
     let index = 1;
@@ -228,14 +220,14 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
   const setNumber = (key: 'x' | 'y' | 'width' | 'height', value: number) => {
     if (Number.isFinite(value)) updatePrimary({ [key]: value } as Partial<CanvasElement>);
   };
-  const space = canvasSpace(scene, marginIn);
+  const space = canvasSpace(scene, 0, canvasWidth, block.heightIn);
 
   return <div className="canvas-designer" role="dialog" aria-modal="true" aria-labelledby="canvas-designer-title">
     <header className="canvas-designer-toolbar">
-      <div><div className="eyebrow">{mode === 'template' ? 'Template cover' : 'This bulletin only'}</div><h2 id="canvas-designer-title">Cover designer</h2></div>
+      <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
       <div className="canvas-tools">
         <button onClick={() => void add('text')}>＋ Text</button><button onClick={() => void add('image')}>＋ Image</button><button onClick={() => void add('rectangle')}>＋ Rectangle</button><button onClick={() => void add('line')}>＋ Line</button>
-        <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size || mode === 'weekly'} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
+        <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
         <button disabled={!past.length} onClick={undo}>Undo</button><button disabled={!future.length} onClick={redo}>Redo</button>
       </div>
       <button className="primary" onClick={onClose}>Done</button>
@@ -250,11 +242,11 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
     <main className="canvas-workarea">
       <div className="canvas-ruler-label horizontal">0　1　2　3　4　5　6　7 in</div>
       <div className="canvas-ruler-label vertical">0　1　2　3　4　5　6　7　8</div>
-      <div className="canvas-stage" ref={stage} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
-        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={marginIn} />
+      <div className="canvas-stage" ref={stage} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in` }} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
+        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} />
         <div className="canvas-safe-guide" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }} />
         <div className="canvas-selection-layer" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }}>
-          {scene.elements.map(element => <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked && !unlocked.has(element.id) ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${element.width}in`, height: `${Math.max(element.height, .04)}in` }} onPointerDown={event => beginDrag(event, element)}>
+          {scene.elements.map(element => <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${element.width}in`, height: `${Math.max(element.height, .04)}in` }} onPointerDown={event => beginDrag(event, element)}>
             {selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
           </div>)}
         </div>
@@ -263,16 +255,15 @@ export function CanvasCoverDesigner({ block, document, mode, marginIn, assets, r
     </main>
     <aside className="canvas-properties">
       <div className="eyebrow">Properties</div>
-      <label>Coordinate space<select value={scene.coordinateSpace} onChange={event => publish(convertCanvasCoordinateSpace(scene, event.target.value as CanvasScene['coordinateSpace'], marginIn))}><option value="fullPage">Full page</option><option value="contentBox">Content box</option></select></label>
+      <label>Coordinate space<select value={scene.coordinateSpace} onChange={event => publish(convertCanvasCoordinateSpace(scene, event.target.value as CanvasScene['coordinateSpace'], 0))}><option value="fullPage">Canvas bounds</option><option value="contentBox">Canvas content box</option></select></label>
       <label>Background color<input type="color" value={scene.background?.color ?? '#ffffff'} onChange={event => publish({ ...scene, background: { ...scene.background, color: event.target.value } })} /></label>
       <div className="builder-actions"><button className="secondary" onClick={async () => { const asset = await onChooseAsset?.(); if (asset) publish({ ...scene, background: { ...scene.background, asset, fit: 'cover' } }); }}>{scene.background?.asset ? 'Replace background' : 'Add image / PDF background'}</button>{scene.background?.asset && <button className="danger-text" onClick={() => { const background = { ...scene.background }; delete background.asset; publish({ ...scene, background }); }}>Remove</button>}</div>
       {scene.background?.asset && <label>Background fit<select value={scene.background.fit ?? 'cover'} onChange={event => publish({ ...scene, background: { ...scene.background, fit: event.target.value as 'contain' | 'cover' | 'fill' } })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label>}
       {primary ? <>
         <h3>{primary.name ?? primary.id}</h3>
-        {mode === 'weekly' && primary.locked && !unlocked.has(primary.id) && <button className="primary" onClick={() => { const next = new Set(unlocked); next.add(primary.id); publishUnlocked(next); }}>Unlock for this bulletin</button>}
         <label>Name<input value={primary.name ?? ''} disabled={!editable(primary)} onChange={event => updatePrimary({ name: event.target.value })} /></label>
         <div className="canvas-geometry-grid">{(['x', 'y', 'width', 'height'] as const).map(key => <label key={key}>{key}<input type="number" step=".0625" value={primary[key]} disabled={!editable(primary)} onChange={event => setNumber(key, event.currentTarget.valueAsNumber)} /></label>)}</div>
-        <label className="check"><input type="checkbox" checked={primary.locked ?? false} disabled={mode === 'weekly'} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked by default</label>
+        <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
         {primary.type === 'text' && <>
           <label>Text binding<select disabled={!editable(primary)} value={primary.source.binding ?? ''} onChange={event => updatePrimary({ source: { ...primary.source, binding: event.target.value as CanvasTextBinding || undefined } } as Partial<CanvasElement>)}><option value="">Literal text</option><option value="info.title">Sermon title</option><option value="info.date">Service date</option><option value="info.churchWeek">Church week</option><option value="info.series">Series</option><option value="church.name">Church name</option></select></label>
           <label>{primary.source.binding ? 'Weekly override' : 'Text'}<textarea rows={5} disabled={!editable(primary)} value={plainText(primary.source.binding ? primary.source.override : primary.source.literal)} placeholder={primary.source.binding ? plainText(canvasTextParagraphs(primary, document)) : ''} onChange={event => updatePrimary({ source: { ...primary.source, [primary.source.binding ? 'override' : 'literal']: text(event.target.value) } } as Partial<CanvasElement>)} /></label>

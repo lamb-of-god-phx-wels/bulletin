@@ -11,9 +11,8 @@ import { flattenBlocks } from '../src/shared/blocks';
 describe('component definitions', () => {
   it('loads the complete omakase palette from schema-version-2 JSON', () => {
     expect(prepackagedComponentDiagnostics).toEqual([]);
-    expect(prepackagedComponentDefinitions).toHaveLength(13);
+    expect(prepackagedComponentDefinitions).toHaveLength(12);
     expect(prepackagedComponentDefinitions.map(definition => definition.type)).toEqual([
-      'bulletin:coverPage',
       'bulletin:scriptureReading',
       'bulletin:song',
       'bulletin:heading',

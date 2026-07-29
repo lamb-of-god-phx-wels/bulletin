@@ -22,7 +22,7 @@
       "required": ["id", "type"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["titlePage", "canvasCover", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer", "group", "custom"] },
+        "type": { "enum": ["canvas", "templatePage", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer", "group", "custom"] },
         "label": { "type": "string" },
         "weeklyEditable": { "type": "boolean" },
         "layout": { "type": "object" },
@@ -45,9 +45,7 @@
         "values": { "type": "object", "additionalProperties": { "type": "string" } },
         "style": { "type": "object" },
         "children": { "type": "array", "items": { "$ref": "#/$defs/block" } },
-        "scene": { "$ref": "#/$defs/canvasScene" },
-        "weeklyScene": { "$ref": "#/$defs/canvasScene" },
-        "weeklyUnlockedElementIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        "scene": { "$ref": "#/$defs/canvasScene" }
       },
       "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
       "additionalProperties": true

@@ -7,7 +7,7 @@ import type {
   StructuredText
 } from './component-engine/types.js';
 import type { BulletinBlock, CustomBlockStyle, Paragraph } from './shared/types.js';
-import { defaultCanvasScene } from './shared/canvas.js';
+import { createCanvasBlock, defaultCanvasScene } from './shared/canvas.js';
 
 const packagedFiles = import.meta.glob<string>('../component-definitions/prepackaged/*.json', {
   eager: true,
@@ -18,7 +18,6 @@ const packagedFiles = import.meta.glob<string>('../component-definitions/prepack
 const packagedCatalog = loadComponentCatalog(packagedFiles);
 
 const paletteOrder = [
-  'bulletin:coverPage',
   'bulletin:scriptureReading',
   'bulletin:song',
   'bulletin:heading',
@@ -34,7 +33,7 @@ const paletteOrder = [
 ];
 
 export const prepackagedComponentDefinitions = packagedCatalog.registry.list()
-  .filter(definition => definition.editor?.palette !== false)
+  .filter(definition => definition.editor?.palette !== false && definition.type !== 'bulletin:coverPage')
   .sort((left, right) => {
     const leftIndex = paletteOrder.indexOf(left.type);
     const rightIndex = paletteOrder.indexOf(right.type);
@@ -164,10 +163,9 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
     case 'bulletin:coverPage':
       return {
         ...base,
-        type: 'canvasCover',
-        scene: sample.scene && typeof sample.scene === 'object' && !Array.isArray(sample.scene)
+        ...createCanvasBlock(id, sample.scene && typeof sample.scene === 'object' && !Array.isArray(sample.scene)
           ? structuredClone(sample.scene) as unknown as import('./shared/types.js').CanvasScene
-          : defaultCanvasScene()
+          : defaultCanvasScene())
       };
     case 'bulletin:text':
       return { ...base, type: 'richText', content: paragraphs(sample.content) };

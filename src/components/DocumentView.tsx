@@ -7,6 +7,7 @@ import { templateForBulletin } from '../shared/documentLayout';
 import { responsiveEntryRole } from '../shared/responsiveReading';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
 import { boundRichTextParagraphs, canvasAssetRefs } from '../shared/canvas';
+import { bookletPrinterSpreads, bookletReadingSpreads } from '../shared/booklet';
 import { CanvasSceneView } from './CanvasSceneView';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
@@ -135,7 +136,20 @@ function RenderedBlock({ block, library, assets, document, marginIn }: { block: 
   return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId });
 }
 
-export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, singlePage = false, onBlockSelect, onReady }: { document: BulletinDocumentV1; template: TemplateV1; library?: LibraryManifestV1; root?: string; print?: boolean; rulers?: boolean; guides?: boolean; zoom?: number; singlePage?: boolean; onBlockSelect?(blockId: string): void; onReady?(): void }) {
+export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, singlePage = false, bookletMode, onBlockSelect, onReady }: {
+  document: BulletinDocumentV1;
+  template: TemplateV1;
+  library?: LibraryManifestV1;
+  root?: string;
+  print?: boolean;
+  rulers?: boolean;
+  guides?: boolean;
+  zoom?: number;
+  singlePage?: boolean;
+  bookletMode?: 'reading' | 'printer';
+  onBlockSelect?(blockId: string): void;
+  onReady?(): void;
+}) {
   const effectiveTemplate = templateForBulletin(template, bulletin);
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
@@ -160,10 +174,13 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   }, [assets, refs, onReady]);
   const allPages = paginate(bulletin.blocks, effectiveTemplate, library);
   const pages = singlePage ? allPages.slice(0, 1) : allPages;
-  return <div className={`document-stack ${print ? 'is-print' : ''} ${onBlockSelect && !print ? 'is-interactive' : ''}`} onClick={onBlockSelect && !print ? event => {
+  const stackProps = {
+    className: `document-stack ${print ? 'is-print' : ''} ${bookletMode ? 'is-booklet' : ''} ${onBlockSelect && !print ? 'is-interactive' : ''}`,
+    onClick: onBlockSelect && !print ? (event: React.MouseEvent<HTMLDivElement>) => {
     const block = (event.target as Element).closest<HTMLElement>('[data-block-id]');
     if (block && event.currentTarget.contains(block) && block.dataset.blockId) onBlockSelect(block.dataset.blockId);
-  } : undefined} style={{
+    } : undefined,
+    style: {
     '--body-font': effectiveTemplate.theme.bodyFont, '--display-font': effectiveTemplate.theme.displayFont,
     '--ink': effectiveTemplate.theme.ink, '--accent': effectiveTemplate.theme.accent,
     '--body-size': `${effectiveTemplate.theme.bodySizePt}pt`, '--line-height': effectiveTemplate.theme.lineHeight,
@@ -171,11 +188,24 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--preview-scale': zoom,
     '--preview-page-width': `${672 * zoom}px`,
     '--preview-page-height': `${816 * zoom}px`
-  } as React.CSSProperties}>
-    {pages.map(page => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={page.number} style={page.marginIn !== undefined ? { '--page-margin': `${page.marginIn}in` } as React.CSSProperties : undefined}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
+    } as React.CSSProperties
+  };
+  const renderPage = (page: typeof pages[number], key: React.Key) => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={key} style={page.marginIn !== undefined ? { '--page-margin': `${page.marginIn}in` } as React.CSSProperties : undefined}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
       <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} marginIn={page.marginIn ?? effectiveTemplate.theme.marginIn} />)}</div>
       {page.kind === 'content' && page.number > 1 && page.blocks[0]?.type !== 'templatePage' && <div className="page-number">{page.number}</div>}
-    </article></div>)}
-  </div>;
+    </article></div>;
+  if (bookletMode) {
+    const spreads = bookletMode === 'printer' ? bookletPrinterSpreads(pages.length) : bookletReadingSpreads(pages.length);
+    return <div {...stackProps}>{spreads.map((spread, index) => <section className="booklet-spread" key={`${bookletMode}-${index}`}>
+      <header><b>{bookletMode === 'printer' ? `Sheet ${spread.sheet} · ${spread.side}` : index === 0 ? 'Front cover' : index === spreads.length - 1 ? 'Back cover' : `Pages ${spread.leftPage}–${spread.rightPage}`}</b><span>{bookletMode === 'printer' ? `${spread.leftPage} | ${spread.rightPage}` : 'Booklet open view'}</span></header>
+      <div className="booklet-spread-pages">
+        {[spread.leftPage, spread.rightPage].map((pageNumber, sideIndex) => <div className="booklet-page-slot" key={`${index}-${sideIndex}`}>
+          {pageNumber && pages[pageNumber - 1] ? renderPage(pages[pageNumber - 1], `${index}-${sideIndex}-${pageNumber}`) : <div className="booklet-blank-page"><span>Blank</span></div>}
+          <small>{pageNumber ? `Page ${pageNumber}` : 'Outside cover'}</small>
+        </div>)}
+      </div>
+    </section>)}</div>;
+  }
+  return <div {...stackProps}>{pages.map(page => renderPage(page, page.number))}</div>;
 }

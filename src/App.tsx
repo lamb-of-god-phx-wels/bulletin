@@ -7,6 +7,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { DocumentView } from "./components/DocumentView";
+import { BookletPreview } from "./components/BookletPreview";
 import { WeeklyEditor } from "./components/WeeklyEditor";
 import { TemplateBuilder } from "./components/TemplateBuilder";
 import { TemplateSwitcher } from "./components/TemplateSwitcher";
@@ -301,6 +302,7 @@ function DesktopApp() {
   >([]);
   const [exportIssues, setExportIssues] = useState<ValidationIssue[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [bookletPreview, setBookletPreview] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [showRulers, setShowRulers] = useState(
     () => localStorage.getItem("bulletin-show-rulers") !== "false",
@@ -1294,14 +1296,22 @@ function DesktopApp() {
                   onChange={changePreviewZoom}
                   onFit={fitPreview}
                 />
-                <div
-                  className={
-                    issues.length ? "validation warning" : "validation"
-                  }
-                >
-                  {issues.length
-                    ? `${issues.length} item${issues.length === 1 ? "" : "s"} to finish`
-                    : "✓ Ready to export"}
+                <div className="preview-toolbar-end">
+                  <button
+                    className="secondary booklet-preview-button"
+                    onClick={() => setBookletPreview(true)}
+                  >
+                    Booklet preview
+                  </button>
+                  <div
+                    className={
+                      issues.length ? "validation warning" : "validation"
+                    }
+                  >
+                    {issues.length
+                      ? `${issues.length} item${issues.length === 1 ? "" : "s"} to finish`
+                      : "✓ Ready to export"}
+                  </div>
                 </div>
               </div>
               <DocumentView
@@ -1645,6 +1655,15 @@ function DesktopApp() {
             </footer>
           </section>
         </div>
+      )}
+      {bookletPreview && document && (
+        <BookletPreview
+          document={document}
+          template={template}
+          library={workspace.library}
+          root={workspace.root}
+          onClose={() => setBookletPreview(false)}
+        />
       )}
       {confirmation && (
         <ConfirmDialog

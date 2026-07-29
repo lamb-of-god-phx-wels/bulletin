@@ -5,11 +5,19 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   platform: 'electron',
   chooseWorkspace: () => ipcRenderer.invoke('workspace:choose'),
   openWorkspace: root => ipcRenderer.invoke('workspace:open', root),
+  onWorkspaceChanged: listener => {
+    const handler = (_event: Electron.IpcRendererEvent, change: Parameters<typeof listener>[0]) => listener(change);
+    ipcRenderer.on('workspace:changed', handler);
+    return () => ipcRenderer.removeListener('workspace:changed', handler);
+  },
   saveBulletin: (...args) => ipcRenderer.invoke('bulletin:save', ...args),
   deleteBulletin: (...args) => ipcRenderer.invoke('bulletin:delete', ...args),
   saveTemplate: (...args) => ipcRenderer.invoke('template:save', ...args),
   deleteTemplate: (...args) => ipcRenderer.invoke('template:delete', ...args),
   saveLibrary: (...args) => ipcRenderer.invoke('library:save', ...args),
+  restoreArchived: (...args) => ipcRenderer.invoke('archive:restore', ...args),
+  permanentlyDeleteArchived: (...args) => ipcRenderer.invoke('archive:delete', ...args),
+  resolveWorkspaceConflict: (...args) => ipcRenderer.invoke('workspace:resolve-conflict', ...args),
   createRevision: (...args) => ipcRenderer.invoke('revision:create', ...args),
   exportPdf: (...args) => ipcRenderer.invoke('pdf:export', ...args),
   importAsset: (...args) => ipcRenderer.invoke('asset:import', ...args),

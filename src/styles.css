@@ -48,6 +48,14 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .save-status { max-width: 320px; margin-right: 8px; overflow: hidden; color: #6f766f; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .save-status.error { color: #a43f32; }
 .component-diagnostics-banner { position: absolute; z-index: 12; top: 84px; right: 0; left: 0; display: flex; gap: 9px; align-items: baseline; padding: 8px 18px; border-bottom: 1px solid #e2c694; color: #765325; background: #fff7e8; box-shadow: 0 3px 10px #5f48221c; font-size: 11px; line-height: 1.4; }.component-diagnostics-banner b { flex: none; }.component-diagnostics-banner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.component-diagnostics-banner { width: 100%; border: 0; border-radius: 0; text-align: left; cursor: pointer; }
+.sync-center { max-width: 760px; }
+.sync-center .bulletin-picker-list > article { padding: 16px; border-bottom: 1px solid #ddd6ca; }
+.sync-center .bulletin-picker-list > article > div:first-child { margin-bottom: 10px; }
+.sync-center .bulletin-picker-list > article p { margin: 6px 0; color: #59605d; }
+.sync-center .bulletin-picker-list article button { width: 100%; margin-top: 6px; }
+.sync-conflict-dialog { max-width: 640px; }
+.sync-conflict-dialog .conflict-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .error-toast { position: fixed; z-index: 50; right: 24px; bottom: 24px; display: grid; grid-template-columns: 30px minmax(240px, 390px) 24px; gap: 11px; align-items: start; padding: 15px; border: 1px solid #e2b7af; border-radius: 12px; color: #74352d; background: #fff8f6; box-shadow: 0 10px 35px #45251d2b; }
 .error-toast > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: white; background: #a8493b; font-weight: 900; }
 .error-toast b { font-size: 13px; }.error-toast p { margin: 4px 0 0; font-size: 12px; line-height: 1.45; }

@@ -24,7 +24,7 @@ The browser build uses persistent IndexedDB workspaces and real file pickers, so
 ## First use
 
 1. Choose a folder already synchronized by the SharePoint/OneDrive desktop client.
-2. The app initializes `templates/`, `bulletins/`, `assets/`, and `library.json` without requiring Microsoft credentials.
+2. The app initializes its shared records inside that folder without requiring Microsoft credentials.
 3. Add approved songs, liturgy, images, and license notices on the Library screen.
 4. Create a week from the published template, fill in the changing content, and import each reading from its public BibleGateway.com passage page or use the manual paste fallback.
 5. Check the live page preview and export. Every export records an immutable JSON revision beside the project.
@@ -37,20 +37,28 @@ BibleGateway.com import does not use a login or API credentials. It makes one bo
 
 ```text
 shared-bulletins/
-├── library.json
+├── workspace.json
+├── library.json                  # one-time legacy import source
+├── library/
+│   ├── items/<stable-id>/v<version>.json
+│   ├── church-weeks/<source-key>.json
+│   └── components/<type>/v<version>.json
 ├── assets/
-│   └── library/<stable-id>/...
+│   └── blobs/<sha256>.<extension>
 ├── templates/
 │   └── <template-id>/v<version>.json
-└── bulletins/
+├── bulletins/
     └── YYYY-MM-DD/
         ├── bulletin.json
-        ├── assets/...
         ├── revisions/...
         └── exports/...
+├── archive/
+└── tombstones/
 ```
 
-Published templates and library entries are versioned rather than overwritten. Bulletin writes are atomic and revision-checked; if a synced copy changes while it is open, the app stops autosaving and reports the conflict.
+Published templates, songs, and component definitions are versioned rather than overwritten. Mutable records use optimistic revisions, while independent library records allow different users to add content concurrently. The desktop app watches the workspace, reports SharePoint conflict copies, and distinguishes assets still waiting to synchronize from missing content. Archive markers and small permanent-deletion tombstones prevent offline clients from unexpectedly resurrecting removed records.
+
+Upgrade every desktop using a shared workspace before its first v2 migration. The retained `library.json` allows a later write from an older app to be detected and imported as a conflict instead of being silently discarded.
 
 ## JSON contract
 

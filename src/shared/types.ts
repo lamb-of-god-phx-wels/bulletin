@@ -239,6 +239,29 @@ export interface ChurchWeekName {
   sourceName: string;
   displayName: string;
 }
+export type SharedRecordKind = 'bulletin' | 'template' | 'library-item' | 'church-week' | 'component';
+export interface WorkspaceConflict {
+  id: string;
+  kind: SharedRecordKind;
+  recordId: string;
+  paths: string[];
+  message: string;
+}
+export interface ArchivedWorkspaceRecord {
+  id: string;
+  kind: SharedRecordKind;
+  label: string;
+  path: string;
+  originalPath: string;
+  archivedAt: string;
+}
+export interface WorkspaceSyncStatus {
+  schemaVersion: 2;
+  lastScannedAt: string;
+  conflicts: WorkspaceConflict[];
+  unavailableAssets: string[];
+  archivedRecords: ArchivedWorkspaceRecord[];
+}
 export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
@@ -248,7 +271,14 @@ export interface LibraryManifestV1 {
 }
 
 export interface ValidationIssue { path: string; message: string }
-export interface WorkspaceSummary { root: string; bulletins: Array<{ path: string; document: BulletinDocumentV1 }>; templates: Array<{ path: string; template: TemplateV1 }>; library?: LibraryManifestV1 }
+export interface WorkspaceSummary {
+  root: string;
+  bulletins: Array<{ path: string; document: BulletinDocumentV1 }>;
+  templates: Array<{ path: string; template: TemplateV1 }>;
+  library?: LibraryManifestV1;
+  sync?: WorkspaceSyncStatus;
+}
+export interface WorkspaceChange { root: string; paths: string[]; occurredAt: string }
 
 export interface BulletinApi {
   platform: 'electron' | 'browser';
@@ -258,9 +288,13 @@ export interface BulletinApi {
   openWorkspace(root: string): Promise<WorkspaceSummary>;
   saveBulletin(root: string, relativePath: string, document: BulletinDocumentV1, expectedRevision: number): Promise<{ revision: number; updatedAt: string }>;
   deleteBulletin(root: string, relativePath: string): Promise<void>;
-  saveTemplate(root: string, template: TemplateV1): Promise<string>;
+  saveTemplate(root: string, template: TemplateV1, expectedUpdatedAt?: string, force?: boolean): Promise<string>;
   deleteTemplate(root: string, relativePath: string): Promise<void>;
-  saveLibrary(root: string, library: LibraryManifestV1): Promise<void>;
+  saveLibrary(root: string, library: LibraryManifestV1, previous?: LibraryManifestV1, force?: boolean): Promise<void>;
+  onWorkspaceChanged?(listener: (change: WorkspaceChange) => void): () => void;
+  restoreArchived?(root: string, record: ArchivedWorkspaceRecord): Promise<void>;
+  permanentlyDeleteArchived?(root: string, record: ArchivedWorkspaceRecord): Promise<void>;
+  resolveWorkspaceConflict?(root: string, conflict: WorkspaceConflict, keepPath: string): Promise<void>;
   createRevision(root: string, relativePath: string, document: BulletinDocumentV1, label: string): Promise<string>;
   exportPdf(root: string, relativePath: string, document: BulletinDocumentV1): Promise<string | null>;
   importAsset(root: string, targetFolder: string): Promise<AssetRef | null>;

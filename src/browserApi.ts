@@ -188,7 +188,7 @@ export async function installBrowserApi() {
     saveTemplate: async (root, template) => {
       const current = await summary(root);
       const path = `templates/${template.id}/v${template.version}${template.status === 'draft' ? '-draft' : ''}.json`;
-      const saved = { ...template, updatedAt: new Date().toISOString() };
+      const saved = template;
       const existing = current.templates.find(item => item.path === path);
       const templates = existing ? current.templates.map(item => item.path === path ? { path, template: saved } : item) : [...current.templates, { path, template: saved }];
       await putRecord(workspaceStore, root, { ...current, templates });

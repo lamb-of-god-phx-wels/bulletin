@@ -5,19 +5,24 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
 import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
-import { createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, readAssetData, saveBulletin, saveLibrary, saveTemplate } from './workspace.js';
+import {
+  createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, permanentlyDeleteArchived,
+  readAssetData, resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, saveTemplate
+} from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
 import { canvasAssetRefs, canvasSpace, effectiveCanvasScene } from '../src/shared/canvas.js';
-import { copyAssetWithoutOverwrite } from './assets.js';
+import { copyAssetToBlobStore } from './assets.js';
 import { DialogPathStore } from './dialogPaths.js';
 import { lookupServiceBuilderChurchWeek } from './serviceBuilder.js';
+import { startWorkspaceWatcher } from './workspaceWatcher.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
 let printJob: { root: string; document: BulletinDocumentV1 } | undefined;
 let printReady: (() => void) | undefined;
 let dialogPaths: DialogPathStore;
+const workspaceWatchers = new Map<string, () => void>();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -47,12 +52,19 @@ function registerIpc() {
     await dialogPaths.remember('workspace', result.filePaths[0]);
     return result.filePaths[0];
   });
-  ipcMain.handle('workspace:open', (_event, root: string) => openWorkspace(root));
+  ipcMain.handle('workspace:open', async (_event, root: string) => {
+    const workspace = await openWorkspace(root);
+    await watchWorkspace(root);
+    return workspace;
+  });
   ipcMain.handle('bulletin:save', (_event, ...args: Parameters<BulletinApi['saveBulletin']>) => saveBulletin(...args));
   ipcMain.handle('bulletin:delete', (_event, ...args: Parameters<BulletinApi['deleteBulletin']>) => deleteBulletin(...args));
   ipcMain.handle('template:save', (_event, ...args: Parameters<BulletinApi['saveTemplate']>) => saveTemplate(...args));
   ipcMain.handle('template:delete', (_event, ...args: Parameters<BulletinApi['deleteTemplate']>) => deleteTemplate(...args));
   ipcMain.handle('library:save', (_event, ...args: Parameters<BulletinApi['saveLibrary']>) => saveLibrary(...args));
+  ipcMain.handle('archive:restore', (_event, root, record) => restoreArchived(root, record));
+  ipcMain.handle('archive:delete', (_event, root, record) => permanentlyDeleteArchived(root, record));
+  ipcMain.handle('workspace:resolve-conflict', (_event, root, conflictRecord, keepPath) => resolveWorkspaceConflict(root, conflictRecord, keepPath));
   ipcMain.handle('revision:create', (_event, ...args: Parameters<BulletinApi['createRevision']>) => createRevision(...args));
   ipcMain.handle('asset:read', (_event, root: string, relative: string) => readAssetData(root, relative));
   ipcMain.handle('asset:import', async (_event, root: string, targetFolder: string) => {
@@ -60,8 +72,8 @@ function registerIpc() {
     if (result.canceled) return null;
     const source = result.filePaths[0];
     await dialogPaths.remember('asset', path.dirname(source));
-    const folder = inside(root, targetFolder); await mkdir(folder, { recursive: true });
-    const destination = await copyAssetWithoutOverwrite(source, folder);
+    void targetFolder; // Kept in the public API for browser compatibility.
+    const destination = await copyAssetToBlobStore(source, root);
     const extension = path.extname(source).toLowerCase();
     const mediaType = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf' : 'image/jpeg';
     return { path: path.relative(root, destination), mediaType, alt: path.basename(source) };
@@ -76,6 +88,14 @@ function registerIpc() {
   ipcMain.handle('print:job', () => printJob);
   ipcMain.on('print:ready', () => printReady?.());
   ipcMain.handle('pdf:export', (_event, root: string, relative: string, document: BulletinDocumentV1) => exportPdf(root, relative, document));
+}
+
+async function watchWorkspace(root: string) {
+  if (workspaceWatchers.has(root)) return;
+  const close = await startWorkspaceWatcher(root, paths => {
+    mainWindow?.webContents.send('workspace:changed', { root, paths, occurredAt: new Date().toISOString() });
+  });
+  workspaceWatchers.set(root, close);
 }
 
 async function exportPdf(root: string, relative: string, document: BulletinDocumentV1) {

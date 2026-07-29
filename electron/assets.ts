@@ -1,5 +1,6 @@
 import { COPYFILE_EXCL } from 'node:constants';
-import { copyFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export function numberedAssetName(fileName: string, copyNumber: number): string {
@@ -20,4 +21,16 @@ export async function copyAssetWithoutOverwrite(source: string, folder: string):
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }
   }
+}
+
+export async function copyAssetToBlobStore(source: string, root: string): Promise<string> {
+  const bytes = await readFile(source);
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const extension = path.extname(source).toLowerCase();
+  const folder = path.join(root, 'assets', 'blobs');
+  const destination = path.join(folder, `${digest}${extension}`);
+  await mkdir(folder, { recursive: true });
+  try { await copyFile(source, destination, COPYFILE_EXCL); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+  return destination;
 }

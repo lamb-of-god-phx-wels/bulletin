@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { copyAssetWithoutOverwrite, numberedAssetName } from '../electron/assets';
+import { copyAssetToBlobStore, copyAssetWithoutOverwrite, numberedAssetName } from '../electron/assets';
 
 describe('asset imports', () => {
   it('keeps the original name for the first asset and numbers later collisions', () => {
@@ -26,6 +26,19 @@ describe('asset imports', () => {
       expect(path.basename(second)).toBe('logo-2.png');
       expect(await readFile(first, 'utf8')).toBe('church logo');
       expect(await readFile(second, 'utf8')).toBe('series logo');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('deduplicates synchronized assets by content hash', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'bulletin-assets-'));
+    try {
+      const first = path.join(root, 'first.png');
+      const second = path.join(root, 'renamed.png');
+      await writeFile(first, 'same bytes');
+      await writeFile(second, 'same bytes');
+      expect(await copyAssetToBlobStore(first, root)).toBe(await copyAssetToBlobStore(second, root));
     } finally {
       await rm(root, { recursive: true, force: true });
     }

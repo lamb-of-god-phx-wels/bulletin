@@ -2,8 +2,9 @@
 
 Production builds are distributed as a public GitHub Release from
 `lamb-of-god-phx-wels/bulletin`. Each stable `vX.Y.Z` tag builds a per-user
-Windows NSIS installer, signs it with Azure Artifact Signing, publishes the
-installer and update metadata, and includes SHA-256 checksums.
+Windows NSIS installer, publishes the installer and update metadata, and
+includes SHA-256 checksums. Installers are currently unsigned, so Windows
+identifies their publisher as unknown.
 The repository and its Releases must remain public so installed clients can
 check and download updates without GitHub credentials.
 
@@ -17,31 +18,16 @@ disabled while a bulletin, template, church-week override, or library form has
 unsaved work. Choosing **Later** leaves the current session alone; the update is
 offered again after the next launch.
 
-## One-time Azure and GitHub setup
+## One-time GitHub setup
 
-1. Create an Azure Artifact Signing account and a public-trust certificate
-   profile for the church.
-2. Create a Microsoft Entra application/service principal and grant it the
-   **Artifact Signing Certificate Profile Signer** role on that certificate
-   profile.
-3. Add a federated credential for this repository's GitHub `production`
-   environment. No long-lived client secret is needed.
-4. In the GitHub repository, create an environment named `production`. Protect
-   it with required reviewers if desired.
-5. Add these GitHub environment variables:
+Enable GitHub Actions and grant workflows read/write access under **Settings →
+Actions → General → Workflow permissions**. The release workflow uses the
+automatically provided `GITHUB_TOKEN`; it does not require Azure resources,
+GitHub environments, or custom secrets.
 
-   - `AZURE_CLIENT_ID`
-   - `AZURE_TENANT_ID`
-   - `AZURE_SUBSCRIPTION_ID`
-   - `AZURE_ARTIFACT_SIGNING_ENDPOINT`
-   - `AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME`
-   - `AZURE_ARTIFACT_SIGNING_PROFILE_NAME`
-   - `AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME`
-
-The publisher-name value must match the certificate subject shown on the
-signed installer. Update installation verifies that publisher before running
-the downloaded installer. The release job fails instead of publishing an
-unsigned installer when any signing setting is absent.
+Unsigned installers display a Windows **Unknown publisher** warning. Only
+install releases produced by this repository, and compare the installer
+against the published `SHA256SUMS.txt` when manually distributing it.
 
 ## Publish a release
 
@@ -58,8 +44,8 @@ The workflow rejects tags that do not exactly match the package version and
 rejects prerelease versions. GitHub release notes are generated from the
 commits since the previous release.
 
-Install the first signed release manually on each PC. Every later signed
-release is delivered through the in-app updater.
+Install the first release manually on each PC. Every later release is delivered
+through the in-app updater.
 
 ## Workspace compatibility
 

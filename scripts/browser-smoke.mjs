@@ -63,6 +63,25 @@ await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial w
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
 
+if (process.env.BULLETIN_CHURCH_YEAR_ONLY === '1') {
+  if (await evaluate(`Boolean(document.querySelector('.editor-pane .church-week-names'))`)) throw new Error('Church Year management remains in the weekly editor.');
+  await click('Church Year');
+  await wait(`document.querySelector('.church-year-screen .church-week-names h2')?.textContent === 'Display-name overrides'`, 'dedicated Church Year flow');
+  await click('Add override');
+  const rowCount = await evaluate(`document.querySelectorAll('.church-year-screen .church-week-name-row').length`);
+  await evaluate(`(()=>{const row=document.querySelector('.church-year-screen .church-week-name-row:last-child');const inputs=row.querySelectorAll('input');for(const [input,value] of [[inputs[0],'Browser Test Sunday'],[inputs[1],'Preferred Sunday']]){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));}return true})()`);
+  await click('Save overrides');
+  await wait(`document.querySelector('.church-year-screen .church-week-names button.primary')?.textContent === 'Saved'`, 'saved Church Year override');
+  const saved = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.churchWeekNames?.some(name=>name.sourceName==='Browser Test Sunday'&&name.displayName==='Preferred Sunday'))`);
+  if (!saved || rowCount < 1) throw new Error('Church Year override was not persisted.');
+  await click('Templates');
+  if (await evaluate(`Boolean(document.querySelector('.template-workbench .church-week-names'))`)) throw new Error('Church Year management appears in the template editor.');
+  pass('keeps Church Year override management in a separate persisted flow');
+  console.log(`\n${results.length} browser Church Year checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_SORTABLE_ONLY === '1') {
   await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));blocks.forEach(block=>block.removeAttribute('open'));const copyright=blocks.find(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));copyright?.scrollIntoView({block:'center'});return blocks.length})()`);
   const start = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));const sourceIndex=blocks.findIndex(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));if(sourceIndex<2)throw new Error('Copyright block is unavailable for sorting');const source=blocks[sourceIndex];const target=blocks[sourceIndex-2];const handle=source.querySelector('.drag-handle');const handleRect=handle.getBoundingClientRect();const targetRect=target.getBoundingClientRect();return {sourceId:source.dataset.editorBlockId,sourceIndex,start:{x:handleRect.left+handleRect.width/2,y:handleRect.top+handleRect.height/2},target:{x:handleRect.left+handleRect.width/2,y:targetRect.top+targetRect.height*.25}}})()`);

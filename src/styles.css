@@ -415,11 +415,13 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .library-path { max-width: 420px; padding: 12px; border-radius: 8px; color: #6e726d; background: white; font: 11px monospace; overflow-wrap: anywhere; }
 .library-intro > div:last-child { display: grid; justify-items: end; gap: 9px; }
 .library-form { display: grid; gap: 12px; max-width: 850px; margin-top: 22px; }
-.church-week-names { display: grid; gap: 12px; margin-bottom: 14px; }
-.church-week-names > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-.church-week-names > summary > span { display: grid; gap: 3px; }
-.church-week-names > summary > small { color: #7b7f79; }
-.church-week-names[open] > summary { margin-bottom: 12px; }
+.church-year-screen { max-width: none; }
+.church-year-screen .library-intro { margin-bottom: 22px; }
+.church-week-names { display: grid; gap: 12px; max-width: 900px; margin-bottom: 14px; }
+.church-week-names > header { display: flex; align-items: center; justify-content: space-between; }
+.church-week-names > header > span { display: grid; gap: 3px; }
+.church-week-names > header h2 { margin: 0; font: 21px Georgia, serif; }
+.church-week-names > header > small { color: #7b7f79; }
 .church-week-name-list { display: grid; gap: 8px; }
 .church-week-name-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 .church-week-name-row .danger-text { min-height: 38px; }

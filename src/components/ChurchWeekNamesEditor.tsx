@@ -31,8 +31,8 @@ export function ChurchWeekNamesEditor({ library, onSave, onDirtyChange }: { libr
     }
   };
 
-  return <details className="editor-card church-week-names">
-    <summary><span><span className="eyebrow">Church year</span><b>Manage display-name overrides</b></span><small>{names.length} saved override{names.length === 1 ? '' : 's'}</small></summary>
+  return <section className="editor-card church-week-names">
+    <header><span><span className="eyebrow">Service Builder names</span><h2>Display-name overrides</h2></span><small>{names.length} saved override{names.length === 1 ? '' : 's'}</small></header>
     <p className="helper">Service Builder names are matched exactly. The preferred display name is used in this bulletin and in bound cover text.</p>
     <div className="church-week-name-list">
       {names.map((name, index) => <div className="church-week-name-row" key={index}>
@@ -43,5 +43,5 @@ export function ChurchWeekNamesEditor({ library, onSave, onDirtyChange }: { libr
       {!names.length && <p className="helper">No overrides saved. Choosing a date will prompt when Service Builder returns a new name.</p>}
     </div>
     <div className="builder-actions"><button className="secondary" onClick={() => { setSaved(false); onDirtyChange?.(true); setNames(current => [...current, blankName()]); }}>＋ Add override</button><button className="primary" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save overrides'}</button></div>
-  </details>;
+  </section>;
 }

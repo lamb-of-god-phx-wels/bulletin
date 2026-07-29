@@ -151,6 +151,10 @@ describe('shared workspace', () => {
     let workspace = await openWorkspace(root);
     const archived = workspace.sync!.archivedRecords.find(item => item.kind === 'bulletin')!;
     expect(workspace.bulletins).toHaveLength(0);
+    expect(archived).toMatchObject({
+      path: 'archive/bulletins/2026-06-07/bulletin.json',
+      originalPath: 'bulletins/2026-06-07/bulletin.json'
+    });
     await restoreArchived(root, archived);
     expect((await openWorkspace(root)).bulletins).toHaveLength(1);
     await deleteBulletin(root, relative);

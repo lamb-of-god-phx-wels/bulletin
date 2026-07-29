@@ -55,8 +55,16 @@ interface ArchivedFile {
   value: unknown;
 }
 
+function normalizeWorkspacePath(relative: string) {
+  return relative.replaceAll('\\', '/');
+}
+
+function workspaceRelative(root: string, file: string) {
+  return normalizeWorkspacePath(path.relative(root, file));
+}
+
 function inside(root: string, relative: string) {
-  const target = path.resolve(root, relative);
+  const target = path.resolve(root, normalizeWorkspacePath(relative));
   const normalizedRoot = path.resolve(root) + path.sep;
   if (target !== path.resolve(root) && !target.startsWith(normalizedRoot)) throw new Error('Path leaves the selected workspace.');
   return target;
@@ -222,7 +230,7 @@ async function loadRecordFolder<T>(root: string, relative: string, kind: SyncRec
     const winner = copies[0].record;
     records.set(recordId, winner);
     if (copies.some(copy => !same(copy.record.value, winner.value))) {
-      conflicts.push(conflict(kind, recordId, copies.map(copy => path.relative(root, copy.file))));
+      conflicts.push(conflict(kind, recordId, copies.map(copy => workspaceRelative(root, copy.file))));
     }
   }
   return { records, conflicts };
@@ -264,7 +272,7 @@ async function rawRecords<T extends { id: string }>(root: string, relative: stri
       const value = await readJson<T>(file);
       if (!value?.id) continue;
       const recordId = key(value);
-      groups.set(recordId, [...(groups.get(recordId) ?? []), { path: path.relative(root, file), value }]);
+      groups.set(recordId, [...(groups.get(recordId) ?? []), { path: workspaceRelative(root, file), value }]);
     } catch { /* Ignore incomplete SharePoint downloads until a later scan. */ }
   }
   const values: Array<{ path: string; value: T }> = [];
@@ -286,7 +294,10 @@ async function loadTombstones(root: string) {
   for (const file of await jsonFiles(inside(root, 'tombstones'))) {
     try {
       const value = await readJson<Tombstone>(file);
-      if (value.schemaVersion === 1 && value.originalPath) result.push(value);
+      if (value.schemaVersion === 1 && value.originalPath) result.push({
+        ...value,
+        originalPath: normalizeWorkspacePath(value.originalPath)
+      });
     } catch { /* Ignore incomplete synchronized tombstones. */ }
   }
   return result;
@@ -295,16 +306,16 @@ async function loadTombstones(root: string) {
 async function archivedRawRecords(root: string): Promise<ArchivedWorkspaceRecord[]> {
   const result: ArchivedWorkspaceRecord[] = [];
   for (const file of await jsonFiles(inside(root, 'archive'))) {
-    const relative = path.relative(root, file);
-    const derivedOriginalPath = relative.slice(`archive${path.sep}`.length);
+    const relative = workspaceRelative(root, file);
+    const derivedOriginalPath = relative.slice('archive/'.length);
     try {
       const stored = await readJson<Record<string, unknown> | ArchivedFile>(file);
       const fileStat = await stat(file);
       const archived = stored.format === 'bulletin-archive-v1' ? stored as ArchivedFile : undefined;
-      const originalPath = archived?.originalPath ?? derivedOriginalPath;
+      const originalPath = normalizeWorkspacePath(archived?.originalPath ?? derivedOriginalPath);
       const value = (archived?.value ?? stored) as Record<string, unknown>;
       const syncKind = value.format === 'bulletin-shared-record-v2' ? value.kind as SharedRecordKind : undefined;
-      const kind: SharedRecordKind = syncKind ?? (originalPath.startsWith(`bulletins${path.sep}`) ? 'bulletin' : 'template');
+      const kind: SharedRecordKind = syncKind ?? (originalPath.startsWith('bulletins/') ? 'bulletin' : 'template');
       const displayValue = (value.value && typeof value.value === 'object' ? value.value : value) as Record<string, unknown>;
       const label = kind === 'bulletin'
         ? String((displayValue.info as { title?: string } | undefined)?.title ?? displayValue.id ?? path.basename(originalPath))
@@ -363,15 +374,15 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
         ...archivedRaw,
         ...[...records.items.values()].filter(record => record.archivedAt).map(record => ({
           id: `library-item:${record.recordId}`, kind: 'library-item' as const, label: record.value.title,
-          path: path.relative(root, recordPath(root, 'library-item', record.value)), originalPath: path.relative(root, recordPath(root, 'library-item', record.value)), archivedAt: record.archivedAt!
+          path: workspaceRelative(root, recordPath(root, 'library-item', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'library-item', record.value)), archivedAt: record.archivedAt!
         })),
         ...[...records.churchWeeks.values()].filter(record => record.archivedAt).map(record => ({
           id: `church-week:${record.recordId}`, kind: 'church-week' as const, label: `${record.value.sourceName} → ${record.value.displayName}`,
-          path: path.relative(root, recordPath(root, 'church-week', record.value)), originalPath: path.relative(root, recordPath(root, 'church-week', record.value)), archivedAt: record.archivedAt!
+          path: workspaceRelative(root, recordPath(root, 'church-week', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'church-week', record.value)), archivedAt: record.archivedAt!
         })),
         ...[...records.components.values()].filter(record => record.archivedAt).map(record => ({
           id: `component:${record.recordId}`, kind: 'component' as const, label: record.value.name,
-          path: path.relative(root, recordPath(root, 'component', record.value)), originalPath: path.relative(root, recordPath(root, 'component', record.value)), archivedAt: record.archivedAt!
+          path: workspaceRelative(root, recordPath(root, 'component', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'component', record.value)), archivedAt: record.archivedAt!
         }))
       ]
     }
@@ -392,6 +403,7 @@ export async function saveBulletin(root: string, relative: string, document: Bul
 }
 
 async function archiveJson(root: string, relative: string) {
+  relative = normalizeWorkspacePath(relative);
   if (!relative.endsWith('.json')) throw new Error('Only JSON workspace records can be archived.');
   const source = inside(root, relative);
   if (!await exists(source)) return;
@@ -426,7 +438,7 @@ export const deleteTemplate = (root: string, relative: string) => archiveJson(ro
 
 export async function restoreArchived(root: string, record: ArchivedWorkspaceRecord) {
   const source = inside(root, record.path);
-  if (record.path.startsWith(`archive${path.sep}`) || record.path.startsWith('archive/')) {
+  if (normalizeWorkspacePath(record.path).startsWith('archive/')) {
     const destination = inside(root, record.originalPath);
     if (await exists(destination)) throw new Error(`Conflict: ${record.originalPath} already exists. Resolve that copy before restoring.`);
     await mkdir(path.dirname(destination), { recursive: true });
@@ -478,7 +490,7 @@ async function writeLibraryDiff<T>(
     if (same(before, after)) continue;
     const stored = current.get(key);
     if (!force && !same(stored?.value, before)) throw new Error(`Conflict: shared record ${key} changed while you were editing it. Reload it or keep your version as a copy.`);
-    if (force && stored && !same(stored.value, before)) await archiveJson(root, path.relative(root, pathFor(stored.value)));
+    if (force && stored && !same(stored.value, before)) await archiveJson(root, workspaceRelative(root, pathFor(stored.value)));
     if (!after) {
       if (stored && await exists(pathFor(stored.value))) await atomicJson(pathFor(stored.value), { ...stored, revision: stored.revision + 1, baseRevision: stored.revision, updatedAt: new Date().toISOString(), archivedAt: new Date().toISOString() });
       continue;

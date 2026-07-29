@@ -3,10 +3,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
-import type { BulletinDocumentV1, BulletinApi } from '../src/shared/types.js';
+import type { AppUpdateStatus, BulletinDocumentV1, BulletinApi, EditingState } from '../src/shared/types.js';
 import { paginate } from '../src/shared/pagination.js';
 import {
-  createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, permanentlyDeleteArchived,
+  assertWorkspaceWritable, createRevision, deleteBulletin, deleteTemplate, inside, openWorkspace, permanentlyDeleteArchived,
   readAssetData, resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, saveTemplate
 } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
@@ -16,6 +16,7 @@ import { copyAssetToBlobStore } from './assets.js';
 import { DialogPathStore } from './dialogPaths.js';
 import { lookupServiceBuilderChurchWeek } from './serviceBuilder.js';
 import { startWorkspaceWatcher } from './workspaceWatcher.js';
+import { createAppUpdateService, type AppUpdateService } from './updater.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | undefined;
@@ -23,6 +24,12 @@ let printJob: { root: string; document: BulletinDocumentV1 } | undefined;
 let printReady: (() => void) | undefined;
 let dialogPaths: DialogPathStore;
 const workspaceWatchers = new Map<string, () => void>();
+let updateService: AppUpdateService | undefined;
+let editingState: EditingState = { bulletinDirty: false, templateDirty: false, auxiliaryDirty: false };
+
+const hasUnsavedChanges = () => editingState.bulletinDirty || editingState.templateDirty || editingState.auxiliaryDirty;
+const requireWritable = (root: string) => assertWorkspaceWritable(root, app.getVersion());
+const publishUpdateStatus = (status: AppUpdateStatus) => mainWindow?.webContents.send('update:status', status);
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -41,6 +48,8 @@ app.whenReady().then(() => {
   app.on('session-created', session => session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false)));
   registerIpc();
   createWindow();
+  updateService = createAppUpdateService(app.getVersion(), app.isPackaged && process.platform === 'win32', publishUpdateStatus);
+  updateService.initialize();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
@@ -53,21 +62,22 @@ function registerIpc() {
     return result.filePaths[0];
   });
   ipcMain.handle('workspace:open', async (_event, root: string) => {
-    const workspace = await openWorkspace(root);
+    const workspace = await openWorkspace(root, app.getVersion());
     await watchWorkspace(root);
     return workspace;
   });
-  ipcMain.handle('bulletin:save', (_event, ...args: Parameters<BulletinApi['saveBulletin']>) => saveBulletin(...args));
-  ipcMain.handle('bulletin:delete', (_event, ...args: Parameters<BulletinApi['deleteBulletin']>) => deleteBulletin(...args));
-  ipcMain.handle('template:save', (_event, ...args: Parameters<BulletinApi['saveTemplate']>) => saveTemplate(...args));
-  ipcMain.handle('template:delete', (_event, ...args: Parameters<BulletinApi['deleteTemplate']>) => deleteTemplate(...args));
-  ipcMain.handle('library:save', (_event, ...args: Parameters<BulletinApi['saveLibrary']>) => saveLibrary(...args));
-  ipcMain.handle('archive:restore', (_event, root, record) => restoreArchived(root, record));
-  ipcMain.handle('archive:delete', (_event, root, record) => permanentlyDeleteArchived(root, record));
-  ipcMain.handle('workspace:resolve-conflict', (_event, root, conflictRecord, keepPath) => resolveWorkspaceConflict(root, conflictRecord, keepPath));
-  ipcMain.handle('revision:create', (_event, ...args: Parameters<BulletinApi['createRevision']>) => createRevision(...args));
+  ipcMain.handle('bulletin:save', async (_event, ...args: Parameters<BulletinApi['saveBulletin']>) => { await requireWritable(args[0]); return saveBulletin(...args); });
+  ipcMain.handle('bulletin:delete', async (_event, ...args: Parameters<BulletinApi['deleteBulletin']>) => { await requireWritable(args[0]); return deleteBulletin(...args); });
+  ipcMain.handle('template:save', async (_event, ...args: Parameters<BulletinApi['saveTemplate']>) => { await requireWritable(args[0]); return saveTemplate(...args); });
+  ipcMain.handle('template:delete', async (_event, ...args: Parameters<BulletinApi['deleteTemplate']>) => { await requireWritable(args[0]); return deleteTemplate(...args); });
+  ipcMain.handle('library:save', async (_event, ...args: Parameters<BulletinApi['saveLibrary']>) => { await requireWritable(args[0]); return saveLibrary(...args); });
+  ipcMain.handle('archive:restore', async (_event, root, record) => { await requireWritable(root); return restoreArchived(root, record); });
+  ipcMain.handle('archive:delete', async (_event, root, record) => { await requireWritable(root); return permanentlyDeleteArchived(root, record); });
+  ipcMain.handle('workspace:resolve-conflict', async (_event, root, conflictRecord, keepPath) => { await requireWritable(root); return resolveWorkspaceConflict(root, conflictRecord, keepPath); });
+  ipcMain.handle('revision:create', async (_event, ...args: Parameters<BulletinApi['createRevision']>) => { await requireWritable(args[0]); return createRevision(...args); });
   ipcMain.handle('asset:read', (_event, root: string, relative: string) => readAssetData(root, relative));
   ipcMain.handle('asset:import', async (_event, root: string, targetFolder: string) => {
+    await requireWritable(root);
     const result = await dialog.showOpenDialog({ properties: ['openFile'], defaultPath: await dialogPaths.get('asset'), filters: [{ name: 'Page assets', extensions: ['png', 'jpg', 'jpeg', 'svg', 'pdf'] }] });
     if (result.canceled) return null;
     const source = result.filePaths[0];
@@ -87,7 +97,14 @@ function registerIpc() {
   ipcMain.handle('church-week:lookup', (_event, date: string) => lookupServiceBuilderChurchWeek(date));
   ipcMain.handle('print:job', () => printJob);
   ipcMain.on('print:ready', () => printReady?.());
-  ipcMain.handle('pdf:export', (_event, root: string, relative: string, document: BulletinDocumentV1) => exportPdf(root, relative, document));
+  ipcMain.handle('pdf:export', async (_event, root: string, relative: string, document: BulletinDocumentV1) => { await requireWritable(root); return exportPdf(root, relative, document); });
+  ipcMain.handle('update:status', () => updateService?.getStatus() ?? { phase: 'disabled', currentVersion: app.getVersion() });
+  ipcMain.handle('update:check', () => updateService?.check() ?? Promise.resolve({ phase: 'disabled', currentVersion: app.getVersion() }));
+  ipcMain.handle('update:install', () => {
+    if (hasUnsavedChanges()) throw new Error('Save or close unfinished bulletin, template, or library edits before installing the update.');
+    updateService?.install();
+  });
+  ipcMain.on('editing:state', (_event, state: EditingState) => { editingState = state; });
 }
 
 async function watchWorkspace(root: string) {
@@ -99,7 +116,7 @@ async function watchWorkspace(root: string) {
 }
 
 async function exportPdf(root: string, relative: string, document: BulletinDocumentV1) {
-  const workspace = await openWorkspace(root);
+  const workspace = await openWorkspace(root, app.getVersion());
   const referencedAssets = document.blocks.flatMap(block => {
     const assets = 'asset' in block && block.asset ? [block.asset] : [];
     if (block.type === 'canvasCover') assets.push(...canvasAssetRefs(effectiveCanvasScene(block)));
@@ -135,7 +152,7 @@ async function replacePdfPages(raw: Buffer, root: string, document: BulletinDocu
   const output = await PDFDocument.load(raw);
   const chromium = await PDFDocument.load(raw);
   // Replacement runs from the back so earlier page indexes remain stable.
-  const workspace = await openWorkspace(root);
+  const workspace = await openWorkspace(root, app.getVersion());
   const storedTemplate = workspace.templates.find(t => t.template.id === document.template.id && t.template.version === document.template.version)?.template ?? (await import('../src/shared/defaults.js')).defaultTemplate;
   const pages = paginate(document.blocks, templateForBulletin(storedTemplate, document), workspace.library);
   for (let index = pages.length - 1; index >= 0; index--) {

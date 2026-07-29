@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 import {
-  createRevision, deleteBulletin, deleteTemplate, openWorkspace, permanentlyDeleteArchived,
+  assertWorkspaceWritable, createRevision, deleteBulletin, deleteTemplate, openWorkspace, permanentlyDeleteArchived,
   resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, saveTemplate
 } from '../electron/workspace';
 
@@ -22,6 +22,31 @@ describe('shared workspace', () => {
     expect(saved.revision).toBe(1);
     const revision = await createRevision(root, relative, { ...document, revision: 1 }, 'Sunday export');
     expect(JSON.parse(await readFile(join(root, revision), 'utf8')).info.date).toBe('2026-06-07');
+  });
+
+  it('opens a workspace read-only when the app is older than its minimum version', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    await openWorkspace(root, '0.2.0');
+    const metadataPath = join(root, 'workspace.json');
+    const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+    await writeFile(metadataPath, JSON.stringify({
+      ...metadata,
+      minimumAppVersion: '2.0.0',
+      minimumAppMessage: 'Install the workspace migration release first.'
+    }, null, 2));
+    const before = await readFile(metadataPath, 'utf8');
+
+    const workspace = await openWorkspace(root, '1.9.9');
+
+    expect(workspace.compatibility).toEqual({
+      currentVersion: '1.9.9',
+      minimumAppVersion: '2.0.0',
+      writable: false,
+      message: 'Install the workspace migration release first.'
+    });
+    await expect(assertWorkspaceWritable(root, '1.9.9')).rejects.toThrow(/migration release/);
+    expect(await readFile(metadataPath, 'utf8')).toBe(before);
+    await expect(assertWorkspaceWritable(root, '2.0.0')).resolves.toBeUndefined();
   });
 
   it('refuses to overwrite an externally changed revision', async () => {

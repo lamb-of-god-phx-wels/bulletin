@@ -262,6 +262,27 @@ export interface WorkspaceSyncStatus {
   unavailableAssets: string[];
   archivedRecords: ArchivedWorkspaceRecord[];
 }
+export interface WorkspaceCompatibility {
+  currentVersion: string;
+  minimumAppVersion?: string;
+  writable: boolean;
+  message?: string;
+}
+export type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'up-to-date' | 'error' | 'disabled';
+export interface AppUpdateStatus {
+  phase: UpdatePhase;
+  currentVersion: string;
+  availableVersion?: string;
+  releaseNotes?: string;
+  percent?: number;
+  message?: string;
+  checkedAt?: string;
+}
+export interface EditingState {
+  bulletinDirty: boolean;
+  templateDirty: boolean;
+  auxiliaryDirty: boolean;
+}
 export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
@@ -277,6 +298,7 @@ export interface WorkspaceSummary {
   templates: Array<{ path: string; template: TemplateV1 }>;
   library?: LibraryManifestV1;
   sync?: WorkspaceSyncStatus;
+  compatibility?: WorkspaceCompatibility;
 }
 export interface WorkspaceChange { root: string; paths: string[]; occurredAt: string }
 
@@ -292,6 +314,11 @@ export interface BulletinApi {
   deleteTemplate(root: string, relativePath: string): Promise<void>;
   saveLibrary(root: string, library: LibraryManifestV1, previous?: LibraryManifestV1, force?: boolean): Promise<void>;
   onWorkspaceChanged?(listener: (change: WorkspaceChange) => void): () => void;
+  getUpdateStatus?(): Promise<AppUpdateStatus>;
+  checkForUpdates?(): Promise<AppUpdateStatus>;
+  installUpdate?(): Promise<void>;
+  reportEditingState?(state: EditingState): void;
+  onUpdateStatus?(listener: (status: AppUpdateStatus) => void): () => void;
   restoreArchived?(root: string, record: ArchivedWorkspaceRecord): Promise<void>;
   permanentlyDeleteArchived?(root: string, record: ArchivedWorkspaceRecord): Promise<void>;
   resolveWorkspaceConflict?(root: string, conflict: WorkspaceConflict, keepPath: string): Promise<void>;

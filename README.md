@@ -17,7 +17,7 @@ If UFW is enabled, allow the development port from the local subnet once:
 sudo ufw allow in on enp6s0 from 192.168.1.0/24 to any port 5173 proto tcp comment 'Bulletin dev server'
 ```
 
-`npm run build` performs the production TypeScript and Vite build. `npm test` runs the schema, migration, pagination, and shared-workspace tests. `npm run package` creates a Windows NSIS installer or Linux AppImage for the current build platform.
+`npm run build` performs the production TypeScript and Vite build. `npm test` runs the schema, migration, pagination, and shared-workspace tests. `npm run package` creates a Windows NSIS installer or Linux AppImage for the current build platform. Stable Windows releases and automatic-update setup are documented in [`docs/deployment.md`](docs/deployment.md).
 
 The browser build uses persistent IndexedDB workspaces and real file pickers, so its weekly, template, and library flows can be exercised without Electron. The packaged desktop app continues to use ordinary folders on disk.
 

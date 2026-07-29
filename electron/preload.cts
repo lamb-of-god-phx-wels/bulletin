@@ -10,6 +10,15 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
     ipcRenderer.on('workspace:changed', handler);
     return () => ipcRenderer.removeListener('workspace:changed', handler);
   },
+  getUpdateStatus: () => ipcRenderer.invoke('update:status'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  reportEditingState: state => ipcRenderer.send('editing:state', state),
+  onUpdateStatus: listener => {
+    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
+    ipcRenderer.on('update:status', handler);
+    return () => ipcRenderer.removeListener('update:status', handler);
+  },
   saveBulletin: (...args) => ipcRenderer.invoke('bulletin:save', ...args),
   deleteBulletin: (...args) => ipcRenderer.invoke('bulletin:delete', ...args),
   saveTemplate: (...args) => ipcRenderer.invoke('template:save', ...args),

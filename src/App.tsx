@@ -8,7 +8,7 @@ import { libraryFamilies, type LibraryFamily } from './shared/library';
 import { paginate } from './shared/pagination';
 import { paragraphsFromPlainText } from './shared/plainText';
 import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, templateVersions, type TemplateRecord } from './shared/templates';
-import type { ArchivedWorkspaceRecord, BulletinDocumentV1, LibraryItemV1, LibraryManifestV1, TemplateV1, ValidationIssue, WorkspaceConflict, WorkspaceSummary } from './shared/types';
+import type { AppUpdateStatus, ArchivedWorkspaceRecord, BulletinDocumentV1, EditingState, LibraryItemV1, LibraryManifestV1, TemplateV1, ValidationIssue, WorkspaceConflict, WorkspaceSummary } from './shared/types';
 import { validateBulletin } from './shared/validation';
 import { templateForBulletin } from './shared/documentLayout';
 import { prepackagedComponentDiagnostics } from './componentDefinitions';
@@ -45,6 +45,30 @@ function PreviewZoomControls({ zoom, onChange, onFit }: { zoom: number; onChange
   </div>;
 }
 
+function UpdateBanner({ status, hasUnsavedChanges, onInstall, onLater, onRetry }: {
+  status: AppUpdateStatus;
+  hasUnsavedChanges: boolean;
+  onInstall(): void;
+  onLater(): void;
+  onRetry(): void;
+}) {
+  const version = status.availableVersion ? ` ${status.availableVersion}` : '';
+  const message = status.phase === 'checking' ? 'Checking for updates…'
+    : status.phase === 'available' ? `Bulletin Builder${version} is available. Preparing the download…`
+    : status.phase === 'downloading' ? `Downloading Bulletin Builder${version}… ${Math.round(status.percent ?? 0)}%`
+    : status.phase === 'ready' ? (hasUnsavedChanges ? `Bulletin Builder${version} is ready. Finish or close unsaved edits before restarting.` : `Bulletin Builder${version} is ready to install.`)
+    : status.phase === 'up-to-date' ? `Bulletin Builder ${status.currentVersion} is up to date.`
+    : status.message ?? 'The update check failed.';
+  return <aside className={`update-banner ${status.phase}`} role={status.phase === 'error' ? 'alert' : 'status'}>
+    <div><b>{status.phase === 'ready' ? 'Update ready' : status.phase === 'error' ? 'Update unavailable' : 'App update'}</b><span>{message}</span>{status.phase === 'downloading' && <progress max="100" value={status.percent ?? 0} />}{status.phase === 'ready' && status.releaseNotes && <small>{status.releaseNotes}</small>}</div>
+    <div>
+      {status.phase === 'error' && <button className="secondary" onClick={onRetry}>Retry</button>}
+      {status.phase === 'ready' && <button className="primary" disabled={hasUnsavedChanges} onClick={onInstall}>Install and restart</button>}
+      {(status.phase === 'ready' || status.phase === 'error' || status.phase === 'up-to-date') && <button className="text-button" onClick={onLater}>{status.phase === 'ready' ? 'Later' : 'Dismiss'}</button>}
+    </div>
+  </aside>;
+}
+
 export default function App() {
   const [printMode, setPrintMode] = useState(() => new URLSearchParams(location.search).get('print') === '1');
   useEffect(() => {
@@ -79,20 +103,38 @@ function DesktopApp() {
   const [newBulletinPicker, setNewBulletinPicker] = useState(false);
   const [syncCenter, setSyncCenter] = useState(false);
   const [bulletinConflict, setBulletinConflict] = useState<BulletinConflictState>();
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus>({ phase: 'disabled', currentVersion: 'development' });
+  const [dismissedUpdate, setDismissedUpdate] = useState<string>();
+  const [editingState, setEditingState] = useState<EditingState>({ bulletinDirty: false, templateDirty: false, auxiliaryDirty: false });
   const previewZoomMode = useRef<'page' | 'width' | 'manual'>(initialPreviewZoom === undefined ? 'page' : 'manual');
   const dirty = useRef(false);
   const templateDirty = useRef(false);
+  const auxiliaryDirty = useRef(false);
   const savedRevision = useRef(0);
   const statusSequence = useRef(0);
   const editorFocusTimer = useRef<number | undefined>(undefined);
   const previewFocusTimer = useRef<number | undefined>(undefined);
   const reportStatus = (message: string) => { statusSequence.current += 1; setStatus(message); };
+  const updateEditingState = (changes: Partial<EditingState>) => {
+    const next = { bulletinDirty: dirty.current, templateDirty: templateDirty.current, auxiliaryDirty: auxiliaryDirty.current, ...changes };
+    dirty.current = next.bulletinDirty;
+    templateDirty.current = next.templateDirty;
+    auxiliaryDirty.current = next.auxiliaryDirty;
+    setEditingState(next);
+    window.bulletin?.reportEditingState?.(next);
+  };
 
   useEffect(() => {
     const root = localStorage.getItem('bulletin-workspace');
     if (window.bulletin?.platform === 'electron' && root?.startsWith('local:')) { localStorage.removeItem('bulletin-workspace'); return; }
     if (root) void loadWorkspace(root);
     else if (window.bulletin?.platform === 'browser') void window.bulletin.chooseWorkspace().then(next => { if (next) return loadWorkspace(next); });
+  }, []);
+
+  useEffect(() => {
+    if (!window.bulletin) return;
+    void window.bulletin.getUpdateStatus?.().then(setUpdateStatus);
+    return window.bulletin.onUpdateStatus?.(setUpdateStatus);
   }, []);
 
   useEffect(() => {
@@ -116,7 +158,7 @@ function DesktopApp() {
     const timer = setTimeout(() => {
       const expected = savedRevision.current;
       void window.bulletin!.saveBulletin(workspace.root, relativePath, document, expected).then(result => {
-        savedRevision.current = result.revision; dirty.current = false;
+        savedRevision.current = result.revision; updateEditingState({ bulletinDirty: false });
         const savedDocument = { ...document, revision: result.revision, updatedAt: result.updatedAt };
         setDocument(savedDocument);
         setWorkspace(current => current ? { ...current, bulletins: current.bulletins.some(item => item.path === relativePath) ? current.bulletins.map(item => item.path === relativePath ? { path: relativePath, document: savedDocument } : item) : [...current.bulletins, { path: relativePath, document: savedDocument }] } : current);
@@ -134,7 +176,7 @@ function DesktopApp() {
     if (!workspace || !window.bulletin?.onWorkspaceChanged) return;
     return window.bulletin.onWorkspaceChanged(change => {
       if (change.root !== workspace.root) return;
-      if (dirty.current || templateDirty.current) {
+      if (dirty.current || templateDirty.current || auxiliaryDirty.current) {
         reportStatus('Shared workspace changed — save or reload to review it');
         return;
       }
@@ -157,11 +199,12 @@ function DesktopApp() {
   async function loadWorkspace(root: string) {
     if (!window.bulletin) return;
     try {
-      const next = await window.bulletin.openWorkspace(root); setWorkspace(next); localStorage.setItem('bulletin-workspace', root);
+      const next = await window.bulletin.openWorkspace(root); setWorkspace(next); updateEditingState({ bulletinDirty: false, templateDirty: false, auxiliaryDirty: false }); localStorage.setItem('bulletin-workspace', root);
       const selectedTemplate = templateChoices(next.templates)[0] ?? sortedTemplateRecords(next.templates)[0];
       setTemplate(selectedTemplate?.template ?? defaultTemplate); setTemplatePath(selectedTemplate?.path ?? '');
       const latest = [...next.bulletins].sort((a, b) => b.document.info.date.localeCompare(a.document.info.date))[0];
-      if (latest) openDocument(latest.document, latest.path, next.templates); else startNew(selectedTemplate?.template ?? defaultTemplate);
+      if (latest) openDocument(latest.document, latest.path, next.templates);
+      else if (next.compatibility?.writable !== false) startNew(selectedTemplate?.template ?? defaultTemplate);
       if (next.sync?.conflicts.length) reportStatus(`${next.sync.conflicts.length} shared conflict${next.sync.conflicts.length === 1 ? '' : 's'} need attention`);
       else if (next.sync?.unavailableAssets.length) reportStatus(`${next.sync.unavailableAssets.length} asset${next.sync.unavailableAssets.length === 1 ? '' : 's'} waiting for synchronization`);
     } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
@@ -174,16 +217,16 @@ function DesktopApp() {
     try { const root = await window.bulletin.chooseWorkspace(); if (root) await loadWorkspace(root); }
     catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
   }
-  function selectTemplate(record: TemplateRecord) { setTemplate(record.template); setTemplatePath(record.path); templateDirty.current = false; }
-  function openDocument(next: BulletinDocumentV1, path: string, records = workspace?.templates ?? []) { const record = templateForReference(records, next.template); if (record) selectTemplate(record); setDocument(next); setRelativePath(path); savedRevision.current = next.revision; dirty.current = false; reportStatus('Saved'); setScreen('weekly'); }
+  function selectTemplate(record: TemplateRecord) { setTemplate(record.template); setTemplatePath(record.path); updateEditingState({ templateDirty: false }); }
+  function openDocument(next: BulletinDocumentV1, path: string, records = workspace?.templates ?? []) { const record = templateForReference(records, next.template); if (record) selectTemplate(record); setDocument(next); setRelativePath(path); savedRevision.current = next.revision; updateEditingState({ bulletinDirty: false }); reportStatus('Saved'); setScreen('weekly'); }
   function showWeekly() { if (document) { const record = templateForReference(workspace?.templates ?? [], document.template); if (record) selectTemplate(record); } setScreen('weekly'); }
-  function startNew(from = template) { const next = createBulletin(from); const base = `bulletins/${next.info.date}/bulletin.json`; const path = workspace?.bulletins.some(item => item.path === base) ? `bulletins/${next.info.date}/bulletin-${Date.now()}.json` : base; openDocument(next, path); dirty.current = true; }
+  function startNew(from = template) { const next = createBulletin(from); const base = `bulletins/${next.info.date}/bulletin.json`; const path = workspace?.bulletins.some(item => item.path === base) ? `bulletins/${next.info.date}/bulletin-${Date.now()}.json` : base; openDocument(next, path); updateEditingState({ bulletinDirty: true }); }
   function beginNewBulletin() { const choices = templateChoices(workspace?.templates ?? []); if (choices.length <= 1) { const choice = choices[0]; if (choice) selectTemplate(choice); startNew(choice?.template ?? template); return; } setNewBulletinPicker(true); }
-  function changeDocument(next: BulletinDocumentV1) { dirty.current = true; setExportIssues([]); reportStatus('Unsaved changes'); setDocument(next); }
+  function changeDocument(next: BulletinDocumentV1) { updateEditingState({ bulletinDirty: true }); setExportIssues([]); reportStatus('Unsaved changes'); setDocument(next); }
   async function deleteCurrentBulletin() {
     if (!document || !workspace || !window.bulletin) return;
     try {
-      dirty.current = false;
+      updateEditingState({ bulletinDirty: false });
       await window.bulletin.deleteBulletin(workspace.root, relativePath);
       const remaining = workspace.bulletins.filter(item => item.path !== relativePath);
       setWorkspace({ ...workspace, bulletins: remaining });
@@ -215,7 +258,7 @@ function DesktopApp() {
     if (!workspace || !window.bulletin) return;
     const expectedUpdatedAt = workspace.templates.find(item => item.path === templatePath)?.template.updatedAt;
     const next = { ...(publish ? { ...template, status: 'published' as const, version: nextTemplateVersion(workspace.templates, template.id) } : { ...template, status: 'draft' as const }), updatedAt: new Date().toISOString() };
-    try { const path = await window.bulletin.saveTemplate(workspace.root, next, publish ? undefined : expectedUpdatedAt); templateDirty.current = false; setTemplate(next); setTemplatePath(path); setWorkspace(current => current ? { ...current, templates: current.templates.some(item => item.path === path) ? current.templates.map(item => item.path === path ? { path, template: next } : item) : [...current.templates, { path, template: next }] } : current); reportStatus(`${publish ? 'Published' : 'Saved'} ${path}`); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; }
+    try { const path = await window.bulletin.saveTemplate(workspace.root, next, publish ? undefined : expectedUpdatedAt); updateEditingState({ templateDirty: false }); setTemplate(next); setTemplatePath(path); setWorkspace(current => current ? { ...current, templates: current.templates.some(item => item.path === path) ? current.templates.map(item => item.path === path ? { path, template: next } : item) : [...current.templates, { path, template: next }] } : current); reportStatus(`${publish ? 'Published' : 'Saved'} ${path}`); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; }
   }
   async function createNewTemplate(name: string) {
     if (!workspace || !window.bulletin) return;
@@ -349,19 +392,40 @@ function DesktopApp() {
   const issues = document ? validateBulletin(document, workspace.library) : [];
   const statusIsError = /blocked|conflict|required|failed|error|missing|unavailable|does not|could not|invalid|enter |choose |paste |fetch /i.test(status);
   const workspaceName = availableWorkspaces.find(item => item.root === workspace.root)?.name ?? (workspace.root.startsWith('local:') ? workspace.root.slice(6).replaceAll('-', ' ') : workspace.root);
-  return <div className="app-shell">
-    <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={showWeekly}><span>◫</span>This week</button><button onClick={() => setBulletinPicker(true)}><span>▦</span>Bulletins</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button><button className={screen === 'archive' ? 'active' : ''} onClick={() => setScreen('archive')}><span>⌫</span>Archive{workspace.sync?.archivedRecords.length ? ` (${workspace.sync.archivedRecords.length})` : ''}</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{sortedBulletins(workspace.bulletins).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom"><button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span></div></aside>
+  const workspaceWritable = workspace.compatibility?.writable !== false;
+  const updateKey = `${updateStatus.phase}:${updateStatus.availableVersion ?? updateStatus.currentVersion}`;
+  const updateVisible = ['available', 'downloading', 'ready', 'error'].includes(updateStatus.phase) && dismissedUpdate !== updateKey;
+  const checkForUpdates = async () => {
+    setDismissedUpdate(undefined);
+    try {
+      const next = await window.bulletin?.checkForUpdates?.();
+      if (next) setUpdateStatus(next);
+      if (next?.phase === 'up-to-date') reportStatus(`Bulletin Builder ${next.currentVersion} is up to date`);
+    } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
+  };
+  const installUpdate = async () => {
+    if (editingState.bulletinDirty || editingState.templateDirty || editingState.auxiliaryDirty) {
+      reportStatus('Save or close unfinished edits before installing the update.');
+      return;
+    }
+    try { await window.bulletin?.installUpdate?.(); }
+    catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); }
+  };
+  return <div className={`app-shell${workspaceWritable ? '' : ' workspace-readonly'}`}>
+    <aside className="sidebar"><div className="app-brand"><span>✠</span><div><b>Bulletin</b><small>Builder</small></div></div><nav><button className={screen === 'weekly' ? 'active' : ''} onClick={showWeekly}><span>◫</span>This week</button><button onClick={() => setBulletinPicker(true)}><span>▦</span>Bulletins</button><button className={screen === 'templates' ? 'active' : ''} onClick={() => setScreen('templates')}><span>◇</span>Templates</button><button className={screen === 'library' ? 'active' : ''} onClick={() => setScreen('library')}><span>▤</span>Library</button><button className={screen === 'archive' ? 'active' : ''} onClick={() => setScreen('archive')}><span>⌫</span>Archive{workspace.sync?.archivedRecords.length ? ` (${workspace.sync.archivedRecords.length})` : ''}</button></nav><div className="recent"><div className="eyebrow">Recent bulletins</div>{sortedBulletins(workspace.bulletins).slice(0, 6).map(item => <button key={item.path} onClick={() => openDocument(item.document, item.path)}><b>{new Date(`${item.document.info.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</b><span>{item.document.info.title}</span></button>)}</div><div className="sidebar-bottom">{window.bulletin?.platform === 'electron' && <button onClick={() => void checkForUpdates()}>↻ Check for updates</button>}<button onClick={chooseWorkspace}>⌂ Change workspace</button><span title={workspace.root}>{workspaceName}</span><small>Version {updateStatus.currentVersion}</small></div></aside>
     <main className="main-area">
-      <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : screen === 'archive' ? 'Synchronized archive' : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" onClick={confirmBulletinDelete}>Archive</button>}<button className="secondary" onClick={beginNewBulletin}>New week</button><button type="button" className="primary" disabled={!window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
-      {(workspace.sync?.conflicts.length ?? 0) > 0 && <button className="component-diagnostics-banner" role="status" onClick={() => setSyncCenter(true)}><b>{workspace.sync!.conflicts.length} synchronized conflict{workspace.sync!.conflicts.length === 1 ? '' : 's'}</b><span>{workspace.sync!.conflicts[0].message} Review copies →</span></button>}
-      {(workspace.sync?.unavailableAssets.length ?? 0) > 0 && <div className="component-diagnostics-banner" role="status"><b>Waiting for SharePoint</b><span>{workspace.sync!.unavailableAssets.length} referenced asset{workspace.sync!.unavailableAssets.length === 1 ? '' : 's'} are not available locally yet. The app will retry when synchronization changes the workspace.</span></div>}
-      {prepackagedComponentDiagnostics.length > 0 && <div className="component-diagnostics-banner" role="status"><b>{prepackagedComponentDiagnostics.length} packaged component issue{prepackagedComponentDiagnostics.length === 1 ? '' : 's'}</b><span>{prepackagedComponentDiagnostics[0].message} The application skipped the affected definition and continued.</span></div>}
-      {screen === 'weekly' && document && <div className="weekly-layout"><section className="editor-pane" onClick={handleEditorBlockClick}><WeeklyEditor document={document} template={template} library={workspace.library} root={workspace.root} relativePath={relativePath} onChange={changeDocument} onLibraryChange={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library, workspace.library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('Block library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} onError={reportStatus} /></section><section className="preview-pane" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Print preview</b><span>{pageCount} pages · 7 × 8.5 in</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /><div className={issues.length ? 'validation warning' : 'validation'}>{issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish` : '✓ Ready to export'}</div></div><DocumentView document={document} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></section></div>}
-      {screen === 'weekly' && !document && <div className="empty-state"><span>◫</span><h2>No bulletins yet</h2><p>Create a bulletin from one of your templates when you’re ready to begin.</p><button className="primary" onClick={beginNewBulletin}>Create bulletin</button></div>}
-      {screen === 'templates' && <div className="template-screen"><div className="template-workbench" onClick={handleEditorBlockClick}><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} workspaceDefinitions={workspace.library?.componentDefinitions ?? []} library={workspace.library} root={workspace.root} onChange={next => { templateDirty.current = true; setTemplate(next); }} onDefinitionsChange={async componentDefinitions => { if (!window.bulletin) return; const library = { ...(workspace.library ?? { schemaVersion: 1 as const, name: 'Shared Library', items: [] }), componentDefinitions }; try { await window.bulletin.saveLibrary(workspace.root, library, workspace.library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('JSON component library saved'); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; } }} onSave={saveTemplate} onDeleteVersion={confirmTemplateVersionDelete} onDeleteTemplate={confirmTemplateFamilyDelete} canDeleteVersion={workspace.templates.length > 1 && Boolean(templatePath)} canDeleteTemplate={templateChoices(workspace.templates).length > 1 && Boolean(templatePath)} /></div><div className="builder-preview" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Template preview</b><span>7 × 8.5 in pages</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /></div><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></div></div>}
-      {screen === 'library' && <LibraryView workspace={workspace} onError={reportStatus} onSave={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library, workspace.library); setWorkspace({ ...workspace, library }); reportStatus('Library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} />}
+      <header className="topbar"><div><div className="eyebrow">{screen === 'weekly' ? 'Weekly bulletin' : screen}</div><h1>{screen === 'weekly' ? document?.info.title ?? 'No bulletin selected' : screen === 'templates' ? template.name : screen === 'archive' ? 'Synchronized archive' : workspace.library?.name}</h1></div><div className="top-actions"><span className={`save-status ${statusIsError ? 'error' : ''}`}>{status}</span>{(screen === 'weekly' || screen === 'templates') && <><button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button><button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button></>}{screen === 'weekly' && <>{document && <button className="danger-text" disabled={!workspaceWritable} onClick={confirmBulletinDelete}>Archive</button>}<button className="secondary" disabled={!workspaceWritable} onClick={beginNewBulletin}>New week</button><button type="button" className="primary" disabled={!workspaceWritable || !window.bulletin || !document || exporting} onClick={() => void exportPdf()}>{exporting ? 'Preparing…' : window.bulletin?.platform === 'browser' ? 'Print / Save PDF' : 'Export PDF'}</button></>}</div></header>
+      {!workspaceWritable && <div className="component-diagnostics-banner" role="alert"><b>Update required — read only</b><span>{workspace.compatibility?.message}</span></div>}
+      {workspaceWritable && (workspace.sync?.conflicts.length ?? 0) > 0 && <button className="component-diagnostics-banner" role="status" onClick={() => setSyncCenter(true)}><b>{workspace.sync!.conflicts.length} synchronized conflict{workspace.sync!.conflicts.length === 1 ? '' : 's'}</b><span>{workspace.sync!.conflicts[0].message} Review copies →</span></button>}
+      {workspaceWritable && !(workspace.sync?.conflicts.length ?? 0) && (workspace.sync?.unavailableAssets.length ?? 0) > 0 && <div className="component-diagnostics-banner" role="status"><b>Waiting for SharePoint</b><span>{workspace.sync!.unavailableAssets.length} referenced asset{workspace.sync!.unavailableAssets.length === 1 ? '' : 's'} are not available locally yet. The app will retry when synchronization changes the workspace.</span></div>}
+      {workspaceWritable && !(workspace.sync?.conflicts.length ?? 0) && !(workspace.sync?.unavailableAssets.length ?? 0) && prepackagedComponentDiagnostics.length > 0 && <div className="component-diagnostics-banner" role="status"><b>{prepackagedComponentDiagnostics.length} packaged component issue{prepackagedComponentDiagnostics.length === 1 ? '' : 's'}</b><span>{prepackagedComponentDiagnostics[0].message} The application skipped the affected definition and continued.</span></div>}
+      {screen === 'weekly' && document && <div className="weekly-layout"><section className="editor-pane" onClick={handleEditorBlockClick}><WeeklyEditor document={document} template={template} library={workspace.library} root={workspace.root} relativePath={relativePath} onChange={changeDocument} onAuxiliaryDirtyChange={value => updateEditingState({ auxiliaryDirty: value })} onLibraryChange={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library, workspace.library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('Block library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} onError={reportStatus} /></section><section className="preview-pane" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Print preview</b><span>{pageCount} pages · 7 × 8.5 in</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /><div className={issues.length ? 'validation warning' : 'validation'}>{issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish` : '✓ Ready to export'}</div></div><DocumentView document={document} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></section></div>}
+      {screen === 'weekly' && !document && <div className="empty-state"><span>◫</span><h2>No bulletins yet</h2><p>Create a bulletin from one of your templates when you’re ready to begin.</p><button className="primary" disabled={!workspaceWritable} onClick={beginNewBulletin}>Create bulletin</button></div>}
+      {screen === 'templates' && <div className="template-screen"><div className="template-workbench" onClick={handleEditorBlockClick}><TemplateSwitcher records={workspace.templates} currentPath={templatePath} onSelect={path => { const record = workspace.templates.find(item => item.path === path); if (record) selectTemplate(record); }} onCreate={createNewTemplate} /><TemplateBuilder template={template} workspaceDefinitions={workspace.library?.componentDefinitions ?? []} library={workspace.library} root={workspace.root} onChange={next => { updateEditingState({ templateDirty: true }); setTemplate(next); }} onDefinitionsChange={async componentDefinitions => { if (!window.bulletin) return; const library = { ...(workspace.library ?? { schemaVersion: 1 as const, name: 'Shared Library', items: [] }), componentDefinitions }; try { await window.bulletin.saveLibrary(workspace.root, library, workspace.library); setWorkspace(current => current ? { ...current, library } : current); reportStatus('JSON component library saved'); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); throw error; } }} onSave={saveTemplate} onDeleteVersion={confirmTemplateVersionDelete} onDeleteTemplate={confirmTemplateFamilyDelete} canDeleteVersion={workspace.templates.length > 1 && Boolean(templatePath)} canDeleteTemplate={templateChoices(workspace.templates).length > 1 && Boolean(templatePath)} /></div><div className="builder-preview" onWheel={handlePreviewWheel}><div className="preview-toolbar"><div><b>Template preview</b><span>7 × 8.5 in pages</span></div><PreviewZoomControls zoom={previewZoom} onChange={changePreviewZoom} onFit={fitPreview} /></div><DocumentView document={createBulletin(template)} template={template} library={workspace.library} root={workspace.root} rulers={showRulers} guides={showGuides} zoom={previewZoom} onBlockSelect={focusEditorBlock} /></div></div>}
+      {screen === 'library' && <LibraryView workspace={workspace} onDirtyChange={value => updateEditingState({ auxiliaryDirty: value })} onError={reportStatus} onSave={async library => { if (!window.bulletin) return; try { await window.bulletin.saveLibrary(workspace.root, library, workspace.library); setWorkspace({ ...workspace, library }); reportStatus('Library saved'); } catch (error) { const message = error instanceof Error ? error.message : String(error); reportStatus(message); throw error; } }} />}
       {screen === 'archive' && <ArchiveView records={workspace.sync?.archivedRecords ?? []} onRestore={async record => { await window.bulletin?.restoreArchived?.(workspace.root, record); await loadWorkspace(workspace.root); setScreen('archive'); }} onDelete={async record => { await window.bulletin?.permanentlyDeleteArchived?.(workspace.root, record); await loadWorkspace(workspace.root); setScreen('archive'); }} />}
     </main>
+    {updateVisible && <UpdateBanner status={updateStatus} hasUnsavedChanges={editingState.bulletinDirty || editingState.templateDirty || editingState.auxiliaryDirty} onInstall={() => void installUpdate()} onLater={() => setDismissedUpdate(updateKey)} onRetry={() => void checkForUpdates()} />}
     {statusIsError && <div className="error-toast" role="alert"><span>!</span><div><b>Something needs attention</b><p>{status}</p></div><button aria-label="Dismiss error" onClick={() => reportStatus('Ready')}>×</button></div>}
     {exportIssues.length > 0 && <div className="modal-backdrop" role="presentation"><section className="export-issues-modal" role="dialog" aria-modal="true" aria-labelledby="export-issues-title"><header><div><div className="eyebrow">Export checklist</div><h2 id="export-issues-title">Review {exportIssues.length} item{exportIssues.length === 1 ? '' : 's'}</h2></div><button aria-label="Close export checklist" onClick={() => setExportIssues([])}>×</button></header><div className="export-issue-list">{exportIssues.map((issue, index) => <div key={`${issue.path}-${index}`}><span>{index + 1}</span><div><b>{issue.message}</b><small>{issue.path}</small></div></div>)}</div><footer><p>You can return to the editor to fix these items, or export the current preview as it appears now.</p><div className="export-checklist-actions"><button className="secondary" onClick={() => setExportIssues([])}>Back to editor</button><button className="primary" onClick={() => void performExport()}>Export anyway</button></div></footer></section></div>}
     {confirmation && <ConfirmDialog confirmation={confirmation} onCancel={() => setConfirmation(undefined)} onConfirm={async () => { const action = confirmation.action; setConfirmation(undefined); await action(); }} />}
@@ -369,7 +433,7 @@ function DesktopApp() {
     {bulletinPicker && <BulletinPicker bulletins={workspace.bulletins} currentPath={relativePath} onClose={() => setBulletinPicker(false)} onSelect={record => { setBulletinPicker(false); openDocument(record.document, record.path); }} />}
     {workspacePicker && <WorkspacePicker workspaces={availableWorkspaces} current={workspace.root} onClose={() => setWorkspacePicker(false)} onSelect={async root => { setWorkspacePicker(false); await loadWorkspace(root); }} onCreate={async name => { try { const root = await window.bulletin!.createWorkspace!(name); setAvailableWorkspaces(await window.bulletin!.listWorkspaces!()); setWorkspacePicker(false); await loadWorkspace(root); } catch (error) { reportStatus(error instanceof Error ? error.message : String(error)); } }} />}
     {syncCenter && <SyncCenter conflicts={workspace.sync?.conflicts ?? []} onClose={() => setSyncCenter(false)} onKeep={async (conflict, keepPath) => { await window.bulletin?.resolveWorkspaceConflict?.(workspace.root, conflict, keepPath); setSyncCenter(false); await loadWorkspace(workspace.root); }} />}
-    {bulletinConflict && <BulletinConflictDialog conflict={bulletinConflict} onDefer={() => setBulletinConflict(undefined)} onUseShared={async () => { const next = await window.bulletin!.openWorkspace(workspace.root); const shared = next.bulletins.find(item => item.path === bulletinConflict.path); setBulletinConflict(undefined); setWorkspace(next); if (shared) openDocument(shared.document, shared.path, next.templates); }} onKeepCopy={() => { const local = bulletinConflict.document; const copyPath = `bulletins/${local.info.date}/bulletin-copy-${Date.now()}.json`; setBulletinConflict(undefined); setRelativePath(copyPath); savedRevision.current = 0; dirty.current = true; setDocument({ ...local, id: crypto.randomUUID(), revision: 0, updatedAt: new Date().toISOString() }); reportStatus('Saving conflict copy…'); }} onReplaceShared={async () => { const next = await window.bulletin!.openWorkspace(workspace.root); const shared = next.bulletins.find(item => item.path === bulletinConflict.path); if (!shared) throw new Error('The shared bulletin is no longer available.'); await window.bulletin!.createRevision(workspace.root, shared.path, shared.document, 'conflict backup'); const saved = await window.bulletin!.saveBulletin(workspace.root, shared.path, bulletinConflict.document, shared.document.revision); const resolved = { ...bulletinConflict.document, revision: saved.revision, updatedAt: saved.updatedAt }; setBulletinConflict(undefined); setWorkspace({ ...next, bulletins: next.bulletins.map(item => item.path === shared.path ? { path: shared.path, document: resolved } : item) }); openDocument(resolved, shared.path, next.templates); }} />}
+    {bulletinConflict && <BulletinConflictDialog conflict={bulletinConflict} onDefer={() => setBulletinConflict(undefined)} onUseShared={async () => { const next = await window.bulletin!.openWorkspace(workspace.root); const shared = next.bulletins.find(item => item.path === bulletinConflict.path); setBulletinConflict(undefined); setWorkspace(next); if (shared) openDocument(shared.document, shared.path, next.templates); }} onKeepCopy={() => { const local = bulletinConflict.document; const copyPath = `bulletins/${local.info.date}/bulletin-copy-${Date.now()}.json`; setBulletinConflict(undefined); setRelativePath(copyPath); savedRevision.current = 0; updateEditingState({ bulletinDirty: true }); setDocument({ ...local, id: crypto.randomUUID(), revision: 0, updatedAt: new Date().toISOString() }); reportStatus('Saving conflict copy…'); }} onReplaceShared={async () => { const next = await window.bulletin!.openWorkspace(workspace.root); const shared = next.bulletins.find(item => item.path === bulletinConflict.path); if (!shared) throw new Error('The shared bulletin is no longer available.'); await window.bulletin!.createRevision(workspace.root, shared.path, shared.document, 'conflict backup'); const saved = await window.bulletin!.saveBulletin(workspace.root, shared.path, bulletinConflict.document, shared.document.revision); const resolved = { ...bulletinConflict.document, revision: saved.revision, updatedAt: saved.updatedAt }; setBulletinConflict(undefined); setWorkspace({ ...next, bulletins: next.bulletins.map(item => item.path === shared.path ? { path: shared.path, document: resolved } : item) }); openDocument(resolved, shared.path, next.templates); }} />}
   </div>;
 }
 
@@ -409,13 +473,17 @@ function WorkspacePicker({ workspaces, current, onClose, onSelect, onCreate }: {
   return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="workspace-modal" role="dialog" aria-modal="true" aria-labelledby="workspace-title"><header><div><div className="eyebrow">Local storage</div><h2 id="workspace-title">Choose workspace</h2></div><button aria-label="Close" onClick={onClose}>×</button></header><div className="workspace-list">{workspaces.map(item => <button className={item.root === current ? 'selected' : ''} key={item.root} onClick={() => onSelect(item.root)}><span className="workspace-icon">⌂</span><span><b>{item.name}</b><small>{item.root === current ? 'Current workspace' : 'Stored in this browser'}</small></span>{item.root === current && <strong>✓</strong>}</button>)}</div><div className="new-workspace"><label>New workspace name<input autoFocus value={name} placeholder="e.g. Sunday Worship" onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && name.trim()) onCreate(name.trim()); }} /></label><button className="primary" disabled={!name.trim()} onClick={() => onCreate(name.trim())}>Create workspace</button></div></section></div>;
 }
 
-function LibraryView({ workspace, onSave, onError }: { workspace: WorkspaceSummary; onSave(library: LibraryManifestV1): Promise<void>; onError(message: string): void }) {
+function LibraryView({ workspace, onSave, onError, onDirtyChange }: { workspace: WorkspaceSummary; onSave(library: LibraryManifestV1): Promise<void>; onError(message: string): void; onDirtyChange?(dirty: boolean): void }) {
   const items = workspace.library?.items ?? [];
   const [adding, setAdding] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<Confirmation>();
   const [editing, setEditing] = useState<LibraryItemV1>();
   const [draft, setDraft] = useState<LibraryDraft>(emptyLibraryDraft);
   const [selectedVersions, setSelectedVersions] = useState<Record<string, number>>({});
+  useEffect(() => {
+    onDirtyChange?.(adding || Boolean(deleteConfirmation));
+    return () => onDirtyChange?.(false);
+  }, [adding, deleteConfirmation]);
   const families = useMemo(() => libraryFamilies(items), [items]);
   const groups = useMemo(() => families.reduce<Record<string, LibraryFamily[]>>((result, family) => {
     (result[family.kind] ??= []).push(family); return result;

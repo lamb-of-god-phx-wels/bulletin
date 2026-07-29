@@ -1,6 +1,6 @@
 {
   "name": "bulletin-builder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "author": "Lamb of God Lutheran Church",
   "desktopName": "bulletin-builder",
@@ -13,7 +13,8 @@
     "build": "tsc -b && vite build && tsc -p tsconfig.electron.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "package": "npm run build && electron-builder",
+    "package": "npm run build && electron-builder --config electron-builder.config.cjs",
+    "release:win": "npm run build && electron-builder --config electron-builder.config.cjs --win --publish never",
     "migrate:example": "tsx scripts/migrate-example.ts"
   },
   "dependencies": {
@@ -22,6 +23,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
     "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -39,13 +42,5 @@
     "vite": "^7.0.5",
     "vitest": "^3.2.4",
     "wait-on": "^8.0.4"
-  },
-  "build": {
-    "appId": "org.mylambofgod.bulletinbuilder",
-    "productName": "Bulletin Builder",
-    "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
-    "directories": { "output": "release" },
-    "win": { "target": "nsis" },
-    "linux": { "target": ["AppImage"], "category": "Office", "syncDesktopName": true }
   }
 }

@@ -8,6 +8,7 @@ import type {
 import type { DeclarativeComponentDefinition } from '../src/component-engine/types.js';
 import { defaultTemplate } from '../src/shared/defaults.js';
 import { normalizeLibrary } from '../src/shared/library.js';
+import { meetsMinimumVersion } from '../src/shared/version.js';
 
 interface WorkspaceFileV2 {
   schemaVersion: 2;
@@ -16,6 +17,8 @@ interface WorkspaceFileV2 {
   createdAt: string;
   migratedAt?: string;
   legacyLibraryHash?: string;
+  minimumAppVersion?: string;
+  minimumAppMessage?: string;
 }
 
 interface SyncRecord<T> {
@@ -106,6 +109,24 @@ function makeRecord<T>(kind: SyncRecord<T>['kind'], recordId: string, value: T, 
 
 async function workspaceFile(root: string): Promise<WorkspaceFileV2> {
   return readJson<WorkspaceFileV2>(inside(root, 'workspace.json'));
+}
+
+export async function workspaceCompatibility(root: string, currentVersion: string) {
+  const metadataPath = inside(root, 'workspace.json');
+  if (!await exists(metadataPath)) return { currentVersion, writable: true };
+  const metadata = await readJson<WorkspaceFileV2>(metadataPath);
+  const writable = meetsMinimumVersion(currentVersion, metadata.minimumAppVersion);
+  return {
+    currentVersion,
+    ...(metadata.minimumAppVersion ? { minimumAppVersion: metadata.minimumAppVersion } : {}),
+    writable,
+    ...(!writable ? { message: metadata.minimumAppMessage ?? `Bulletin Builder ${metadata.minimumAppVersion} or newer is required to edit this workspace.` } : {})
+  };
+}
+
+export async function assertWorkspaceWritable(root: string, currentVersion: string) {
+  const compatibility = await workspaceCompatibility(root, currentVersion);
+  if (!compatibility.writable) throw new Error(compatibility.message);
 }
 
 export async function ensureWorkspace(root: string) {
@@ -302,8 +323,9 @@ function assetRefs(value: unknown, result: AssetRef[] = []): AssetRef[] {
   return result;
 }
 
-export async function openWorkspace(root: string): Promise<WorkspaceSummary> {
-  await ensureWorkspace(root);
+export async function openWorkspace(root: string, currentVersion = '0.0.0'): Promise<WorkspaceSummary> {
+  const compatibility = await workspaceCompatibility(root, currentVersion);
+  if (compatibility.writable) await ensureWorkspace(root);
   const [bulletinRecords, templateRecords, records, archivedRaw, tombstones] = await Promise.all([
     rawRecords<BulletinDocumentV1>(
       root, 'bulletins', 'bulletin',
@@ -331,6 +353,7 @@ export async function openWorkspace(root: string): Promise<WorkspaceSummary> {
     bulletins,
     templates,
     library,
+    compatibility,
     sync: {
       schemaVersion: 2,
       lastScannedAt: new Date().toISOString(),

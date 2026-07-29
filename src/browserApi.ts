@@ -1,7 +1,6 @@
 import legacyExample from '../example_bulletin.json';
 import { defaultTemplate } from './shared/defaults';
 import { normalizeLibrary } from './shared/library';
-import { serviceBuilderChurchWeek } from './shared/serviceBuilder';
 import { migrateLegacyBulletin } from './shared/migrate';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
 import churchLogoUrl from '../assets/church/logo.png';
@@ -222,11 +221,10 @@ export async function installBrowserApi() {
     },
     openScripture: async (reference, translation) => { window.open(`https://www.biblegateway.com/passage/?search=${encodeURIComponent(reference)}&version=${encodeURIComponent(translation)}`, '_blank', 'noopener,noreferrer'); },
     lookupChurchWeek: async date => {
-      const url = new URL('https://builder.christianworship.com/api/v1/calendar_events');
-      url.searchParams.set('startDate', date); url.searchParams.set('endDate', date);
-      const response = await fetch(url, { headers: { accept: 'application/json' } });
-      if (!response.ok) throw new Error(`Service Builder lookup failed (${response.status}).`);
-      return serviceBuilderChurchWeek(await response.json(), date);
+      const response = await fetch('/__bulletin/church-week', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? `Service Builder lookup failed (${response.status}).`);
+      return payload;
     },
     getPrintJob: async () => JSON.parse(localStorage.getItem('bulletin-print-job') ?? 'null'),
     printReady: () => undefined

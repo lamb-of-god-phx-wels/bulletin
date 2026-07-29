@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultTemplate } from '../src/shared/defaults';
-import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, templateVersions, uniqueTemplateId, type TemplateRecord } from '../src/shared/templates';
+import { createBulletin, defaultTemplate } from '../src/shared/defaults';
+import { duplicateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, templateFromBulletin, templateVersions, uniqueTemplateId, type TemplateRecord } from '../src/shared/templates';
 
 const record = (id: string, name: string, version: number, status: 'draft' | 'published'): TemplateRecord => ({
   path: `templates/${id}/v${version}${status === 'draft' ? '-draft' : ''}.json`,
@@ -29,5 +29,27 @@ describe('multiple templates', () => {
     expect(nextTemplateVersion(records, 'weekly')).toBe(3);
     expect(uniqueTemplateId('Weekly!', records)).toBe('weekly-2');
     expect(duplicateTemplate(defaultTemplate, 'Festival', records)).toMatchObject({ id: 'festival-2', name: 'Festival', version: 1, status: 'draft' });
+  });
+
+  it('promotes bulletin content and weekly canvas geometry into a reusable template', () => {
+    const bulletin = createBulletin(defaultTemplate, '2026-08-02');
+    const cover = bulletin.blocks.find(block => block.type === 'canvasCover');
+    if (!cover || cover.type !== 'canvasCover') throw new Error('Expected canvas cover.');
+    cover.weeklyScene = structuredClone(cover.scene);
+    const title = cover.weeklyScene.elements.find(element => element.type === 'text' && element.source.binding === 'info.title');
+    if (!title || title.type !== 'text') throw new Error('Expected bound title.');
+    title.x = 1.25;
+    title.source.override = [{ type: 'paragraph', children: [{ type: 'text', text: 'One week only' }] }];
+    bulletin.layout = { marginIn: .55 };
+
+    const created = templateFromBulletin(bulletin, defaultTemplate, 'Bulletin Layout', records);
+    const createdCover = created.starterBlocks.find(block => block.type === 'canvasCover');
+
+    expect(created).toMatchObject({ id: 'bulletin-layout', name: 'Bulletin Layout', version: 1, status: 'draft', theme: { marginIn: .55 } });
+    expect(createdCover).not.toHaveProperty('weeklyScene');
+    if (!createdCover || createdCover.type !== 'canvasCover') throw new Error('Expected promoted canvas cover.');
+    const createdTitle = createdCover.scene.elements.find(element => element.type === 'text' && element.source.binding === 'info.title');
+    expect(createdTitle).toMatchObject({ x: 1.25, source: { binding: 'info.title' } });
+    expect(createdTitle).not.toHaveProperty('source.override');
   });
 });

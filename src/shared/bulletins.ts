@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from './types.js';
+import type { BulletinDocumentV1, WorkspaceSummary } from './types.js';
 
 export type BulletinRecord = WorkspaceSummary['bulletins'][number];
 
@@ -25,4 +25,14 @@ export function filterBulletins(records: BulletinRecord[], query: string): Bulle
     ].filter(Boolean).join(' ').toLocaleLowerCase();
     return terms.every(term => searchable.includes(term));
   });
+}
+
+export function duplicateBulletin(source: BulletinDocumentV1, date: string): BulletinDocumentV1 {
+  return {
+    ...structuredClone(source),
+    id: `${source.id}-copy-${Date.now()}`,
+    revision: 0,
+    info: { ...source.info, date, churchWeek: '' },
+    updatedAt: new Date().toISOString()
+  };
 }

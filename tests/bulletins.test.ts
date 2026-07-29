@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterBulletins, sortedBulletins, type BulletinRecord } from '../src/shared/bulletins';
+import { duplicateBulletin, filterBulletins, sortedBulletins, type BulletinRecord } from '../src/shared/bulletins';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 
 const record = (date: string, title: string, path = `bulletins/${date}/bulletin.json`): BulletinRecord => {
@@ -25,5 +25,18 @@ describe('bulletin selection', () => {
     expect(filterBulletins(records, 'summer mercy').map(item => item.document.info.title)).toEqual(['Mercy for All']);
     expect(filterBulletins(records, '2025').map(item => item.document.info.title)).toEqual(['Christmas Eve']);
     expect(filterBulletins(records, 'missing')).toEqual([]);
+  });
+
+  it('creates a fresh bulletin record while retaining source content', () => {
+    const source = record('2026-07-12', 'Grace Alone');
+    source.document.info.churchWeek = 'Pentecost 7';
+    const copy = duplicateBulletin(source.document, '2026-07-19');
+    expect(copy).toMatchObject({
+      revision: 0,
+      info: { date: '2026-07-19', title: 'Grace Alone', churchWeek: '' },
+      template: source.document.template,
+      blocks: source.document.blocks
+    });
+    expect(copy.id).not.toBe(source.document.id);
   });
 });

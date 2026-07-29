@@ -82,6 +82,41 @@ if (process.env.BULLETIN_CHURCH_YEAR_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_CREATE_FROM_ONLY === '1') {
+  await click('New week');
+  await wait(`document.querySelector('.create-from-modal button[role="tab"][aria-selected="true"]')?.textContent.includes('Templates')`, 'bulletin template-source chooser');
+  await evaluate(`(()=>{const input=document.querySelector('.create-from-modal input[type="date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-08-09');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await click('Create a bulletin');
+  await wait(`document.querySelector('.editor-pane input[type="date"]')?.value === '2026-08-09'`, 'bulletin created from template');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved template-based bulletin');
+
+  await click('New week');
+  await evaluate(`document.querySelector('.create-from-tabs button:last-child').click()`);
+  await wait(`document.querySelector('.create-from-modal button[role="tab"][aria-selected="true"]')?.textContent.includes('Bulletins')`, 'bulletin-source chooser');
+  await evaluate(`(()=>{const input=document.querySelector('.create-from-modal input[type="date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-08-16');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await click('Create a bulletin');
+  await wait(`document.querySelector('.editor-pane input[type="date"]')?.value === '2026-08-16'`, 'bulletin created from bulletin');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved bulletin-based bulletin');
+
+  await click('Templates');
+  await click('New template');
+  await fill('New template name', 'Browser Template Source');
+  await click('Create a template');
+  await wait(`document.querySelector('.topbar h1')?.textContent === 'Browser Template Source'`, 'template created from template');
+
+  await click('New template');
+  await evaluate(`document.querySelector('.create-from-tabs button:last-child').click()`);
+  await fill('New template name', 'Browser Bulletin Source');
+  await click('Create a template');
+  await wait(`document.querySelector('.topbar h1')?.textContent === 'Browser Bulletin Source'`, 'template created from bulletin');
+  const created = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>({bulletins:workspace.bulletins.filter(item=>['2026-08-09','2026-08-16'].includes(item.document.info.date)).length,templates:workspace.templates.filter(item=>['Browser Template Source','Browser Bulletin Source'].includes(item.template.name)).map(item=>item.template.name)}))`);
+  if (created.bulletins !== 2 || created.templates.length !== 2) throw new Error(`Create-from records were not persisted: ${JSON.stringify(created)}`);
+  pass('creates bulletins and templates from either source type');
+  console.log(`\n${results.length} browser create-from checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_SORTABLE_ONLY === '1') {
   await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));blocks.forEach(block=>block.removeAttribute('open'));const copyright=blocks.find(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));copyright?.scrollIntoView({block:'center'});return blocks.length})()`);
   const start = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));const sourceIndex=blocks.findIndex(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));if(sourceIndex<2)throw new Error('Copyright block is unavailable for sorting');const source=blocks[sourceIndex];const target=blocks[sourceIndex-2];const handle=source.querySelector('.drag-handle');const handleRect=handle.getBoundingClientRect();const targetRect=target.getBoundingClientRect();return {sourceId:source.dataset.editorBlockId,sourceIndex,start:{x:handleRect.left+handleRect.width/2,y:handleRect.top+handleRect.height/2},target:{x:handleRect.left+handleRect.width/2,y:targetRect.top+targetRect.height*.25}}})()`);

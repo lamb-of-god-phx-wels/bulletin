@@ -1,4 +1,4 @@
-import type { BulletinDocumentV1, TemplateV1, WorkspaceSummary } from './types.js';
+import type { BulletinBlock, BulletinDocumentV1, TemplateV1, WorkspaceSummary } from './types.js';
 
 export type TemplateRecord = WorkspaceSummary['templates'][number];
 
@@ -50,5 +50,34 @@ export function duplicateTemplate(source: TemplateV1, name: string, records: Tem
     name,
     status: 'draft',
     updatedAt: new Date().toISOString()
+  };
+}
+
+function reusableBlock(source: BulletinBlock): BulletinBlock {
+  const block = structuredClone(source);
+  if (block.type === 'canvasCover' && block.weeklyScene) {
+    block.scene = block.weeklyScene;
+    delete block.weeklyScene;
+    delete block.weeklyUnlockedElementIds;
+    block.scene.elements = block.scene.elements.map(element => {
+      if (element.type !== 'text' || !element.source.override) return element;
+      const { override: _override, ...textSource } = element.source;
+      return { ...element, source: textSource };
+    });
+  }
+  if (block.type === 'churchInfo' || block.type === 'group') block.children = block.children?.map(reusableBlock);
+  if (block.type === 'paragraph') block.children = block.children.map(child => reusableBlock(child) as typeof child);
+  return block;
+}
+
+export function templateFromBulletin(source: BulletinDocumentV1, foundation: TemplateV1, name: string, records: TemplateRecord[]): TemplateV1 {
+  const template = duplicateTemplate(foundation, name, records);
+  return {
+    ...template,
+    theme: {
+      ...template.theme,
+      ...(source.layout?.marginIn !== undefined ? { marginIn: source.layout.marginIn } : {})
+    },
+    starterBlocks: source.blocks.map(reusableBlock)
   };
 }

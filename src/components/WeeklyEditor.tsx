@@ -26,10 +26,17 @@ export function WeeklyEditor({ document, template, library, root, relativePath, 
   const [pendingChurchWeek, setPendingChurchWeek] = useState<{ date: string; sourceName: string }>();
   const [churchWeekDisplayDraft, setChurchWeekDisplayDraft] = useState('');
   const churchWeekLookupSequence = useRef(0);
+  const automaticChurchWeekLookup = useRef('');
   const documentRef = useRef(document);
   const libraryRef = useRef(library);
   documentRef.current = document;
   libraryRef.current = library;
+  useEffect(() => {
+    const key = `${document.id}:${document.info.date}`;
+    if (!document.info.date || document.info.churchWeek || automaticChurchWeekLookup.current === key) return;
+    automaticChurchWeekLookup.current = key;
+    void updateDateFromServiceBuilder(document.info.date);
+  }, [document.id, document.info.date, document.info.churchWeek]);
   useEffect(() => {
     onAuxiliaryDirtyChange?.(Boolean(pendingChurchWeek));
     return () => onAuxiliaryDirtyChange?.(false);

@@ -117,6 +117,22 @@ if (process.env.BULLETIN_CREATE_FROM_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_PAGE_SETUP_ONLY === '1') {
+  if (await evaluate(`Boolean(document.querySelector('.editor-pane .essentials input[type="number"]'))`)) throw new Error('Page margin remains in the weekly essentials card.');
+  const weeklySetup = await evaluate(`(()=>{const setup=document.querySelector('.editor-pane .page-setup-card');return {exists:Boolean(setup),open:setup?.open,label:setup?.querySelector('summary h3')?.textContent,margin:setup?.querySelector('input[type="number"]')?.value}})()`);
+  if (!weeklySetup.exists || weeklySetup.open || weeklySetup.label !== 'Page setup') throw new Error(`Weekly page setup is not a collapsed separate area: ${JSON.stringify(weeklySetup)}`);
+  await evaluate(`document.querySelector('.editor-pane .page-setup-card summary').click()`);
+  await wait(`document.querySelector('.editor-pane .page-setup-card')?.open`, 'opened weekly page setup');
+  await click('Templates');
+  if (await evaluate(`Boolean(Array.from(document.querySelectorAll('.template-workbench .editor-card')).find(card=>card.querySelector(':scope > h2')?.textContent==='Theme')?.querySelector('input[type="number"][max="1.25"]'))`)) throw new Error('Page margin remains in the template Theme card.');
+  const templateSetup = await evaluate(`(()=>{const setup=document.querySelector('.template-workbench .page-setup-card');return {exists:Boolean(setup),open:setup?.open,label:setup?.querySelector('summary h3')?.textContent,margin:setup?.querySelector('input[type="number"]')?.value}})()`);
+  if (!templateSetup.exists || templateSetup.open || templateSetup.label !== 'Page setup') throw new Error(`Template page setup is not a collapsed separate area: ${JSON.stringify(templateSetup)}`);
+  pass('keeps weekly and template margins in separate Page setup areas');
+  console.log(`\n${results.length} browser Page setup checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_SORTABLE_ONLY === '1') {
   await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));blocks.forEach(block=>block.removeAttribute('open'));const copyright=blocks.find(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));copyright?.scrollIntoView({block:'center'});return blocks.length})()`);
   const start = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));const sourceIndex=blocks.findIndex(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));if(sourceIndex<2)throw new Error('Copyright block is unavailable for sorting');const source=blocks[sourceIndex];const target=blocks[sourceIndex-2];const handle=source.querySelector('.drag-handle');const handleRect=handle.getBoundingClientRect();const targetRect=target.getBoundingClientRect();return {sourceId:source.dataset.editorBlockId,sourceIndex,start:{x:handleRect.left+handleRect.width/2,y:handleRect.top+handleRect.height/2},target:{x:handleRect.left+handleRect.width/2,y:targetRect.top+targetRect.height*.25}}})()`);

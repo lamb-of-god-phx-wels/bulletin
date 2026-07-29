@@ -105,7 +105,7 @@ button.component-diagnostics-banner { width: 100%; border: 0; border-radius: 0; 
 .editor-card h2, .editor-card h3 { margin: 0; }
 .essentials { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .essentials .eyebrow { grid-column: 1 / -1; }
-.page-margin-control { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; padding-top: 3px; }.page-margin-control .text-button { min-height: 38px; }
+.page-margin-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; padding-top: 3px; }.page-margin-control .text-button { min-height: 38px; }
 label { display: grid; gap: 6px; color: #5d625e; font-size: 12px; font-weight: 700; }
 input, textarea, select { width: 100%; border: 1px solid #d5d2c9; border-radius: 7px; outline: none; color: #29332f; background: #fcfcfa; }
 input, select { height: 38px; padding: 0 10px; }
@@ -126,6 +126,9 @@ input:focus, textarea:focus, select:focus { border-color: #a55b3d; box-shadow: 0
 .collapsible-editor > summary:hover { background: #faf8f3; }
 .collapsible-editor[open] > summary { border-bottom: 1px solid #e7e3da; }
 .collapsible-editor-fields { padding: 16px 18px 18px; }
+.page-setup-card { margin-bottom: 18px; }
+.page-setup-card > summary > small { color: #777c76; font-size: 11px; }
+.page-setup-card .helper { margin-top: 0; }
 .collapsible-editor-fields > label, .collapsible-editor-fields > details { margin-bottom: 11px; }
 .collapsible-editor textarea { border: 1px solid #d5d2c9; border-radius: 7px; }
 .nested-block-editor.collapsible-editor { padding: 0; }

@@ -2,8 +2,6 @@
 
 * Undo/redo stack needs some work
 
-* Calendar view for church week names
-  * Make sure to account for days that don't align to specific dates, but rather have a rule.
 * Move page set-up to preview area or somewhere out of the way but intuitive
 * Communion sunday toggle
   * Generalize for custom bindable values

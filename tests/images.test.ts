@@ -12,11 +12,11 @@ const library: LibraryManifestV1 = {
     { id: 'pdf-art', version: 1, kind: 'image', title: 'PDF art', assets: [{ path: 'assets/art.pdf', mediaType: 'application/pdf' }] },
     { id: 'song-art', version: 1, kind: 'song', title: 'Song', assets: [image] }
   ],
-  imageFolders: [
+  folders: [
     { id: 'seasonal', name: 'Seasonal' },
     { id: 'advent', name: 'Advent', parentId: 'seasonal' }
   ],
-  imageCatalog: [{ imageId: 'banner', folderId: 'advent', displayName: 'Advent banner' }]
+  catalog: [{ targetKind: 'library-item', targetId: 'banner', folderId: 'advent', displayName: 'Advent banner' }]
 };
 
 describe('library images', () => {
@@ -60,6 +60,6 @@ describe('library images', () => {
   it('moves and renames catalog entries without changing image versions', () => {
     const next = setImageCatalogEntry(library, { imageId: 'banner', folderId: 'seasonal', displayName: 'Moved banner' });
     expect(next.items).toBe(library.items);
-    expect(next.imageCatalog).toContainEqual({ imageId: 'banner', folderId: 'seasonal', displayName: 'Moved banner' });
+    expect(next.catalog).toContainEqual({ targetKind: 'library-item', targetId: 'banner', folderId: 'seasonal', displayName: 'Moved banner' });
   });
 });

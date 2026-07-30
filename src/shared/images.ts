@@ -1,5 +1,5 @@
 import { libraryFamilies } from './library.js';
-import type { AssetRef, LibraryImageCatalogEntry, LibraryImageFolder, LibraryItemV1, LibraryManifestV1 } from './types.js';
+import type { AssetRef, LibraryCatalogEntry, LibraryFolder, LibraryItemV1, LibraryManifestV1 } from './types.js';
 
 export interface LibraryImageChoice {
   id: string;
@@ -10,6 +10,9 @@ export interface LibraryImageChoice {
 }
 
 export const isImageAsset = (asset: AssetRef) => asset.mediaType !== 'application/pdf';
+const folders = (library?: LibraryManifestV1) => library?.folders ?? library?.imageFolders ?? [];
+const imageCatalog = (library?: LibraryManifestV1) => library?.catalog
+  ?? (library?.imageCatalog ?? []).map(entry => ({ targetKind: 'library-item' as const, targetId: entry.imageId, folderId: entry.folderId, displayName: entry.displayName }));
 
 export function libraryImageChoices(library?: LibraryManifestV1): LibraryImageChoice[] {
   return libraryFamilies(library?.items ?? [])
@@ -17,7 +20,7 @@ export function libraryImageChoices(library?: LibraryManifestV1): LibraryImageCh
     .flatMap(family => {
       const item = family.versions[0];
       const asset = item.assets?.find(isImageAsset);
-      const catalog = library?.imageCatalog?.find(entry => entry.imageId === item.id);
+      const catalog = imageCatalog(library).find(entry => entry.targetKind === 'library-item' && entry.targetId === item.id);
       return asset ? [{ id: item.id, version: item.version, title: catalog?.displayName?.trim() || item.title, asset, folderId: catalog?.folderId }] : [];
     });
 }
@@ -43,18 +46,18 @@ export function imageLibraryId(title: string) {
 }
 
 export function imageFolderChildren(library: LibraryManifestV1 | undefined, parentId?: string) {
-  return (library?.imageFolders ?? []).filter(folder => folder.parentId === parentId).sort((left, right) => left.name.localeCompare(right.name));
+  return folders(library).filter(folder => folder.parentId === parentId).sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export function imageFolderAncestors(library: LibraryManifestV1 | undefined, folderId?: string) {
-  const folders = new Map((library?.imageFolders ?? []).map(folder => [folder.id, folder]));
-  const result: LibraryImageFolder[] = [];
+  const folderMap = new Map(folders(library).map(folder => [folder.id, folder]));
+  const result: LibraryFolder[] = [];
   const visited = new Set<string>();
-  let current = folderId ? folders.get(folderId) : undefined;
+  let current = folderId ? folderMap.get(folderId) : undefined;
   while (current && !visited.has(current.id)) {
     result.unshift(current);
     visited.add(current.id);
-    current = current.parentId ? folders.get(current.parentId) : undefined;
+    current = current.parentId ? folderMap.get(current.parentId) : undefined;
   }
   return result;
 }
@@ -74,14 +77,20 @@ export function imageFolderDescendantIds(library: LibraryManifestV1 | undefined,
 
 export function imageFolderNameAvailable(library: LibraryManifestV1 | undefined, name: string, parentId?: string, excludingId?: string) {
   const normalized = name.trim().toLocaleLowerCase();
-  return Boolean(normalized) && !(library?.imageFolders ?? []).some(folder =>
+  return Boolean(normalized) && !folders(library).some(folder =>
     folder.id !== excludingId && folder.parentId === parentId && folder.name.trim().toLocaleLowerCase() === normalized
   );
 }
 
-export function setImageCatalogEntry(library: LibraryManifestV1, entry: LibraryImageCatalogEntry) {
+export function setImageCatalogEntry(library: LibraryManifestV1, entry: { imageId: string; folderId?: string; displayName?: string }) {
+  const catalogEntry: LibraryCatalogEntry = {
+    targetKind: 'library-item',
+    targetId: entry.imageId,
+    ...(entry.folderId ? { folderId: entry.folderId } : {}),
+    ...(entry.displayName ? { displayName: entry.displayName } : {})
+  };
   return {
     ...library,
-    imageCatalog: [...(library.imageCatalog ?? []).filter(item => item.imageId !== entry.imageId), entry]
+    catalog: [...imageCatalog(library).filter(item => item.targetKind !== 'library-item' || item.targetId !== entry.imageId), catalogEntry]
   };
 }

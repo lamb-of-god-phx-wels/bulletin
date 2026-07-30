@@ -8,6 +8,7 @@ import { SortableHandle, SortableItem, SortableList } from "./SortableList";
 import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
+import { LibraryTextFields } from "./LibraryTextFields";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
 import { instantiateComponentDefinition } from "../componentDefinitions";
@@ -1014,78 +1015,16 @@ export function WeeklyEditor({
                   library={library}
                   template={template}
                   scope="weekly"
+                  root={root}
                   onChange={next => updateBlock(block.id, next)}
                 />}
                 {block.type === "libraryText" &&
                   (() => {
-                    const family = liturgyFamilies.find(
-                      (item) => item.id === block.libraryItemId,
-                    );
-                    const selected =
-                      family?.versions.find(
-                        (item) => item.version === block.libraryItemVersion,
-                      ) ?? family?.versions[0];
+                    const family = liturgyFamilies.find(item => item.id === block.libraryItemId);
+                    const selected = family?.versions.find(item => item.version === block.libraryItemVersion) ?? family?.versions[0];
                     return (
                       <>
-                        <div className="field-row">
-                          <label>
-                            Library text
-                            <select
-                              value={block.libraryItemId}
-                              onChange={(e) => {
-                                const nextFamily = liturgyFamilies.find(
-                                  (item) => item.id === e.target.value,
-                                );
-                                updateBlock(block.id, {
-                                  ...block,
-                                  libraryItemId: e.target.value,
-                                  libraryItemVersion:
-                                    nextFamily?.versions[0]?.version,
-                                  contentOverride: undefined,
-                                });
-                              }}
-                            >
-                              <option value="">Choose reusable text…</option>
-                              {missingLibraryReference(block) && (
-                                <option value={block.libraryItemId}>
-                                  Missing: {block.title ?? block.libraryItemId}
-                                </option>
-                              )}
-                              {liturgyFamilies.map((item) => (
-                                <option value={item.id} key={item.id}>
-                                  {item.versions[0].title}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label>
-                            Version
-                            <select
-                              aria-label={`Version for ${block.id}`}
-                              disabled={!family}
-                              value={selected?.version ?? ""}
-                              onChange={(event) =>
-                                updateBlock(block.id, {
-                                  ...block,
-                                  libraryItemVersion: Number(
-                                    event.target.value,
-                                  ),
-                                  contentOverride: undefined,
-                                })
-                              }
-                            >
-                              <option value="">Choose text first</option>
-                              {family?.versions.map((item) => (
-                                <option value={item.version} key={item.version}>
-                                  v{item.version}
-                                  {item.title !== family.versions[0].title
-                                    ? ` · ${item.title}`
-                                    : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
+                        <LibraryTextFields block={block} library={library} root={root} onChange={next => updateBlock(block.id, next)} />
                         <details>
                           <summary>
                             Edit reusable text for this bulletin
@@ -1449,6 +1388,8 @@ export function WeeklyEditor({
       {pageInsertionIndex !== undefined && !creatingPage && (
         <PageElementDialog
           pages={pageTemplates}
+          library={library}
+          root={root}
           onClose={() => setPageInsertionIndex(undefined)}
           onSelect={(page) => {
             onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(page), pageInsertionIndex) });

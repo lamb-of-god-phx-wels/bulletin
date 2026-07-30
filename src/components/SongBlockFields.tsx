@@ -8,6 +8,8 @@ import {
 } from '../shared/songs.js';
 import type { BulletinBlock, LibraryManifestV1, Paragraph, SongBlock, TemplateV1 } from '../shared/types.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
+import { LibraryBrowserDialog } from './LibraryBrowserDialog.js';
+import { libraryCatalogRecords } from '../shared/libraryCatalog.js';
 
 type SongPart = 'header' | 'title' | 'body';
 const songPartNames: Record<SongPart, string> = {
@@ -21,14 +23,16 @@ const plainText = (content: Paragraph[] | undefined) =>
     child.type === 'text' ? child.text : child.type === 'lineBreak' ? '\n' : '✠'
   ).join('')).join('\n\n') ?? '';
 
-export function SongBlockFields({ block, library, template, scope, onChange }: {
+export function SongBlockFields({ block, library, template, scope, root, onChange }: {
   block: SongBlock;
   library?: LibraryManifestV1;
   template: TemplateV1;
   scope: 'template' | 'weekly';
+  root?: string;
   onChange(block: SongBlock): void;
 }) {
   const [formatPart, setFormatPart] = useState<SongPart>();
+  const [choosing, setChoosing] = useState(false);
   const families = songFamilies(library);
   const selected = songLibraryItem(block, library);
   const presentations = songPresentations(block, selected);
@@ -59,15 +63,8 @@ export function SongBlockFields({ block, library, template, scope, onChange }: {
   };
 
   return <><div className="song-block-fields">
-    <label>
-      Library song
-      <select value={block.libraryItemId} onChange={event => onChange(selectSong(block, event.target.value, library))}>
-        <option value="">Choose a song…</option>
-        {families.map(family => <option value={family.id} key={family.id}>{family.versions[0].title}</option>)}
-        {block.libraryItemId && !families.some(family => family.id === block.libraryItemId) &&
-          <option value={block.libraryItemId}>Missing: {block.title || block.libraryItemId}</option>}
-      </select>
-    </label>
+    <label>Library song<input readOnly value={selected?.title ?? (block.libraryItemId ? `Missing: ${block.title || block.libraryItemId}` : '')} placeholder="Choose a song…" /></label>
+    <button className="secondary" disabled={!root} onClick={() => setChoosing(true)}>{selected ? 'Choose another song…' : 'Choose from library…'}</button>
     {missingPinnedVersion && <p className="lookup-status">
       This song’s pinned library version is unavailable.{' '}
       <button className="text-button" onClick={() => onChange(selectSong(block, block.libraryItemId, library))}>Use latest version</button>
@@ -143,6 +140,16 @@ export function SongBlockFields({ block, library, template, scope, onChange }: {
       >Format {part === 'title' ? 'display title' : part}</button>)}
     </div>
   </div>
+  {choosing && root && <LibraryBrowserDialog
+    library={library ?? { schemaVersion: 1, name: 'Library', items: [] }}
+    root={root}
+    records={libraryCatalogRecords(library)}
+    title="Choose a song"
+    allowedTypes={['song']}
+    onLibraryChange={async () => undefined}
+    onClose={() => setChoosing(false)}
+    onSelect={record => { onChange(selectSong(block, record.targetId, library)); setChoosing(false); }}
+  />}
   {formatPart && partBlock && <BlockFormattingModal
     block={partBlock}
     template={template}

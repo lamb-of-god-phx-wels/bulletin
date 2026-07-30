@@ -220,12 +220,32 @@ export async function installBrowserApi() {
       const library = normalizeLibrary({
         ...previous,
         items: previous.items.filter(item => !imageSet.has(item.id)),
-        imageFolders: (previous.imageFolders ?? []).filter(folder => !folderSet.has(folder.id)),
-        imageCatalog: (previous.imageCatalog ?? []).filter(entry => !imageSet.has(entry.imageId))
+        folders: (previous.folders ?? []).filter(folder => !folderSet.has(folder.id)),
+        catalog: (previous.catalog ?? []).filter(entry => entry.targetKind !== 'library-item' || !imageSet.has(entry.targetId))
       });
       const current = await summary(root);
       await putRecord(workspaceStore, root, { ...current, library });
       return library;
+    },
+    trashLibraryRecords: async (root, selection, previous) => {
+      const current = await summary(root);
+      const folderIds = new Set(selection.folderIds);
+      const keys = new Set(selection.records.map(record => `${record.targetKind}:${record.targetId}`));
+      const library = normalizeLibrary({
+        ...previous,
+        items: previous.items.filter(item => !keys.has(`library-item:${item.id}`)),
+        componentDefinitions: (previous.componentDefinitions ?? []).filter(item => !keys.has(`component:${item.type}`)),
+        calendarEvents: (previous.calendarEvents ?? []).filter(item => !keys.has(`calendar-event:${item.id}`)),
+        folders: (previous.folders ?? []).filter(folder => !folderIds.has(folder.id)),
+        catalog: (previous.catalog ?? []).filter(entry => !keys.has(`${entry.targetKind}:${entry.targetId}`))
+      });
+      const pageTemplateIds = selection.records.filter(record => record.targetKind === 'page-template').map(record => record.targetId);
+      await putRecord(workspaceStore, root, {
+        ...current,
+        library,
+        pageTemplates: current.pageTemplates.filter(record => !pageTemplateIds.includes(record.pageTemplate.id))
+      });
+      return { library, pageTemplateIds };
     },
     createRevision: async (root, bulletinPath, document, label) => {
       const key = `${root}:revision:${bulletinPath}:${Date.now()}:${label}`; await putRecord(workspaceStore, key, document); return key;

@@ -289,11 +289,25 @@ export interface LibraryItemV1 {
   assets?: Array<AssetRef & { variant?: string }>;
   license?: { notice: string; licenseNumber?: string };
 }
-export interface LibraryImageFolder {
+export interface LibraryFolder {
   id: string;
   name: string;
   parentId?: string;
 }
+export type LibraryCatalogTargetKind = 'library-item' | 'component' | 'page-template' | 'calendar-event';
+export interface LibraryCatalogEntry {
+  targetKind: LibraryCatalogTargetKind;
+  targetId: string;
+  folderId?: string;
+  displayName?: string;
+}
+export interface LibraryTrashSelection {
+  folderIds: string[];
+  records: Array<Pick<LibraryCatalogEntry, 'targetKind' | 'targetId'>>;
+}
+/** Legacy image-only organization metadata, normalized on load. */
+export type LibraryImageFolder = LibraryFolder;
+/** Legacy image-only organization metadata, normalized on load. */
 export interface LibraryImageCatalogEntry {
   imageId: string;
   folderId?: string;
@@ -324,7 +338,7 @@ export interface ChurchCalendarEvent {
   needsRule?: boolean;
   nameMode?: 'sundayAfterPentecost';
 }
-export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'image-folder' | 'image-catalog' | 'church-week' | 'calendar-event' | 'component';
+export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'library-folder' | 'library-catalog' | 'image-folder' | 'image-catalog' | 'church-week' | 'calendar-event' | 'component';
 export interface WorkspaceConflict {
   id: string;
   kind: SharedRecordKind;
@@ -372,6 +386,8 @@ export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
   items: LibraryItemV1[];
+  folders?: LibraryFolder[];
+  catalog?: LibraryCatalogEntry[];
   imageFolders?: LibraryImageFolder[];
   imageCatalog?: LibraryImageCatalogEntry[];
   churchWeekNames?: ChurchWeekName[];
@@ -405,6 +421,7 @@ export interface BulletinApi {
   deletePageTemplate(root: string, relativePath: string): Promise<void>;
   saveLibrary(root: string, library: LibraryManifestV1, previous?: LibraryManifestV1, force?: boolean): Promise<void>;
   trashLibraryImages?(root: string, folderIds: string[], imageIds: string[], previous: LibraryManifestV1): Promise<LibraryManifestV1>;
+  trashLibraryRecords?(root: string, selection: LibraryTrashSelection, previous: LibraryManifestV1): Promise<{ library: LibraryManifestV1; pageTemplateIds: string[] }>;
   onWorkspaceChanged?(listener: (change: WorkspaceChange) => void): () => void;
   getUpdateStatus?(): Promise<AppUpdateStatus>;
   checkForUpdates?(): Promise<AppUpdateStatus>;

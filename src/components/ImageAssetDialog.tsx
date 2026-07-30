@@ -53,7 +53,8 @@ export function ImageAssetDialog({
   onSelect,
   onClose,
   onError,
-  manageOnly = false
+  manageOnly = false,
+  initialFolderId
 }: {
   library?: LibraryManifestV1;
   root: string;
@@ -63,6 +64,7 @@ export function ImageAssetDialog({
   onClose(): void;
   onError?(message: string): void;
   manageOnly?: boolean;
+  initialFolderId?: string;
 }) {
   const choices = useMemo(() => libraryImageChoices(library), [library]);
   const validRemembered = () => {
@@ -71,9 +73,11 @@ export function ImageAssetDialog({
     let remembered: string[];
     try { remembered = JSON.parse(stored) as string[]; }
     catch { remembered = [stored]; }
-    return [...remembered].reverse().find(id => library?.imageFolders?.some(folder => folder.id === id));
+    return [...remembered].reverse().find(id => library?.folders?.some(folder => folder.id === id));
   };
-  const [folderId, setFolderId] = useState<string | undefined>(validRemembered);
+  const [folderId, setFolderId] = useState<string | undefined>(() =>
+    initialFolderId && library?.folders?.some(folder => folder.id === initialFolderId) ? initialFolderId : validRemembered()
+  );
   const [view, setView] = useState<'thumbnails' | 'list'>(() => localStorage.getItem(viewKey(root)) === 'list' ? 'list' : 'thumbnails');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [uploaded, setUploaded] = useState<AssetRef>();
@@ -87,7 +91,7 @@ export function ImageAssetDialog({
   const [anchor, setAnchor] = useState<string>();
   const [cut, setCut] = useState<Set<string>>(new Set());
   const base = library ?? { schemaVersion: 1 as const, name: 'Church Library', items: [] };
-  const folders = library?.imageFolders ?? [];
+  const folders = library?.folders ?? [];
   const currentFolders = imageFolderChildren(library, folderId);
   const currentImages = choices.filter(choice => choice.folderId === folderId && choice.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const visibleIds = [...currentFolders.map(folder => `folder:${folder.id}`), ...currentImages.map(image => `image:${image.id}`)];
@@ -121,7 +125,7 @@ export function ImageAssetDialog({
     if (!name?.trim()) return undefined;
     if (!imageFolderNameAvailable(library, name, parentId)) { onError?.('Folder names must be unique within the same folder.'); return undefined; }
     const folder = { id: `image-folder-${randomId()}`, name: name.trim(), ...(parentId ? { parentId } : {}) };
-    await saveLibrary({ ...base, imageFolders: [...folders, folder] });
+    await saveLibrary({ ...base, folders: [...folders, folder] });
     return folder.id;
   };
   const upload = async (directToLibrary = false) => {
@@ -138,7 +142,7 @@ export function ImageAssetDialog({
     if (!uploaded || !onLibraryChange || !title.trim() || !id.trim()) return;
     try {
       const item = nextImageLibraryItem(base, { id, title, asset: uploaded, notice });
-      const existingCatalog = base.imageCatalog?.find(entry => entry.imageId === item.id);
+      const existingCatalog = base.catalog?.find(entry => entry.targetKind === 'library-item' && entry.targetId === item.id);
       const withItem = { ...base, items: [...base.items, item] };
       const next = setImageCatalogEntry(withItem, {
         imageId: item.id,
@@ -159,13 +163,13 @@ export function ImageAssetDialog({
       const name = window.prompt('Folder name', folder.name);
       if (!name?.trim() || name.trim() === folder.name) return;
       if (!imageFolderNameAvailable(library, name, folder.parentId, folder.id)) { onError?.('Folder names must be unique within the same folder.'); return; }
-      await saveLibrary({ ...base, imageFolders: folders.map(item => item.id === folder.id ? { ...item, name: name.trim() } : item) });
+      await saveLibrary({ ...base, folders: folders.map(item => item.id === folder.id ? { ...item, name: name.trim() } : item) });
     } else {
       const imageId = key.slice(6);
       const image = choices.find(item => item.id === imageId); if (!image) return;
       const name = window.prompt('Image display name', image.title);
       if (!name?.trim() || name.trim() === image.title) return;
-      const current = base.imageCatalog?.find(entry => entry.imageId === imageId);
+      const current = base.catalog?.find(entry => entry.targetKind === 'library-item' && entry.targetId === imageId);
       await saveLibrary(setImageCatalogEntry(base, { imageId, folderId: current?.folderId, displayName: name.trim() }));
     }
   };
@@ -176,9 +180,9 @@ export function ImageAssetDialog({
       onError?.('A folder cannot be moved inside itself or one of its subfolders.'); return;
     }
     const nextFolders = folders.map(folder => selectedFolders.includes(folder.id) ? { ...folder, parentId: destination } : folder);
-    let next: LibraryManifestV1 = { ...base, imageFolders: nextFolders };
+    let next: LibraryManifestV1 = { ...base, folders: nextFolders };
     for (const imageId of selectedImages) {
-      const current = next.imageCatalog?.find(entry => entry.imageId === imageId);
+      const current = next.catalog?.find(entry => entry.targetKind === 'library-item' && entry.targetId === imageId);
       const image = choices.find(item => item.id === imageId);
       next = setImageCatalogEntry(next, { imageId, folderId: destination, displayName: current?.displayName ?? image?.title });
     }
@@ -202,8 +206,8 @@ export function ImageAssetDialog({
     const next: LibraryManifestV1 = {
       ...base,
       items: base.items.filter(item => !selectedImageIds.has(item.id)),
-      imageFolders: folders.filter(folder => !allFolderIds.has(folder.id)),
-      imageCatalog: (base.imageCatalog ?? []).filter(entry => !selectedImageIds.has(entry.imageId))
+      folders: folders.filter(folder => !allFolderIds.has(folder.id)),
+      catalog: (base.catalog ?? []).filter(entry => entry.targetKind !== 'library-item' || !selectedImageIds.has(entry.targetId))
     };
     if (window.bulletin?.trashLibraryImages) {
       try {
@@ -233,9 +237,9 @@ export function ImageAssetDialog({
         }
         const selectedImages = [...cut].filter(key => key.startsWith('image:')).map(key => key.slice(6));
         const nextFolders = folders.map(folder => selectedFolders.includes(folder.id) ? { ...folder, parentId: folderId } : folder);
-        let next: LibraryManifestV1 = { ...base, imageFolders: nextFolders };
+        let next: LibraryManifestV1 = { ...base, folders: nextFolders };
         for (const imageId of selectedImages) {
-          const current = next.imageCatalog?.find(entry => entry.imageId === imageId);
+          const current = next.catalog?.find(entry => entry.targetKind === 'library-item' && entry.targetId === imageId);
           const image = choices.find(item => item.id === imageId);
           next = setImageCatalogEntry(next, { imageId, folderId, displayName: current?.displayName ?? image?.title });
         }

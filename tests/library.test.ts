@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { libraryFamilies, normalizeLibrary } from '../src/shared/library';
+import { libraryCatalogRecords } from '../src/shared/libraryCatalog';
 import type { LibraryManifestV1 } from '../src/shared/types';
 
 describe('library normalization', () => {
@@ -33,6 +34,37 @@ describe('library normalization', () => {
     expect(normalizeLibrary(current)).toBe(current);
   });
 
+  it('migrates image-only organization into the universal folder catalog', () => {
+    const legacy: LibraryManifestV1 = {
+      schemaVersion: 1,
+      name: 'Library',
+      items: [],
+      imageFolders: [{ id: 'seasonal', name: 'Seasonal' }],
+      imageCatalog: [{ imageId: 'banner', folderId: 'seasonal', displayName: 'Banner art' }]
+    };
+    expect(normalizeLibrary(legacy)).toEqual({
+      schemaVersion: 1,
+      name: 'Library',
+      items: [],
+      folders: [{ id: 'seasonal', name: 'Seasonal' }],
+      catalog: [{ targetKind: 'library-item', targetId: 'banner', folderId: 'seasonal', displayName: 'Banner art' }]
+    });
+  });
+
+  it('repairs invalid folder parents and catalog locations deterministically', () => {
+    const malformed: LibraryManifestV1 = {
+      schemaVersion: 1,
+      name: 'Library',
+      items: [],
+      folders: [{ id: 'a', name: 'A', parentId: 'b' }, { id: 'b', name: 'B', parentId: 'a' }],
+      catalog: [{ targetKind: 'component', targetId: 'bulletin:prayer', folderId: 'missing' }]
+    };
+    expect(normalizeLibrary(malformed)).toMatchObject({
+      folders: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+      catalog: [{ targetKind: 'component', targetId: 'bulletin:prayer' }]
+    });
+  });
+
   it('groups an item’s versions newest-first under one stable identity', () => {
     const items: LibraryManifestV1['items'] = [
       { id: 'anthem', version: 1, kind: 'song', title: 'Original Anthem' },
@@ -43,5 +75,17 @@ describe('library normalization', () => {
       { id: 'prayer', kind: 'liturgy', versions: [items[1]] },
       { id: 'anthem', kind: 'song', versions: [items[2], items[0]] }
     ]);
+  });
+
+  it('keeps church calendar events out of the universal library browser', () => {
+    const library: LibraryManifestV1 = {
+      schemaVersion: 1,
+      name: 'Library',
+      items: [{ id: 'anthem', version: 1, kind: 'song', title: 'Anthem' }],
+      calendarEvents: [{ id: 'easter', name: 'Easter', enabled: true, priority: 100, rules: [{ kind: 'easter' }] }],
+      catalog: [{ targetKind: 'calendar-event', targetId: 'easter', folderId: 'seasonal' }]
+    };
+    expect(libraryCatalogRecords(library).map(record => record.targetId)).toEqual(['anthem']);
+    expect(normalizeLibrary(library).catalog).toBeUndefined();
   });
 });

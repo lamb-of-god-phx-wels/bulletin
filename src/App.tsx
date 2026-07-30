@@ -22,6 +22,7 @@ import {
   type CreationSource,
 } from "./components/CreateFromDialog";
 import { ImageAssetDialog } from "./components/ImageAssetDialog";
+import { LibraryBrowserDialog } from "./components/LibraryBrowserDialog";
 import { createBulletin, defaultTemplate } from "./shared/defaults";
 import { libraryFamilies, type LibraryFamily } from "./shared/library";
 import { paginate } from "./shared/pagination";
@@ -52,7 +53,9 @@ import type {
 import { validateBulletin } from "./shared/validation";
 import { templateForBulletin } from "./shared/documentLayout";
 import { randomId } from "./shared/id";
-import { prepackagedComponentDiagnostics } from "./componentDefinitions";
+import { prepackagedComponentDefinitions, prepackagedComponentDiagnostics } from "./componentDefinitions";
+import { libraryCatalogRecords, setCatalogEntry, type LibraryCatalogRecord, type LibraryRecordType } from "./shared/libraryCatalog";
+import { imageFolderDescendantIds } from "./shared/images";
 import {
   churchEventDisplayName,
   churchEventsForDate,
@@ -1521,6 +1524,21 @@ function DesktopApp() {
               updateEditingState({ auxiliaryDirty: value })
             }
             onError={reportStatus}
+            onOpenExternal={(record, create) => {
+              if (record.type === "page-template") {
+                setScreen("page-templates");
+                reportStatus(create ? "Use New page template to choose a layout" : `Opened ${record.title || "Page Templates"}`);
+              } else {
+                setScreen("templates");
+                reportStatus(create ? "Open Manage components to add a component" : `Open Manage components to edit ${record.title}`);
+              }
+            }}
+            onDeletePages={async (ids, alreadyDeleted) => {
+              if (!window.bulletin) return;
+              const targets = workspace.pageTemplates.filter(record => ids.includes(record.pageTemplate.id));
+              if (!alreadyDeleted) for (const target of targets) await window.bulletin.deletePageTemplate(workspace.root, target.path);
+              setWorkspace(current => current ? { ...current, pageTemplates: current.pageTemplates.filter(record => !ids.includes(record.pageTemplate.id)) } : current);
+            }}
             onSave={async (library, alreadySaved) => {
               if (!window.bulletin) return;
               try {
@@ -2124,17 +2142,22 @@ function LibraryView({
   onSave,
   onError,
   onDirtyChange,
+  onOpenExternal,
+  onDeletePages,
 }: {
   workspace: WorkspaceSummary;
   onSave(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
   onDirtyChange?(dirty: boolean): void;
+  onOpenExternal(record: LibraryCatalogRecord, create?: boolean): void;
+  onDeletePages(ids: string[], alreadyDeleted?: boolean): Promise<void>;
 }) {
   const items = workspace.library?.items ?? [];
   const [adding, setAdding] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<Confirmation>();
   const [editing, setEditing] = useState<LibraryItemV1>();
   const [managingImages, setManagingImages] = useState(false);
+  const [draftFolderId, setDraftFolderId] = useState<string>();
   const [draft, setDraft] = useState<LibraryDraft>(emptyLibraryDraft);
   const [selectedVersions, setSelectedVersions] = useState<
     Record<string, number>
@@ -2152,6 +2175,11 @@ function LibraryView({
       }, {}),
     [families],
   );
+  const catalogRecords = useMemo(() => libraryCatalogRecords(
+    workspace.library,
+    workspace.pageTemplates.map(record => record.pageTemplate),
+    prepackagedComponentDefinitions
+  ), [workspace.library, workspace.pageTemplates]);
   const selectedItem = (family: LibraryFamily) =>
     family.versions.find(
       (item) => item.version === selectedVersions[family.id],
@@ -2212,14 +2240,16 @@ function LibraryView({
         : {}),
     };
     try {
-      await onSave({
+      const nextLibrary = {
         ...(workspace.library ?? { schemaVersion: 1, name: "Church Library" }),
         items: [...items, item],
-      });
+      };
+      await onSave(draftFolderId ? setCatalogEntry(nextLibrary, { targetKind: "library-item", targetId: id, folderId: draftFolderId }) : nextLibrary);
       setSelectedVersions((current) => ({ ...current, [id]: version }));
       setAdding(false);
       setEditing(undefined);
       setDraft(emptyLibraryDraft());
+      setDraftFolderId(undefined);
     } catch {
       /* The parent reports the actionable error. */
     }
@@ -2278,7 +2308,70 @@ function LibraryView({
     setAdding(false);
     setEditing(undefined);
     setDraft(emptyLibraryDraft());
+    setDraftFolderId(undefined);
   };
+  const openCatalogRecord = (record: LibraryCatalogRecord) => {
+    if (record.targetKind !== "library-item") { onOpenExternal(record); return; }
+    const family = catalogRecords.find(item => item.key === record.key)?.value as LibraryFamily | undefined;
+    const item = family?.versions[0];
+    if (!item) return;
+    if (item.kind === "image") { setDraftFolderId(record.folderId); setManagingImages(true); }
+    else beginEdit(item);
+  };
+  const createCatalogRecord = (type: LibraryRecordType, folderId?: string) => {
+    if (type === "image") { setDraftFolderId(folderId); setManagingImages(true); return; }
+    if (type === "component" || type === "page-template") {
+      onOpenExternal({ key: `create:${type}`, targetKind: type, targetId: "", type, title: "", sourceTitle: "", versionCount: 0, folderId, value: undefined }, true);
+      return;
+    }
+    setEditing(undefined);
+    setDraft({ ...emptyLibraryDraft(), kind: type });
+    setDraftFolderId(folderId);
+    setAdding(true);
+  };
+  const deleteCatalogSelection = async (selectedRecords: LibraryCatalogRecord[], selectedFolderIds: string[]) => {
+    const folderIds = new Set(selectedFolderIds);
+    for (const id of selectedFolderIds) for (const child of imageFolderDescendantIds(workspace.library, id)) folderIds.add(child);
+    const included = catalogRecords.filter(record => selectedRecords.some(item => item.key === record.key) || Boolean(record.folderId && folderIds.has(record.folderId)));
+    if (!window.confirm(`Send ${included.length + folderIds.size} selected reusable item${included.length + folderIds.size === 1 ? "" : "s"} to Trash?`)) return;
+    const libraryItemIds = new Set(included.filter(record => record.targetKind === "library-item").map(record => record.targetId));
+    const componentIds = new Set(included.filter(record => record.targetKind === "component" && !record.builtin).map(record => record.targetId));
+    const eventIds = new Set(included.filter(record => record.targetKind === "calendar-event").map(record => record.targetId));
+    const pageIds = [...new Set(included.filter(record => record.targetKind === "page-template").map(record => record.targetId))];
+    const library = workspace.library ?? { schemaVersion: 1 as const, name: "Church Library", items: [] };
+    if (window.bulletin?.trashLibraryRecords) {
+      const result = await window.bulletin.trashLibraryRecords(workspace.root, {
+        folderIds: [...folderIds],
+        records: included.map(record => ({ targetKind: record.targetKind, targetId: record.targetId }))
+      }, library);
+      await onSave(result.library, true);
+      if (result.pageTemplateIds.length) await onDeletePages(result.pageTemplateIds, true);
+      return;
+    }
+    await onSave({
+      ...library,
+      items: library.items.filter(item => !libraryItemIds.has(item.id)),
+      componentDefinitions: (library.componentDefinitions ?? []).filter(item => !componentIds.has(item.type)),
+      calendarEvents: (library.calendarEvents ?? []).filter(item => !eventIds.has(item.id)),
+      folders: (library.folders ?? []).filter(folder => !folderIds.has(folder.id)),
+      catalog: (library.catalog ?? []).filter(entry => !included.some(record => record.targetKind === entry.targetKind && record.targetId === entry.targetId))
+    });
+    if (pageIds.length) await onDeletePages(pageIds);
+  };
+  if (!adding && !managingImages && !deleteConfirmation) {
+    return <LibraryBrowserDialog
+      embedded
+      manage
+      title={workspace.library?.name ?? "Library"}
+      library={workspace.library ?? { schemaVersion: 1, name: "Church Library", items: [] }}
+      root={workspace.root}
+      records={catalogRecords}
+      onLibraryChange={onSave}
+      onOpen={openCatalogRecord}
+      onCreate={createCatalogRecord}
+      onDelete={deleteCatalogSelection}
+    />;
+  }
   return (
     <div className="library-screen">
       <div className="library-intro">
@@ -2488,9 +2581,10 @@ function LibraryView({
           root={workspace.root}
           targetFolder="assets/library/images"
           manageOnly
+          initialFolderId={draftFolderId}
           onLibraryChange={onSave}
           onError={onError}
-          onClose={() => setManagingImages(false)}
+          onClose={() => { setManagingImages(false); setDraftFolderId(undefined); }}
         />
       )}
     </div>

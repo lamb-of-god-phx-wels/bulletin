@@ -5,6 +5,8 @@ import {
 import type { DeclarativeComponentDefinition } from '../component-engine/types';
 import type { LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { ComponentDefinitionModal } from './ComponentDefinitionModal';
+import { LibraryBrowserDialog } from './LibraryBrowserDialog';
+import { libraryCatalogRecords } from '../shared/libraryCatalog';
 
 function ChoiceIcon({ icon = 'T' }: { icon?: string }) {
   return <span className="block-choice-icon">{icon}</span>;
@@ -25,6 +27,7 @@ export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], te
 }) {
   const [review, setReview] = useState<{ text: string; fileName?: string; readOnly?: boolean; confirmLabel?: string }>();
   const [pendingDelete, setPendingDelete] = useState<DeclarativeComponentDefinition>();
+  const [managing, setManaging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const definitionText = (definition: DeclarativeComponentDefinition) => `${JSON.stringify(definition, null, 2)}\n`;
   const fileStem = (definition: DeclarativeComponentDefinition) => definition.type.replace(':', '-');
@@ -56,9 +59,40 @@ export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], te
     <p>This action cannot be undone.</p>
     <div><button className="secondary" autoFocus onClick={() => setPendingDelete(undefined)}>Cancel</button><button className="danger" onClick={async () => { await onDeleteDefinition(pendingDelete); setPendingDelete(undefined); }}>Delete version</button></div>
   </section></div>;
+  if (!managing) return <LibraryBrowserDialog
+    library={library ?? { schemaVersion: 1, name: 'Library', items: [] }}
+    root={root ?? 'library'}
+    records={libraryCatalogRecords(library, pageTemplates.filter(page => page.status === 'published'), prepackagedComponentDefinitions)}
+    title="Add a block or reusable page"
+    allowedTypes={['component', 'page-template']}
+    actions={<>
+      <button className="secondary" onClick={() => setManaging(true)}>Manage component JSON</button>
+      <button className="primary" onClick={() => fileInput.current?.click()}>＋ Import JSON</button>
+      <input ref={fileInput} hidden type="file" accept=".json,application/json" onChange={async event => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file) setReview({ text: await file.text(), fileName: file.name });
+      }} />
+    </>}
+    onLibraryChange={async () => undefined}
+    onClose={onClose}
+    onSelect={record => {
+      if (record.type === 'page-template') {
+        const pages = record.value as PageTemplateV1[];
+        const page = pages.find(item => item.status === 'published') ?? pages[0];
+        if (page) onUsePageTemplate?.(page);
+        return;
+      }
+      if (record.builtin) onUsePrepackaged(record.value as DeclarativeComponentDefinition);
+      else {
+        const versions = record.value as DeclarativeComponentDefinition[];
+        if (versions[0]) onUseDefinition(versions[0]);
+      }
+    }}
+  />;
 
   return <div className="modal-backdrop block-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="block-library-modal" role="dialog" aria-modal="true" aria-labelledby="block-library-title">
-    <header><div><div className="eyebrow">Component library</div><h2 id="block-library-title">Add a block</h2><p>Choose an omakase component or import a reusable JSON definition for this workspace.</p></div><button aria-label="Close component library" onClick={onClose}>×</button></header>
+    <header><div><div className="eyebrow">Component library</div><h2 id="block-library-title">Manage component JSON</h2><p>Import, inspect, version, or delete workspace component definitions.</p></div><div><button className="secondary" onClick={() => setManaging(false)}>Back to browser</button><button aria-label="Close component library" onClick={onClose}>×</button></div></header>
     {pageTemplates.length > 0 && <><div className="block-library-toolbar"><b>Reusable pages</b><span className="descriptor-source-note">Pinned to the selected published version</span></div>
     <div className="block-choice-grid">{pageTemplates.filter(page => page.status === 'published').sort((left, right) => left.name.localeCompare(right.name)).map(page => <article className="block-choice" key={`${page.id}@${page.version}`}>
       <ChoiceIcon icon="▣" /><span><b>{page.name}</b><small>Page template · v{page.version} · {page.margin.mode === 'inherit' ? 'Host margins' : `${page.margin.marginIn} in margins`}</small></span>

@@ -205,6 +205,7 @@ export function TemplateBuilder({
         library={library}
         template={template}
         scope="template"
+        root={root}
         onChange={next => updateBlock(block.id, next)}
       />
     ) : block.type === "image" ? (
@@ -587,6 +588,8 @@ export function TemplateBuilder({
       {pageInsertionIndex !== undefined && !creatingPage && (
         <PageElementDialog
           pages={pageTemplates}
+          library={library}
+          root={root}
           onClose={() => setPageInsertionIndex(undefined)}
           onSelect={page => { addBlock(instantiatePageTemplate(page), pageInsertionIndex); setPageInsertionIndex(undefined); }}
           onCreate={setCreatingPage}

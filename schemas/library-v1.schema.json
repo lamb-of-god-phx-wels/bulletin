@@ -7,18 +7,27 @@
   "properties": {
     "schemaVersion": { "const": 1 }, "name": { "type": "string" },
     "items": { "type": "array", "items": { "type": "object", "required": ["id", "version", "kind", "title"], "properties": { "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["song", "liturgy", "image", "font", "church-info"] }, "title": { "type": "string" } }, "additionalProperties": true } },
-    "imageFolders": {
+    "folders": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/libraryFolder" }
+    },
+    "catalog": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name"],
+        "required": ["targetKind", "targetId"],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "name": { "type": "string", "minLength": 1 },
-          "parentId": { "type": "string", "minLength": 1 }
+          "targetKind": { "enum": ["library-item", "component", "page-template", "calendar-event"] },
+          "targetId": { "type": "string", "minLength": 1 },
+          "folderId": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false
       }
+    },
+    "imageFolders": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/libraryFolder" }
     },
     "imageCatalog": {
       "type": "array",
@@ -84,6 +93,16 @@
     }
   },
   "$defs": {
+    "libraryFolder": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "parentId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "month": { "type": "integer", "minimum": 1, "maximum": 12 },
     "day": { "type": "integer", "minimum": 1, "maximum": 31 },
     "weekday": { "type": "integer", "minimum": 0, "maximum": 6 },

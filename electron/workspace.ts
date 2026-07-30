@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
-  ArchivedWorkspaceRecord, AssetRef, BulletinDocumentV1, ChurchCalendarEvent, ChurchWeekName, LibraryImageCatalogEntry, LibraryImageFolder, LibraryItemV1, LibraryManifestV1, SharedRecordKind,
+  ArchivedWorkspaceRecord, AssetRef, BulletinDocumentV1, ChurchCalendarEvent, ChurchWeekName, LibraryCatalogEntry, LibraryFolder, LibraryImageCatalogEntry, LibraryItemV1, LibraryManifestV1, LibraryTrashSelection, SharedRecordKind,
   PageTemplateV1, TemplateV1, WorkspaceConflict, WorkspaceSummary
 } from '../src/shared/types.js';
 import type { DeclarativeComponentDefinition } from '../src/component-engine/types.js';
@@ -38,8 +38,8 @@ interface SyncRecord<T> {
 interface LibraryRecords {
   name: string;
   items: Map<string, SyncRecord<LibraryItemV1>>;
-  imageFolders: Map<string, SyncRecord<LibraryImageFolder>>;
-  imageCatalog: Map<string, SyncRecord<LibraryImageCatalogEntry>>;
+  imageFolders: Map<string, SyncRecord<LibraryFolder>>;
+  imageCatalog: Map<string, SyncRecord<LibraryCatalogEntry>>;
   churchWeeks: Map<string, SyncRecord<ChurchWeekName>>;
   calendarEvents: Map<string, SyncRecord<ChurchCalendarEvent>>;
   components: Map<string, SyncRecord<DeclarativeComponentDefinition>>;
@@ -64,8 +64,18 @@ interface ImageTrashBundle {
   format: 'bulletin-image-trash-v1';
   label: string;
   items: LibraryItemV1[];
-  folders: LibraryImageFolder[];
-  catalog: LibraryImageCatalogEntry[];
+  folders: LibraryFolder[];
+  catalog: LibraryCatalogEntry[];
+}
+interface LibraryTrashBundle {
+  format: 'bulletin-library-trash-v1';
+  label: string;
+  items: LibraryItemV1[];
+  folders: LibraryFolder[];
+  catalog: LibraryCatalogEntry[];
+  calendarEvents: ChurchCalendarEvent[];
+  components: DeclarativeComponentDefinition[];
+  pages: Array<{ path: string; value: PageTemplateV1 }>;
 }
 
 function normalizeWorkspacePath(relative: string) {
@@ -102,20 +112,24 @@ function safeSegment(value: string) {
 }
 
 const itemKey = (item: Pick<LibraryItemV1, 'id' | 'version'>) => `${item.id}:${item.version}`;
-const imageFolderKey = (folder: Pick<LibraryImageFolder, 'id'>) => folder.id;
-const imageCatalogKey = (entry: Pick<LibraryImageCatalogEntry, 'imageId'>) => entry.imageId;
+const imageFolderKey = (folder: Pick<LibraryFolder, 'id'>) => folder.id;
+const imageCatalogKey = (entry: Pick<LibraryCatalogEntry, 'targetKind' | 'targetId'>) => `${entry.targetKind}:${entry.targetId}`;
 const churchWeekKey = (item: Pick<ChurchWeekName, 'sourceName'>) => item.sourceName.toLocaleLowerCase();
 const calendarEventKey = (item: Pick<ChurchCalendarEvent, 'id'>) => item.id;
 const componentKey = (item: Pick<DeclarativeComponentDefinition, 'type' | 'version'>) => `${item.type}:${item.version}`;
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
-function recordPath(root: string, kind: SyncRecord<unknown>['kind'], value: LibraryItemV1 | LibraryImageFolder | LibraryImageCatalogEntry | ChurchWeekName | ChurchCalendarEvent | DeclarativeComponentDefinition) {
+function recordPath(root: string, kind: SyncRecord<unknown>['kind'], value: LibraryItemV1 | LibraryFolder | LibraryCatalogEntry | ChurchWeekName | ChurchCalendarEvent | DeclarativeComponentDefinition) {
   if (kind === 'library-item') {
     const item = value as LibraryItemV1;
     return inside(root, `library/items/${safeSegment(item.id)}/v${item.version}.json`);
   }
-  if (kind === 'image-folder') return inside(root, `library/image-folders/${safeSegment((value as LibraryImageFolder).id)}.json`);
-  if (kind === 'image-catalog') return inside(root, `library/image-catalog/${safeSegment((value as LibraryImageCatalogEntry).imageId)}.json`);
+  if (kind === 'image-folder') return inside(root, `library/image-folders/${safeSegment((value as LibraryFolder).id)}.json`);
+  if (kind === 'image-catalog') {
+    const entry = value as LibraryCatalogEntry;
+    const segment = entry.targetKind === 'library-item' ? entry.targetId : `${entry.targetKind}:${entry.targetId}`;
+    return inside(root, `library/image-catalog/${safeSegment(segment)}.json`);
+  }
   if (kind === 'church-week') return inside(root, `library/church-weeks/${safeSegment((value as ChurchWeekName).sourceName)}.json`);
   if (kind === 'calendar-event') return inside(root, `library/calendar-events/${safeSegment((value as ChurchCalendarEvent).id)}.json`);
   const component = value as DeclarativeComponentDefinition;
@@ -287,18 +301,27 @@ async function loadRecordFolder<T>(root: string, relative: string, kind: SyncRec
 async function loadLibraryRecords(root: string): Promise<LibraryRecords> {
   const [items, imageFolders, imageCatalog, churchWeeks, calendarEvents, components, metadata] = await Promise.all([
     loadRecordFolder<LibraryItemV1>(root, 'library/items', 'library-item'),
-    loadRecordFolder<LibraryImageFolder>(root, 'library/image-folders', 'image-folder'),
-    loadRecordFolder<LibraryImageCatalogEntry>(root, 'library/image-catalog', 'image-catalog'),
+    loadRecordFolder<LibraryFolder>(root, 'library/image-folders', 'image-folder'),
+    loadRecordFolder<LibraryCatalogEntry | LibraryImageCatalogEntry>(root, 'library/image-catalog', 'image-catalog'),
     loadRecordFolder<ChurchWeekName>(root, 'library/church-weeks', 'church-week'),
     loadRecordFolder<ChurchCalendarEvent>(root, 'library/calendar-events', 'calendar-event'),
     loadRecordFolder<DeclarativeComponentDefinition>(root, 'library/components', 'component'),
     workspaceFile(root)
   ]);
+  const normalizedCatalog = new Map<string, SyncRecord<LibraryCatalogEntry>>();
+  for (const record of imageCatalog.records.values()) {
+    const value = record.value as LibraryCatalogEntry | LibraryImageCatalogEntry;
+    const entry: LibraryCatalogEntry = 'imageId' in value
+      ? { targetKind: 'library-item', targetId: value.imageId, ...(value.folderId ? { folderId: value.folderId } : {}), ...(value.displayName ? { displayName: value.displayName } : {}) }
+      : value;
+    const recordId = imageCatalogKey(entry);
+    normalizedCatalog.set(recordId, { ...record, recordId, value: entry });
+  }
   return {
     name: metadata.libraryName,
     items: items.records,
     imageFolders: imageFolders.records,
-    imageCatalog: imageCatalog.records,
+    imageCatalog: normalizedCatalog,
     churchWeeks: churchWeeks.records,
     calendarEvents: calendarEvents.records,
     components: components.records,
@@ -308,8 +331,8 @@ async function loadLibraryRecords(root: string): Promise<LibraryRecords> {
 
 function libraryManifest(records: LibraryRecords): LibraryManifestV1 {
   const items = [...records.items.values()].filter(record => !record.archivedAt).map(record => record.value);
-  const imageFolders = [...records.imageFolders.values()].filter(record => !record.archivedAt).map(record => record.value);
-  const imageCatalog = [...records.imageCatalog.values()].filter(record => !record.archivedAt).map(record => record.value);
+  const folders = [...records.imageFolders.values()].filter(record => !record.archivedAt).map(record => record.value);
+  const catalog = [...records.imageCatalog.values()].filter(record => !record.archivedAt).map(record => record.value);
   const churchWeekNames = [...records.churchWeeks.values()].filter(record => !record.archivedAt).map(record => record.value);
   const calendarEvents = [...records.calendarEvents.values()].filter(record => !record.archivedAt).map(record => record.value);
   const componentDefinitions = [...records.components.values()].filter(record => !record.archivedAt).map(record => record.value);
@@ -317,8 +340,8 @@ function libraryManifest(records: LibraryRecords): LibraryManifestV1 {
     schemaVersion: 1,
     name: records.name,
     items,
-    ...(imageFolders.length ? { imageFolders } : {}),
-    ...(imageCatalog.length ? { imageCatalog } : {}),
+    ...(folders.length ? { folders } : {}),
+    ...(catalog.length ? { catalog } : {}),
     ...(churchWeekNames.length ? { churchWeekNames } : {}),
     ...(calendarEvents.length ? { calendarEvents } : {}),
     ...(componentDefinitions.length ? { componentDefinitions } : {})
@@ -380,9 +403,10 @@ async function archivedRawRecords(root: string): Promise<ArchivedWorkspaceRecord
       const value = (archived?.value ?? stored) as Record<string, unknown>;
       const syncKind = value.format === 'bulletin-shared-record-v2' ? value.kind as SharedRecordKind : undefined;
       const imageBundle = value.format === 'bulletin-image-trash-v1' ? value as unknown as ImageTrashBundle : undefined;
-      const kind: SharedRecordKind = imageBundle ? 'image-folder' : syncKind ?? (originalPath.startsWith('bulletins/') ? 'bulletin' : originalPath.startsWith('page-templates/') ? 'page-template' : 'template');
+      const libraryBundle = value.format === 'bulletin-library-trash-v1' ? value as unknown as LibraryTrashBundle : undefined;
+      const kind: SharedRecordKind = libraryBundle ? 'library-folder' : imageBundle ? 'image-folder' : syncKind ?? (originalPath.startsWith('bulletins/') ? 'bulletin' : originalPath.startsWith('page-templates/') ? 'page-template' : 'template');
       const displayValue = (value.value && typeof value.value === 'object' ? value.value : value) as Record<string, unknown>;
-      const label = imageBundle?.label ?? (kind === 'bulletin'
+      const label = libraryBundle?.label ?? imageBundle?.label ?? (kind === 'bulletin'
         ? String((displayValue.info as { title?: string } | undefined)?.title ?? displayValue.id ?? path.basename(originalPath))
         : String(displayValue.name ?? displayValue.title ?? displayValue.sourceName ?? displayValue.id ?? path.basename(originalPath)));
       result.push({ id: `archive:${relative}`, kind, label, path: relative, originalPath, archivedAt: archived?.archivedAt ?? fileStat.mtime.toISOString() });
@@ -452,7 +476,7 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
           path: workspaceRelative(root, recordPath(root, 'image-folder', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'image-folder', record.value)), archivedAt: record.archivedAt!
         })),
         ...[...records.imageCatalog.values()].filter(record => record.archivedAt).map(record => ({
-          id: `image-catalog:${record.recordId}`, kind: 'image-catalog' as const, label: record.value.displayName ?? record.value.imageId,
+          id: `image-catalog:${record.recordId}`, kind: 'image-catalog' as const, label: record.value.displayName ?? record.value.targetId,
           path: workspaceRelative(root, recordPath(root, 'image-catalog', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'image-catalog', record.value)), archivedAt: record.archivedAt!
         })),
         ...[...records.churchWeeks.values()].filter(record => record.archivedAt).map(record => ({
@@ -551,14 +575,14 @@ export async function restoreArchived(root: string, record: ArchivedWorkspaceRec
         const library = current.library!;
         const itemKeys = new Set(library.items.map(item => itemKey(item)));
         if (bundle.items.some(item => itemKeys.has(itemKey(item)))
-          || bundle.folders.some(folder => library.imageFolders?.some(item => item.id === folder.id))
-          || bundle.catalog.some(entry => library.imageCatalog?.some(item => item.imageId === entry.imageId))) {
+          || bundle.folders.some(folder => library.folders?.some(item => item.id === folder.id))
+          || bundle.catalog.some(entry => library.catalog?.some(item => imageCatalogKey(item) === imageCatalogKey(entry)))) {
           throw new Error('Conflict: an image or folder with the same stable ID already exists. Move or rename that copy before restoring.');
         }
         const targetRecords = [
           ...bundle.items.map(item => ({ kind: 'library-item' as const, id: itemKey(item), path: workspaceRelative(root, recordPath(root, 'library-item', item)) })),
           ...bundle.folders.map(folder => ({ kind: 'image-folder' as const, id: folder.id, path: workspaceRelative(root, recordPath(root, 'image-folder', folder)) })),
-          ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: entry.imageId, path: workspaceRelative(root, recordPath(root, 'image-catalog', entry)) }))
+          ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: imageCatalogKey(entry), path: workspaceRelative(root, recordPath(root, 'image-catalog', entry)) }))
         ];
         for (const target of targetRecords) {
           try { await unlink(tombstoneFile(root, target.kind, target.path, target.id)); }
@@ -567,9 +591,47 @@ export async function restoreArchived(root: string, record: ArchivedWorkspaceRec
         await saveLibrary(root, normalizeLibrary({
           ...library,
           items: [...library.items, ...bundle.items],
-          imageFolders: [...(library.imageFolders ?? []), ...bundle.folders],
-          imageCatalog: [...(library.imageCatalog ?? []), ...bundle.catalog]
+          folders: [...(library.folders ?? []), ...bundle.folders],
+          catalog: [...(library.catalog ?? []), ...bundle.catalog]
         }), library);
+        await unlink(source);
+        return;
+      }
+      if (value && typeof value === 'object' && (value as LibraryTrashBundle).format === 'bulletin-library-trash-v1') {
+        const bundle = value as LibraryTrashBundle;
+        const current = await openWorkspace(root);
+        const library = current.library!;
+        const itemKeys = new Set(library.items.map(item => itemKey(item)));
+        const componentKeys = new Set((library.componentDefinitions ?? []).map(item => componentKey(item)));
+        const eventIds = new Set((library.calendarEvents ?? []).map(item => item.id));
+        if (bundle.items.some(item => itemKeys.has(itemKey(item)))
+          || bundle.folders.some(folder => library.folders?.some(item => item.id === folder.id))
+          || bundle.catalog.some(entry => library.catalog?.some(item => imageCatalogKey(item) === imageCatalogKey(entry)))
+          || bundle.components.some(item => componentKeys.has(componentKey(item)))
+          || bundle.calendarEvents.some(item => eventIds.has(item.id))
+          || bundle.pages.some(page => current.pageTemplates.some(item => item.path === page.path))) {
+          throw new Error('Conflict: a reusable record with the same stable ID already exists. Move or rename that copy before restoring.');
+        }
+        const libraryTargets = [
+          ...bundle.items.map(item => ({ kind: 'library-item' as const, id: itemKey(item), path: workspaceRelative(root, recordPath(root, 'library-item', item)) })),
+          ...bundle.folders.map(folder => ({ kind: 'image-folder' as const, id: folder.id, path: workspaceRelative(root, recordPath(root, 'image-folder', folder)) })),
+          ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: imageCatalogKey(entry), path: workspaceRelative(root, recordPath(root, 'image-catalog', entry)) })),
+          ...bundle.calendarEvents.map(event => ({ kind: 'calendar-event' as const, id: event.id, path: workspaceRelative(root, recordPath(root, 'calendar-event', event)) })),
+          ...bundle.components.map(component => ({ kind: 'component' as const, id: componentKey(component), path: workspaceRelative(root, recordPath(root, 'component', component)) }))
+        ];
+        for (const target of [...libraryTargets, ...bundle.pages.map(page => ({ kind: 'page-template' as const, id: page.path, path: page.path }))]) {
+          try { await unlink(tombstoneFile(root, target.kind, target.path, target.id)); }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+        }
+        await saveLibrary(root, normalizeLibrary({
+          ...library,
+          items: [...library.items, ...bundle.items],
+          folders: [...(library.folders ?? []), ...bundle.folders],
+          catalog: [...(library.catalog ?? []), ...bundle.catalog],
+          calendarEvents: [...(library.calendarEvents ?? []), ...bundle.calendarEvents],
+          componentDefinitions: [...(library.componentDefinitions ?? []), ...bundle.components]
+        }), library);
+        for (const page of bundle.pages) await atomicJson(inside(root, page.path), page.value);
         await unlink(source);
         return;
       }
@@ -608,24 +670,24 @@ export async function trashLibraryImages(root: string, folderIds: string[], imag
   const bundle: ImageTrashBundle = {
     format: 'bulletin-image-trash-v1',
     label: folderIds.length
-      ? before.imageFolders?.find(folder => folderSet.has(folder.id) && (!folder.parentId || !folderSet.has(folder.parentId)))?.name ?? 'Image folder'
+      ? before.folders?.find(folder => folderSet.has(folder.id) && (!folder.parentId || !folderSet.has(folder.parentId)))?.name ?? 'Image folder'
       : imageIds.length === 1
-        ? before.imageCatalog?.find(entry => entry.imageId === imageIds[0])?.displayName
+        ? before.catalog?.find(entry => entry.targetKind === 'library-item' && entry.targetId === imageIds[0])?.displayName
           ?? before.items.find(item => item.id === imageIds[0])?.title ?? 'Library image'
         : `${imageIds.length} library images`,
     items: before.items.filter(item => imageSet.has(item.id)),
-    folders: (before.imageFolders ?? []).filter(folder => folderSet.has(folder.id)),
-    catalog: (before.imageCatalog ?? []).filter(entry => imageSet.has(entry.imageId))
+    folders: (before.folders ?? []).filter(folder => folderSet.has(folder.id)),
+    catalog: (before.catalog ?? []).filter(entry => entry.targetKind === 'library-item' && imageSet.has(entry.targetId))
   };
   const currentTargets = {
     items: current.items.filter(item => imageSet.has(item.id)),
-    folders: (current.imageFolders ?? []).filter(folder => folderSet.has(folder.id)),
-    catalog: (current.imageCatalog ?? []).filter(entry => imageSet.has(entry.imageId))
+    folders: (current.folders ?? []).filter(folder => folderSet.has(folder.id)),
+    catalog: (current.catalog ?? []).filter(entry => entry.targetKind === 'library-item' && imageSet.has(entry.targetId))
   };
   const orderedTargets = (value: typeof currentTargets) => ({
     items: [...value.items].sort((a, b) => itemKey(a).localeCompare(itemKey(b))),
     folders: [...value.folders].sort((a, b) => a.id.localeCompare(b.id)),
-    catalog: [...value.catalog].sort((a, b) => a.imageId.localeCompare(b.imageId))
+    catalog: [...value.catalog].sort((a, b) => imageCatalogKey(a).localeCompare(imageCatalogKey(b)))
   });
   if (!same(orderedTargets(currentTargets), orderedTargets({ items: bundle.items, folders: bundle.folders, catalog: bundle.catalog }))) {
     throw new Error('Conflict: this image folder changed while you were deleting it. Reload and try again.');
@@ -637,7 +699,7 @@ export async function trashLibraryImages(root: string, folderIds: string[], imag
   const targets = [
     ...bundle.items.map(item => ({ kind: 'library-item' as const, id: itemKey(item), file: recordPath(root, 'library-item', item) })),
     ...bundle.folders.map(folder => ({ kind: 'image-folder' as const, id: folder.id, file: recordPath(root, 'image-folder', folder) })),
-    ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: entry.imageId, file: recordPath(root, 'image-catalog', entry) }))
+    ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: imageCatalogKey(entry), file: recordPath(root, 'image-catalog', entry) }))
   ];
   for (const target of targets) {
     const relative = workspaceRelative(root, target.file);
@@ -650,9 +712,82 @@ export async function trashLibraryImages(root: string, folderIds: string[], imag
   return normalizeLibrary({
     ...before,
     items: before.items.filter(item => !imageSet.has(item.id)),
-    imageFolders: (before.imageFolders ?? []).filter(folder => !folderSet.has(folder.id)),
-    imageCatalog: (before.imageCatalog ?? []).filter(entry => !imageSet.has(entry.imageId))
+    folders: (before.folders ?? []).filter(folder => !folderSet.has(folder.id)),
+    catalog: (before.catalog ?? []).filter(entry => entry.targetKind !== 'library-item' || !imageSet.has(entry.targetId))
   });
+}
+
+export async function trashLibraryRecords(root: string, selection: LibraryTrashSelection, previous: LibraryManifestV1) {
+  await ensureWorkspace(root);
+  const before = normalizeLibrary(previous);
+  const folderSet = new Set(selection.folderIds);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const folder of before.folders ?? []) {
+      if (folder.parentId && folderSet.has(folder.parentId) && !folderSet.has(folder.id)) {
+        folderSet.add(folder.id);
+        added = true;
+      }
+    }
+  }
+  const recordKeys = new Set(selection.records.map(record => `${record.targetKind}:${record.targetId}`));
+  for (const entry of before.catalog ?? []) {
+    if (entry.folderId && folderSet.has(entry.folderId)) recordKeys.add(imageCatalogKey(entry));
+  }
+  const selected = (kind: LibraryCatalogEntry['targetKind'], id: string) => recordKeys.has(`${kind}:${id}`);
+  const pageRecords = (await rawRecords<PageTemplateV1>(
+    root, 'page-templates', 'page-template', file => !file.includes(`${path.sep}revisions${path.sep}`), value => `${value.id}:${value.version}:${value.status}`
+  )).values.filter(record => selected('page-template', record.value.id));
+  const bundle: LibraryTrashBundle = {
+    format: 'bulletin-library-trash-v1',
+    label: selection.folderIds.length
+      ? before.folders?.find(folder => selection.folderIds.includes(folder.id))?.name ?? 'Library folder'
+      : selection.records.length === 1
+        ? before.catalog?.find(entry => imageCatalogKey(entry) === `${selection.records[0].targetKind}:${selection.records[0].targetId}`)?.displayName
+          ?? before.items.find(item => selection.records[0].targetKind === 'library-item' && item.id === selection.records[0].targetId)?.title
+          ?? 'Reusable record'
+        : `${selection.records.length} reusable records`,
+    items: before.items.filter(item => selected('library-item', item.id)),
+    folders: (before.folders ?? []).filter(folder => folderSet.has(folder.id)),
+    catalog: (before.catalog ?? []).filter(entry => folderSet.has(entry.folderId ?? '') || selected(entry.targetKind, entry.targetId)),
+    calendarEvents: (before.calendarEvents ?? []).filter(event => selected('calendar-event', event.id)),
+    components: (before.componentDefinitions ?? []).filter(component => selected('component', component.type)),
+    pages: pageRecords.map(record => ({ path: record.path, value: record.value }))
+  };
+  const bundleId = randomUUID();
+  const originalPath = `library/trash/${bundleId}.json`;
+  await atomicJson(inside(root, `archive/${originalPath}`), {
+    format: 'bulletin-archive-v1', originalPath, archivedAt: new Date().toISOString(), value: bundle
+  } satisfies ArchivedFile);
+  const targets = [
+    ...bundle.items.map(item => ({ kind: 'library-item' as const, id: itemKey(item), file: recordPath(root, 'library-item', item) })),
+    ...bundle.folders.map(folder => ({ kind: 'image-folder' as const, id: folder.id, file: recordPath(root, 'image-folder', folder) })),
+    ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: imageCatalogKey(entry), file: recordPath(root, 'image-catalog', entry) })),
+    ...bundle.calendarEvents.map(event => ({ kind: 'calendar-event' as const, id: event.id, file: recordPath(root, 'calendar-event', event) })),
+    ...bundle.components.map(component => ({ kind: 'component' as const, id: componentKey(component), file: recordPath(root, 'component', component) })),
+    ...bundle.pages.map(page => ({ kind: 'page-template' as const, id: page.path, file: inside(root, page.path) }))
+  ];
+  for (const target of targets) {
+    const relative = workspaceRelative(root, target.file);
+    await atomicJson(tombstoneFile(root, target.kind, relative, target.id), {
+      schemaVersion: 1, kind: target.kind, originalPath: relative, recordId: target.id, deletedAt: new Date().toISOString()
+    } satisfies Tombstone);
+    try { await unlink(target.file); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  }
+  const library = normalizeLibrary({
+    ...before,
+    items: before.items.filter(item => !selected('library-item', item.id)),
+    folders: (before.folders ?? []).filter(folder => !folderSet.has(folder.id)),
+    catalog: (before.catalog ?? []).filter(entry => !folderSet.has(entry.folderId ?? '') && !selected(entry.targetKind, entry.targetId)),
+    calendarEvents: (before.calendarEvents ?? []).filter(event => !selected('calendar-event', event.id)),
+    componentDefinitions: (before.componentDefinitions ?? []).filter(component => !selected('component', component.type))
+  });
+  return {
+    library,
+    pageTemplateIds: [...new Set(bundle.pages.map(page => page.value.id))]
+  };
 }
 
 export async function resolveWorkspaceConflict(root: string, conflictRecord: WorkspaceConflict, keepPath: string) {
@@ -695,12 +830,12 @@ export async function saveLibrary(root: string, library: LibraryManifestV1, prev
     new Map(next.items.map(item => [itemKey(item), item])),
     value => recordPath(root, 'library-item', value), force);
   await writeLibraryDiff(root, 'image-folder', records.imageFolders,
-    new Map((baseline.imageFolders ?? []).map(folder => [imageFolderKey(folder), folder])),
-    new Map((next.imageFolders ?? []).map(folder => [imageFolderKey(folder), folder])),
+    new Map((baseline.folders ?? []).map(folder => [imageFolderKey(folder), folder])),
+    new Map((next.folders ?? []).map(folder => [imageFolderKey(folder), folder])),
     value => recordPath(root, 'image-folder', value), force);
   await writeLibraryDiff(root, 'image-catalog', records.imageCatalog,
-    new Map((baseline.imageCatalog ?? []).map(entry => [imageCatalogKey(entry), entry])),
-    new Map((next.imageCatalog ?? []).map(entry => [imageCatalogKey(entry), entry])),
+    new Map((baseline.catalog ?? []).map(entry => [imageCatalogKey(entry), entry])),
+    new Map((next.catalog ?? []).map(entry => [imageCatalogKey(entry), entry])),
     value => recordPath(root, 'image-catalog', value), force);
   await writeLibraryDiff(root, 'church-week', records.churchWeeks,
     new Map((baseline.churchWeekNames ?? []).map(item => [churchWeekKey(item), item])),

@@ -44,7 +44,9 @@ export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 
     if (existingIndex === undefined) { songs.set(key, items.length); items.push(item); continue; }
     items[existingIndex] = mergeSongItems(items[existingIndex], item); changed = true;
   }
-  const folders = currentLibrary.imageFolders ?? [];
+  const folders = currentLibrary.folders ?? currentLibrary.imageFolders ?? [];
+  changed ||= currentLibrary.imageFolders !== undefined || currentLibrary.imageCatalog !== undefined;
+  if (!currentLibrary.folders && currentLibrary.imageFolders?.length) changed = true;
   const uniqueFolders = folders.filter((folder, index) => Boolean(folder.id && folder.name.trim()) && folders.findIndex(candidate => candidate.id === folder.id) === index);
   const folderIds = new Set(uniqueFolders.map(folder => folder.id));
   const normalizedFolders = uniqueFolders.map(folder => {
@@ -65,16 +67,28 @@ export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 
     return folder;
   });
   changed ||= normalizedFolders.length !== folders.length;
-  const imageIds = new Set(items.filter(item => item.kind === 'image').map(item => item.id));
-  const catalog = (currentLibrary.imageCatalog ?? []).filter((entry, index, all) =>
-    imageIds.has(entry.imageId) && all.findIndex(candidate => candidate.imageId === entry.imageId) === index
-  ).map(entry => entry.folderId && !folderIds.has(entry.folderId) ? { ...entry, folderId: undefined } : entry);
-  changed ||= catalog.length !== (currentLibrary.imageCatalog ?? []).length
-    || catalog.some((entry, index) => JSON.stringify(entry) !== JSON.stringify(currentLibrary.imageCatalog?.[index]));
+  const legacyCatalog = (currentLibrary.imageCatalog ?? []).map(entry => ({
+    targetKind: 'library-item' as const,
+    targetId: entry.imageId,
+    ...(entry.folderId ? { folderId: entry.folderId } : {}),
+    ...(entry.displayName ? { displayName: entry.displayName } : {})
+  }));
+  if (!currentLibrary.catalog && legacyCatalog.length) changed = true;
+  const sourceCatalog = currentLibrary.catalog ?? legacyCatalog;
+  const catalog = sourceCatalog.filter((entry, index, all) =>
+    entry.targetKind !== 'calendar-event'
+    && entry.targetId
+    && all.findIndex(candidate => candidate.targetKind === entry.targetKind && candidate.targetId === entry.targetId) === index
+  ).map(entry => entry.folderId && !folderIds.has(entry.folderId)
+    ? { targetKind: entry.targetKind, targetId: entry.targetId, ...(entry.displayName ? { displayName: entry.displayName } : {}) }
+    : entry);
+  changed ||= catalog.length !== sourceCatalog.length
+    || catalog.some((entry, index) => JSON.stringify(entry) !== JSON.stringify(sourceCatalog[index]));
+  const { imageFolders: _legacyFolders, imageCatalog: _legacyCatalog, ...generalLibrary } = currentLibrary;
   return changed ? {
-    ...currentLibrary,
+    ...generalLibrary,
     items,
-    ...(normalizedFolders.length ? { imageFolders: normalizedFolders } : { imageFolders: undefined }),
-    ...(catalog.length ? { imageCatalog: catalog } : { imageCatalog: undefined })
+    ...(normalizedFolders.length ? { folders: normalizedFolders } : { folders: undefined }),
+    ...(catalog.length ? { catalog } : { catalog: undefined })
   } : library;
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createCanvasBlock } from '../shared/canvas';
+import { randomId } from '../shared/id';
 import { createPageTemplate } from '../shared/pageTemplates';
 import type { PageTemplateV1 } from '../shared/types';
 
@@ -15,7 +16,7 @@ export function PageElementDialog({ pages, onSelect, onCreate, onClose }: {
   const create = (layout: 'canvas' | 'regular') => onCreate(createPageTemplate(
     name.trim() || 'New page',
     records,
-    layout === 'canvas' ? [createCanvasBlock(`canvas-${crypto.randomUUID()}`)] : [],
+    layout === 'canvas' ? [createCanvasBlock(`canvas-${randomId()}`)] : [],
     layout === 'canvas' ? { mode: 'fixed', marginIn: 0 } : { mode: 'inherit', referenceMarginIn: .4 },
     layout
   ));

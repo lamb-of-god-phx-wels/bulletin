@@ -4,6 +4,7 @@ import { createPageTemplate, duplicatePageTemplate, nextPageTemplateVersion, pag
 import { paginate } from '../shared/pagination';
 import { createBulletin } from '../shared/defaults';
 import { createCanvasBlock } from '../shared/canvas';
+import { randomId } from '../shared/id';
 import type { BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { PageTemplateEditor } from './PageTemplateEditor';
 
@@ -33,7 +34,7 @@ export function PageTemplatesView({ records, template, document, library, root, 
     edit(createPageTemplate(
       creatingName,
       records,
-      layout === 'canvas' ? [createCanvasBlock(`canvas-${crypto.randomUUID()}`)] : [],
+      layout === 'canvas' ? [createCanvasBlock(`canvas-${randomId()}`)] : [],
       layout === 'canvas' ? { mode: 'fixed', marginIn: 0 } : { mode: 'inherit', referenceMarginIn: .4 },
       layout
     ));

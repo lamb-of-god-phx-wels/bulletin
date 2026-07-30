@@ -1,5 +1,6 @@
 import type { BulletinBlock, PageMarginSetting, PageTemplateV1, TemplatePageBlock, WorkspaceSummary } from './types.js';
 import { flattenBlocks } from './blocks.js';
+import { randomId } from './id.js';
 
 export type PageTemplateRecord = WorkspaceSummary['pageTemplates'][number];
 
@@ -71,7 +72,7 @@ export function duplicatePageTemplate(source: PageTemplateV1, name: string, reco
   };
 }
 
-export function instantiatePageTemplate(source: PageTemplateV1, id: string = crypto.randomUUID()): TemplatePageBlock {
+export function instantiatePageTemplate(source: PageTemplateV1, id: string = randomId()): TemplatePageBlock {
   return {
     id,
     type: 'templatePage',

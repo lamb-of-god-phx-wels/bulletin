@@ -62,9 +62,62 @@ if (process.env.BULLETIN_DEBUG_RUNTIME === '1') {
 if (process.env.BULLETIN_PALETTE_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
 }
-await wait(process.env.BULLETIN_PALETTE_ONLY === '1' ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))` : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
+await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
+  ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
+  : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1'
+    ? `Boolean(document.querySelector('.app-shell'))`
+    : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  await click('Page Templates');
+  await wait(`Boolean(document.querySelector('.page-templates-screen'))`, 'Page Templates screen');
+  await evaluate(`Object.defineProperty(crypto,'randomUUID',{configurable:true,value:undefined})`);
+  await evaluate(`window.prompt=(()=>{const answers=['Browser canvas regression'];return()=>answers.shift()??null})()`);
+  await click('New page template');
+  await wait(`Boolean(document.querySelector('.page-layout-choice'))`, 'page layout choice');
+  await click('Canvas');
+  await wait(`Boolean(document.querySelector('.page-template-designer'))`, 'new canvas page template editor');
+  const pageEditor = await evaluate(`({canvasLabel:document.querySelector('.page-template-designer .eyebrow')?.textContent,design:Boolean(Array.from(document.querySelectorAll('.page-template-designer button')).find(button=>button.textContent.trim()==='Design')),canvasBlocks:document.querySelectorAll('.page-template-designer .outline li').length})`);
+  if (!pageEditor.canvasLabel?.includes('canvas') || !pageEditor.design || pageEditor.canvasBlocks !== 1) throw new Error(`Canvas page editor did not initialize correctly: ${JSON.stringify(pageEditor)}`);
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-designer button')).find(button=>button.textContent.trim()==='Design')?.click()`);
+  await wait(`Boolean(document.querySelector('.canvas-designer'))`, 'new page canvas designer');
+  const initialElements = await evaluate(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length`);
+  const canvasDrag = await evaluate(`(()=>{const item=Array.from(document.querySelectorAll('.canvas-layers .element-palette-item')).find(button=>button.textContent.includes('Heading')),stage=document.querySelector('.canvas-stage'),a=item.getBoundingClientRect(),b=stage.getBoundingClientRect();return {start:{x:a.left+a.width/2,y:a.top+a.height/2},end:{x:b.left+b.width*.55,y:b.top+b.height*.45}}})()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: canvasDrag.start.x, y: canvasDrag.start.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 8; step++) {
+    const ratio = step / 8;
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: canvasDrag.start.x + (canvasDrag.end.x - canvasDrag.start.x) * ratio, y: canvasDrag.start.y + (canvasDrag.end.y - canvasDrag.start.y) * ratio, button: 'left', buttons: 1 });
+    await new Promise(resolve => setTimeout(resolve, 35));
+  }
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: canvasDrag.end.x, y: canvasDrag.end.y, button: 'left', buttons: 0, clickCount: 1 });
+  await wait(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length===${initialElements + 1}`, 'canvas page element insertion');
+  await evaluate(`document.querySelector('.canvas-designer-toolbar > button.primary')?.click()`);
+  await wait(`!document.querySelector('.canvas-designer')`, 'canvas designer close');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.includes('Save draft'))?.click()`);
+  await wait(`document.querySelector('.template-save-status')?.textContent.includes('Draft saved')`, 'browser canvas page save');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.trim()==='Done')?.click()`);
+  await wait(`!document.querySelector('.page-template-designer')`, 'page template editor close');
+  await evaluate(`(()=>{const card=Array.from(document.querySelectorAll('.page-template-cards article')).find(article=>article.textContent.includes('Browser canvas regression'));card?.querySelector('button')?.click();return Boolean(card)})()`);
+  await wait(`Boolean(document.querySelector('.page-template-designer'))`, 'saved canvas page reopen');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-designer button')).find(button=>button.textContent.trim()==='Design')?.click()`);
+  await wait(`Boolean(document.querySelector('.canvas-designer'))`, 'saved page canvas reopen');
+  const reopenedElements = await evaluate(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length`);
+  if (reopenedElements !== initialElements + 1) throw new Error(`Browser canvas page lost its elements after save: ${initialElements + 1} expected, ${reopenedElements} found.`);
+  await evaluate(`document.querySelector('.canvas-designer-toolbar > button.primary')?.click()`);
+  await wait(`!document.querySelector('.canvas-designer')`, 'reopened canvas designer close');
+  const publishDisabled = await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.includes('Publish version'))?.disabled`);
+  if (publishDisabled) throw new Error('A valid browser canvas page cannot be published.');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.includes('Publish version'))?.click()`);
+  await wait(`document.querySelector('.template-save-status')?.textContent.includes('Published')`, 'browser canvas page publish');
+  pass('creates, drag-edits, saves, reopens, and publishes a browser canvas page template');
+  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
+  console.log(`\n${results.length} browser canvas-page checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_PALETTE_ONLY === '1') {
   const compactShell = await evaluate(`(()=>{const slot=document.querySelector('.sidebar-palette-slot')?.getBoundingClientRect(),palette=document.querySelector('.elements-sidebar .element-palette')?.getBoundingClientRect();return {editor:document.querySelector('.app-shell')?.classList.contains('editor-shell'),rail:Boolean(document.querySelector('.navigation-rail')),elements:Boolean(palette),collapse:Boolean(document.querySelector('.elements-sidebar .element-palette > header button')),bottomGap:slot&&palette?slot.bottom-palette.bottom:null}})()`);

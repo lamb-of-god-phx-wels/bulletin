@@ -46,6 +46,7 @@ import type {
 } from "./shared/types";
 import { validateBulletin } from "./shared/validation";
 import { templateForBulletin } from "./shared/documentLayout";
+import { randomId } from "./shared/id";
 import { prepackagedComponentDiagnostics } from "./componentDefinitions";
 import {
   duplicateBulletin,
@@ -1915,7 +1916,7 @@ function DesktopApp() {
             updateEditingState({ bulletinDirty: true });
             setDocument({
               ...local,
-              id: crypto.randomUUID(),
+              id: randomId(),
               revision: 0,
               updatedAt: new Date().toISOString(),
             });

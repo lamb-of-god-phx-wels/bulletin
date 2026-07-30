@@ -25,6 +25,7 @@ import { PageTemplateEditor } from "./PageTemplateEditor";
 import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
+import { randomId } from "../shared/id";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -141,8 +142,8 @@ export function TemplateBuilder({
         return;
       }
       addBlock(payload.kind === "image"
-        ? { id: `image-${crypto.randomUUID()}`, type: "image", asset, fit: "contain", heightIn: 2.5 }
-        : { id: `page-${crypto.randomUUID()}`, type: "fullPageAsset", asset }, index);
+        ? { id: `image-${randomId()}`, type: "image", asset, fit: "contain", heightIn: 2.5 }
+        : { id: `page-${randomId()}`, type: "fullPageAsset", asset }, index);
     }
   };
   const updateBlock = (id: string, changes: Partial<BulletinBlock>) => {

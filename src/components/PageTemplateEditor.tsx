@@ -15,6 +15,7 @@ import { childBlocks, updateBlockTree } from '../shared/blocks';
 import { ElementPalette, type ElementPaletteItem } from './ElementPalette';
 import { flowElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog';
 import { NativeBlockFields } from './NativeBlockFields';
+import { randomId } from '../shared/id';
 
 const plain = (block: Extract<BulletinBlock, { type: 'richText' }>) => block.content.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n');
 const title = (block: BulletinBlock) => block.type === 'custom' ? block.name : block.type === 'canvas' ? 'Canvas' : block.label ?? ('text' in block ? block.text : block.type);
@@ -68,7 +69,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     } else if (payload.kind === 'image' && root && window.bulletin) {
       const asset = await window.bulletin.importAsset(root, `assets/page-templates/${value.id}`);
       if (asset?.mediaType === 'application/pdf') { window.alert('Choose a PNG, JPEG, or SVG for an Image element.'); return; }
-      if (asset) change({ blocks: [...value.blocks.slice(0, index), { id: `image-${crypto.randomUUID()}`, type: 'image', asset, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(index)] });
+      if (asset) change({ blocks: [...value.blocks.slice(0, index), { id: `image-${randomId()}`, type: 'image', asset, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(index)] });
     }
   };
   return <div className="page-template-designer" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">

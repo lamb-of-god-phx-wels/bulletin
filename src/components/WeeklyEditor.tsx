@@ -18,6 +18,7 @@ import {
 import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
+import { randomId } from "../shared/id";
 import {
   churchWeekDisplayName,
   churchWeekNameOverride,
@@ -436,7 +437,7 @@ export function WeeklyEditor({
         return;
       }
       const block: BulletinBlock = imageOnly ? {
-        id: `image-${crypto.randomUUID()}`,
+        id: `image-${randomId()}`,
         type: "image",
         asset,
         fit: "contain",

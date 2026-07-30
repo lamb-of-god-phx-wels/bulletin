@@ -1,5 +1,6 @@
 import legacyExample from '../example_bulletin.json';
 import { defaultPageTemplate, defaultTemplate } from './shared/defaults';
+import { randomId } from './shared/id';
 import { normalizeCanvasBlocks } from './shared/canvas';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
@@ -218,7 +219,7 @@ export async function installBrowserApi() {
     },
     importAsset: async (root, targetFolder) => {
       const file = await chooseFile(); if (!file) return null;
-      const path = `${targetFolder}/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
+      const path = `${targetFolder}/${Date.now()}-${randomId()}-${file.name}`;
       await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
       return { path, mediaType: mediaType(file), alt: file.name };
     },

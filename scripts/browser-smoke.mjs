@@ -183,7 +183,7 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1120, height: 800, deviceScaleFactor: 1, mobile: false });
   await new Promise(resolve => setTimeout(resolve, 220));
   const narrowWidth = await evaluate(`(()=>{const drawer=document.querySelector('.navigation-drawer').getBoundingClientRect(),elements=document.querySelector('.elements-sidebar').getBoundingClientRect(),main=document.querySelector('.main-area').getBoundingClientRect();return {drawer:drawer.width,elements:elements.width,mainLeft:main.left}})()`);
-  if (Math.abs(narrowWidth.drawer - 200) > 1 || Math.abs(narrowWidth.elements - 150) > 1 || Math.abs(narrowWidth.mainLeft - 350) > 1) throw new Error(`Expanded shell widths are incorrect at 1120px: ${JSON.stringify(narrowWidth)}`);
+  if (Math.abs(narrowWidth.drawer - 200) > 1 || Math.abs(narrowWidth.elements - 270) > 1 || Math.abs(narrowWidth.mainLeft - 470) > 1) throw new Error(`Expanded shell widths are incorrect at 1120px: ${JSON.stringify(narrowWidth)}`);
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
   pass('keeps the pushed navigation usable at the narrower desktop layout');
 

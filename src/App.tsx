@@ -615,7 +615,7 @@ function DesktopApp() {
         setRelativePath("");
         savedRevision.current = 0;
       }
-      reportStatus("Bulletin archived");
+      reportStatus("Bulletin moved to Trash");
     } catch (error) {
       reportStatus(error instanceof Error ? error.message : String(error));
     }
@@ -623,9 +623,9 @@ function DesktopApp() {
   function confirmBulletinDelete() {
     if (!document) return;
     setConfirmation({
-      title: "Archive bulletin?",
-      message: `“${document.info.title}” for ${document.info.date} will move to the synchronized archive.`,
-      confirmLabel: "Archive bulletin",
+      title: "Delete bulletin?",
+      message: `Do you want to send “${document.info.title}” for ${document.info.date} to Trash? You can restore it later.`,
+      confirmLabel: "Delete bulletin",
       action: deleteCurrentBulletin,
     });
   }
@@ -776,7 +776,7 @@ function DesktopApp() {
         (item) => item.path !== templatePath,
       );
       selectAfterTemplateDeletion(templates, template.id);
-      reportStatus("Template version archived");
+      reportStatus("Template version moved to Trash");
     } catch (error) {
       reportStatus(error instanceof Error ? error.message : String(error));
     }
@@ -797,7 +797,7 @@ function DesktopApp() {
       );
       selectAfterTemplateDeletion(templates);
       reportStatus(
-        `Archived ${template.name} and ${versions.length} version${versions.length === 1 ? "" : "s"}`,
+        `Moved ${template.name} and ${versions.length} version${versions.length === 1 ? "" : "s"} to Trash`,
       );
     } catch (error) {
       reportStatus(error instanceof Error ? error.message : String(error));
@@ -805,9 +805,9 @@ function DesktopApp() {
   }
   function confirmTemplateVersionDelete() {
     setConfirmation({
-      title: "Archive template version?",
-      message: `${template.name} version ${template.version}${template.status === "draft" ? " draft" : ""} will move to the synchronized archive. Other versions will remain available.`,
-      confirmLabel: "Archive version",
+      title: "Delete template version?",
+      message: `Do you want to send ${template.name} version ${template.version}${template.status === "draft" ? " draft" : ""} to Trash? You can restore it later. Other versions will remain available.`,
+      confirmLabel: "Delete version",
       action: deleteCurrentTemplateVersion,
     });
   }
@@ -816,9 +816,9 @@ function DesktopApp() {
       ? templateVersions(workspace.templates, template.id).length
       : 0;
     setConfirmation({
-      title: "Archive template?",
-      message: `“${template.name}” and all ${versions} version${versions === 1 ? "" : "s"} will move to the synchronized archive.`,
-      confirmLabel: "Archive template",
+      title: "Delete template?",
+      message: `Do you want to send “${template.name}” and all ${versions} version${versions === 1 ? "" : "s"} to Trash? You can restore them later.`,
+      confirmLabel: "Delete template",
       action: deleteCurrentTemplateFamily,
     });
   }
@@ -1073,7 +1073,7 @@ function DesktopApp() {
             className={screen === "archive" ? "active" : ""}
             onClick={() => setScreen("archive")}
           >
-            <span>⌫</span>Archive
+            <span>⌫</span>Trash
             {workspace.sync?.archivedRecords.length
               ? ` (${workspace.sync.archivedRecords.length})`
               : ""}
@@ -1125,6 +1125,8 @@ function DesktopApp() {
                 ? "Weekly bulletin"
                 : screen === "church-year"
                   ? "Shared settings"
+                  : screen === "archive"
+                    ? "Recoverable items"
                   : screen}
             </div>
             <h1>
@@ -1137,7 +1139,7 @@ function DesktopApp() {
                   : screen === "church-year"
                     ? "Church Year"
                     : screen === "archive"
-                      ? "Synchronized archive"
+                      ? "Trash"
                       : workspace.library?.name}
             </h1>
           </div>
@@ -1175,7 +1177,7 @@ function DesktopApp() {
                     disabled={!workspaceWritable}
                     onClick={confirmBulletinDelete}
                   >
-                    Archive
+                    Delete
                   </button>
                 )}
                 <button
@@ -1523,7 +1525,7 @@ function DesktopApp() {
                     }
                   : current,
               );
-              reportStatus(`Archived ${record.pageTemplate.name}`);
+              reportStatus(`Moved ${record.pageTemplate.name} to Trash`);
             }}
           />
         )}
@@ -2176,9 +2178,9 @@ function LibraryView({
         0,
       );
     setDeleteConfirmation({
-      title: "Archive library item?",
-      message: `${item.title}, version ${item.version}, will be hidden in the shared library and retained in the synchronized archive.${references ? ` It is currently referenced ${references} time${references === 1 ? "" : "s"}; existing references remain unchanged.` : ""}`,
-      confirmLabel: "Archive item",
+      title: "Delete library item?",
+      message: `Do you want to send ${item.title}, version ${item.version}, to Trash? You can restore it later.${references ? ` It is currently referenced ${references} time${references === 1 ? "" : "s"}; existing references remain unchanged.` : ""}`,
+      confirmLabel: "Delete item",
       action: async () =>
         onSave({
           ...(workspace.library ?? {
@@ -2389,7 +2391,7 @@ function LibraryView({
                       className="danger-text"
                       onClick={() => requestDelete(item)}
                     >
-                      Archive
+                      Delete
                     </button>
                   </div>
                 </article>
@@ -2429,10 +2431,10 @@ function ArchiveView({
         <div>
           <div className="eyebrow">Recoverable shared records</div>
           <h2>
-            {records.length} archived item{records.length === 1 ? "" : "s"}
+            {records.length} item{records.length === 1 ? "" : "s"} in Trash
           </h2>
           <p>
-            Archived items remain in SharePoint and can be restored on every
+            Items in Trash remain in SharePoint and can be restored on every
             connected PC.
           </p>
         </div>
@@ -2440,15 +2442,15 @@ function ArchiveView({
       {!records.length ? (
         <div className="empty-state">
           <span>⌫</span>
-          <h2>The archive is empty</h2>
+          <h2>Trash is empty</h2>
           <p>
-            Archived bulletins, templates, reusable pages, songs, overrides,
+            Deleted bulletins, templates, reusable pages, songs, overrides,
             and components will appear here.
           </p>
         </div>
       ) : (
         <section className="library-group">
-          <h3>Archived records</h3>
+          <h3>Items in Trash</h3>
           {records.map((record) => (
             <article key={record.id}>
               <div>
@@ -2478,7 +2480,7 @@ function ArchiveView({
       {confirmation && (
         <ConfirmDialog
           confirmation={{
-            title: "Permanently delete archived item?",
+            title: "Permanently delete item from Trash?",
             message: `“${confirmation.label}” content will be removed. A small synchronized tombstone will remain to prevent an offline copy from restoring it.`,
             confirmLabel: "Delete permanently",
             action: () => onDelete(confirmation),
@@ -2554,7 +2556,7 @@ function SyncCenter({
                     <span>
                       <b>{copy}</b>
                       <small>
-                        Keep this synchronized copy and archive the others
+                        Keep this synchronized copy and move the others to Trash
                       </small>
                     </span>
                     <strong>Keep</strong>

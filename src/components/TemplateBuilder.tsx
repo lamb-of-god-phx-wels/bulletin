@@ -303,24 +303,24 @@ export function TemplateBuilder({
             disabled={saving || !canDeleteVersion}
             title={
               canDeleteVersion
-                ? "Archive only the selected version"
+                ? "Delete only the selected version"
                 : "A workspace must keep at least one template version"
             }
             onClick={() => void onDeleteVersion()}
           >
-            Archive version
+            Delete version
           </button>
           <button
             className="danger-text"
             disabled={saving || !canDeleteTemplate}
             title={
               canDeleteTemplate
-                ? "Archive this template and every version"
+                ? "Delete this template and every version"
                 : "A workspace must keep at least one template"
             }
             onClick={() => void onDeleteTemplate()}
           >
-            Archive template
+            Delete template
           </button>
           {saveStatus && (
             <span

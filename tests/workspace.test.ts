@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -153,6 +153,40 @@ describe('shared workspace', () => {
       expect.objectContaining({ kind: 'church-week', label: 'Proper 12 → Ninth Sunday after Pentecost' })
     ]));
     expect((await readdir(join(root, 'library', 'calendar-events'))).length).toBeGreaterThan(40);
+  });
+
+  it('upgrades untouched version-one calendar presets while preserving church-owned records', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    await openWorkspace(root);
+    const calendarFolder = join(root, 'library', 'calendar-events');
+    for (const file of await readdir(calendarFolder)) {
+      const fullPath = join(calendarFolder, file);
+      const record = JSON.parse(await readFile(fullPath, 'utf8'));
+      if (record.value.id === 'proper-5') {
+        record.value = {
+          id: 'proper-5',
+          name: 'Church-owned Pentecost name',
+          enabled: true,
+          priority: 40,
+          rules: [{ kind: 'weekdayOnOrAfter', month: 6, day: 5, weekday: 0 }],
+          aliases: ['Pentecost 4']
+        };
+        await writeFile(fullPath, JSON.stringify(record));
+      }
+      if (record.value.id === 'last-sunday-church-year') await unlink(fullPath);
+    }
+    const metadataPath = join(root, 'workspace.json');
+    const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+    await writeFile(metadataPath, JSON.stringify({ ...metadata, churchCalendarSeedVersion: 1 }));
+
+    const upgraded = await openWorkspace(root);
+
+    expect(upgraded.library?.calendarEvents?.find(event => event.id === 'proper-5')).toMatchObject({
+      name: 'Church-owned Pentecost name',
+      rules: [expect.objectContaining({ kind: 'weekdayInDateRange' })]
+    });
+    expect(upgraded.library?.calendarEvents?.some(event => event.id === 'last-sunday-church-year')).toBe(true);
+    expect(JSON.parse(await readFile(metadataPath, 'utf8')).churchCalendarSeedVersion).toBe(2);
   });
 
   it('detects synchronized conflict copies and can retain one copy', async () => {

@@ -10,7 +10,7 @@ import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults.js'
 import { normalizeCanvasBlocks } from '../src/shared/canvas.js';
 import { normalizeLibrary } from '../src/shared/library.js';
 import { meetsMinimumVersion } from '../src/shared/version.js';
-import { migrateChurchWeekNames, WELS_CALENDAR_PRESET_VERSION } from '../src/shared/churchCalendar.js';
+import { migrateChurchWeekNames, upgradeWelsCalendarPresets, WELS_CALENDAR_PRESET_VERSION } from '../src/shared/churchCalendar.js';
 
 interface WorkspaceFileV2 {
   schemaVersion: 2;
@@ -215,6 +215,15 @@ async function migrateLegacyLibrary(root: string) {
       if (record.archivedAt) continue;
       await atomicJson(recordPath(root, 'church-week', record.value), { ...record, revision: record.revision + 1, baseRevision: record.revision, updatedAt: new Date().toISOString(), archivedAt: new Date().toISOString() });
     }
+    metadata = { ...metadata, churchCalendarSeedVersion: WELS_CALENDAR_PRESET_VERSION };
+  } else if (metadata.churchCalendarSeedVersion < WELS_CALENDAR_PRESET_VERSION) {
+    const storedEvents = await loadRecordFolder<ChurchCalendarEvent>(root, 'library/calendar-events', 'calendar-event');
+    const before = [...storedEvents.records.values()].filter(record => !record.archivedAt).map(record => record.value);
+    const after = upgradeWelsCalendarPresets(before, true);
+    await writeLibraryDiff(root, 'calendar-event', storedEvents.records,
+      new Map(before.map(item => [calendarEventKey(item), item])),
+      new Map(after.map(item => [calendarEventKey(item), item])),
+      value => recordPath(root, 'calendar-event', value), false);
     metadata = { ...metadata, churchCalendarSeedVersion: WELS_CALENDAR_PRESET_VERSION };
   }
   await atomicJson(inside(root, 'workspace.json'), {

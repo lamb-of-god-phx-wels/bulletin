@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   churchCalendarIssues,
   churchEventDates,
+  churchEventDisplayName,
   churchEventsForDate,
   churchLectionaryYear,
   gregorianEaster,
   migrateChurchWeekNames,
+  upgradeWelsCalendarPresets,
   welsCalendarPreset
 } from '../src/shared/churchCalendar';
 import type { ChurchCalendarEvent } from '../src/shared/types';
@@ -28,6 +30,75 @@ describe('church calendar', () => {
     expect(churchEventDates('ash-wednesday', 2026, preset)).toEqual(['2026-02-18']);
     expect(churchEventDates('pentecost', 2026, preset)).toEqual(['2026-05-24']);
     expect(churchEventDates('advent-1', 2026, preset)).toEqual(['2026-11-29']);
+    expect(churchEventDates('reformation', 2026, preset)).toEqual(['2026-10-25']);
+    expect(churchEventDates('all-saints', 2026, preset)).toEqual(['2026-11-01']);
+    expect(churchEventDates('last-sunday-church-year', 2026, preset)).toEqual(['2026-11-22']);
+  });
+
+  it('keeps every movable rule valid from 1900 through 2199', () => {
+    const preset = welsCalendarPreset();
+    expect(churchCalendarIssues(preset)).toEqual([]);
+    const day = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
+    const daysBetween = (left: string, right: string) =>
+      (Date.parse(`${left}T12:00:00Z`) - Date.parse(`${right}T12:00:00Z`)) / 86_400_000;
+    const addDays = (date: string, count: number) =>
+      new Date(Date.parse(`${date}T12:00:00Z`) + count * 86_400_000).toISOString().slice(0, 10);
+
+    for (let year = 1900; year <= 2199; year += 1) {
+      const easter = churchEventDates('easter', year, preset)[0];
+      const pentecost = churchEventDates('pentecost', year, preset)[0];
+      const trinity = churchEventDates('holy-trinity', year, preset)[0];
+      const baptism = churchEventDates('baptism-of-our-lord', year, preset)[0];
+      const transfiguration = churchEventDates('transfiguration', year, preset)[0];
+      const advent = churchEventDates('advent-1', year, preset)[0];
+      const lastSunday = churchEventDates('last-sunday-church-year', year, preset)[0];
+      expect(easter.slice(5) >= '03-22').toBe(true);
+      expect(easter.slice(5) <= '04-25').toBe(true);
+      expect(day(easter)).toBe(0);
+      expect(daysBetween(pentecost, easter)).toBe(49);
+      expect(daysBetween(trinity, easter)).toBe(56);
+      expect(day(baptism)).toBe(0);
+      expect(baptism.slice(5) >= '01-07' && baptism.slice(5) <= '01-13').toBe(true);
+      expect(daysBetween(transfiguration, easter)).toBe(-49);
+      expect(day(advent)).toBe(0);
+      expect(advent.slice(5) >= '11-27').toBe(true);
+      expect(advent.slice(5) <= '12-03').toBe(true);
+      expect(lastSunday.slice(5) >= '11-20').toBe(true);
+      expect(lastSunday.slice(5) <= '11-26').toBe(true);
+
+      const properDates = preset
+        .filter(event => event.id.startsWith('proper-'))
+        .flatMap(event => churchEventDates(event.id, year, preset).map(date => ({ event, date })));
+      expect(new Set(properDates.map(item => item.date)).size).toBe(properDates.length);
+      for (const { event, date } of properDates) {
+        expect(day(date)).toBe(0);
+        expect(date > trinity).toBe(true);
+        expect(churchEventDisplayName(event, date, preset)).toMatch(/^\w+(?:-\w+)? Sunday After Pentecost$/);
+      }
+      for (let date = addDays(trinity, 7); date < lastSunday; date = addDays(date, 7)) {
+        expect(properDates.filter(item => item.date === date)).toHaveLength(1);
+      }
+      for (let ordinal = 2; ordinal <= 8; ordinal += 1) {
+        for (const date of churchEventDates(`epiphany-${ordinal}`, year, preset)) expect(date < transfiguration).toBe(true);
+      }
+      for (const date of churchEventDates('second-sunday-after-christmas', year, preset)) {
+        expect(date.slice(5) >= '01-02' && date.slice(5) <= '01-05').toBe(true);
+      }
+      for (const calendarEvent of preset) for (const date of churchEventDates(calendarEvent.id, year, preset)) {
+        expect(date.startsWith(`${year}-`)).toBe(true);
+        expect(new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10)).toBe(date);
+      }
+    }
+  });
+
+  it('uses bounded CW21 Propers but displays their Sunday-after-Pentecost ordinal', () => {
+    const preset = welsCalendarPreset();
+    expect(churchEventDates('proper-3', 2022, preset)).toEqual([]);
+    expect(churchEventDates('proper-4', 2022, preset)).toEqual([]);
+    const proper5 = preset.find(event => event.id === 'proper-5')!;
+    expect(churchEventDates(proper5.id, 2026, preset)).toEqual(['2026-06-07']);
+    expect(churchEventDisplayName(proper5, '2026-06-07', preset)).toBe('Second Sunday After Pentecost');
+    expect(preset.some(event => event.id === 'proper-29')).toBe(false);
   });
 
   it('changes lectionary year on the First Sunday in Advent', () => {
@@ -83,5 +154,44 @@ describe('church calendar', () => {
       needsRule: true,
       rules: []
     });
+  });
+
+  it('upgrades untouched version-one presets without overwriting a custom display name', () => {
+    const upgraded = upgradeWelsCalendarPresets([
+      {
+        id: 'proper-5',
+        name: 'Second Sunday after Pentecost',
+        enabled: true,
+        priority: 40,
+        rules: [{ kind: 'weekdayOnOrAfter', month: 6, day: 5, weekday: 0 }],
+        aliases: ['Pentecost 4']
+      },
+      {
+        id: 'proper-29',
+        name: 'Proper 29',
+        enabled: true,
+        priority: 40,
+        rules: [{ kind: 'weekdayOnOrAfter', month: 11, day: 20, weekday: 0 }],
+        aliases: ['Pentecost 28']
+      },
+      {
+        id: 'reformation',
+        name: 'Reformation',
+        enabled: true,
+        priority: 90,
+        rules: [{ kind: 'annualDate', month: 10, day: 31 }],
+        aliases: []
+      }
+    ], true);
+    expect(upgraded.find(event => event.id === 'proper-5')).toMatchObject({
+      name: 'Second Sunday after Pentecost',
+      rules: [expect.objectContaining({ kind: 'weekdayInDateRange', afterEventId: 'holy-trinity' })]
+    });
+    expect(upgraded.find(event => event.id === 'proper-5')?.nameMode).toBeUndefined();
+    expect(upgraded.some(event => event.id === 'proper-29')).toBe(false);
+    expect(upgraded.find(event => event.id === 'reformation')?.rules).toEqual([
+      { kind: 'nthWeekday', month: 10, weekday: 0, ordinal: -1 }
+    ]);
+    expect(upgraded.some(event => event.id === 'last-sunday-church-year')).toBe(true);
   });
 });

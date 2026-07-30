@@ -19,7 +19,10 @@ import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
-import { churchEventsForDate } from "../shared/churchCalendar";
+import {
+  churchEventDisplayName,
+  churchEventsForDate,
+} from "../shared/churchCalendar";
 import {
   explodeTemplatePage,
   instantiatePageTemplate,
@@ -80,10 +83,12 @@ export function WeeklyEditor({
     Record<string, { state: "loading" | "success" | "error"; text: string }>
   >({});
   const matchingChurchEvents = churchEventsForDate(document.info.date, library?.calendarEvents ?? []);
+  const calendarEventName = (event: (typeof matchingChurchEvents)[number]) =>
+    churchEventDisplayName(event, document.info.date, library?.calendarEvents ?? []);
   useEffect(() => {
     if (!document.info.date || document.info.churchWeek) return;
     const first = churchEventsForDate(document.info.date, library?.calendarEvents ?? [])[0];
-    if (first) onChange({ ...document, info: { ...document.info, churchWeek: first.name, churchEventId: first.id } });
+    if (first) onChange({ ...document, info: { ...document.info, churchWeek: churchEventDisplayName(first, document.info.date, library?.calendarEvents ?? []), churchEventId: first.id } });
   }, [document.id, document.info.date, document.info.churchWeek, library?.calendarEvents]);
   const songFamilies = libraryFamilies(
     library?.items.filter((item) => item.kind === "song") ?? [],
@@ -106,7 +111,7 @@ export function WeeklyEditor({
   const updateInfo = (key: keyof BulletinDocumentV1["info"], value: string) => {
     if (key === "date") {
       const first = churchEventsForDate(value, library?.calendarEvents ?? [])[0];
-      onChange({ ...document, info: { ...document.info, date: value, churchWeek: first?.name ?? "", churchEventId: first?.id } });
+      onChange({ ...document, info: { ...document.info, date: value, churchWeek: first ? churchEventDisplayName(first, value, library?.calendarEvents ?? []) : "", churchEventId: first?.id } });
       return;
     }
     onChange({ ...document, info: { ...document.info, [key]: value } });
@@ -540,12 +545,12 @@ export function WeeklyEditor({
         <div className="church-event-field">
           <label>Church event<select value={matchingChurchEvents.some(event => event.id === document.info.churchEventId) ? document.info.churchEventId : ''} onChange={event => {
             const selected = matchingChurchEvents.find(item => item.id === event.target.value);
-            onChange({ ...document, info: { ...document.info, churchEventId: selected?.id, churchWeek: selected?.name ?? document.info.churchWeek } });
-          }}><option value="">Custom text</option>{matchingChurchEvents.map(event => <option value={event.id} key={event.id}>{event.name}</option>)}</select></label>
+            onChange({ ...document, info: { ...document.info, churchEventId: selected?.id, churchWeek: selected ? calendarEventName(selected) : document.info.churchWeek } });
+          }}><option value="">Custom text</option>{matchingChurchEvents.map(event => <option value={event.id} key={event.id}>{calendarEventName(event)}</option>)}</select></label>
           <label>Bulletin text<input value={document.info.churchWeek} placeholder={matchingChurchEvents.length ? 'Church event text' : 'No calendar event for this date'} onChange={event => updateInfo("churchWeek", event.target.value)} /></label>
-          <div>{document.info.churchEventId && matchingChurchEvents.find(event => event.id === document.info.churchEventId)?.name !== document.info.churchWeek && <button className="text-button" onClick={() => {
+          <div>{document.info.churchEventId && (() => { const selected = matchingChurchEvents.find(event => event.id === document.info.churchEventId); return selected && calendarEventName(selected) !== document.info.churchWeek; })() && <button className="text-button" onClick={() => {
             const selected = matchingChurchEvents.find(event => event.id === document.info.churchEventId);
-            if (selected) onChange({ ...document, info: { ...document.info, churchWeek: selected.name } });
+            if (selected) onChange({ ...document, info: { ...document.info, churchWeek: calendarEventName(selected) } });
           }}>Reset to calendar value</button>}{!matchingChurchEvents.length && <button className="text-button" onClick={onOpenChurchCalendar}>Add event in Church Calendar</button>}</div>
         </div>
         <label>

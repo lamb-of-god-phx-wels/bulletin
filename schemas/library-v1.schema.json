@@ -32,7 +32,8 @@
           "rules": { "type": "array", "items": { "$ref": "#/$defs/churchEventRule" } },
           "lectionaryYears": { "type": "array", "items": { "enum": ["A", "B", "C"] }, "uniqueItems": true },
           "aliases": { "type": "array", "items": { "type": "string" } },
-          "needsRule": { "type": "boolean" }
+          "needsRule": { "type": "boolean" },
+          "nameMode": { "enum": ["sundayAfterPentecost"] }
         },
         "additionalProperties": false
       }
@@ -99,6 +100,20 @@
         },
         {
           "type": "object",
+          "required": ["kind", "startMonth", "startDay", "endMonth", "endDay", "weekday"],
+          "properties": {
+            "kind": { "const": "weekdayInDateRange" },
+            "startMonth": { "$ref": "#/$defs/month" },
+            "startDay": { "$ref": "#/$defs/day" },
+            "endMonth": { "$ref": "#/$defs/month" },
+            "endDay": { "$ref": "#/$defs/day" },
+            "weekday": { "$ref": "#/$defs/weekday" },
+            "afterEventId": { "$ref": "#/$defs/eventId" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "required": ["kind"],
           "properties": { "kind": { "const": "easter" } },
           "additionalProperties": false
@@ -109,7 +124,8 @@
           "properties": {
             "kind": { "const": "relativeDays" },
             "eventId": { "$ref": "#/$defs/eventId" },
-            "days": { "type": "integer" }
+            "days": { "type": "integer" },
+            "beforeEventId": { "$ref": "#/$defs/eventId" }
           },
           "additionalProperties": false
         },

@@ -298,8 +298,9 @@ export type ChurchEventRule =
   | { kind: 'annualDate'; month: number; day: number }
   | { kind: 'nthWeekday'; month?: number; weekday: number; ordinal: 1 | 2 | 3 | 4 | 5 | -1 }
   | { kind: 'weekdayOnOrAfter'; month: number; day: number; weekday: number }
+  | { kind: 'weekdayInDateRange'; startMonth: number; startDay: number; endMonth: number; endDay: number; weekday: number; afterEventId?: string }
   | { kind: 'easter' }
-  | { kind: 'relativeDays'; eventId: string; days: number }
+  | { kind: 'relativeDays'; eventId: string; days: number; beforeEventId?: string }
   | { kind: 'weekdayRelative'; eventId: string; weekday: number; ordinal: 1 | 2 | 3 | 4 | 5; direction: 'before' | 'after' };
 export interface ChurchCalendarEvent {
   id: string;
@@ -310,6 +311,7 @@ export interface ChurchCalendarEvent {
   lectionaryYears?: ChurchLectionaryYear[];
   aliases?: string[];
   needsRule?: boolean;
+  nameMode?: 'sundayAfterPentecost';
 }
 export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'church-week' | 'calendar-event' | 'component';
 export interface WorkspaceConflict {

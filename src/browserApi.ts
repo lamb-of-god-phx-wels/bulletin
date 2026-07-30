@@ -4,7 +4,7 @@ import { randomId } from './shared/id';
 import { normalizeCanvasBlocks } from './shared/canvas';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
-import { migrateChurchWeekNames, welsCalendarPreset } from './shared/churchCalendar';
+import { migrateChurchWeekNames, upgradeWelsCalendarPresets, welsCalendarPreset } from './shared/churchCalendar';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
 import churchLogoUrl from '../assets/church/logo.png';
 import seriesLogoUrl from '../assets/sermon_series/say_it_out_loud/logo.png';
@@ -146,9 +146,13 @@ async function summary(root: string) {
   value = { ...value, pageTemplates: value.pageTemplates ?? [] };
   if (!value.library) return value;
   const normalized = normalizeLibrary(value.library);
-  const library = normalized.calendarEvents === undefined
+  const migratedLibrary = normalized.calendarEvents === undefined
     ? { ...normalized, calendarEvents: migrateChurchWeekNames(normalized.churchWeekNames ?? []) }
     : normalized;
+  const upgradedEvents = upgradeWelsCalendarPresets(migratedLibrary.calendarEvents ?? []);
+  const library = upgradedEvents === migratedLibrary.calendarEvents
+    ? migratedLibrary
+    : { ...migratedLibrary, calendarEvents: upgradedEvents };
   if (library === value.library) return value;
   const migrated = { ...value, library };
   await putRecord(workspaceStore, root, migrated);

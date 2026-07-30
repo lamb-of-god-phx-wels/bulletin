@@ -52,7 +52,10 @@ import { validateBulletin } from "./shared/validation";
 import { templateForBulletin } from "./shared/documentLayout";
 import { randomId } from "./shared/id";
 import { prepackagedComponentDiagnostics } from "./componentDefinitions";
-import { churchEventsForDate } from "./shared/churchCalendar";
+import {
+  churchEventDisplayName,
+  churchEventsForDate,
+} from "./shared/churchCalendar";
 import {
   duplicateBulletin,
   filterBulletins,
@@ -512,15 +515,18 @@ function DesktopApp() {
     setScreen("weekly");
   }
   function openNewBulletin(next: BulletinDocumentV1) {
+    const calendarEvents = workspace?.library?.calendarEvents ?? [];
     const firstEvent = churchEventsForDate(
       next.info.date,
-      workspace?.library?.calendarEvents ?? [],
+      calendarEvents,
     )[0];
     next = {
       ...next,
       info: {
         ...next.info,
-        churchWeek: firstEvent?.name ?? "",
+        churchWeek: firstEvent
+          ? churchEventDisplayName(firstEvent, next.info.date, calendarEvents)
+          : "",
         churchEventId: firstEvent?.id,
       },
     };

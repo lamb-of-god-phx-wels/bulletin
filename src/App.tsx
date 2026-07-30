@@ -217,7 +217,7 @@ function DesktopApp() {
   const initialPreviewZoom = storedPreviewZoom();
   const [workspace, setWorkspace] = useState<WorkspaceSummary>();
   const [screen, setScreen] = useState<Screen>("weekly");
-  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(true);
   const [document, setDocument] = useState<BulletinDocumentV1>();
   const [relativePath, setRelativePath] = useState("");
   const [template, setTemplate] = useState<TemplateV1>(defaultTemplate);
@@ -255,7 +255,6 @@ function DesktopApp() {
     templateDirty: false,
     auxiliaryDirty: false,
   });
-  useEffect(() => setNavigationOpen(false), [screen, document?.id]);
   useEffect(() => {
     if (!navigationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -1022,7 +1021,6 @@ function DesktopApp() {
     },
   ];
   const runNavigationAction = (action: () => void) => {
-    setNavigationOpen(false);
     action();
   };
   const navigationMenu = (compact = false) => (
@@ -1077,7 +1075,6 @@ function DesktopApp() {
       {window.bulletin?.platform === "electron" && (
         <button
           onClick={() => {
-            setNavigationOpen(false);
             void checkForUpdates();
           }}
         >
@@ -1086,7 +1083,6 @@ function DesktopApp() {
       )}
       <button
         onClick={() => {
-          setNavigationOpen(false);
           chooseWorkspace();
         }}
       >
@@ -1102,70 +1098,64 @@ function DesktopApp() {
     >
       {editorOpen ? (
         <>
-          <aside className="navigation-rail" aria-label="Quick navigation">
-            <button
-              className="navigation-toggle"
-              aria-label="Open navigation"
-              aria-controls="app-navigation-drawer"
-              aria-expanded={navigationOpen}
-              title="Open navigation"
-              onClick={() => setNavigationOpen(true)}
+          {navigationOpen ? (
+            <aside
+              id="app-navigation-drawer"
+              className="sidebar navigation-drawer"
+              aria-label="Navigation"
             >
-              ☰
-            </button>
-            {navigationMenu(true)}
-            <div className="navigation-rail-bottom">
-              {window.bulletin?.platform === "electron" && (
+              <div className="app-brand">
+                <span>✠</span>
+                <div>
+                  <b>Bulletin</b>
+                  <small>Builder</small>
+                </div>
                 <button
-                  aria-label="Check for updates"
-                  title="Check for updates"
-                  onClick={() => void checkForUpdates()}
+                  className="navigation-close"
+                  aria-label="Collapse navigation"
+                  title="Collapse navigation"
+                  onClick={() => setNavigationOpen(false)}
                 >
-                  ↻
+                  ×
                 </button>
-              )}
-              <button
-                aria-label="Change workspace"
-                title={`Change workspace · ${workspaceName}`}
-                onClick={chooseWorkspace}
-              >
-                ⌂
-              </button>
-            </div>
-          </aside>
-          {navigationOpen && (
-            <button
-              className="navigation-scrim"
-              aria-label="Close navigation"
-              onClick={() => setNavigationOpen(false)}
-            />
-          )}
-          <aside
-            id="app-navigation-drawer"
-            className="sidebar navigation-drawer"
-            aria-label="Navigation"
-            aria-hidden={!navigationOpen}
-            inert={!navigationOpen}
-          >
-            <div className="app-brand">
-              <span>✠</span>
-              <div>
-                <b>Bulletin</b>
-                <small>Builder</small>
               </div>
+              {navigationMenu()}
+              {recentBulletins()}
+              {navigationFooter()}
+            </aside>
+          ) : (
+            <aside className="navigation-rail" aria-label="Quick navigation">
               <button
-                className="navigation-close"
-                aria-label="Close navigation"
-                title="Close navigation"
-                onClick={() => setNavigationOpen(false)}
+                className="navigation-toggle"
+                aria-label="Expand navigation"
+                aria-controls="app-navigation-drawer"
+                aria-expanded={false}
+                title="Expand navigation"
+                onClick={() => setNavigationOpen(true)}
               >
-                ×
+                ☰
               </button>
-            </div>
-            {navigationMenu()}
-            {recentBulletins()}
-            {navigationFooter()}
-          </aside>
+              {navigationMenu(true)}
+              <div className="navigation-rail-bottom">
+                {window.bulletin?.platform === "electron" && (
+                  <button
+                    aria-label="Check for updates"
+                    title="Check for updates"
+                    onClick={() => void checkForUpdates()}
+                  >
+                    ↻
+                  </button>
+                )}
+                <button
+                  aria-label="Change workspace"
+                  title={`Change workspace · ${workspaceName}`}
+                  onClick={chooseWorkspace}
+                >
+                  ⌂
+                </button>
+              </div>
+            </aside>
+          )}
           <aside className="elements-sidebar" aria-label="Elements">
             <div
               id="app-element-palette-slot"
@@ -1187,15 +1177,13 @@ function DesktopApp() {
           {navigationFooter()}
         </aside>
       )}
-      <main className="main-area">
-        <header className="topbar">
+      <main className={`main-area ${screen === "church-year" ? "calendar-main" : ""}`}>
+        {screen !== "church-year" && <header className="topbar">
           <div>
             <div className="eyebrow">
               {screen === "weekly"
                 ? "Weekly bulletin"
-                : screen === "church-year"
-                  ? "Shared settings"
-                  : screen === "archive"
+                : screen === "archive"
                     ? "Recoverable items"
                   : screen}
             </div>
@@ -1206,8 +1194,6 @@ function DesktopApp() {
                   ? template.name
                   : screen === "page-templates"
                     ? "Page Templates"
-                  : screen === "church-year"
-                    ? "Church Calendar"
                     : screen === "archive"
                       ? "Trash"
                       : workspace.library?.name}
@@ -1277,7 +1263,7 @@ function DesktopApp() {
               </>
             )}
           </div>
-        </header>
+        </header>}
         {!workspaceWritable && (
           <div className="component-diagnostics-banner" role="alert">
             <b>Update required — read only</b>

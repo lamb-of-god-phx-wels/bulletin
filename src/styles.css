@@ -19,7 +19,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .welcome-screen h1 { margin: 12px 0 18px; max-width: 700px; font: 54px/1.03 Georgia, serif; letter-spacing: -.035em; }
 .welcome-screen p { max-width: 590px; margin: 0 0 28px; color: #615d54; font-size: 18px; line-height: 1.6; }
 .app-shell { position: relative; display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100vh; overflow: hidden; }
-.app-shell.editor-shell { grid-template-columns: 56px 168px minmax(0, 1fr); }
+.app-shell.editor-shell { grid-template-columns: 56px 168px minmax(0, 1fr); transition: grid-template-columns 180ms ease; }
+.app-shell.editor-shell.navigation-open { grid-template-columns: 232px 168px minmax(0, 1fr); }
 .sidebar { display: flex; flex-direction: column; padding: 25px 16px 16px; color: #e9e7de; background: #27322e; }
 .app-brand { display: flex; align-items: center; gap: 12px; padding: 0 10px 26px; }
 .app-brand > span { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: #a85433; }
@@ -36,12 +37,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .navigation-rail nav button > span { width: auto; font-size: 19px; }
 .navigation-count { position: absolute; top: 2px; right: 1px; display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 3px; border: 2px solid #27322e; border-radius: 10px; color: white; background: #b86543; font-size: 8px; line-height: 1; }
 .navigation-rail-bottom { display: grid; flex: none; gap: 3px; margin-top: auto; padding-top: 9px; border-top: 1px solid #ffffff15; }
-.navigation-drawer { position: absolute; z-index: 50; inset: 0 auto 0 0; width: 232px; box-shadow: 12px 0 32px #10171345; transform: translateX(-102%); visibility: hidden; transition: transform 180ms ease, visibility 0s linear 180ms; }
-.navigation-open .navigation-drawer { transform: translateX(0); visibility: visible; transition: transform 180ms ease; }
+.navigation-drawer { position: relative; z-index: 20; min-width: 0; }
 .navigation-drawer .app-brand { padding-right: 3px; }
 .navigation-close { display: grid; place-items: center; width: 34px; height: 34px; margin-left: auto; padding: 0; border: 0; border-radius: 8px; color: #d1d7d3; background: #ffffff0c; font-size: 24px; }
 .navigation-close:hover { color: white; background: #ffffff18; }
-.navigation-scrim { position: absolute; z-index: 45; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; background: #18211d42; cursor: default; }
 .sidebar nav { display: grid; gap: 4px; }
 .sidebar nav button, .sidebar-bottom button { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 12px; border: 0; border-radius: 8px; color: #bdc3bf; background: transparent; text-align: left; }
 .sidebar nav button:hover, .sidebar nav button.active { color: white; background: #ffffff12; }
@@ -548,7 +547,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .library-path { max-width: 420px; padding: 12px; border-radius: 8px; color: #6e726d; background: white; font: 11px monospace; overflow-wrap: anywhere; }
 .library-intro > div:last-child { display: grid; justify-items: end; gap: 9px; }
 .library-form { display: grid; gap: 12px; max-width: 850px; margin-top: 22px; }
-.church-calendar-screen { height: calc(100vh - 84px); overflow: hidden; background: #e2dfd7; }
+.church-calendar-screen { height: 100vh; overflow: hidden; background: #e2dfd7; }
+.calendar-main .component-diagnostics-banner { top: 0; }
 .church-calendar-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(280px, 1fr); align-items: center; gap: 22px; min-height: 92px; padding: 14px 22px; border-bottom: 1px solid #cdc8bd; background: #faf9f6; }
 .church-calendar-toolbar h2 { margin: 2px 0 3px; font: 25px Georgia, serif; }.church-calendar-toolbar p { margin: 0; color: #737971; font-size: 10px; }
 .calendar-navigation { display: grid; grid-template-columns: 30px auto 30px; gap: 5px; align-items: center; }.calendar-navigation strong { grid-column: 1 / -1; grid-row: 1; justify-self: center; font: 18px Georgia, serif; pointer-events: none; }.calendar-navigation button { z-index: 1; min-height: 30px; padding: 0 8px; }.calendar-navigation button:nth-child(2) { margin-left: 35px; margin-right: 35px; }
@@ -606,5 +606,10 @@ code { padding: 2px 5px; border-radius: 4px; background: #ebe8e0; }
   html:has(.electron-print), body:has(.electron-print), body:has(.electron-print) #root, .electron-print, .electron-print .document-stack { background: transparent !important; }
   .electron-print .canvas-cover.has-pdf-background { background-color: transparent !important; }
 }
-@media (max-width: 1120px) { .app-shell { grid-template-columns: 200px 1fr; }.weekly-layout { grid-template-columns: minmax(370px, 1fr) minmax(420px, 1fr); } }
+@media (max-width: 1120px) {
+  .app-shell { grid-template-columns: 200px minmax(0, 1fr); }
+  .app-shell.editor-shell { grid-template-columns: 56px 150px minmax(0, 1fr); }
+  .app-shell.editor-shell.navigation-open { grid-template-columns: 200px 150px minmax(0, 1fr); }
+  .weekly-layout { grid-template-columns: minmax(320px, 1fr) minmax(380px, 1fr); }
+}
 @media (max-width: 620px) { .bulletin-picker-list > button { grid-template-columns: minmax(0, 1fr) auto; }.bulletin-picker-list time { grid-column: 1 / -1; } }

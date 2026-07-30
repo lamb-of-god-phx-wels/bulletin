@@ -57,6 +57,7 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   };
   if (block.type === 'group') return formatted(block.children.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'canvas') return formatted(block.heightIn * 72);
+  if (block.type === 'image') return formatted((block.heightIn ?? 2.5) * 72);
   if (block.type === 'paragraph') return formatted(childBlocks(block)!.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
   if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));

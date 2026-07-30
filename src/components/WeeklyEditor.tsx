@@ -5,6 +5,8 @@ import { ScriptureEditor } from "./ScriptureEditor";
 import { CanvasDesigner } from "./CanvasDesigner";
 import { PageTemplateEditor } from "./PageTemplateEditor";
 import { SortableHandle, SortableItem, SortableList } from "./SortableList";
+import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
+import { PageElementDialog } from "./PageElementDialog";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, findBlock, updateBlockTree } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
@@ -15,6 +17,7 @@ import {
 } from "../shared/responsiveReading";
 import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
+import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import {
   churchWeekDisplayName,
   churchWeekNameOverride,
@@ -72,6 +75,8 @@ export function WeeklyEditor({
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [templatePageBlockId, setTemplatePageBlockId] = useState<string>();
   const [blockLibraryIndex, setBlockLibraryIndex] = useState<number>();
+  const [pageInsertionIndex, setPageInsertionIndex] = useState<number>();
+  const [creatingPage, setCreatingPage] = useState<PageTemplateV1>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
   const [lookupStatus, setLookupStatus] = useState<
     Record<string, { state: "loading" | "success" | "error"; text: string }>
@@ -418,7 +423,7 @@ export function WeeklyEditor({
     setPendingAddedBlockId(undefined);
     return () => window.clearTimeout(timer);
   }, [document.blocks, pendingAddedBlockId]);
-  const addPage = async () => {
+  const addPage = async (index = document.blocks.length, imageOnly = false) => {
     if (!root || !window.bulletin) return;
     try {
       const asset = await window.bulletin.importAsset(
@@ -426,24 +431,43 @@ export function WeeklyEditor({
         `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`,
       );
       if (!asset) return;
+      if (imageOnly && asset.mediaType === "application/pdf") {
+        onError("Choose a PNG, JPEG, or SVG for an Image element. Use Full-page image / PDF for PDF files.");
+        return;
+      }
+      const block: BulletinBlock = imageOnly ? {
+        id: `image-${crypto.randomUUID()}`,
+        type: "image",
+        asset,
+        fit: "contain",
+        heightIn: 2.5,
+        weeklyEditable: true,
+      } : {
+        id: `page-${Date.now()}`,
+        type: "fullPageAsset",
+        asset,
+        weeklyEditable: true,
+      };
       onChange({
         ...document,
-        blocks: [
-          ...document.blocks,
-          {
-            id: `page-${Date.now()}`,
-            type: "fullPageAsset",
-            asset,
-            weeklyEditable: true,
-          },
-        ],
+        blocks: insertWeeklyBlock(document.blocks, block, index),
       });
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
     }
   };
+  const usePaletteItem = (item: ElementPaletteItem, index: number) => {
+    const payload = item.payload as ElementPalettePayload;
+    if (payload.kind === "component") {
+      const block = { ...instantiateComponentDefinition(payload.definition), weeklyEditable: true } as BulletinBlock;
+      onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, index) });
+      setPendingAddedBlockId(block.id);
+    } else if (payload.kind === "page") setPageInsertionIndex(index);
+    else if (payload.kind === "image") void addPage(index, true);
+    else if (payload.kind === "fullPageAsset") void addPage(index);
+  };
   const chooseBlockAsset = async (
-    block: Extract<BulletinBlock, { type: "song" | "fullPageAsset" }>,
+    block: Extract<BulletinBlock, { type: "song" | "image" | "fullPageAsset" }>,
   ) => {
     if (!root || !window.bulletin) return;
     try {
@@ -793,21 +817,19 @@ export function WeeklyEditor({
             bulletin
           </small>
         </div>
-        <div className="weekly-content-actions">
-          <button
-            className="primary"
-            onClick={() => setBlockLibraryIndex(document.blocks.length)}
-          >
-            ＋ Add block
-          </button>
-          <button className="secondary" onClick={addPage}>
-            ＋ One-off page
-          </button>
-        </div>
       </div>
       <SortableList
         items={document.blocks}
         onChange={(blocks) => onChange({ ...document, blocks })}
+        onInsert={(descriptor, index) => usePaletteItem(descriptor as ElementPaletteItem, index)}
+        dockedPalette
+        palette={<ElementPalette
+          items={flowElementPaletteItems(library?.componentDefinitions ?? [])}
+          storageKey="bulletin-elements-weekly"
+          portalTargetId="app-element-palette-slot"
+          onUse={item => usePaletteItem(item, document.blocks.length)}
+          actions={<button className="text-button" onClick={() => setBlockLibraryIndex(document.blocks.length)}>Manage components…</button>}
+        />}
       >
         {document.blocks.map((block, index) => (
           <SortableItem id={block.id} key={block.id}>
@@ -834,13 +856,6 @@ export function WeeklyEditor({
                     onClick={() => setFormattingBlockId(block.id)}
                   >
                     Format
-                  </button>
-                  <button
-                    title={`Add block after ${blockName(block)}`}
-                    aria-label={`Add block after ${blockName(block)}`}
-                    onClick={() => setBlockLibraryIndex(index + 1)}
-                  >
-                    ＋
                   </button>
                   <button
                     className="danger-text"
@@ -1736,6 +1751,13 @@ export function WeeklyEditor({
                     </div>
                   </>
                 )}
+                {block.type === "image" && (
+                  <>
+                    <p className="helper">{block.alt ?? block.asset.alt ?? block.asset.path}</p>
+                    <div className="field-row"><label>Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => updateBlock(block.id, { ...block, heightIn: event.currentTarget.valueAsNumber })} /></label><label>Fit<select value={block.fit ?? "contain"} onChange={event => updateBlock(block.id, { ...block, fit: event.target.value as "contain" | "cover" | "fill" })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></div>
+                    <button className="secondary" onClick={() => chooseBlockAsset(block)}>Replace image</button>
+                  </>
+                )}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <button
                     className="danger-text"
@@ -1756,6 +1778,40 @@ export function WeeklyEditor({
           </SortableItem>
         ))}
       </SortableList>
+      {pageInsertionIndex !== undefined && !creatingPage && (
+        <PageElementDialog
+          pages={pageTemplates}
+          onClose={() => setPageInsertionIndex(undefined)}
+          onSelect={(page) => {
+            onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(page), pageInsertionIndex) });
+            setPageInsertionIndex(undefined);
+          }}
+          onCreate={(page) => setCreatingPage(page)}
+        />
+      )}
+      {creatingPage && (
+        <PageTemplateEditor
+          value={creatingPage}
+          template={template}
+          document={document}
+          library={library}
+          root={root}
+          definitions={library?.componentDefinitions ?? []}
+          onChange={setCreatingPage}
+          onSave={async publish => {
+            if (!root || !window.bulletin) throw new Error("A workspace is required to save reusable pages.");
+            const saved = { ...creatingPage, status: publish ? "published" as const : "draft" as const, updatedAt: new Date().toISOString() };
+            await window.bulletin.savePageTemplate(root, saved);
+            setCreatingPage(saved);
+            if (publish && pageInsertionIndex !== undefined) {
+              onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(saved), pageInsertionIndex) });
+              setCreatingPage(undefined);
+              setPageInsertionIndex(undefined);
+            }
+          }}
+          onClose={() => { setCreatingPage(undefined); setPageInsertionIndex(undefined); }}
+        />
+      )}
       {blockLibraryIndex !== undefined && (
         <BlockLibraryModal
           workspaceDefinitions={library?.componentDefinitions ?? []}
@@ -1835,6 +1891,8 @@ export function WeeklyEditor({
               marginIn={document.layout?.marginIn ?? template.theme.marginIn}
               assets={{}}
               root={root}
+              definitions={library?.componentDefinitions ?? []}
+              library={library}
               onChooseAsset={chooseCanvasAsset}
               onChange={(next) => updateBlock(next.id, next)}
               onClose={() => setCanvasBlockId(undefined)}

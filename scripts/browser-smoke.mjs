@@ -59,9 +59,46 @@ if (process.env.BULLETIN_DEBUG_RUNTIME === '1') {
   socket.close();
   process.exit(runtimeErrors.length ? 1 : 0);
 }
-await wait(`document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
+if (process.env.BULLETIN_PALETTE_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+}
+await wait(process.env.BULLETIN_PALETTE_ONLY === '1' ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))` : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_PALETTE_ONLY === '1') {
+  const initialCount = await evaluate(`document.querySelectorAll('.editor-scroll .palette-sortable-content > .block-editor').length`);
+  await evaluate(`document.querySelector('.sidebar-palette-slot .element-palette-item')?.click()`);
+  await wait(`document.querySelectorAll('.editor-scroll .palette-sortable-content > .block-editor').length===${initialCount + 1}`, 'palette click append');
+  pass('appends a native block by clicking its palette item');
+
+  const drag = await evaluate(`(()=>{const item=document.querySelector('.sidebar-palette-slot .element-palette-item');const target=document.querySelector('.editor-pane [data-editor-block-id]');target.scrollIntoView({block:'center'});const a=item.getBoundingClientRect(),b=target.getBoundingClientRect();return {start:{x:a.left+a.width/2,y:a.top+a.height/2},end:{x:b.left+b.width/2,y:b.top+4},first:target.dataset.editorBlockId}})()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: drag.start.x, y: drag.start.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 8; step++) {
+    const ratio = step / 8;
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: drag.start.x + (drag.end.x - drag.start.x) * ratio, y: drag.start.y + (drag.end.y - drag.start.y) * ratio, button: 'left', buttons: 1 });
+    await new Promise(resolve => setTimeout(resolve, 35));
+  }
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: drag.end.x, y: drag.end.y, button: 'left', buttons: 0, clickCount: 1 });
+  await wait(`document.querySelector('.editor-pane [data-editor-block-id]')?.dataset.editorBlockId!==${JSON.stringify(drag.first)}`, 'palette exact-position drop');
+  const afterDropCount = await evaluate(`document.querySelectorAll('.editor-scroll .palette-sortable-content > .block-editor').length`);
+  if (afterDropCount !== initialCount + 2) throw new Error(`Palette drag inserted ${afterDropCount - initialCount} blocks after one click and one drop.`);
+  pass('drops a palette block before the first existing block');
+
+  await evaluate(`(()=>{const page=Array.from(document.querySelectorAll('.editor-pane [data-editor-block-id]')).find(block=>block.querySelector('.block-type')?.textContent.toLowerCase().includes('templatepage'));page.open=true;page.scrollIntoView({block:'center'});return true})()`);
+  const editPage = await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.editor-pane button')).find(button=>button.textContent.trim()==='Edit page overrides');button?.click();return Boolean(button)})()`);
+  if (!editPage) throw new Error('Reusable page edit action was not found.');
+  await wait(`Boolean(document.querySelector('.page-template-designer'))`, 'page template editor');
+  await click('Design');
+  await wait(`Boolean(document.querySelector('.canvas-designer'))`, 'canvas designer');
+  const canvasState = await evaluate(`({palette:Boolean(document.querySelector('.canvas-layers .element-palette')),layers:Boolean(document.querySelector('.canvas-layer-heading')),native:document.querySelectorAll('.canvas-stage .canvas-native-block').length})`);
+  if (!canvasState.palette || !canvasState.layers || !canvasState.native) throw new Error(`Canvas native palette/layers are incomplete: ${JSON.stringify(canvasState)}`);
+  pass('shows native canvas elements and layers together');
+  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
+  console.log(`\n${results.length} browser palette checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_CHURCH_YEAR_ONLY === '1') {
   if (await evaluate(`Boolean(document.querySelector('.editor-pane .church-week-names'))`)) throw new Error('Church Year management remains in the weekly editor.');

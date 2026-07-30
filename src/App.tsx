@@ -1079,7 +1079,13 @@ function DesktopApp() {
               : ""}
           </button>
         </nav>
-        <div className="recent">
+        {(screen === "templates" || (screen === "weekly" && document)) ? (
+          <div
+            id="app-element-palette-slot"
+            className="sidebar-palette-slot"
+            aria-label="Elements"
+          />
+        ) : <div className="recent">
           <div className="eyebrow">Recent bulletins</div>
           {sortedBulletins(workspace.bulletins)
             .slice(0, 6)
@@ -1099,7 +1105,7 @@ function DesktopApp() {
                 <span>{item.document.info.title}</span>
               </button>
             ))}
-        </div>
+        </div>}
         <div className="sidebar-bottom">
           {window.bulletin?.platform === "electron" && (
             <button onClick={() => void checkForUpdates()}>

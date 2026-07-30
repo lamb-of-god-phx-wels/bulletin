@@ -14,6 +14,7 @@ export const CANVAS_PAGE = Object.freeze({ width: 7, height: 8.5 });
 export const CANVAS_GRID_IN = 1 / 16;
 
 export function createCanvasBlock(id: string, scene: CanvasScene = {
+  schemaVersion: 2,
   coordinateSpace: 'fullPage',
   background: { color: '#ffffff' },
   elements: []
@@ -33,7 +34,7 @@ const paragraph = (text: string): Paragraph[] => [{
 }];
 
 export function defaultCanvasScene(): CanvasScene {
-  return {
+  return normalizeCanvasScene({
     coordinateSpace: 'fullPage',
     background: { color: '#ffffff' },
     elements: [
@@ -122,6 +123,70 @@ export function defaultCanvasScene(): CanvasScene {
         locked: true
       }
     ]
+  });
+}
+
+export function canvasNativeBlockAllowed(block: import('./types.js').BulletinBlock) {
+  return !['canvas', 'templatePage', 'fullPageAsset', 'titlePage', 'canvasCover'].includes(block.type);
+}
+
+export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
+  if (scene.schemaVersion === 2 && scene.elements.every(element => element.type === 'block' || element.type === 'shape')) return scene;
+  return {
+    ...scene,
+    schemaVersion: 2,
+    elements: scene.elements.map(element => {
+      if (element.type === 'block' || element.type === 'shape') return element;
+      const base = {
+        id: element.id,
+        name: element.name,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        locked: element.locked,
+        groupId: element.groupId
+      };
+      if (element.type === 'rectangle') {
+        return { ...base, type: 'shape' as const, shape: 'rectangle' as const, fill: element.fill, borderColor: element.borderColor, borderWidthPt: element.borderWidthPt };
+      }
+      if (element.type === 'line') {
+        return { ...base, type: 'shape' as const, shape: 'line' as const, color: element.color, widthPt: element.widthPt, dash: element.dash };
+      }
+      if (element.type === 'image') {
+        return {
+          ...base,
+          type: 'block' as const,
+          sizing: 'fixed' as const,
+          block: { id: `${element.id}-image`, type: 'image' as const, asset: structuredClone(element.asset), fit: element.fit, heightIn: element.height, alt: element.asset.alt }
+        };
+      }
+      return {
+        ...base,
+        type: 'block' as const,
+        sizing: element.overflow === 'fixed' ? 'fixed' as const : 'autoHeight' as const,
+        block: {
+          id: `${element.id}-text`,
+          type: 'richText' as const,
+          content: structuredClone(element.source.literal ?? paragraph('')),
+          binding: element.source.binding,
+          bindingOverride: structuredClone(element.source.override),
+          dateFormat: element.source.dateFormat,
+          presentation: {
+            widthPercent: 100,
+            paddingIn: { top: element.paddingIn?.top ?? 0, right: element.paddingIn?.right ?? 0, bottom: element.paddingIn?.bottom ?? 0, left: element.paddingIn?.left ?? 0 },
+            marginIn: { top: 0, bottom: 0 },
+            fontFamily: element.fontFamily ?? 'body',
+            fontSizePt: element.fontSizePt ?? 12,
+            lineHeight: element.lineHeight ?? 1.15,
+            fontWeight: element.fontWeight === 'bold' ? 'bold' : 'normal',
+            fontStyle: element.fontStyle ?? 'normal',
+            textAlign: element.textAlign ?? 'left',
+            color: element.color ?? '#25302d'
+          }
+        }
+      };
+    })
   };
 }
 
@@ -192,8 +257,30 @@ export function canvasTextParagraphs(element: Extract<CanvasElement, { type: 'te
 export function canvasAssetRefs(scene: CanvasScene): AssetRef[] {
   return [
     ...(scene.background?.asset ? [scene.background.asset] : []),
-    ...scene.elements.flatMap(element => element.type === 'image' ? [element.asset] : [])
+    ...scene.elements.flatMap(element => {
+      if (element.type === 'image') return [element.asset];
+      if (element.type !== 'block') return [];
+      const block = element.block;
+      if ('asset' in block && block.asset) return [block.asset];
+      if (block.type === 'churchInfo' && block.heroAsset) return [block.heroAsset];
+      if (block.type === 'announcements') return block.items.flatMap(item => item.asset ? [item.asset] : []);
+      return [];
+    })
   ];
+}
+
+export const canvasNativeBlocks = (scene: CanvasScene) =>
+  normalizeCanvasScene(scene).elements.flatMap(element => element.type === 'block' ? [element.block] : []);
+
+export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock[]): import('./types.js').BulletinBlock[] {
+  return blocks.map(block => {
+    if (block.type === 'canvas') return { ...block, scene: normalizeCanvasScene(block.scene) };
+    if (block.type === 'templatePage') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
+    if (block.type === 'group') return { ...block, children: normalizeCanvasBlocks(block.children) };
+    if (block.type === 'churchInfo') return { ...block, children: block.children ? normalizeCanvasBlocks(block.children) : block.children };
+    if (block.type === 'paragraph') return { ...block, children: normalizeCanvasBlocks(block.children) as typeof block.children };
+    return block;
+  });
 }
 
 function finiteGeometry(value: CanvasGeometry) {
@@ -223,17 +310,20 @@ export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath 
       issues.push({ path, message: 'Canvas element must be an object.', severity: 'error' });
       return;
     }
-    if (!['text', 'image', 'rectangle', 'line'].includes(element.type)) {
+    if (!['block', 'shape', 'text', 'image', 'rectangle', 'line'].includes(element.type)) {
       issues.push({ path: `${path}/type`, message: `Unsupported canvas element type: ${String(element.type)}`, severity: 'error' });
     }
     if (!element.id) issues.push({ path: `${path}/id`, message: 'Every canvas element needs a stable ID.', severity: 'error' });
     else if (ids.has(element.id)) issues.push({ path: `${path}/id`, message: `Duplicate canvas element ID: ${element.id}`, severity: 'error' });
     ids.add(element.id);
     if (!finiteGeometry(element)) issues.push({ path, message: 'Canvas geometry must contain finite numbers.', severity: 'error' });
-    const positiveHeight = element.type === 'line' ? element.height >= 0 : element.height > 0;
+    const positiveHeight = element.type === 'line' || (element.type === 'shape' && element.shape === 'line') ? element.height >= 0 : element.height > 0;
     if (!(element.width > 0) || !positiveHeight) issues.push({ path, message: 'Canvas elements need a positive width and height.', severity: 'error' });
     if (element.type === 'image' && (!element.asset.path || !['image/png', 'image/jpeg', 'image/svg+xml'].includes(element.asset.mediaType))) {
       issues.push({ path: `${path}/asset`, message: 'Canvas images require a PNG, JPEG, or SVG asset.', severity: 'error' });
+    }
+    if (element.type === 'block' && !canvasNativeBlockAllowed(element.block)) {
+      issues.push({ path: `${path}/block/type`, message: `The ${element.block.type} block cannot be nested inside a canvas.`, severity: 'error' });
     }
     if (element.type === 'text' && element.source.binding && !['info.title', 'info.date', 'info.churchWeek', 'info.series', 'church.name'].includes(element.source.binding)) {
       issues.push({ path: `${path}/source/binding`, message: `Unsupported canvas binding: ${element.source.binding}`, severity: 'error' });

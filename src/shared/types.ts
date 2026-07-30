@@ -75,8 +75,30 @@ export interface CanvasLineElement extends CanvasElementBase {
   widthPt?: number;
   dash?: 'solid' | 'dashed' | 'dotted';
 }
-export type CanvasElement = CanvasTextElement | CanvasImageElement | CanvasRectangleElement | CanvasLineElement;
+export interface CanvasNativeElement extends CanvasElementBase {
+  type: 'block';
+  block: BulletinBlock;
+  sizing?: 'autoHeight' | 'fixed';
+}
+export interface CanvasShapeElement extends CanvasElementBase {
+  type: 'shape';
+  shape: 'rectangle' | 'line';
+  fill?: string;
+  borderColor?: string;
+  borderWidthPt?: number;
+  color?: string;
+  widthPt?: number;
+  dash?: 'solid' | 'dashed' | 'dotted';
+}
+export type CanvasElement =
+  | CanvasNativeElement
+  | CanvasShapeElement
+  | CanvasTextElement
+  | CanvasImageElement
+  | CanvasRectangleElement
+  | CanvasLineElement;
 export interface CanvasScene {
+  schemaVersion?: 2;
   coordinateSpace: CanvasCoordinateSpace;
   background?: { color?: string; asset?: AssetRef; fit?: 'contain' | 'cover' | 'fill' };
   elements: CanvasElement[];
@@ -140,6 +162,7 @@ export interface AnnouncementsBlock extends BlockBase {
   items: Array<{ id: string; title: string; content: Paragraph[]; asset?: AssetRef; assetSide?: 'left' | 'right' }>;
 }
 export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: Paragraph[]; suppressGeneratedNotices?: boolean }
+export interface ImageBlock extends BlockBase { type: 'image'; asset: AssetRef; fit?: 'contain' | 'cover' | 'fill'; heightIn?: number; alt?: string }
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }
 export interface GroupBlock extends BlockBase { type: 'group'; children: BulletinBlock[] }
@@ -194,7 +217,7 @@ export interface CustomBlock extends BlockBase {
 
 export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
-  AnnouncementsBlock | CopyrightBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
+  AnnouncementsBlock | CopyrightBlock | ImageBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 
 export interface AssetRef {
   path: string;

@@ -7,6 +7,7 @@ import type {
 } from '../src/shared/types.js';
 import type { DeclarativeComponentDefinition } from '../src/component-engine/types.js';
 import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults.js';
+import { normalizeCanvasBlocks } from '../src/shared/canvas.js';
 import { normalizeLibrary } from '../src/shared/library.js';
 import { meetsMinimumVersion } from '../src/shared/version.js';
 
@@ -358,9 +359,9 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
   for (const [key] of records.items) if (deletedRecordIds.has(`library-item:${key}`)) records.items.delete(key);
   for (const [key] of records.churchWeeks) if (deletedRecordIds.has(`church-week:${key}`)) records.churchWeeks.delete(key);
   for (const [key] of records.components) if (deletedRecordIds.has(`component:${key}`)) records.components.delete(key);
-  const bulletins = bulletinRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, document: record.value }));
-  const templates = templateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, template: record.value }));
-  const pageTemplates = pageTemplateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, pageTemplate: record.value }));
+  const bulletins = bulletinRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, document: { ...record.value, blocks: normalizeCanvasBlocks(record.value.blocks) } }));
+  const templates = templateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, template: { ...record.value, starterBlocks: normalizeCanvasBlocks(record.value.starterBlocks) } }));
+  const pageTemplates = pageTemplateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, pageTemplate: { ...record.value, blocks: normalizeCanvasBlocks(record.value.blocks) } }));
   const library = libraryManifest(records);
   const refs = assetRefs({ bulletins, templates, pageTemplates, library });
   const unavailableAssets: string[] = [];

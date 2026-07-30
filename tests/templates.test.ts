@@ -37,10 +37,10 @@ describe('multiple templates', () => {
     if (!cover || cover.type !== 'templatePage') throw new Error('Expected template page.');
     const canvas = cover.blocks.find(block => block.type === 'canvas');
     if (!canvas || canvas.type !== 'canvas') throw new Error('Expected canvas.');
-    const title = canvas.scene.elements.find(element => element.type === 'text' && element.source.binding === 'info.title');
-    if (!title || title.type !== 'text') throw new Error('Expected bound title.');
+    const title = canvas.scene.elements.find(element => element.type === 'block' && element.block.type === 'richText' && element.block.binding === 'info.title');
+    if (!title || title.type !== 'block' || title.block.type !== 'richText') throw new Error('Expected bound title.');
     title.x = 1.25;
-    title.source.override = [{ type: 'paragraph', children: [{ type: 'text', text: 'One week only' }] }];
+    title.block.bindingOverride = [{ type: 'paragraph', children: [{ type: 'text', text: 'One week only' }] }];
     bulletin.layout = { marginIn: .55 };
 
     const created = templateFromBulletin(bulletin, defaultTemplate, 'Bulletin Layout', records);
@@ -50,7 +50,7 @@ describe('multiple templates', () => {
     if (!createdCover || createdCover.type !== 'templatePage') throw new Error('Expected promoted page.');
     const createdCanvas = createdCover.blocks.find(block => block.type === 'canvas');
     if (!createdCanvas || createdCanvas.type !== 'canvas') throw new Error('Expected promoted canvas.');
-    const createdTitle = createdCanvas.scene.elements.find(element => element.type === 'text' && element.source.binding === 'info.title');
-    expect(createdTitle).toMatchObject({ x: 1.25, source: { binding: 'info.title', override: [{ children: [{ text: 'One week only' }] }] } });
+    const createdTitle = createdCanvas.scene.elements.find(element => element.type === 'block' && element.block.type === 'richText' && element.block.binding === 'info.title');
+    expect(createdTitle).toMatchObject({ x: 1.25, block: { binding: 'info.title', bindingOverride: [{ children: [{ text: 'One week only' }] }] } });
   });
 });

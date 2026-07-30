@@ -22,7 +22,7 @@
       "required": ["id", "type"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["canvas", "templatePage", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "fullPageAsset", "spacer", "group", "custom"] },
+        "type": { "enum": ["canvas", "templatePage", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "image", "fullPageAsset", "spacer", "group", "custom"] },
         "label": { "type": "string" },
         "weeklyEditable": { "type": "boolean" },
         "layout": { "type": "object" },
@@ -83,7 +83,9 @@
             "required": ["id", "type", "x", "y", "width", "height"],
             "properties": {
               "id": { "type": "string", "minLength": 1 },
-              "type": { "enum": ["text", "image", "rectangle", "line"] },
+              "type": { "enum": ["block", "shape", "text", "image", "rectangle", "line"] },
+              "block": { "$ref": "#/$defs/block" },
+              "shape": { "enum": ["rectangle", "line"] },
               "x": { "type": "number" },
               "y": { "type": "number" },
               "width": { "type": "number", "exclusiveMinimum": 0 },

@@ -4,6 +4,7 @@ import {
   convertCanvasCoordinateSpace,
   createCanvasBlock,
   defaultCanvasScene,
+  normalizeCanvasScene,
   snapCanvasValue,
   snapCanvasPosition,
   validateCanvasScene
@@ -18,6 +19,23 @@ describe('canvas cover scenes', () => {
       heightIn: 8.5,
       widthMode: 'fullPage',
       scene: { coordinateSpace: 'fullPage' }
+    });
+  });
+
+  it('migrates legacy canvas primitives to native blocks and shapes without moving them', () => {
+    const migrated = normalizeCanvasScene({
+      coordinateSpace: 'fullPage',
+      elements: [
+        { id: 'copy', type: 'text', x: 1, y: 2, width: 3, height: .5, source: { binding: 'info.title' } },
+        { id: 'rule', type: 'line', x: .5, y: 3, width: 6, height: 0, widthPt: 1 }
+      ]
+    });
+    expect(migrated).toMatchObject({
+      schemaVersion: 2,
+      elements: [
+        { id: 'copy', type: 'block', x: 1, y: 2, width: 3, block: { type: 'richText', binding: 'info.title' } },
+        { id: 'rule', type: 'shape', shape: 'line', x: .5, y: 3, width: 6 }
+      ]
     });
   });
 

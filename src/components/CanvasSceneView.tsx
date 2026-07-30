@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react';
-import { canvasSpace, canvasTextParagraphs } from '../shared/canvas.js';
+import type { CSSProperties, ReactNode } from 'react';
+import { boundRichTextParagraphs, canvasSpace, canvasTextParagraphs } from '../shared/canvas.js';
 import type { BulletinDocumentV1, CanvasElement, CanvasScene, Paragraph } from '../shared/types.js';
 
 function InlineParagraph({ paragraph }: { paragraph: Paragraph }) {
@@ -31,11 +31,40 @@ function textFontSize(element: Extract<CanvasElement, { type: 'text' }>, documen
   return Math.max(5, Math.min(requested, requested * Math.sqrt(approximateCapacity / Math.max(characters, 1))));
 }
 
-function CanvasElementView({ element, document, assets }: {
+function CanvasElementView({ element, document, assets, renderNativeBlock }: {
   element: CanvasElement;
   document: BulletinDocumentV1;
   assets: Record<string, string>;
+  renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block']) => ReactNode;
 }) {
+  if (element.type === 'shape') {
+    if (element.shape === 'line') {
+      const length = Math.hypot(element.width, element.height);
+      const angle = Math.atan2(element.height, element.width) * 180 / Math.PI;
+      return <div className="canvas-element canvas-line" data-canvas-element-id={element.id} style={{
+        left: `${element.x}in`, top: `${element.y}in`, width: `${length}in`,
+        borderTop: `${element.widthPt ?? 1}pt ${element.dash ?? 'solid'} ${element.color ?? '#25302d'}`,
+        transform: `rotate(${angle}deg)`
+      }} />;
+    }
+    return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
+      ...geometry(element), background: element.fill ?? 'transparent',
+      border: `${element.borderWidthPt ?? 0}pt solid ${element.borderColor ?? 'transparent'}`
+    }} />;
+  }
+  if (element.type === 'block') {
+    const native = element.block;
+    const fallback = native.type === 'image'
+      ? assets[native.asset.path] ? <img src={assets[native.asset.path]} alt={native.alt ?? native.asset.alt ?? ''} style={{ width: '100%', height: '100%', objectFit: native.fit ?? 'contain' }} /> : <span className="canvas-missing-asset">Missing image</span>
+      : native.type === 'richText'
+        ? boundRichTextParagraphs(native, document).map((item, index) => <InlineParagraph paragraph={item} key={index} />)
+        : 'text' in native ? native.text : native.label ?? (native.type === 'custom' ? native.name : native.type);
+    return <div className={`canvas-element canvas-native-block ${element.sizing === 'autoHeight' ? 'auto-height' : 'fixed-height'}`} data-canvas-element-id={element.id} style={{
+      ...geometry(element),
+      height: element.sizing === 'autoHeight' ? 'auto' : `${element.height}in`,
+      overflow: element.sizing === 'fixed' ? 'hidden' : undefined
+    }}>{renderNativeBlock?.(native) ?? fallback}</div>;
+  }
   if (element.type === 'rectangle') return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
     ...geometry(element),
     background: element.fill ?? 'transparent',
@@ -77,13 +106,14 @@ function CanvasElementView({ element, document, assets }: {
   </div>;
 }
 
-export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7, heightIn = 8.5 }: {
+export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7, heightIn = 8.5, renderNativeBlock }: {
   scene: CanvasScene;
   document: BulletinDocumentV1;
   assets: Record<string, string>;
   marginIn: number;
   widthIn?: number;
   heightIn?: number;
+  renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block']) => ReactNode;
 }) {
   const space = canvasSpace(scene, marginIn, widthIn, heightIn);
   const background = scene.background;
@@ -103,7 +133,7 @@ export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7
       ? assets[background.asset.path] && <embed className="canvas-pdf-background" src={`${assets[background.asset.path]}#page=${background.asset.page ?? 1}&toolbar=0&navpanes=0`} type="application/pdf" />
       : assets[background.asset.path] && <img className="canvas-background-image" src={assets[background.asset.path]} alt={background.asset.alt ?? ''} style={{ objectFit: background.fit ?? 'cover' }} />)}
     <div className="canvas-elements">
-      {scene.elements.map(element => <CanvasElementView element={element} document={document} assets={assets} key={element.id} />)}
+      {scene.elements.map(element => <CanvasElementView element={element} document={document} assets={assets} renderNativeBlock={renderNativeBlock} key={element.id} />)}
     </div>
   </div>;
 }

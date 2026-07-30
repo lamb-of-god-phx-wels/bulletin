@@ -22,6 +22,9 @@ import {
   pageTemplateVersions,
 } from "../shared/pageTemplates";
 import { PageTemplateEditor } from "./PageTemplateEditor";
+import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
+import { PageElementDialog } from "./PageElementDialog";
+import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -75,6 +78,8 @@ export function TemplateBuilder({
   const [saveStatus, setSaveStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [blockLibraryOpen, setBlockLibraryOpen] = useState(false);
+  const [pageInsertionIndex, setPageInsertionIndex] = useState<number>();
+  const [creatingPage, setCreatingPage] = useState<PageTemplateV1>();
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
   const [editingBlockIds, setEditingBlockIds] = useState<Set<string>>(
     () => new Set(),
@@ -120,9 +125,25 @@ export function TemplateBuilder({
     key: keyof TemplateV1["theme"],
     value: string | number,
   ) => updateTemplate({ theme: { ...template.theme, [key]: value } });
-  const addBlock = (block: BulletinBlock) => {
-    updateTemplate({ starterBlocks: [...template.starterBlocks, block] });
+  const addBlock = (block: BulletinBlock, index = template.starterBlocks.length) => {
+    updateTemplate({ starterBlocks: [...template.starterBlocks.slice(0, index), block, ...template.starterBlocks.slice(index)] });
     setBlockLibraryOpen(false);
+  };
+  const usePaletteItem = async (item: ElementPaletteItem, index: number) => {
+    const payload = item.payload as ElementPalettePayload;
+    if (payload.kind === "component") addBlock(instantiateComponentDefinition(payload.definition), index);
+    else if (payload.kind === "page") setPageInsertionIndex(index);
+    else if ((payload.kind === "image" || payload.kind === "fullPageAsset") && root && window.bulletin) {
+      const asset = await window.bulletin.importAsset(root, `assets/templates/${template.id}`);
+      if (!asset) return;
+      if (payload.kind === "image" && asset.mediaType === "application/pdf") {
+        window.alert("Choose a PNG, JPEG, or SVG for an Image element.");
+        return;
+      }
+      addBlock(payload.kind === "image"
+        ? { id: `image-${crypto.randomUUID()}`, type: "image", asset, fit: "contain", heightIn: 2.5 }
+        : { id: `page-${crypto.randomUUID()}`, type: "fullPageAsset", asset }, index);
+    }
   };
   const updateBlock = (id: string, changes: Partial<BulletinBlock>) => {
     const block = findBlock(template.starterBlocks, id);
@@ -173,6 +194,8 @@ export function TemplateBuilder({
           />
         </label>
       </div>
+    ) : block.type === "image" ? (
+      <div className="outline-options"><label className="outline-option">Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => updateBlock(block.id, { heightIn: event.currentTarget.valueAsNumber })} /></label><label className="outline-option">Fit<select value={block.fit ?? "contain"} onChange={event => updateBlock(block.id, { fit: event.target.value as "contain" | "cover" | "fill" })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></div>
     ) : null;
   const nestedOutline = (parent: BulletinBlock): React.ReactNode =>
     parent.type !== "templatePage" &&
@@ -394,18 +417,21 @@ export function TemplateBuilder({
               <h2>Starter outline</h2>
               <small>{template.starterBlocks.length} blocks</small>
             </div>
-            <button
-              className="primary"
-              onClick={() => setBlockLibraryOpen(true)}
-            >
-              ＋ Add block
-            </button>
           </div>
-          <ol className="outline">
-            <SortableList
-              items={template.starterBlocks}
-              onChange={(starterBlocks) => updateTemplate({ starterBlocks })}
-            >
+          <SortableList
+            items={template.starterBlocks}
+            onChange={(starterBlocks) => updateTemplate({ starterBlocks })}
+            onInsert={(descriptor, index) => void usePaletteItem(descriptor as ElementPaletteItem, index)}
+            dockedPalette
+            palette={<ElementPalette
+              items={flowElementPaletteItems(workspaceDefinitions)}
+              storageKey="bulletin-elements-template"
+              portalTargetId="app-element-palette-slot"
+              onUse={item => void usePaletteItem(item, template.starterBlocks.length)}
+              actions={<button className="text-button" onClick={() => setBlockLibraryOpen(true)}>Manage components…</button>}
+            />}
+          >
+            <ol className="outline">
               {template.starterBlocks.map((block) => (
                 <SortableItem id={block.id} key={block.id}>
                   <li
@@ -541,10 +567,40 @@ export function TemplateBuilder({
                   </li>
                 </SortableItem>
               ))}
-            </SortableList>
-          </ol>
+            </ol>
+          </SortableList>
         </section>
       </div>
+      {pageInsertionIndex !== undefined && !creatingPage && (
+        <PageElementDialog
+          pages={pageTemplates}
+          onClose={() => setPageInsertionIndex(undefined)}
+          onSelect={page => { addBlock(instantiatePageTemplate(page), pageInsertionIndex); setPageInsertionIndex(undefined); }}
+          onCreate={setCreatingPage}
+        />
+      )}
+      {creatingPage && (
+        <PageTemplateEditor
+          value={creatingPage}
+          template={template}
+          library={library}
+          root={root}
+          definitions={workspaceDefinitions}
+          onChange={setCreatingPage}
+          onSave={async publish => {
+            if (!root || !window.bulletin) throw new Error("A workspace is required to save reusable pages.");
+            const saved = { ...creatingPage, status: publish ? "published" as const : "draft" as const, updatedAt: new Date().toISOString() };
+            await window.bulletin.savePageTemplate(root, saved);
+            setCreatingPage(saved);
+            if (publish && pageInsertionIndex !== undefined) {
+              addBlock(instantiatePageTemplate(saved), pageInsertionIndex);
+              setCreatingPage(undefined);
+              setPageInsertionIndex(undefined);
+            }
+          }}
+          onClose={() => { setCreatingPage(undefined); setPageInsertionIndex(undefined); }}
+        />
+      )}
       {blockLibraryOpen && (
         <BlockLibraryModal
           workspaceDefinitions={workspaceDefinitions}
@@ -602,6 +658,8 @@ export function TemplateBuilder({
               marginIn={template.theme.marginIn}
               assets={{}}
               root={root}
+              definitions={workspaceDefinitions}
+              library={library}
               onChooseAsset={async () =>
                 root && window.bulletin
                   ? window.bulletin.importAsset(root, "assets/canvases")

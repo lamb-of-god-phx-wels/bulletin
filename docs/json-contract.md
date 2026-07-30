@@ -22,6 +22,7 @@ Every block has a stable `id` and discriminating `type`. Supported types are:
 | `scriptureReading` | Reference, translation, caption, and a reproducible resolved snapshot |
 | `song`, `libraryText` | Version-resolved approved library content |
 | `announcements`, `copyright` | Back matter and generated notices |
+| `image` | A flow-sized image with contain, cover, or fill fitting |
 | `fullPageAsset` | Inserted image or original PDF page |
 | `spacer` | Small, bounded semantic spacing |
 | `group` | A recursively nested collection of blocks |
@@ -33,7 +34,9 @@ A bulletin may set `layout.marginIn` to override the template's uniform page mar
 
 An inserted `templatePage` pins a page-template ID and version and embeds a complete snapshot. Local edits therefore remain available if the shared source is archived. Upgrading deliberately replaces the snapshot; exploding removes the wrapper and inserts its blocks into normal host flow. Fixed-margin pages use their saved margin, while inherited pages use the host margin.
 
-Native `richText` and canvas text may bind to bulletin fields. Bound text supports deterministic date formats and a local override that can be reset to the host value.
+Canvas scenes position native bulletin blocks and rectangle/line shapes using inch geometry. Native blocks retain the same bindings, content fields, assets, and presentation model they use in normal flow. Legacy canvas text and image objects are normalized to native `richText` and `image` blocks while preserving IDs, geometry, and z-order.
+
+Native `richText`, including rich text positioned on a canvas, may bind to bulletin fields. Bound text supports deterministic date formats and a local override that can be reset to the host value.
 
 Container blocks use a recursive `children` array. For example, `churchInfo` contains `paragraph` containers, and each paragraph contains an optional header `richText` child plus a body `richText` child. The container keeps them together semantically while each text child retains its own margins, padding, typography, ID, and presentation override. Setting the header’s bottom margin and body’s top margin to zero produces no forced gap.
 

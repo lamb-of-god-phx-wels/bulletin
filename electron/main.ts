@@ -11,7 +11,7 @@ import {
 } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
-import { canvasAssetRefs, canvasSpace } from '../src/shared/canvas.js';
+import { canvasAssetRefs, canvasNativeBlocks, canvasSpace } from '../src/shared/canvas.js';
 import { flattenBlocks } from '../src/shared/blocks.js';
 import { copyAssetToBlobStore } from './assets.js';
 import { DialogPathStore } from './dialogPaths.js';
@@ -122,7 +122,12 @@ async function exportPdf(root: string, relative: string, document: BulletinDocum
   const workspace = await openWorkspace(root, app.getVersion());
   const referencedAssets = flattenBlocks(document.blocks).flatMap(block => {
     const assets = 'asset' in block && block.asset ? [block.asset] : [];
-    if (block.type === 'canvas') assets.push(...canvasAssetRefs(block.scene));
+    if (block.type === 'canvas') {
+      assets.push(...canvasAssetRefs(block.scene));
+      for (const native of canvasNativeBlocks(block.scene)) {
+        if ('libraryItemId' in native) assets.push(...(workspace.library?.items.filter(item => item.id === native.libraryItemId && (!native.libraryItemVersion || item.version === native.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
+      }
+    }
     if ('libraryItemId' in block) assets.push(...(workspace.library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
     return assets;
   });

@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { cloneElement, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactElement, type Ref } from 'react';
+import { DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import {
   canvasAssetRefs,
+  canvasNativeBlocks,
   canvasSpace,
   canvasTextParagraphs,
   convertCanvasCoordinateSpace,
+  normalizeCanvasScene,
   snapCanvasPosition,
   snapCanvasValue,
   validateCanvasScene
@@ -15,9 +18,16 @@ import type {
   CanvasElement,
   CanvasScene,
   CanvasTextBinding,
+  LibraryManifestV1,
   Paragraph
 } from '../shared/types.js';
+import type { DeclarativeComponentDefinition } from '../component-engine/types.js';
 import { CanvasSceneView } from './CanvasSceneView.js';
+import { ElementPalette, type ElementPaletteItem } from './ElementPalette.js';
+import { canvasElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog.js';
+import { instantiateComponentDefinition } from '../componentDefinitions.js';
+import { NativeBlockFields } from './NativeBlockFields.js';
+import { NativeBlockPreview } from './DocumentView.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -26,40 +36,70 @@ const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => 
 const plainText = (content: Paragraph[] | undefined) => content?.map(item => item.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
 const clone = <T,>(value: T): T => structuredClone(value);
 
-export function CanvasDesigner({ block, document, marginIn, assets, root, onChooseAsset, onChange, onClose }: {
+function CanvasDropTarget({ stage, children }: { stage: MutableRefObject<HTMLDivElement | null>; children: ReactElement<{ ref?: Ref<HTMLDivElement>; className?: string }> }) {
+  const drop = useDroppable({ id: 'canvas-stage-drop' });
+  return cloneElement(children, {
+    ref: (node: HTMLDivElement | null) => { stage.current = node; drop.setNodeRef(node); },
+    className: `${children.props.className ?? ''} ${drop.isOver ? 'palette-drop-active' : ''}`.trim()
+  });
+}
+
+export function CanvasDesigner({ block, document, marginIn, assets, root, definitions = [], library, onChooseAsset, onChange, onClose }: {
   block: CanvasBlock;
   document: BulletinDocumentV1;
   marginIn: number;
   assets: Record<string, string>;
   root?: string;
+  definitions?: DeclarativeComponentDefinition[];
+  library?: LibraryManifestV1;
   onChooseAsset?(): Promise<AssetRef | null>;
   onChange(block: CanvasBlock): void;
   onClose(): void;
 }) {
-  const initial = block.scene;
+  const initial = normalizeCanvasScene(block.scene);
   const [scene, setScene] = useState<CanvasScene>(() => clone(initial));
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [past, setPast] = useState<CanvasScene[]>([]);
   const [future, setFuture] = useState<CanvasScene[]>([]);
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
+  const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
   const drag = useRef<{ x: number; y: number; scene: CanvasScene; resize: boolean } | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
+  const paletteSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [paletteOverlay, setPaletteOverlay] = useState('');
   const canvasWidth = (block.widthMode ?? 'contentBox') === 'fullPage' ? 7 : 7 - marginIn * 2;
   const elements = useMemo(() => new Map(scene.elements.map(element => [element.id, element])), [scene.elements]);
   const primary = [...selected].map(id => elements.get(id)).find(Boolean);
+  const nativePrimary = primary?.type === 'block' ? primary.block : undefined;
   const issues = validateCanvasScene(scene, marginIn, '/scene', 7, block.heightIn);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (!stage.current) return;
+      const pxPerIn = stage.current.getBoundingClientRect().width / canvasWidth;
+      setMeasuredHeights(Object.fromEntries(scene.elements.flatMap(element => {
+        if (element.type !== 'block' || element.sizing !== 'autoHeight') return [];
+        const node = stage.current?.querySelector<HTMLElement>(`[data-canvas-element-id="${CSS.escape(element.id)}"]`);
+        return node ? [[element.id, node.getBoundingClientRect().height / pxPerIn]] : [];
+      })));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [scene, resolvedAssets, canvasWidth]);
 
   useEffect(() => {
     if (!root || !window.bulletin) return;
     let active = true;
-    const missing = canvasAssetRefs(scene).filter(asset => !resolvedAssets[asset.path]);
+    const nativeLibraryAssets = canvasNativeBlocks(scene).flatMap(native => 'libraryItemId' in native
+      ? library?.items.filter(item => item.id === native.libraryItemId && (!native.libraryItemVersion || item.version === native.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []
+      : []);
+    const missing = [...canvasAssetRefs(scene), ...nativeLibraryAssets].filter(asset => !resolvedAssets[asset.path]);
     if (!missing.length) return;
     void Promise.all(missing.map(async asset => [asset.path, await window.bulletin!.readAsset(root, asset.path)] as const))
       .then(entries => {
         if (active) setResolvedAssets(current => ({ ...current, ...Object.fromEntries(entries) }));
       });
     return () => { active = false; };
-  }, [root, scene, resolvedAssets]);
+  }, [root, scene, resolvedAssets, library]);
 
   const publish = (next: CanvasScene, previous = scene) => {
     setPast(value => [...value.slice(-49), clone(previous)]);
@@ -89,7 +129,11 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, onChoo
     const ids = event.shiftKey ? new Set([...selected, ...related]) : selected.has(element.id) ? selected : related;
     setSelected(ids);
     if (![...ids].every(id => { const item = elements.get(id); return item && editable(item); })) return;
-    drag.current = { x: event.clientX, y: event.clientY, scene: clone(scene), resize };
+    const dragScene = clone(scene);
+    if (resize) dragScene.elements = dragScene.elements.map(item => ids.has(item.id) && item.type === 'block' && item.sizing === 'autoHeight'
+      ? { ...item, height: measuredHeights[item.id] ?? item.height, sizing: 'fixed' }
+      : item);
+    drag.current = { x: event.clientX, y: event.clientY, scene: dragScene, resize };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveDrag = (event: React.PointerEvent) => {
@@ -104,7 +148,7 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, onChoo
         const others = drag.current!.scene.elements.filter(item => !selected.has(item.id));
         const space = canvasSpace(drag.current!.scene, 0, canvasWidth, block.heightIn);
         return drag.current!.resize
-          ? { ...element, width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: Math.max(element.type === 'line' ? 0 : 1 / 16, snapCanvasValue(element.height + dy, event.altKey)) }
+          ? { ...element, ...(element.type === 'block' ? { sizing: 'fixed' as const } : {}), width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: Math.max(element.type === 'line' || (element.type === 'shape' && element.shape === 'line') ? 0 : 1 / 16, snapCanvasValue(element.height + dy, event.altKey)) }
           : {
               ...element,
               x: snapCanvasPosition(element.x + dx, element.width, space.width, others.flatMap(item => [item.x, item.x + item.width / 2, item.x + item.width]), event.altKey),
@@ -165,19 +209,36 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, onChoo
     while (elements.has(`${prefix}-${index}`)) index++;
     return `${prefix}-${index}`;
   };
-  const add = async (type: CanvasElement['type']) => {
-    const base = { id: nextId(type), name: `New ${type}`, x: 1, y: 1, width: 2, height: type === 'line' ? 0 : .75 };
-    let element: CanvasElement;
-    if (type === 'text') element = { ...base, type, source: { literal: text('New text') }, fontSizePt: 16 };
-    else if (type === 'rectangle') element = { ...base, type, fill: '#efe8dc', borderColor: '#a44d2a', borderWidthPt: 1 };
-    else if (type === 'line') element = { ...base, type, color: '#25302d', widthPt: 1 };
-    else {
+  const placePaletteItem = async (item: ElementPaletteItem, x = 1, y = 1) => {
+    const payload = item.payload as ElementPalettePayload;
+    const base = { id: nextId(payload.kind === 'shape' ? payload.shape : payload.kind), name: item.label, x, y, width: 2, height: payload.kind === 'shape' && payload.shape === 'line' ? 0 : .75 };
+    let element: CanvasElement | undefined;
+    if (payload.kind === 'component') {
+      const native = instantiateComponentDefinition(payload.definition);
+      element = { ...base, type: 'block', block: native, sizing: 'autoHeight' };
+    } else if (payload.kind === 'image') {
       const asset = await onChooseAsset?.();
       if (!asset || asset.mediaType === 'application/pdf') return;
-      element = { ...base, type, asset, fit: 'contain' };
+      element = { ...base, type: 'block', sizing: 'fixed', block: { id: `${base.id}-image`, type: 'image', asset, fit: 'contain', heightIn: base.height } };
+    } else if (payload.kind === 'shape') {
+      element = payload.shape === 'rectangle'
+        ? { ...base, type: 'shape', shape: 'rectangle', fill: '#efe8dc', borderColor: '#a44d2a', borderWidthPt: 1 }
+        : { ...base, type: 'shape', shape: 'line', color: '#25302d', widthPt: 1 };
     }
+    if (!element) return;
+    element.x = Math.max(0, Math.min(space.width - element.width, snapCanvasValue(element.x)));
+    element.y = Math.max(0, Math.min(space.height - Math.max(element.height, 0), snapCanvasValue(element.y)));
     publish({ ...scene, elements: [...scene.elements, element] });
     setSelected(new Set([element.id]));
+  };
+  const endPaletteDrag = (event: DragEndEvent) => {
+    setPaletteOverlay('');
+    const item = event.active.data.current?.paletteItem as ElementPaletteItem | undefined;
+    if (!item || event.over?.id !== 'canvas-stage-drop' || !stage.current || !event.active.rect.current.translated) return;
+    const bounds = stage.current.getBoundingClientRect();
+    const translated = event.active.rect.current.translated;
+    const pxPerIn = bounds.width / canvasWidth;
+    void placePaletteItem(item, (translated.left + translated.width / 2 - bounds.left) / pxPerIn - 1, (translated.top + translated.height / 2 - bounds.top) / pxPerIn - .375);
   };
   const duplicate = () => {
     const copies = scene.elements.filter(item => selected.has(item.id)).map(item => ({ ...clone(item), id: nextId(item.type), x: item.x + .125, y: item.y + .125 }));
@@ -222,35 +283,37 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, onChoo
   };
   const space = canvasSpace(scene, 0, canvasWidth, block.heightIn);
 
-  return <div className="canvas-designer" role="dialog" aria-modal="true" aria-labelledby="canvas-designer-title">
+  const paletteItems = canvasElementPaletteItems(definitions);
+  return <DndContext sensors={paletteSensors} onDragStart={event => setPaletteOverlay((event.active.data.current?.paletteItem as ElementPaletteItem | undefined)?.label ?? '')} onDragCancel={() => setPaletteOverlay('')} onDragEnd={endPaletteDrag}>
+  <div className="canvas-designer" role="dialog" aria-modal="true" aria-labelledby="canvas-designer-title">
     <header className="canvas-designer-toolbar">
       <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
       <div className="canvas-tools">
-        <button onClick={() => void add('text')}>＋ Text</button><button onClick={() => void add('image')}>＋ Image</button><button onClick={() => void add('rectangle')}>＋ Rectangle</button><button onClick={() => void add('line')}>＋ Line</button>
         <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
         <button disabled={!past.length} onClick={undo}>Undo</button><button disabled={!future.length} onClick={redo}>Redo</button>
       </div>
       <button className="primary" onClick={onClose}>Done</button>
     </header>
     <aside className="canvas-layers">
-      <div className="eyebrow">Layers</div>
+      <ElementPalette items={paletteItems} storageKey="bulletin-elements-canvas" onUse={item => void placePaletteItem(item)} />
+      <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>
       <ol>{[...scene.elements].reverse().map(element => <li className={selected.has(element.id) ? 'selected' : ''} key={element.id}>
-        <button onClick={event => select(element.id, event.shiftKey)}><span>{element.type === 'text' ? 'T' : element.type === 'image' ? '▧' : element.type === 'line' ? '╱' : '□'}</span><b>{element.name ?? element.id}</b>{element.locked && <small>🔒</small>}</button>
+        <button onClick={event => select(element.id, event.shiftKey)}><span>{element.type === 'block' ? element.block.type === 'image' ? '▧' : '◇' : element.type === 'shape' ? element.shape === 'line' ? '╱' : '□' : element.type === 'text' ? 'T' : element.type === 'image' ? '▧' : element.type === 'line' ? '╱' : '□'}</span><b>{element.name ?? element.id}</b>{element.locked && <small>🔒</small>}</button>
         <div><button title="Move forward" onClick={() => { const index = scene.elements.indexOf(element); if (index < scene.elements.length - 1) { const next = [...scene.elements]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; publish({ ...scene, elements: next }); } }}>↑</button><button title="Move backward" onClick={() => { const index = scene.elements.indexOf(element); if (index > 0) { const next = [...scene.elements]; [next[index], next[index - 1]] = [next[index - 1], next[index]]; publish({ ...scene, elements: next }); } }}>↓</button></div>
       </li>)}</ol>
     </aside>
     <main className="canvas-workarea">
       <div className="canvas-ruler-label horizontal">0　1　2　3　4　5　6　7 in</div>
       <div className="canvas-ruler-label vertical">0　1　2　3　4　5　6　7　8</div>
-      <div className="canvas-stage" ref={stage} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in` }} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
-        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} />
+      <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in` }} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
+        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={document} marginIn={marginIn} />} />
         <div className="canvas-safe-guide" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }} />
         <div className="canvas-selection-layer" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }}>
-          {scene.elements.map(element => <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${element.width}in`, height: `${Math.max(element.height, .04)}in` }} onPointerDown={event => beginDrag(event, element)}>
+          {scene.elements.map(element => <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${element.width}in`, height: `${Math.max(measuredHeights[element.id] ?? element.height, .04)}in` }} onPointerDown={event => beginDrag(event, element)}>
             {selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
           </div>)}
         </div>
-      </div>
+      </div></CanvasDropTarget>
       <div className="canvas-align-tools"><span>Align selection</span>{(['left', 'center', 'right', 'top', 'middle', 'bottom'] as const).map(edge => <button disabled={selected.size < 2} onClick={() => align(edge)} key={edge}>{edge}</button>)}<button disabled={selected.size < 3} onClick={() => distribute('horizontal')}>distribute H</button><button disabled={selected.size < 3} onClick={() => distribute('vertical')}>distribute V</button></div>
     </main>
     <aside className="canvas-properties">
@@ -264,6 +327,13 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, onChoo
         <label>Name<input value={primary.name ?? ''} disabled={!editable(primary)} onChange={event => updatePrimary({ name: event.target.value })} /></label>
         <div className="canvas-geometry-grid">{(['x', 'y', 'width', 'height'] as const).map(key => <label key={key}>{key}<input type="number" step=".0625" value={primary[key]} disabled={!editable(primary)} onChange={event => setNumber(key, event.currentTarget.valueAsNumber)} /></label>)}</div>
         <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
+        {primary.type === 'block' && <>
+          <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
+          {nativePrimary && <NativeBlockFields block={nativePrimary} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
+          {nativePrimary && nativePrimary.type !== 'image' && <><div className="canvas-geometry-grid"><label>Size (pt)<input type="number" min="5" max="72" value={nativePrimary.presentation?.fontSizePt ?? 12} onChange={event => updatePrimary({ block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, fontSizePt: event.currentTarget.valueAsNumber } } } as Partial<CanvasElement>)} /></label><label>Align<select value={nativePrimary.presentation?.textAlign ?? 'left'} onChange={event => updatePrimary({ block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, textAlign: event.target.value as 'left' | 'center' | 'right' | 'justify' } } } as Partial<CanvasElement>)}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label></div><label>Text color<input type="color" value={nativePrimary.presentation?.color ?? '#25302d'} onChange={event => updatePrimary({ block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, color: event.target.value } } } as Partial<CanvasElement>)} /></label></>}
+        </>}
+        {primary.type === 'shape' && primary.shape === 'rectangle' && <><label>Fill<input type="color" value={primary.fill ?? '#efe8dc'} onChange={event => updatePrimary({ fill: event.target.value } as Partial<CanvasElement>)} /></label><label>Border<input type="color" value={primary.borderColor ?? '#a44d2a'} onChange={event => updatePrimary({ borderColor: event.target.value } as Partial<CanvasElement>)} /></label></>}
+        {primary.type === 'shape' && primary.shape === 'line' && <label>Line color<input type="color" value={primary.color ?? '#25302d'} onChange={event => updatePrimary({ color: event.target.value } as Partial<CanvasElement>)} /></label>}
         {primary.type === 'text' && <>
           <label>Text binding<select disabled={!editable(primary)} value={primary.source.binding ?? ''} onChange={event => updatePrimary({ source: { ...primary.source, binding: event.target.value as CanvasTextBinding || undefined } } as Partial<CanvasElement>)}><option value="">Literal text</option><option value="info.title">Sermon title</option><option value="info.date">Service date</option><option value="info.churchWeek">Church week</option><option value="info.series">Series</option><option value="church.name">Church name</option></select></label>
           <label>{primary.source.binding ? 'Weekly override' : 'Text'}<textarea rows={5} disabled={!editable(primary)} value={plainText(primary.source.binding ? primary.source.override : primary.source.literal)} placeholder={primary.source.binding ? plainText(canvasTextParagraphs(primary, document)) : ''} onChange={event => updatePrimary({ source: { ...primary.source, [primary.source.binding ? 'override' : 'literal']: text(event.target.value) } } as Partial<CanvasElement>)} /></label>
@@ -275,5 +345,7 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, onChoo
       </> : <p className="helper">Select an object to edit its geometry and content. Shift-click selects more than one.</p>}
       {issues.length > 0 && <div className="canvas-issues"><b>{issues.length} scene notice{issues.length === 1 ? '' : 's'}</b>{issues.map(issue => <p className={issue.severity} key={`${issue.path}-${issue.message}`}>{issue.message}</p>)}</div>}
     </aside>
-  </div>;
+  </div>
+  <DragOverlay>{paletteOverlay && <div className="palette-drag-overlay">{paletteOverlay}</div>}</DragOverlay>
+  </DndContext>;
 }

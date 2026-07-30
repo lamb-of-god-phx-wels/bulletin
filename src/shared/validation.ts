@@ -30,6 +30,8 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
     }
     if (block.type === 'song' && block.renderMode === 'asset' && !block.asset && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion) && item.assets?.length)) issues.push({ path: `/blocks/${index}/asset`, message: 'Choose a music image or PDF.' });
     if (block.type === 'fullPageAsset' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an asset.' });
+    if (block.type === 'image' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an image.' });
+    if (block.type === 'image' && block.asset?.mediaType === 'application/pdf') issues.push({ path: `/blocks/${index}/asset/mediaType`, message: 'Image blocks require PNG, JPEG, or SVG assets.' });
     if (block.type === 'canvas') {
       validateCanvasScene(block.scene, 0, `/blocks/${index}/scene`, block.widthMode === 'fullPage' ? 7 : 7 - (doc.layout?.marginIn ?? .4) * 2, block.heightIn)
         .filter(issue => issue.severity === 'error')

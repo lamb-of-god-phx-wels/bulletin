@@ -1,5 +1,6 @@
 import legacyExample from '../example_bulletin.json';
 import { defaultPageTemplate, defaultTemplate } from './shared/defaults';
+import { normalizeCanvasBlocks } from './shared/canvas';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
@@ -157,7 +158,15 @@ export async function installBrowserApi() {
     chooseWorkspace: async () => defaultRoot,
     listWorkspaces: async () => workspaceList(),
     createWorkspace: name => createWorkspace(name.trim() || 'New workspace'),
-    openWorkspace: async root => clone(await summary(root)),
+    openWorkspace: async root => {
+      const current = clone(await summary(root));
+      return {
+        ...current,
+        bulletins: current.bulletins.map(record => ({ ...record, document: { ...record.document, blocks: normalizeCanvasBlocks(record.document.blocks) } })),
+        templates: current.templates.map(record => ({ ...record, template: { ...record.template, starterBlocks: normalizeCanvasBlocks(record.template.starterBlocks) } })),
+        pageTemplates: current.pageTemplates.map(record => ({ ...record, pageTemplate: { ...record.pageTemplate, blocks: normalizeCanvasBlocks(record.pageTemplate.blocks) } }))
+      };
+    },
     saveBulletin: async (root, path, document, expectedRevision) => {
       const current = await summary(root);
       const existing = current.bulletins.find(item => item.path === path);

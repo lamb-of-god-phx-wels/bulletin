@@ -14,6 +14,10 @@ import { TemplateSwitcher } from "./components/TemplateSwitcher";
 import { ChurchYearView } from "./components/ChurchYearView";
 import { PageTemplatesView } from "./components/PageTemplatesView";
 import {
+  PreviewZoomControls,
+  stepPreviewZoom,
+} from "./components/PreviewZoomControls";
+import {
   CreateFromDialog,
   type CreationSource,
 } from "./components/CreateFromDialog";
@@ -102,7 +106,6 @@ const libraryContentText = (item: LibraryItemV1) =>
         .join(""),
     )
     .join("\n\n") ?? "";
-const previewZooms = [0.5, 0.6, 0.72, 0.85, 1, 1.25];
 const storedPreviewZoom = () => {
   const raw = localStorage.getItem("bulletin-preview-zoom");
   const value = raw === null ? Number.NaN : Number(raw);
@@ -110,87 +113,6 @@ const storedPreviewZoom = () => {
     ? value
     : undefined;
 };
-
-function PreviewZoomControls({
-  zoom,
-  onChange,
-  onFit,
-}: {
-  zoom: number;
-  onChange(zoom: number): void;
-  onFit(mode: "width" | "page", container: HTMLElement | null): void;
-}) {
-  const lower =
-    [...previewZooms].reverse().find((value) => value < zoom - 0.001) ??
-    previewZooms[0];
-  const higher =
-    previewZooms.find((value) => value > zoom + 0.001) ?? previewZooms.at(-1)!;
-  const options = previewZooms.includes(zoom)
-    ? previewZooms
-    : [...previewZooms, zoom].sort((left, right) => left - right);
-  return (
-    <div className="preview-zoom">
-      <div className="preview-zoom-steps">
-        <button
-          type="button"
-          aria-label="Zoom out"
-          title="Zoom out"
-          disabled={zoom <= previewZooms[0]}
-          onClick={() => onChange(lower)}
-        >
-          −
-        </button>
-        <select
-          aria-label="Preview zoom"
-          value={zoom}
-          onChange={(event) => onChange(Number(event.target.value))}
-        >
-          {options.map((value) => (
-            <option value={value} key={value}>
-              {Math.round(value * 100)}%
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          title="Zoom in"
-          disabled={zoom >= previewZooms.at(-1)!}
-          onClick={() => onChange(higher)}
-        >
-          ＋
-        </button>
-      </div>
-      <div className="preview-zoom-presets">
-        <button
-          type="button"
-          onClick={(event) =>
-            onFit(
-              "width",
-              event.currentTarget.closest(".preview-pane, .builder-preview"),
-            )
-          }
-        >
-          Fit to width
-        </button>
-        <button
-          type="button"
-          onClick={(event) =>
-            onFit(
-              "page",
-              event.currentTarget.closest(".preview-pane, .builder-preview"),
-            )
-          }
-        >
-          Fit to page
-        </button>
-        <button type="button" onClick={() => onChange(1)}>
-          100%
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function UpdateBanner({
   status,
@@ -876,15 +798,7 @@ function DesktopApp() {
     event.preventDefault();
     previewZoomMode.current = "manual";
     setPreviewZoom((current) => {
-      const currentIndex = previewZooms.indexOf(current);
-      const nextIndex = Math.max(
-        0,
-        Math.min(
-          previewZooms.length - 1,
-          currentIndex + (event.deltaY < 0 ? 1 : -1),
-        ),
-      );
-      const next = previewZooms[nextIndex];
+      const next = stepPreviewZoom(current, event.deltaY < 0 ? 1 : -1);
       localStorage.setItem("bulletin-preview-zoom", String(next));
       return next;
     });
@@ -1439,7 +1353,12 @@ function DesktopApp() {
                 <PreviewZoomControls
                   zoom={previewZoom}
                   onChange={changePreviewZoom}
-                  onFit={fitPreview}
+                  onFit={(mode) =>
+                    fitPreview(
+                      mode,
+                      window.document.querySelector(".preview-pane"),
+                    )
+                  }
                 />
                 <div className="preview-toolbar-end">
                   <button
@@ -1568,7 +1487,12 @@ function DesktopApp() {
                 <PreviewZoomControls
                   zoom={previewZoom}
                   onChange={changePreviewZoom}
-                  onFit={fitPreview}
+                  onFit={(mode) =>
+                    fitPreview(
+                      mode,
+                      window.document.querySelector(".builder-preview"),
+                    )
+                  }
                 />
               </div>
               <DocumentView

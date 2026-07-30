@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { boundRichTextParagraphs, canvasSpace, canvasTextParagraphs } from '../shared/canvas.js';
+import { boundRichTextParagraphs, canvasLineMetrics, canvasSpace, canvasTextParagraphs } from '../shared/canvas.js';
 import type { BulletinDocumentV1, CanvasElement, CanvasScene, Paragraph } from '../shared/types.js';
 
 function InlineParagraph({ paragraph }: { paragraph: Paragraph }) {
@@ -31,6 +31,31 @@ function textFontSize(element: Extract<CanvasElement, { type: 'text' }>, documen
   return Math.max(5, Math.min(requested, requested * Math.sqrt(approximateCapacity / Math.max(characters, 1))));
 }
 
+function CanvasLineView({ element }: {
+  element: Extract<CanvasElement, { type: 'line' }> | (Extract<CanvasElement, { type: 'shape' }> & { shape: 'line' });
+}) {
+  const { length, rotationDeg } = canvasLineMetrics(element);
+  const weight = element.widthPt ?? 1;
+  const dash = element.dash === 'dashed'
+    ? `${weight * 4}pt ${weight * 3}pt`
+    : element.dash === 'dotted'
+      ? `0 ${weight * 2.5}pt`
+      : undefined;
+  return <svg className="canvas-element canvas-line" data-canvas-element-id={element.id} aria-hidden="true" style={{
+    left: `${element.x}in`,
+    top: `${element.y}in`,
+    width: `${length}in`,
+    transform: `rotate(${rotationDeg}deg)`
+  }}>
+    <line x1="0" y1="0" x2="100%" y2="0" style={{
+      stroke: element.color ?? '#25302d',
+      strokeWidth: `${weight}pt`,
+      strokeDasharray: dash,
+      strokeLinecap: element.dash === 'dotted' ? 'round' : 'butt'
+    }} />
+  </svg>;
+}
+
 function CanvasElementView({ element, document, assets, renderNativeBlock }: {
   element: CanvasElement;
   document: BulletinDocumentV1;
@@ -38,15 +63,7 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
   renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block']) => ReactNode;
 }) {
   if (element.type === 'shape') {
-    if (element.shape === 'line') {
-      const length = Math.hypot(element.width, element.height);
-      const angle = Math.atan2(element.height, element.width) * 180 / Math.PI;
-      return <div className="canvas-element canvas-line" data-canvas-element-id={element.id} style={{
-        left: `${element.x}in`, top: `${element.y}in`, width: `${length}in`,
-        borderTop: `${element.widthPt ?? 1}pt ${element.dash ?? 'solid'} ${element.color ?? '#25302d'}`,
-        transform: `rotate(${angle}deg)`
-      }} />;
-    }
+    if (element.shape === 'line') return <CanvasLineView element={element as typeof element & { shape: 'line' }} />;
     return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
       ...geometry(element), background: element.fill ?? 'transparent',
       border: `${element.borderWidthPt ?? 0}pt solid ${element.borderColor ?? 'transparent'}`
@@ -62,25 +79,24 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
     return <div className={`canvas-element canvas-native-block ${element.sizing === 'autoHeight' ? 'auto-height' : 'fixed-height'}`} data-canvas-element-id={element.id} style={{
       ...geometry(element),
       height: element.sizing === 'autoHeight' ? 'auto' : `${element.height}in`,
-      overflow: element.sizing === 'fixed' ? 'hidden' : undefined
-    }}>{renderNativeBlock?.(native) ?? fallback}</div>;
+      overflow: element.sizing === 'fixed' ? 'hidden' : undefined,
+      display: native.type === 'image' ? undefined : 'flex',
+      flexDirection: native.type === 'image' ? undefined : 'column',
+      justifyContent: native.type === 'image'
+        ? undefined
+        : element.verticalAlign === 'middle'
+          ? 'center'
+          : element.verticalAlign === 'bottom'
+            ? 'flex-end'
+            : 'flex-start'
+    }}>{native.type === 'image' ? fallback : renderNativeBlock?.(native) ?? fallback}</div>;
   }
   if (element.type === 'rectangle') return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
     ...geometry(element),
     background: element.fill ?? 'transparent',
     border: `${element.borderWidthPt ?? 0}pt solid ${element.borderColor ?? 'transparent'}`
   }} />;
-  if (element.type === 'line') {
-    const length = Math.hypot(element.width, element.height);
-    const angle = Math.atan2(element.height, element.width) * 180 / Math.PI;
-    return <div className="canvas-element canvas-line" data-canvas-element-id={element.id} style={{
-      left: `${element.x}in`,
-      top: `${element.y}in`,
-      width: `${length}in`,
-      borderTop: `${element.widthPt ?? 1}pt ${element.dash ?? 'solid'} ${element.color ?? '#25302d'}`,
-      transform: `rotate(${angle}deg)`
-    }} />;
-  }
+  if (element.type === 'line') return <CanvasLineView element={element} />;
   if (element.type === 'image') return <div className="canvas-element canvas-image" data-canvas-element-id={element.id} style={geometry(element)}>
     {assets[element.asset.path]
       ? <img src={assets[element.asset.path]} alt={element.asset.alt ?? ''} style={{ objectFit: element.fit ?? 'contain' }} />

@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   canvasBindingText,
   convertCanvasCoordinateSpace,
   createCanvasBlock,
   defaultCanvasScene,
   normalizeCanvasScene,
+  rotateCanvasLine,
   snapCanvasValue,
   snapCanvasPosition,
   validateCanvasScene
 } from '../src/shared/canvas';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
+import { CanvasSceneView } from '../src/components/CanvasSceneView';
+import type { CanvasScene } from '../src/shared/types';
 
 describe('canvas cover scenes', () => {
   it('creates canvases at the full physical page size', () => {
@@ -26,14 +31,14 @@ describe('canvas cover scenes', () => {
     const migrated = normalizeCanvasScene({
       coordinateSpace: 'fullPage',
       elements: [
-        { id: 'copy', type: 'text', x: 1, y: 2, width: 3, height: .5, source: { binding: 'info.title' } },
+        { id: 'copy', type: 'text', x: 1, y: 2, width: 3, height: .5, source: { binding: 'info.title' }, verticalAlign: 'bottom' },
         { id: 'rule', type: 'line', x: .5, y: 3, width: 6, height: 0, widthPt: 1 }
       ]
     });
     expect(migrated).toMatchObject({
       schemaVersion: 2,
       elements: [
-        { id: 'copy', type: 'block', x: 1, y: 2, width: 3, block: { type: 'richText', binding: 'info.title' } },
+        { id: 'copy', type: 'block', x: 1, y: 2, width: 3, verticalAlign: 'bottom', block: { type: 'richText', binding: 'info.title' } },
         { id: 'rule', type: 'shape', shape: 'line', x: .5, y: 3, width: 6 }
       ]
     });
@@ -70,5 +75,67 @@ describe('canvas cover scenes', () => {
     expect(snapCanvasValue(.1, true)).toBe(.1);
     expect(snapCanvasPosition(2.96, 1, 7)).toBe(3);
     expect(snapCanvasPosition(2.96, 1, 7, [], true)).toBe(2.96);
+  });
+
+  it('rotates lines explicitly while preserving their length', () => {
+    expect(rotateCanvasLine({ x: 1, y: 1, width: 3, height: 4 }, 270)).toEqual({
+      x: 1,
+      y: 1,
+      width: 5,
+      height: 0,
+      rotationDeg: 270
+    });
+    const scene: CanvasScene = {
+      schemaVersion: 2,
+      coordinateSpace: 'fullPage',
+      elements: [{ id: 'rule', type: 'shape', shape: 'line', x: .2, y: 1, width: 1, height: 0, rotationDeg: 180, widthPt: 0 }]
+    };
+    expect(validateCanvasScene(scene)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: '/scene/elements/0/widthPt', message: expect.stringContaining('positive') }),
+      expect.objectContaining({ severity: 'warning', message: expect.stringContaining('will be clipped') })
+    ]));
+    scene.elements[0] = { id: 'rule', type: 'shape', shape: 'line', x: 1, y: 1, width: 1, height: 0, rotationDeg: 45, widthPt: 1.25 };
+    const markup = renderToStaticMarkup(createElement(CanvasSceneView, {
+      scene,
+      document: createBulletin(defaultTemplate),
+      assets: {},
+      marginIn: 0
+    }));
+    expect(markup).toContain('<svg');
+    expect(markup).toContain('stroke-width:1.25pt');
+    expect(markup).not.toContain('border-top');
+  });
+
+  it('sizes native images from their live canvas box', () => {
+    const scene: CanvasScene = {
+      schemaVersion: 2,
+      coordinateSpace: 'fullPage',
+      elements: [{
+        id: 'image',
+        type: 'block',
+        x: 1,
+        y: 1,
+        width: 3,
+        height: 1.5,
+        sizing: 'fixed',
+        block: {
+          id: 'native-image',
+          type: 'image',
+          asset: { path: 'cover.svg', mediaType: 'image/svg+xml' },
+          fit: 'cover',
+          heightIn: .75
+        }
+      }]
+    };
+    const markup = renderToStaticMarkup(createElement(CanvasSceneView, {
+      scene,
+      document: createBulletin(defaultTemplate),
+      assets: { 'cover.svg': 'data:image/svg+xml;base64,PHN2Zy8+' },
+      marginIn: 0,
+      renderNativeBlock: () => createElement('span', null, 'stale native image sizing')
+    }));
+    expect(markup).toContain('height:1.5in');
+    expect(markup).toContain('width:100%;height:100%;object-fit:cover');
+    expect(markup).not.toContain('stale native image sizing');
   });
 });

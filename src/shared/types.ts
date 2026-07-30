@@ -74,11 +74,13 @@ export interface CanvasLineElement extends CanvasElementBase {
   color?: string;
   widthPt?: number;
   dash?: 'solid' | 'dashed' | 'dotted';
+  rotationDeg?: number;
 }
 export interface CanvasNativeElement extends CanvasElementBase {
   type: 'block';
   block: BulletinBlock;
   sizing?: 'autoHeight' | 'fixed';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
 }
 export interface CanvasShapeElement extends CanvasElementBase {
   type: 'shape';
@@ -89,6 +91,7 @@ export interface CanvasShapeElement extends CanvasElementBase {
   color?: string;
   widthPt?: number;
   dash?: 'solid' | 'dashed' | 'dotted';
+  rotationDeg?: number;
 }
 export type CanvasElement =
   | CanvasNativeElement

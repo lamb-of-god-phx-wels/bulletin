@@ -52,14 +52,24 @@ function FlowAsset({ asset, source }: { asset: AssetRef; source?: string }) {
     : <img src={source} alt={asset.alt ?? ''} />;
 }
 
-function PageRulers() {
-  const horizontal = Array.from({ length: 29 }, (_, index) => ({ index, position: `${index / 28 * 100}%`, label: index % 4 === 0 ? String(index / 4) : undefined }));
-  const vertical = Array.from({ length: 35 }, (_, index) => ({ index, position: `${index / 34 * 100}%`, label: index % 4 === 0 ? String(index / 4) : index === 34 ? '8.5' : undefined }));
-  const tickClass = (index: number) => `ruler-tick ${index % 4 === 0 ? 'major' : index % 2 === 0 ? 'half' : 'quarter'}`;
-  return <div className="page-rulers" aria-hidden="true"><div className="ruler-corner">in</div><div className="ruler ruler-horizontal">{horizontal.map(tick => <i className={tickClass(tick.index)} style={{ left: tick.position }} key={tick.index}>{tick.label && <span>{tick.label}</span>}</i>)}</div><div className="ruler ruler-vertical">{vertical.map(tick => <i className={tickClass(tick.index)} style={{ top: tick.position }} key={tick.index}>{tick.label && <span>{tick.label}</span>}</i>)}</div></div>;
+function rulerTicks(lengthIn: number) {
+  const ticks = Array.from({ length: Math.floor(lengthIn * 4 + .0001) + 1 }, (_, index) => index / 4);
+  if (Math.abs(ticks.at(-1)! - lengthIn) > .001) ticks.push(lengthIn);
+  return ticks.map((value, index) => ({
+    value,
+    position: `${value / lengthIn * 100}%`,
+    label: Number.isInteger(value) || index === ticks.length - 1 ? String(value) : undefined,
+    kind: Number.isInteger(value) ? 'major' : Number.isInteger(value * 2) ? 'half' : 'quarter'
+  }));
 }
 
-function trackPointer(event: React.PointerEvent<HTMLElement>) {
+export function PageRulers({ widthIn = 7, heightIn = 8.5 }: { widthIn?: number; heightIn?: number }) {
+  const horizontal = rulerTicks(widthIn);
+  const vertical = rulerTicks(heightIn);
+  return <div className="page-rulers" aria-hidden="true"><div className="ruler-corner">in</div><div className="ruler ruler-horizontal">{horizontal.map(tick => <i className={`ruler-tick ${tick.kind}`} style={{ left: tick.position }} key={tick.value}>{tick.label && <span>{tick.label}</span>}</i>)}</div><div className="ruler ruler-vertical">{vertical.map(tick => <i className={`ruler-tick ${tick.kind}`} style={{ top: tick.position }} key={tick.value}>{tick.label && <span>{tick.label}</span>}</i>)}</div></div>;
+}
+
+export function trackPointer(event: React.PointerEvent<HTMLElement>) {
   const frame = event.currentTarget.parentElement;
   if (!frame) return;
   const bounds = event.currentTarget.getBoundingClientRect();
@@ -68,7 +78,7 @@ function trackPointer(event: React.PointerEvent<HTMLElement>) {
   frame.classList.add('tracking-cursor');
 }
 
-function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
+export function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
   event.currentTarget.parentElement?.classList.remove('tracking-cursor');
 }
 

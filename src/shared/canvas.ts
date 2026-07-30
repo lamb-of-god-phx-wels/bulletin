@@ -151,7 +151,7 @@ export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
         return { ...base, type: 'shape' as const, shape: 'rectangle' as const, fill: element.fill, borderColor: element.borderColor, borderWidthPt: element.borderWidthPt };
       }
       if (element.type === 'line') {
-        return { ...base, type: 'shape' as const, shape: 'line' as const, color: element.color, widthPt: element.widthPt, dash: element.dash };
+        return { ...base, type: 'shape' as const, shape: 'line' as const, color: element.color, widthPt: element.widthPt, dash: element.dash, rotationDeg: element.rotationDeg };
       }
       if (element.type === 'image') {
         return {
@@ -165,6 +165,7 @@ export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
         ...base,
         type: 'block' as const,
         sizing: element.overflow === 'fixed' ? 'fixed' as const : 'autoHeight' as const,
+        verticalAlign: element.verticalAlign,
         block: {
           id: `${element.id}-text`,
           type: 'richText' as const,
@@ -221,6 +222,19 @@ export function snapCanvasPosition(value: number, size: number, extent: number, 
   const targets = [0, extent - size, (extent - size) / 2, ...nearbyEdges.flatMap(edge => [edge, edge - size, edge - size / 2])];
   const nearest = targets.reduce((best, target) => Math.abs(target - value) < Math.abs(best - value) ? target : best, targets[0]);
   return Math.abs(nearest - value) <= .08 ? nearest : grid;
+}
+
+export function canvasLineMetrics(element: CanvasGeometry & { rotationDeg?: number }) {
+  const explicitRotation = Number.isFinite(element.rotationDeg);
+  return {
+    length: explicitRotation ? element.width : Math.hypot(element.width, element.height),
+    rotationDeg: explicitRotation ? element.rotationDeg! : Math.atan2(element.height, element.width) * 180 / Math.PI
+  };
+}
+
+export function rotateCanvasLine<T extends CanvasGeometry & { rotationDeg?: number }>(element: T, rotationDeg: number): T {
+  const normalized = ((rotationDeg % 360) + 360) % 360;
+  return { ...element, width: canvasLineMetrics(element).length, height: 0, rotationDeg: normalized };
 }
 
 export function canvasBindingText(binding: CanvasTextBinding, document: BulletinDocumentV1, dateFormat: 'long' | 'medium' | 'short' | 'iso' = 'long'): string {
@@ -328,7 +342,23 @@ export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath 
     if (element.type === 'text' && element.source.binding && !['info.title', 'info.date', 'info.churchWeek', 'info.series', 'church.name'].includes(element.source.binding)) {
       issues.push({ path: `${path}/source/binding`, message: `Unsupported canvas binding: ${element.source.binding}`, severity: 'error' });
     }
-    if (finiteGeometry(element) && (element.x < 0 || element.y < 0 || element.x + element.width > space.width || element.y + element.height > space.height)) {
+    const isLine = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
+    if (isLine && element.widthPt !== undefined && (!(element.widthPt > 0) || !Number.isFinite(element.widthPt))) {
+      issues.push({ path: `${path}/widthPt`, message: 'Line weight must be a positive finite number.', severity: 'error' });
+    }
+    if (isLine && element.rotationDeg !== undefined && !Number.isFinite(element.rotationDeg)) {
+      issues.push({ path: `${path}/rotationDeg`, message: 'Line rotation must be a finite number.', severity: 'error' });
+    }
+    const bounds = isLine && finiteGeometry(element)
+      ? (() => {
+          const metrics = canvasLineMetrics(element);
+          const radians = metrics.rotationDeg * Math.PI / 180;
+          const endX = element.x + Math.cos(radians) * metrics.length;
+          const endY = element.y + Math.sin(radians) * metrics.length;
+          return { left: Math.min(element.x, endX), top: Math.min(element.y, endY), right: Math.max(element.x, endX), bottom: Math.max(element.y, endY) };
+        })()
+      : { left: element.x, top: element.y, right: element.x + element.width, bottom: element.y + element.height };
+    if (finiteGeometry(element) && (bounds.left < 0 || bounds.top < 0 || bounds.right > space.width || bounds.bottom > space.height)) {
       issues.push({ path, message: `Element “${element.name ?? element.id}” extends outside the ${scene.coordinateSpace} and will be clipped.`, severity: 'warning' });
     }
   });

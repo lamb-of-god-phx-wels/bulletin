@@ -656,6 +656,8 @@ export function TemplateBuilder({
             <CanvasDesigner
               block={block}
               document={createBulletin(template)}
+              template={template}
+              scope="template"
               marginIn={template.theme.marginIn}
               assets={{}}
               root={root}

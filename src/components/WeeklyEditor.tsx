@@ -1889,6 +1889,8 @@ export function WeeklyEditor({
             <CanvasDesigner
               block={block}
               document={document}
+              template={template}
+              scope="weekly"
               marginIn={document.layout?.marginIn ?? template.theme.marginIn}
               assets={{}}
               root={root}

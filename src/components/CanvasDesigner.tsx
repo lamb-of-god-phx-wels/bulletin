@@ -3,10 +3,12 @@ import { DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSen
 import {
   canvasAssetRefs,
   canvasNativeBlocks,
+  canvasLineMetrics,
   canvasSpace,
   canvasTextParagraphs,
   convertCanvasCoordinateSpace,
   normalizeCanvasScene,
+  rotateCanvasLine,
   snapCanvasPosition,
   snapCanvasValue,
   validateCanvasScene
@@ -19,7 +21,8 @@ import type {
   CanvasScene,
   CanvasTextBinding,
   LibraryManifestV1,
-  Paragraph
+  Paragraph,
+  TemplateV1
 } from '../shared/types.js';
 import type { DeclarativeComponentDefinition } from '../component-engine/types.js';
 import { CanvasSceneView } from './CanvasSceneView.js';
@@ -27,7 +30,9 @@ import { ElementPalette, type ElementPaletteItem } from './ElementPalette.js';
 import { canvasElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog.js';
 import { instantiateComponentDefinition } from '../componentDefinitions.js';
 import { NativeBlockFields } from './NativeBlockFields.js';
-import { NativeBlockPreview } from './DocumentView.js';
+import { BlockFormattingModal } from './BlockFormattingModal.js';
+import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } from './DocumentView.js';
+import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -44,9 +49,11 @@ function CanvasDropTarget({ stage, children }: { stage: MutableRefObject<HTMLDiv
   });
 }
 
-export function CanvasDesigner({ block, document, marginIn, assets, root, definitions = [], library, onChooseAsset, onChange, onClose }: {
+export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, onChooseAsset, onChange, onClose }: {
   block: CanvasBlock;
   document: BulletinDocumentV1;
+  template: TemplateV1;
+  scope: 'template' | 'weekly';
   marginIn: number;
   assets: Record<string, string>;
   root?: string;
@@ -63,15 +70,71 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
   const [future, setFuture] = useState<CanvasScene[]>([]);
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
+  const [formattingElementId, setFormattingElementId] = useState<string>();
   const drag = useRef<{ x: number; y: number; scene: CanvasScene; resize: boolean } | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
+  const workarea = useRef<HTMLElement>(null);
+  const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
+  const hasInitialZoom = Number.isFinite(initialZoom) && initialZoom >= .1 && initialZoom <= 2;
+  const [zoom, setZoom] = useState(hasInitialZoom ? initialZoom : .72);
+  const zoomMode = useRef<'page' | 'width' | 'manual'>(hasInitialZoom ? 'manual' : 'page');
+  const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const paletteSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [paletteOverlay, setPaletteOverlay] = useState('');
   const canvasWidth = (block.widthMode ?? 'contentBox') === 'fullPage' ? 7 : 7 - marginIn * 2;
   const elements = useMemo(() => new Map(scene.elements.map(element => [element.id, element])), [scene.elements]);
   const primary = [...selected].map(id => elements.get(id)).find(Boolean);
   const nativePrimary = primary?.type === 'block' ? primary.block : undefined;
+  const linePrimary = primary && (primary.type === 'line' || (primary.type === 'shape' && primary.shape === 'line')) ? primary : undefined;
   const issues = validateCanvasScene(scene, marginIn, '/scene', 7, block.heightIn);
+
+  const changeZoom = (next: number) => {
+    zoomMode.current = 'manual';
+    setZoom(next);
+    localStorage.setItem('bulletin-preview-zoom', String(next));
+  };
+  const fitCanvas = (mode: 'width' | 'page') => {
+    if (!workarea.current) return;
+    const rulerWidth = showRulers ? 46 : 0;
+    const rulerHeight = showRulers ? 75 : 0;
+    const fitWidth = (workarea.current.clientWidth - 74 - rulerWidth) / (canvasWidth * 96);
+    const fitPage = Math.min(fitWidth, (workarea.current.clientHeight - 86 - rulerHeight) / (block.heightIn * 96));
+    const next = Math.round(Math.max(.1, Math.min(2, mode === 'width' ? fitWidth : fitPage)) * 1000) / 1000;
+    zoomMode.current = mode;
+    setZoom(next);
+    localStorage.setItem('bulletin-preview-zoom', String(next));
+  };
+  const handleWheel = (event: React.WheelEvent<HTMLElement>) => {
+    if (!event.ctrlKey || event.deltaY === 0) return;
+    event.preventDefault();
+    zoomMode.current = 'manual';
+    setZoom(current => {
+      const next = stepPreviewZoom(current, event.deltaY < 0 ? 1 : -1);
+      localStorage.setItem('bulletin-preview-zoom', String(next));
+      return next;
+    });
+  };
+  const toggleRulers = () => {
+    setShowRulers(current => {
+      const next = !current;
+      localStorage.setItem('bulletin-show-rulers', String(next));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!workarea.current) return;
+    const applyActiveFit = () => {
+      if (zoomMode.current !== 'manual') fitCanvas(zoomMode.current);
+    };
+    const timer = window.setTimeout(applyActiveFit);
+    const observer = new ResizeObserver(applyActiveFit);
+    observer.observe(workarea.current);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [canvasWidth, block.heightIn, showRulers]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -147,8 +210,11 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
         if (!selected.has(element.id) || !editable(element)) return element;
         const others = drag.current!.scene.elements.filter(item => !selected.has(item.id));
         const space = canvasSpace(drag.current!.scene, 0, canvasWidth, block.heightIn);
+        const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
         return drag.current!.resize
-          ? { ...element, ...(element.type === 'block' ? { sizing: 'fixed' as const } : {}), width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: Math.max(element.type === 'line' || (element.type === 'shape' && element.shape === 'line') ? 0 : 1 / 16, snapCanvasValue(element.height + dy, event.altKey)) }
+          ? line && element.rotationDeg !== undefined
+            ? { ...element, width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: 0 }
+            : { ...element, ...(element.type === 'block' ? { sizing: 'fixed' as const } : {}), width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: Math.max(line ? 0 : 1 / 16, snapCanvasValue(element.height + dy, event.altKey)) }
           : {
               ...element,
               x: snapCanvasPosition(element.x + dx, element.width, space.width, others.flatMap(item => [item.x, item.x + item.width / 2, item.x + item.width]), event.altKey),
@@ -223,7 +289,7 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
     } else if (payload.kind === 'shape') {
       element = payload.shape === 'rectangle'
         ? { ...base, type: 'shape', shape: 'rectangle', fill: '#efe8dc', borderColor: '#a44d2a', borderWidthPt: 1 }
-        : { ...base, type: 'shape', shape: 'line', color: '#25302d', widthPt: 1 };
+        : { ...base, type: 'shape', shape: 'line', color: '#25302d', widthPt: 1, rotationDeg: 0 };
     }
     if (!element) return;
     element.x = Math.max(0, Math.min(space.width - element.width, snapCanvasValue(element.x)));
@@ -292,6 +358,10 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
         <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
         <button disabled={!past.length} onClick={undo}>Undo</button><button disabled={!future.length} onClick={redo}>Redo</button>
       </div>
+      <div className="canvas-view-tools">
+        <button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button>
+        <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitCanvas} />
+      </div>
       <button className="primary" onClick={onClose}>Done</button>
     </header>
     <aside className="canvas-layers">
@@ -302,18 +372,23 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
         <div><button title="Move forward" onClick={() => { const index = scene.elements.indexOf(element); if (index < scene.elements.length - 1) { const next = [...scene.elements]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; publish({ ...scene, elements: next }); } }}>↑</button><button title="Move backward" onClick={() => { const index = scene.elements.indexOf(element); if (index > 0) { const next = [...scene.elements]; [next[index], next[index - 1]] = [next[index - 1], next[index]]; publish({ ...scene, elements: next }); } }}>↓</button></div>
       </li>)}</ol>
     </aside>
-    <main className="canvas-workarea">
-      <div className="canvas-ruler-label horizontal">0　1　2　3　4　5　6　7 in</div>
-      <div className="canvas-ruler-label vertical">0　1　2　3　4　5　6　7　8</div>
-      <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in` }} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
+    <main className="canvas-workarea" ref={workarea} onWheel={handleWheel}>
+      <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
+      {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
+      <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
         <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={document} marginIn={marginIn} />} />
         <div className="canvas-safe-guide" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }} />
         <div className="canvas-selection-layer" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }}>
-          {scene.elements.map(element => <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${element.width}in`, height: `${Math.max(measuredHeights[element.id] ?? element.height, .04)}in` }} onPointerDown={event => beginDrag(event, element)}>
-            {selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
-          </div>)}
+          {scene.elements.map(element => {
+            const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
+            const metrics = line ? canvasLineMetrics(element) : undefined;
+            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onPointerDown={event => beginDrag(event, element)}>
+              {selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
+            </div>;
+          })}
         </div>
       </div></CanvasDropTarget>
+      </div>
       <div className="canvas-align-tools"><span>Align selection</span>{(['left', 'center', 'right', 'top', 'middle', 'bottom'] as const).map(edge => <button disabled={selected.size < 2} onClick={() => align(edge)} key={edge}>{edge}</button>)}<button disabled={selected.size < 3} onClick={() => distribute('horizontal')}>distribute H</button><button disabled={selected.size < 3} onClick={() => distribute('vertical')}>distribute V</button></div>
     </main>
     <aside className="canvas-properties">
@@ -330,10 +405,20 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
           {nativePrimary && <NativeBlockFields block={nativePrimary} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
-          {nativePrimary && nativePrimary.type !== 'image' && <><div className="canvas-geometry-grid"><label>Size (pt)<input type="number" min="5" max="72" value={nativePrimary.presentation?.fontSizePt ?? 12} onChange={event => updatePrimary({ block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, fontSizePt: event.currentTarget.valueAsNumber } } } as Partial<CanvasElement>)} /></label><label>Align<select value={nativePrimary.presentation?.textAlign ?? 'left'} onChange={event => updatePrimary({ block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, textAlign: event.target.value as 'left' | 'center' | 'right' | 'justify' } } } as Partial<CanvasElement>)}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label></div><label>Text color<input type="color" value={nativePrimary.presentation?.color ?? '#25302d'} onChange={event => updatePrimary({ block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, color: event.target.value } } } as Partial<CanvasElement>)} /></label></>}
+          {nativePrimary && nativePrimary.type !== 'image' && <>
+            <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
+            <button className="secondary canvas-format-button" onClick={() => setFormattingElementId(primary.id)}>Format block…</button>
+          </>}
         </>}
         {primary.type === 'shape' && primary.shape === 'rectangle' && <><label>Fill<input type="color" value={primary.fill ?? '#efe8dc'} onChange={event => updatePrimary({ fill: event.target.value } as Partial<CanvasElement>)} /></label><label>Border<input type="color" value={primary.borderColor ?? '#a44d2a'} onChange={event => updatePrimary({ borderColor: event.target.value } as Partial<CanvasElement>)} /></label></>}
-        {primary.type === 'shape' && primary.shape === 'line' && <label>Line color<input type="color" value={primary.color ?? '#25302d'} onChange={event => updatePrimary({ color: event.target.value } as Partial<CanvasElement>)} /></label>}
+        {linePrimary && <>
+          <label>Line color<input type="color" value={linePrimary.color ?? '#25302d'} onChange={event => updatePrimary({ color: event.target.value } as Partial<CanvasElement>)} /></label>
+          <div className="canvas-geometry-grid">
+            <label>Weight (pt)<input type="number" min=".25" max="24" step=".25" value={linePrimary.widthPt ?? 1} onChange={event => { if (event.currentTarget.valueAsNumber > 0) updatePrimary({ widthPt: event.currentTarget.valueAsNumber } as Partial<CanvasElement>); }} /></label>
+            <label>Rotation (°)<input type="number" step="1" value={Math.round(canvasLineMetrics(linePrimary).rotationDeg * 100) / 100} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) updatePrimary(rotateCanvasLine(linePrimary, event.currentTarget.valueAsNumber)); }} /></label>
+          </div>
+          <label>Line style<select value={linePrimary.dash ?? 'solid'} onChange={event => updatePrimary({ dash: event.target.value as 'solid' | 'dashed' | 'dotted' } as Partial<CanvasElement>)}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
+        </>}
         {primary.type === 'text' && <>
           <label>Text binding<select disabled={!editable(primary)} value={primary.source.binding ?? ''} onChange={event => updatePrimary({ source: { ...primary.source, binding: event.target.value as CanvasTextBinding || undefined } } as Partial<CanvasElement>)}><option value="">Literal text</option><option value="info.title">Sermon title</option><option value="info.date">Service date</option><option value="info.churchWeek">Church week</option><option value="info.series">Series</option><option value="church.name">Church name</option></select></label>
           <label>{primary.source.binding ? 'Weekly override' : 'Text'}<textarea rows={5} disabled={!editable(primary)} value={plainText(primary.source.binding ? primary.source.override : primary.source.literal)} placeholder={primary.source.binding ? plainText(canvasTextParagraphs(primary, document)) : ''} onChange={event => updatePrimary({ source: { ...primary.source, [primary.source.binding ? 'override' : 'literal']: text(event.target.value) } } as Partial<CanvasElement>)} /></label>
@@ -346,6 +431,20 @@ export function CanvasDesigner({ block, document, marginIn, assets, root, defini
       {issues.length > 0 && <div className="canvas-issues"><b>{issues.length} scene notice{issues.length === 1 ? '' : 's'}</b>{issues.map(issue => <p className={issue.severity} key={`${issue.path}-${issue.message}`}>{issue.message}</p>)}</div>}
     </aside>
   </div>
+  {formattingElementId && (() => {
+    const element = scene.elements.find(item => item.id === formattingElementId);
+    if (element?.type !== 'block') return null;
+    return <div className="canvas-formatting-layer"><BlockFormattingModal
+      block={element.block}
+      template={template}
+      scope={scope}
+      onClose={() => setFormattingElementId(undefined)}
+      onSave={(presentation, layout) => {
+        publish({ ...scene, elements: scene.elements.map(item => item.id === element.id && item.type === 'block' ? { ...item, block: { ...item.block, presentation, layout } } : item) });
+        setFormattingElementId(undefined);
+      }}
+    /></div>;
+  })()}
   <DragOverlay>{paletteOverlay && <div className="palette-drag-overlay">{paletteOverlay}</div>}</DragOverlay>
   </DndContext>;
 }

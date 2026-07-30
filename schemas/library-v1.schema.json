@@ -7,6 +7,32 @@
   "properties": {
     "schemaVersion": { "const": 1 }, "name": { "type": "string" },
     "items": { "type": "array", "items": { "type": "object", "required": ["id", "version", "kind", "title"], "properties": { "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["song", "liturgy", "image", "font", "church-info"] }, "title": { "type": "string" } }, "additionalProperties": true } },
+    "imageFolders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "parentId": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "imageCatalog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["imageId"],
+        "properties": {
+          "imageId": { "type": "string", "minLength": 1 },
+          "folderId": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
     "churchWeekNames": {
       "type": "array",
       "items": {

@@ -8,6 +8,8 @@ import { SortableHandle, SortableItem, SortableList } from "./SortableList";
 import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
+import { ImageAssetDialog } from "./ImageAssetDialog";
+import { ImageBlockFields } from "./ImageBlockFields";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, findBlock, updateBlockTree } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
@@ -70,7 +72,7 @@ export function WeeklyEditor({
   root?: string;
   relativePath: string;
   onChange(document: BulletinDocumentV1): void;
-  onLibraryChange(library: LibraryManifestV1): Promise<void>;
+  onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
   onOpenChurchCalendar?(): void;
 }) {
@@ -80,6 +82,7 @@ export function WeeklyEditor({
   const [blockLibraryIndex, setBlockLibraryIndex] = useState<number>();
   const [pageInsertionIndex, setPageInsertionIndex] = useState<number>();
   const [creatingPage, setCreatingPage] = useState<PageTemplateV1>();
+  const [imageIndex, setImageIndex] = useState<number>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
   const [lookupStatus, setLookupStatus] = useState<
     Record<string, { state: "loading" | "success" | "error"; text: string }>
@@ -406,24 +409,17 @@ export function WeeklyEditor({
   }, [document.blocks, pendingAddedBlockId]);
   const addPage = async (index = document.blocks.length, imageOnly = false) => {
     if (!root || !window.bulletin) return;
+    if (imageOnly) {
+      setImageIndex(index);
+      return;
+    }
     try {
       const asset = await window.bulletin.importAsset(
         root,
         `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`,
       );
       if (!asset) return;
-      if (imageOnly && asset.mediaType === "application/pdf") {
-        onError("Choose a PNG, JPEG, or SVG for an Image element. Use Full-page image / PDF for PDF files.");
-        return;
-      }
-      const block: BulletinBlock = imageOnly ? {
-        id: `image-${randomId()}`,
-        type: "image",
-        asset,
-        fit: "contain",
-        heightIn: 2.5,
-        weeklyEditable: true,
-      } : {
+      const block: BulletinBlock = {
         id: `page-${Date.now()}`,
         type: "fullPageAsset",
         asset,
@@ -448,7 +444,7 @@ export function WeeklyEditor({
     else if (payload.kind === "fullPageAsset") void addPage(index);
   };
   const chooseBlockAsset = async (
-    block: Extract<BulletinBlock, { type: "image" | "fullPageAsset" }>,
+    block: Extract<BulletinBlock, { type: "fullPageAsset" }>,
   ) => {
     if (!root || !window.bulletin) return;
     try {
@@ -1428,11 +1424,7 @@ export function WeeklyEditor({
                   </>
                 )}
                 {block.type === "image" && (
-                  <>
-                    <p className="helper">{block.alt ?? block.asset.alt ?? block.asset.path}</p>
-                    <div className="field-row"><label>Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => updateBlock(block.id, { ...block, heightIn: event.currentTarget.valueAsNumber })} /></label><label>Fit<select value={block.fit ?? "contain"} onChange={event => updateBlock(block.id, { ...block, fit: event.target.value as "contain" | "cover" | "fill" })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></div>
-                    <button className="secondary" onClick={() => chooseBlockAsset(block)}>Replace image</button>
-                  </>
+                  <ImageBlockFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <button
@@ -1473,6 +1465,8 @@ export function WeeklyEditor({
           library={library}
           root={root}
           definitions={library?.componentDefinitions ?? []}
+          onLibraryChange={onLibraryChange}
+          onError={onError}
           onChange={setCreatingPage}
           onSave={async publish => {
             if (!root || !window.bulletin) throw new Error("A workspace is required to save reusable pages.");
@@ -1571,6 +1565,9 @@ export function WeeklyEditor({
               root={root}
               definitions={library?.componentDefinitions ?? []}
               library={library}
+              onLibraryChange={onLibraryChange}
+              imageTargetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`}
+              onError={onError}
               onChooseAsset={chooseCanvasAsset}
               onChange={(next) => updateBlock(next.id, next)}
               onClose={() => setCanvasBlockId(undefined)}
@@ -1602,6 +1599,8 @@ export function WeeklyEditor({
               library={library}
               root={root}
               definitions={library?.componentDefinitions ?? []}
+              onLibraryChange={onLibraryChange}
+              onError={onError}
               onChange={(next) =>
                 updateBlock(block.id, {
                   ...block,
@@ -1616,6 +1615,18 @@ export function WeeklyEditor({
             />
           );
         })()}
+      {imageIndex !== undefined && root && <ImageAssetDialog
+        library={library}
+        root={root}
+        targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`}
+        onLibraryChange={onLibraryChange}
+        onError={onError}
+        onClose={() => setImageIndex(undefined)}
+        onSelect={asset => {
+          const block: BulletinBlock = { id: `image-${randomId()}`, type: "image", asset, alt: asset.alt, fit: "contain", heightIn: 2.5, weeklyEditable: true };
+          onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, imageIndex) });
+        }}
+      />}
     </div>
   );
 }

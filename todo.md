@@ -65,10 +65,6 @@
   * Could go even further and save these subsections as a library item, allowing binding
     * This would enable the ability to create a master template with subsection "selector"
     * Template then inserts "placeholder" which has selector for a bulltein "subsection"
-* Image blocks should allow selection of library images in addition to one-time uploads.
-  * When an image is uploaded, it should ask if you want to add the image to the library and give a form if yes.
-
-
 * Extra "OneLicense.net copyright notice automatically at end
 * Allow scripture blocks to span pages (unless keep together option is checked)
   * Don't add a "Continued" header on page break

@@ -21,6 +21,7 @@ import {
   CreateFromDialog,
   type CreationSource,
 } from "./components/CreateFromDialog";
+import { ImageAssetDialog } from "./components/ImageAssetDialog";
 import { createBulletin, defaultTemplate } from "./shared/defaults";
 import { libraryFamilies, type LibraryFamily } from "./shared/library";
 import { paginate } from "./shared/pagination";
@@ -1325,14 +1326,10 @@ function DesktopApp() {
                 relativePath={relativePath}
                 onChange={changeDocument}
                 onOpenChurchCalendar={() => setScreen("church-year")}
-                onLibraryChange={async (library) => {
+                onLibraryChange={async (library, alreadySaved) => {
                   if (!window.bulletin) return;
                   try {
-                    await window.bulletin.saveLibrary(
-                      workspace.root,
-                      library,
-                      workspace.library,
-                    );
+                    if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
                     setWorkspace((current) =>
                       current ? { ...current, library } : current,
                     );
@@ -1469,6 +1466,12 @@ function DesktopApp() {
                     throw error;
                   }
                 }}
+                onLibraryChange={async (library, alreadySaved) => {
+                  if (!window.bulletin) return;
+                  if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
+                  setWorkspace(current => current ? { ...current, library } : current);
+                  reportStatus("Image library saved");
+                }}
                 onSave={saveTemplate}
                 onDeleteVersion={confirmTemplateVersionDelete}
                 onDeleteTemplate={confirmTemplateFamilyDelete}
@@ -1518,14 +1521,10 @@ function DesktopApp() {
               updateEditingState({ auxiliaryDirty: value })
             }
             onError={reportStatus}
-            onSave={async (library) => {
+            onSave={async (library, alreadySaved) => {
               if (!window.bulletin) return;
               try {
-                await window.bulletin.saveLibrary(
-                  workspace.root,
-                  library,
-                  workspace.library,
-                );
+                if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
                 setWorkspace({ ...workspace, library });
                 reportStatus("Library saved");
               } catch (error) {
@@ -1546,6 +1545,12 @@ function DesktopApp() {
             root={workspace.root}
             definitions={workspace.library?.componentDefinitions ?? []}
             onError={reportStatus}
+            onLibraryChange={async (library, alreadySaved) => {
+              if (!window.bulletin) return;
+              if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
+              setWorkspace(current => current ? { ...current, library } : current);
+              reportStatus("Image library saved");
+            }}
             onSave={async (pageTemplate, expectedUpdatedAt) => {
               if (!window.bulletin)
                 throw new Error("Page-template storage is unavailable.");
@@ -2121,7 +2126,7 @@ function LibraryView({
   onDirtyChange,
 }: {
   workspace: WorkspaceSummary;
-  onSave(library: LibraryManifestV1): Promise<void>;
+  onSave(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
   onDirtyChange?(dirty: boolean): void;
 }) {
@@ -2129,6 +2134,7 @@ function LibraryView({
   const [adding, setAdding] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<Confirmation>();
   const [editing, setEditing] = useState<LibraryItemV1>();
+  const [managingImages, setManagingImages] = useState(false);
   const [draft, setDraft] = useState<LibraryDraft>(emptyLibraryDraft);
   const [selectedVersions, setSelectedVersions] = useState<
     Record<string, number>
@@ -2288,6 +2294,9 @@ function LibraryView({
           </p>
         </div>
         <div>
+          <button className="secondary" onClick={() => setManagingImages(true)}>
+            ▦ Manage images
+          </button>
           <button
             className="primary"
             onClick={() => {
@@ -2357,7 +2366,6 @@ function LibraryView({
             >
               <option value="song">Song</option>
               <option value="liturgy">Liturgy</option>
-              <option value="image">Image</option>
               <option value="church-info">Church information</option>
               <option value="font">Font</option>
             </select>
@@ -2408,7 +2416,7 @@ function LibraryView({
           </p>
         </div>
       ) : (
-        Object.entries(groups).map(([kind, entries]) => (
+        Object.entries(groups).filter(([kind]) => kind !== "image").map(([kind, entries]) => (
           <section className="library-group" key={kind}>
             <h3>{kind}</h3>
             {entries?.map((family) => {
@@ -2472,6 +2480,17 @@ function LibraryView({
             setDeleteConfirmation(undefined);
             await action();
           }}
+        />
+      )}
+      {managingImages && (
+        <ImageAssetDialog
+          library={workspace.library}
+          root={workspace.root}
+          targetFolder="assets/library/images"
+          manageOnly
+          onLibraryChange={onSave}
+          onError={onError}
+          onClose={() => setManagingImages(false)}
         />
       )}
     </div>

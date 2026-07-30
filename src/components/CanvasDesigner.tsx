@@ -34,6 +34,7 @@ import { songHeader } from '../shared/songs.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
 import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } from './DocumentView.js';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
+import { ImageAssetDialog } from './ImageAssetDialog.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -50,7 +51,7 @@ function CanvasDropTarget({ stage, children }: { stage: MutableRefObject<HTMLDiv
   });
 }
 
-export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, onChooseAsset, onChange, onClose }: {
+export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, imageTargetFolder = 'assets/canvases', onLibraryChange, onError, onChooseAsset, onChange, onClose }: {
   block: CanvasBlock;
   document: BulletinDocumentV1;
   template: TemplateV1;
@@ -60,6 +61,9 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   root?: string;
   definitions?: DeclarativeComponentDefinition[];
   library?: LibraryManifestV1;
+  imageTargetFolder?: string;
+  onLibraryChange?(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
+  onError?(message: string): void;
   onChooseAsset?(): Promise<AssetRef | null>;
   onChange(block: CanvasBlock): void;
   onClose(): void;
@@ -82,6 +86,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const paletteSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [paletteOverlay, setPaletteOverlay] = useState('');
+  const [pendingImage, setPendingImage] = useState<{ id: string; name: string; x: number; y: number; width: number; height: number }>();
   const canvasWidth = (block.widthMode ?? 'contentBox') === 'fullPage' ? 7 : 7 - marginIn * 2;
   const elements = useMemo(() => new Map(scene.elements.map(element => [element.id, element])), [scene.elements]);
   const primary = [...selected].map(id => elements.get(id)).find(Boolean);
@@ -284,9 +289,8 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       const native = instantiateComponentDefinition(payload.definition);
       element = { ...base, type: 'block', block: native, sizing: 'autoHeight' };
     } else if (payload.kind === 'image') {
-      const asset = await onChooseAsset?.();
-      if (!asset || asset.mediaType === 'application/pdf') return;
-      element = { ...base, type: 'block', sizing: 'fixed', block: { id: `${base.id}-image`, type: 'image', asset, fit: 'contain', heightIn: base.height } };
+      setPendingImage(base);
+      return;
     } else if (payload.kind === 'shape') {
       element = payload.shape === 'rectangle'
         ? { ...base, type: 'shape', shape: 'rectangle', fill: '#efe8dc', borderColor: '#a44d2a', borderWidthPt: 1 }
@@ -410,7 +414,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
-          {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} scope={scope} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
+          {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
             <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
             <button className="secondary canvas-format-button" onClick={() => setFormattingElementId(primary.id)}>Format block…</button>
@@ -436,6 +440,26 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       </> : <p className="helper">Select an object to edit its geometry and content. Shift-click selects more than one.</p>}
       {issues.length > 0 && <div className="canvas-issues"><b>{issues.length} scene notice{issues.length === 1 ? '' : 's'}</b>{issues.map(issue => <p className={issue.severity} key={`${issue.path}-${issue.message}`}>{issue.message}</p>)}</div>}
     </aside>
+    {pendingImage && root && <ImageAssetDialog
+      library={library}
+      root={root}
+      targetFolder={imageTargetFolder}
+      onLibraryChange={onLibraryChange}
+      onError={onError}
+      onClose={() => setPendingImage(undefined)}
+      onSelect={asset => {
+        const element: CanvasElement = {
+          ...pendingImage,
+          type: 'block',
+          sizing: 'fixed',
+          block: { id: `${pendingImage.id}-image`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: pendingImage.height }
+        };
+        element.x = Math.max(0, Math.min(space.width - element.width, snapCanvasValue(element.x)));
+        element.y = Math.max(0, Math.min(space.height - element.height, snapCanvasValue(element.y)));
+        publish({ ...scene, elements: [...scene.elements, element] });
+        setSelected(new Set([element.id]));
+      }}
+    />}
   </div>
   {formattingElementId && (() => {
     const element = scene.elements.find(item => item.id === formattingElementId);

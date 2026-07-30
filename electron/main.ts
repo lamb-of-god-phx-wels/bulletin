@@ -7,7 +7,7 @@ import type { AppUpdateStatus, BulletinBlock, BulletinDocumentV1, BulletinApi, C
 import { estimateBlockPoints, paginate } from '../src/shared/pagination.js';
 import {
   assertWorkspaceWritable, createRevision, deleteBulletin, deletePageTemplate, deleteTemplate, inside, openWorkspace, permanentlyDeleteArchived,
-  readAssetData, resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, savePageTemplate, saveTemplate
+  readAssetData, resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, savePageTemplate, saveTemplate, trashLibraryImages
 } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
@@ -73,6 +73,7 @@ function registerIpc() {
   ipcMain.handle('page-template:save', async (_event, ...args: Parameters<BulletinApi['savePageTemplate']>) => { await requireWritable(args[0]); return savePageTemplate(...args); });
   ipcMain.handle('page-template:delete', async (_event, ...args: Parameters<BulletinApi['deletePageTemplate']>) => { await requireWritable(args[0]); return deletePageTemplate(...args); });
   ipcMain.handle('library:save', async (_event, ...args: Parameters<BulletinApi['saveLibrary']>) => { await requireWritable(args[0]); return saveLibrary(...args); });
+  ipcMain.handle('library:trash-images', async (_event, ...args: Parameters<NonNullable<BulletinApi['trashLibraryImages']>>) => { await requireWritable(args[0]); return trashLibraryImages(...args); });
   ipcMain.handle('archive:restore', async (_event, root, record) => { await requireWritable(root); return restoreArchived(root, record); });
   ipcMain.handle('archive:delete', async (_event, root, record) => { await requireWritable(root); return permanentlyDeleteArchived(root, record); });
   ipcMain.handle('workspace:resolve-conflict', async (_event, root, conflictRecord, keepPath) => { await requireWritable(root); return resolveWorkspaceConflict(root, conflictRecord, keepPath); });

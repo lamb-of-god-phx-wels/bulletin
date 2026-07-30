@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createBulletin, defaultPageTemplate, defaultTemplate } from '../src/shared/defaults';
 import {
   assertWorkspaceWritable, createRevision, deleteBulletin, deletePageTemplate, deleteTemplate, openWorkspace, permanentlyDeleteArchived,
-  resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, savePageTemplate, saveTemplate
+  resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, savePageTemplate, saveTemplate, trashLibraryImages
 } from '../electron/workspace';
 
 const roots: string[] = [];
@@ -121,6 +121,49 @@ describe('shared workspace', () => {
     expect(merged.library?.items).toContainEqual(song);
     expect(merged.library?.calendarEvents).toContainEqual(localEvent);
     expect((await readdir(join(root, 'library', 'items'))).length).toBe(1);
+  });
+
+  it('synchronizes image folders and catalog entries independently', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    const initial = await openWorkspace(root);
+    const library = {
+      ...initial.library!,
+      imageFolders: [{ id: 'seasonal', name: 'Seasonal' }, { id: 'advent', name: 'Advent', parentId: 'seasonal' }],
+      imageCatalog: [{ imageId: 'banner', folderId: 'advent', displayName: 'Advent banner' }]
+    };
+    library.items = [...library.items, {
+      id: 'banner', version: 1, kind: 'image' as const, title: 'Banner',
+      assets: [{ path: 'assets/blobs/banner.png', mediaType: 'image/png' as const }]
+    }];
+    await saveLibrary(root, library, initial.library);
+    const reopened = await openWorkspace(root);
+    expect(reopened.library?.imageFolders).toEqual(expect.arrayContaining(library.imageFolders));
+    expect(reopened.library?.imageCatalog).toEqual(library.imageCatalog);
+    expect((await readdir(join(root, 'library', 'image-folders'))).length).toBe(2);
+    expect((await readdir(join(root, 'library', 'image-catalog'))).length).toBe(1);
+  });
+
+  it('trashes and restores an image folder tree as one entry', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    const initial = await openWorkspace(root);
+    const library = {
+      ...initial.library!,
+      items: [...initial.library!.items, { id: 'banner', version: 1, kind: 'image' as const, title: 'Banner', assets: [{ path: 'assets/blobs/banner.png', mediaType: 'image/png' as const }] }],
+      imageFolders: [{ id: 'seasonal', name: 'Seasonal' }, { id: 'advent', name: 'Advent', parentId: 'seasonal' }],
+      imageCatalog: [{ imageId: 'banner', folderId: 'advent', displayName: 'Advent banner' }]
+    };
+    await saveLibrary(root, library, initial.library);
+    const active = await trashLibraryImages(root, ['seasonal', 'advent'], ['banner'], library);
+    expect(active.items.some(item => item.id === 'banner')).toBe(false);
+    const trashed = await openWorkspace(root);
+    const bundle = trashed.sync?.archivedRecords.filter(record => record.kind === 'image-folder');
+    expect(bundle).toHaveLength(1);
+    expect(bundle?.[0].label).toBe('Seasonal');
+    await restoreArchived(root, bundle![0]);
+    const restored = await openWorkspace(root);
+    expect(restored.library?.items.some(item => item.id === 'banner')).toBe(true);
+    expect(restored.library?.imageFolders).toEqual(expect.arrayContaining(library.imageFolders));
+    expect(restored.sync?.archivedRecords.filter(record => record.kind === 'image-folder')).toEqual([]);
   });
 
   it('rejects stale edits to the same calendar event', async () => {

@@ -44,5 +44,37 @@ export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 
     if (existingIndex === undefined) { songs.set(key, items.length); items.push(item); continue; }
     items[existingIndex] = mergeSongItems(items[existingIndex], item); changed = true;
   }
-  return changed ? { ...currentLibrary, items } : library;
+  const folders = currentLibrary.imageFolders ?? [];
+  const uniqueFolders = folders.filter((folder, index) => Boolean(folder.id && folder.name.trim()) && folders.findIndex(candidate => candidate.id === folder.id) === index);
+  const folderIds = new Set(uniqueFolders.map(folder => folder.id));
+  const normalizedFolders = uniqueFolders.map(folder => {
+    if (!folder.parentId || folder.parentId === folder.id || !folderIds.has(folder.parentId)) {
+      if (folder.parentId) changed = true;
+      return folder.parentId ? { id: folder.id, name: folder.name } : folder;
+    }
+    const visited = new Set([folder.id]);
+    let parentId: string | undefined = folder.parentId;
+    while (parentId) {
+      if (visited.has(parentId)) {
+        changed = true;
+        return { id: folder.id, name: folder.name };
+      }
+      visited.add(parentId);
+      parentId = uniqueFolders.find(candidate => candidate.id === parentId)?.parentId;
+    }
+    return folder;
+  });
+  changed ||= normalizedFolders.length !== folders.length;
+  const imageIds = new Set(items.filter(item => item.kind === 'image').map(item => item.id));
+  const catalog = (currentLibrary.imageCatalog ?? []).filter((entry, index, all) =>
+    imageIds.has(entry.imageId) && all.findIndex(candidate => candidate.imageId === entry.imageId) === index
+  ).map(entry => entry.folderId && !folderIds.has(entry.folderId) ? { ...entry, folderId: undefined } : entry);
+  changed ||= catalog.length !== (currentLibrary.imageCatalog ?? []).length
+    || catalog.some((entry, index) => JSON.stringify(entry) !== JSON.stringify(currentLibrary.imageCatalog?.[index]));
+  return changed ? {
+    ...currentLibrary,
+    items,
+    ...(normalizedFolders.length ? { imageFolders: normalizedFolders } : { imageFolders: undefined }),
+    ...(catalog.length ? { imageCatalog: catalog } : { imageCatalog: undefined })
+  } : library;
 }

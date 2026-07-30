@@ -16,6 +16,7 @@ import { flowElementPaletteItems, type ElementPalettePayload } from './elementPa
 import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
 import { songHeader } from '../shared/songs';
+import { ImageAssetDialog } from './ImageAssetDialog';
 
 const title = (block: BulletinBlock) => block.type === 'custom'
   ? block.name
@@ -25,13 +26,15 @@ const title = (block: BulletinBlock) => block.type === 'custom'
       ? songHeader(block)
       : block.label ?? ('text' in block ? block.text : block.type);
 
-export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onChange, onSave, onClose }: {
+export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onLibraryChange, onError, onChange, onSave, onClose }: {
   value: PageTemplateV1;
   template: TemplateV1;
   document?: BulletinDocumentV1;
   library?: LibraryManifestV1;
   root?: string;
   definitions: DeclarativeComponentDefinition[];
+  onLibraryChange?(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
+  onError?(message: string): void;
   onChange(value: PageTemplateV1): void;
   onSave?(publish: boolean): Promise<void>;
   onClose(): void;
@@ -40,6 +43,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const [canvasId, setCanvasId] = useState<string>();
   const [formatId, setFormatId] = useState<string>();
   const [status, setStatus] = useState('');
+  const [imageIndex, setImageIndex] = useState<number>();
   const marginIn = value.margin.mode === 'fixed' ? value.margin.marginIn : value.margin.referenceMarginIn;
   const layout = pageTemplateLayout(value);
   const previewTemplate = useMemo<TemplateV1>(() => ({ ...template, theme: { ...template.theme, marginIn }, starterBlocks: value.blocks }), [template, value.blocks, marginIn]);
@@ -60,9 +64,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       const block = instantiateComponentDefinition(payload.definition);
       change({ blocks: [...value.blocks.slice(0, index), block, ...value.blocks.slice(index)] });
     } else if (payload.kind === 'image' && root && window.bulletin) {
-      const asset = await window.bulletin.importAsset(root, `assets/page-templates/${value.id}`);
-      if (asset?.mediaType === 'application/pdf') { window.alert('Choose a PNG, JPEG, or SVG for an Image element.'); return; }
-      if (asset) change({ blocks: [...value.blocks.slice(0, index), { id: `image-${randomId()}`, type: 'image', asset, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(index)] });
+      setImageIndex(index);
     }
   };
   return <div className="page-template-designer" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
@@ -87,7 +89,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
         /> : undefined}
       ><ol className="outline">{value.blocks.map(block => <SortableItem id={block.id} key={block.id}><li>
         <div className="outline-main"><b>{title(block)}</b><small>{block.type}</small>
-          {block.type !== 'canvas' && <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" onChange={updateBlock} />}
+          {block.type !== 'canvas' && <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} />}
           {block.type === 'canvas' && <small>7 × 8.5 in · full page</small>}
         </div><div className="reorder">{block.type === 'canvas' ? <button className="format-block-button" onClick={() => setCanvasId(block.id)}>Design</button> : <button className="format-block-button" onClick={() => setFormatId(block.id)}>Format</button>}{layout === 'regular' && <button className="danger-text" onClick={() => change({ blocks: value.blocks.filter(item => item.id !== block.id) })}>×</button>}{layout === 'regular' && <SortableHandle label={`Drag ${title(block)} to reorder`} />}</div>
       </li></SortableItem>)}</ol></SortableList>
@@ -95,7 +97,8 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     </aside>
     <main className="page-template-preview"><DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers guides zoom={.72} singlePage /></main>
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={template} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
-    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} onClose={() => setCanvasId(undefined)} /> : null; })()}
+    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
+    {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
   </div>;
 }

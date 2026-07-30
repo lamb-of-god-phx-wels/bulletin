@@ -28,6 +28,8 @@ import { SongBlockFields } from "./SongBlockFields";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
 import { songHeader } from "../shared/songs";
+import { ImageAssetDialog } from "./ImageAssetDialog";
+import { ImageBlockFields } from "./ImageBlockFields";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -59,6 +61,7 @@ export function TemplateBuilder({
   root,
   onChange,
   onDefinitionsChange,
+  onLibraryChange,
   onSave,
   onDeleteVersion,
   onDeleteTemplate,
@@ -72,6 +75,7 @@ export function TemplateBuilder({
   root?: string;
   onChange(value: TemplateV1): void;
   onDefinitionsChange(value: DeclarativeComponentDefinition[]): Promise<void>;
+  onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onSave(publish: boolean): Promise<void>;
   onDeleteVersion(): void;
   onDeleteTemplate(): void;
@@ -89,6 +93,7 @@ export function TemplateBuilder({
   );
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [templatePageBlockId, setTemplatePageBlockId] = useState<string>();
+  const [imageIndex, setImageIndex] = useState<number>();
   const toggleEditor = (id: string) =>
     setEditingBlockIds((current) => {
       const next = new Set(current);
@@ -138,16 +143,11 @@ export function TemplateBuilder({
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === "component") addBlock(instantiateComponentDefinition(payload.definition), index);
     else if (payload.kind === "page") setPageInsertionIndex(index);
-    else if ((payload.kind === "image" || payload.kind === "fullPageAsset") && root && window.bulletin) {
+    else if (payload.kind === "image") setImageIndex(index);
+    else if (payload.kind === "fullPageAsset" && root && window.bulletin) {
       const asset = await window.bulletin.importAsset(root, `assets/templates/${template.id}`);
       if (!asset) return;
-      if (payload.kind === "image" && asset.mediaType === "application/pdf") {
-        window.alert("Choose a PNG, JPEG, or SVG for an Image element.");
-        return;
-      }
-      addBlock(payload.kind === "image"
-        ? { id: `image-${randomId()}`, type: "image", asset, fit: "contain", heightIn: 2.5 }
-        : { id: `page-${randomId()}`, type: "fullPageAsset", asset }, index);
+      addBlock({ id: `page-${randomId()}`, type: "fullPageAsset", asset }, index);
     }
   };
   const updateBlock = (id: string, changes: Partial<BulletinBlock>) => {
@@ -208,7 +208,7 @@ export function TemplateBuilder({
         onChange={next => updateBlock(block.id, next)}
       />
     ) : block.type === "image" ? (
-      <div className="outline-options"><label className="outline-option">Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => updateBlock(block.id, { heightIn: event.currentTarget.valueAsNumber })} /></label><label className="outline-option">Fit<select value={block.fit ?? "contain"} onChange={event => updateBlock(block.id, { fit: event.target.value as "contain" | "cover" | "fill" })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></div>
+      <ImageBlockFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}`} onLibraryChange={onLibraryChange} onChange={next => updateBlock(block.id, next)} onError={message => setSaveStatus(message)} />
     ) : null;
   const nestedOutline = (parent: BulletinBlock): React.ReactNode =>
     parent.type !== "templatePage" &&
@@ -599,6 +599,8 @@ export function TemplateBuilder({
           library={library}
           root={root}
           definitions={workspaceDefinitions}
+          onLibraryChange={onLibraryChange}
+          onError={message => setSaveStatus(message)}
           onChange={setCreatingPage}
           onSave={async publish => {
             if (!root || !window.bulletin) throw new Error("A workspace is required to save reusable pages.");
@@ -675,6 +677,9 @@ export function TemplateBuilder({
               root={root}
               definitions={workspaceDefinitions}
               library={library}
+              imageTargetFolder="assets/canvases"
+              onLibraryChange={onLibraryChange}
+              onError={message => setSaveStatus(message)}
               onChooseAsset={async () =>
                 root && window.bulletin
                   ? window.bulletin.importAsset(root, "assets/canvases")
@@ -709,6 +714,8 @@ export function TemplateBuilder({
               library={library}
               root={root}
               definitions={workspaceDefinitions}
+              onLibraryChange={onLibraryChange}
+              onError={message => setSaveStatus(message)}
               onChange={(next) =>
                 updateBlock(block.id, {
                   name: next.name,
@@ -723,6 +730,15 @@ export function TemplateBuilder({
             />
           );
         })()}
+      {imageIndex !== undefined && root && <ImageAssetDialog
+        library={library}
+        root={root}
+        targetFolder={`assets/templates/${template.id}`}
+        onLibraryChange={onLibraryChange}
+        onError={message => setSaveStatus(message)}
+        onClose={() => setImageIndex(undefined)}
+        onSelect={asset => addBlock({ id: `image-${randomId()}`, type: "image", asset, alt: asset.alt, fit: "contain", heightIn: 2.5 }, imageIndex)}
+      />}
     </div>
   );
 }

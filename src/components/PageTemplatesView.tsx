@@ -8,7 +8,7 @@ import { randomId } from '../shared/id';
 import type { BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { PageTemplateEditor } from './PageTemplateEditor';
 
-export function PageTemplatesView({ records, template, document, library, root, definitions, onSave, onArchive, onError }: {
+export function PageTemplatesView({ records, template, document, library, root, definitions, onSave, onArchive, onLibraryChange, onError }: {
   records: PageTemplateRecord[];
   template: TemplateV1;
   document?: BulletinDocumentV1;
@@ -17,6 +17,7 @@ export function PageTemplatesView({ records, template, document, library, root, 
   definitions: DeclarativeComponentDefinition[];
   onSave(page: PageTemplateV1, expectedUpdatedAt?: string): Promise<PageTemplateRecord>;
   onArchive(record: PageTemplateRecord): Promise<void>;
+  onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
 }) {
   const choices = useMemo(() => pageTemplateChoices(records), [records]);
@@ -85,7 +86,7 @@ export function PageTemplatesView({ records, template, document, library, root, 
       <div><b>{record.pageTemplate.name}</b><small>{pageTemplateLayout(record.pageTemplate) === 'canvas' ? 'Canvas' : 'Regular layout'} · Latest v{record.pageTemplate.version} · {record.pageTemplate.status} · {record.pageTemplate.margin.mode === 'inherit' ? 'inherits margins' : `${record.pageTemplate.margin.marginIn} in margins`}</small></div>
       <div className="builder-actions"><button className="secondary" onClick={event => { event.stopPropagation(); edit(record.pageTemplate); }}>Edit</button><button className="danger-text" onClick={event => { event.stopPropagation(); void onArchive(record).catch(error => onError(error instanceof Error ? error.message : String(error))); }}>Delete</button></div>
     </article>)}</section>}
-    {draft && <PageTemplateEditor value={draft} template={template} document={document} library={library} root={root} definitions={definitions} onChange={setDraft} onSave={save} onClose={() => setDraft(undefined)} />}
+    {draft && <PageTemplateEditor value={draft} template={template} document={document} library={library} root={root} definitions={definitions} onLibraryChange={onLibraryChange} onError={onError} onChange={setDraft} onSave={save} onClose={() => setDraft(undefined)} />}
     {creatingName && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setCreatingName(undefined); }}>
       <section className="page-layout-choice" role="dialog" aria-modal="true" aria-labelledby="page-layout-choice-title">
         <div className="eyebrow">New page template</div>

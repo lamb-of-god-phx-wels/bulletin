@@ -215,6 +215,18 @@ export async function installBrowserApi() {
       await putRecord(workspaceStore, root, { ...current, pageTemplates: current.pageTemplates.filter(item => item.path !== path) });
     },
     saveLibrary: async (root, library) => { const current = await summary(root); await putRecord(workspaceStore, root, { ...current, library: normalizeLibrary(library) }); },
+    trashLibraryImages: async (root, folderIds, imageIds, previous) => {
+      const folderSet = new Set(folderIds); const imageSet = new Set(imageIds);
+      const library = normalizeLibrary({
+        ...previous,
+        items: previous.items.filter(item => !imageSet.has(item.id)),
+        imageFolders: (previous.imageFolders ?? []).filter(folder => !folderSet.has(folder.id)),
+        imageCatalog: (previous.imageCatalog ?? []).filter(entry => !imageSet.has(entry.imageId))
+      });
+      const current = await summary(root);
+      await putRecord(workspaceStore, root, { ...current, library });
+      return library;
+    },
     createRevision: async (root, bulletinPath, document, label) => {
       const key = `${root}:revision:${bulletinPath}:${Date.now()}:${label}`; await putRecord(workspaceStore, key, document); return key;
     },

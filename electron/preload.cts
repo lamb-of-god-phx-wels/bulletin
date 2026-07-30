@@ -26,6 +26,7 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   savePageTemplate: (...args) => ipcRenderer.invoke('page-template:save', ...args),
   deletePageTemplate: (...args) => ipcRenderer.invoke('page-template:delete', ...args),
   saveLibrary: (...args) => ipcRenderer.invoke('library:save', ...args),
+  trashLibraryImages: (...args) => ipcRenderer.invoke('library:trash-images', ...args),
   restoreArchived: (...args) => ipcRenderer.invoke('archive:restore', ...args),
   permanentlyDeleteArchived: (...args) => ipcRenderer.invoke('archive:delete', ...args),
   resolveWorkspaceConflict: (...args) => ipcRenderer.invoke('workspace:resolve-conflict', ...args),

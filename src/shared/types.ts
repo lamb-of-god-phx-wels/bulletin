@@ -289,6 +289,16 @@ export interface LibraryItemV1 {
   assets?: Array<AssetRef & { variant?: string }>;
   license?: { notice: string; licenseNumber?: string };
 }
+export interface LibraryImageFolder {
+  id: string;
+  name: string;
+  parentId?: string;
+}
+export interface LibraryImageCatalogEntry {
+  imageId: string;
+  folderId?: string;
+  displayName?: string;
+}
 export interface ChurchWeekName {
   sourceName: string;
   displayName: string;
@@ -314,7 +324,7 @@ export interface ChurchCalendarEvent {
   needsRule?: boolean;
   nameMode?: 'sundayAfterPentecost';
 }
-export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'church-week' | 'calendar-event' | 'component';
+export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'image-folder' | 'image-catalog' | 'church-week' | 'calendar-event' | 'component';
 export interface WorkspaceConflict {
   id: string;
   kind: SharedRecordKind;
@@ -362,6 +372,8 @@ export interface LibraryManifestV1 {
   schemaVersion: 1;
   name: string;
   items: LibraryItemV1[];
+  imageFolders?: LibraryImageFolder[];
+  imageCatalog?: LibraryImageCatalogEntry[];
   churchWeekNames?: ChurchWeekName[];
   calendarEvents?: ChurchCalendarEvent[];
   componentDefinitions?: DeclarativeComponentDefinition[];
@@ -392,6 +404,7 @@ export interface BulletinApi {
   savePageTemplate(root: string, pageTemplate: PageTemplateV1, expectedUpdatedAt?: string, force?: boolean): Promise<string>;
   deletePageTemplate(root: string, relativePath: string): Promise<void>;
   saveLibrary(root: string, library: LibraryManifestV1, previous?: LibraryManifestV1, force?: boolean): Promise<void>;
+  trashLibraryImages?(root: string, folderIds: string[], imageIds: string[], previous: LibraryManifestV1): Promise<LibraryManifestV1>;
   onWorkspaceChanged?(listener: (change: WorkspaceChange) => void): () => void;
   getUpdateStatus?(): Promise<AppUpdateStatus>;
   checkForUpdates?(): Promise<AppUpdateStatus>;

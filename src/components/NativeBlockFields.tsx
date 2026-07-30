@@ -2,11 +2,22 @@ import type { BulletinBlock, LibraryManifestV1, TemplateV1 } from '../shared/typ
 import { childBlocks, updateBlockTree } from '../shared/blocks';
 import { paragraphsFromPlainText } from '../shared/plainText';
 import { SongBlockFields } from './SongBlockFields';
+import { ImageBlockFields } from './ImageBlockFields';
 
 const plain = (content: Extract<BulletinBlock, { type: 'richText' }>['content'] | undefined) =>
   content?.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
 
-export function NativeBlockFields({ block, library, template, scope, onChange }: { block: BulletinBlock; library?: LibraryManifestV1; template: TemplateV1; scope: 'template' | 'weekly'; onChange(block: BulletinBlock): void }) {
+export function NativeBlockFields({ block, library, template, scope, root, imageTargetFolder = 'assets/images', onLibraryChange, onError, onChange }: {
+  block: BulletinBlock;
+  library?: LibraryManifestV1;
+  template: TemplateV1;
+  scope: 'template' | 'weekly';
+  root?: string;
+  imageTargetFolder?: string;
+  onLibraryChange?(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
+  onError?(message: string): void;
+  onChange(block: BulletinBlock): void;
+}) {
   const updateChild = (next: BulletinBlock) => onChange(updateBlockTree([block], next.id, next)[0]);
   return <div className="native-block-fields">
     {(block.type === 'heading' || block.type === 'sectionHeading' || block.type === 'sermonTitle') && <label>Text<input value={block.text} onChange={event => onChange({ ...block, text: event.target.value })} /></label>}
@@ -16,10 +27,10 @@ export function NativeBlockFields({ block, library, template, scope, onChange }:
     {block.type === 'song' && <SongBlockFields block={block} library={library} template={template} scope={scope} onChange={onChange} />}
     {block.type === 'libraryText' && <label>Library item<input value={block.libraryItemId} onChange={event => onChange({ ...block, libraryItemId: event.target.value })} /></label>}
     {block.type === 'spacer' && <label>Size<select value={block.size} onChange={event => onChange({ ...block, size: event.target.value as typeof block.size })}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>}
-    {block.type === 'image' && <><label>Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => onChange({ ...block, heightIn: event.currentTarget.valueAsNumber })} /></label><label>Fit<select value={block.fit ?? 'contain'} onChange={event => onChange({ ...block, fit: event.target.value as typeof block.fit })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></>}
+    {block.type === 'image' && <ImageBlockFields block={block} library={library} root={root} targetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={onChange} />}
     {block.type === 'copyright' && <><label className="check"><input type="checkbox" checked={block.suppressGeneratedNotices ?? false} onChange={event => onChange({ ...block, suppressGeneratedNotices: event.target.checked })} />Suppress generated notices</label><label>Extra text<textarea rows={3} value={plain(block.extra)} onChange={event => onChange({ ...block, extra: paragraphsFromPlainText(event.target.value) })} /></label></>}
     {block.type === 'announcements' && block.items.map((item, index) => <div className="page-native-child" key={item.id}><input value={item.title} onChange={event => onChange({ ...block, items: block.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, title: event.target.value } : entry) })} /><textarea rows={3} value={plain(item.content)} onChange={event => onChange({ ...block, items: block.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, content: paragraphsFromPlainText(event.target.value) } : entry) })} /></div>)}
     {block.type === 'responsiveReading' && block.entries.map((entry, index) => <div className="page-native-child" key={index}><input value={entry.reader} onChange={event => onChange({ ...block, entries: block.entries.map((item, itemIndex) => itemIndex === index ? { ...item, reader: event.target.value } : item) })} /><textarea rows={3} value={plain(entry.content)} onChange={event => onChange({ ...block, entries: block.entries.map((item, itemIndex) => itemIndex === index ? { ...item, content: paragraphsFromPlainText(event.target.value) } : item) })} /></div>)}
-    {childBlocks(block)?.map(child => <div className="page-native-child" key={child.id}><small>{child.label ?? ('text' in child ? child.text : child.type)}</small><NativeBlockFields block={child} library={library} template={template} scope={scope} onChange={updateChild} /></div>)}
+    {childBlocks(block)?.map(child => <div className="page-native-child" key={child.id}><small>{child.label ?? ('text' in child ? child.text : child.type)}</small><NativeBlockFields block={child} library={library} template={template} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={updateChild} /></div>)}
   </div>;
 }

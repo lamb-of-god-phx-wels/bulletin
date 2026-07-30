@@ -26,12 +26,14 @@ let dialogPaths: DialogPathStore;
 const workspaceWatchers = new Map<string, () => void>();
 let updateService: AppUpdateService | undefined;
 let editingState: EditingState = { bulletinDirty: false, templateDirty: false, auxiliaryDirty: false };
+let closeConfirmed = false;
 
 const hasUnsavedChanges = () => editingState.bulletinDirty || editingState.templateDirty || editingState.auxiliaryDirty;
 const requireWritable = (root: string) => assertWorkspaceWritable(root, app.getVersion());
 const publishUpdateStatus = (status: AppUpdateStatus) => mainWindow?.webContents.send('update:status', status);
 
 function createWindow() {
+  closeConfirmed = false;
   mainWindow = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1050, minHeight: 700,
     backgroundColor: '#f4f1e9',
@@ -39,6 +41,12 @@ function createWindow() {
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
+  mainWindow.on('close', event => {
+    if (!closeConfirmed && editingState.bulletinDirty) {
+      event.preventDefault();
+      mainWindow?.webContents.send('app:request-close');
+    }
+  });
   if (!app.isPackaged) void mainWindow.loadURL('http://localhost:5173');
   else void mainWindow.loadFile(path.join(dirname, '../../dist/index.html'));
 }
@@ -108,6 +116,10 @@ function registerIpc() {
     updateService?.install();
   });
   ipcMain.on('editing:state', (_event, state: EditingState) => { editingState = state; });
+  ipcMain.on('app:confirm-close', () => {
+    closeConfirmed = true;
+    mainWindow?.close();
+  });
 }
 
 async function watchWorkspace(root: string) {

@@ -85,6 +85,9 @@ type BulletinConflictState = {
   document: BulletinDocumentV1;
   message: string;
 };
+type UnsavedBulletinPrompt = {
+  action(): void | Promise<void>;
+};
 type LibraryDraft = {
   id: string;
   title: string;
@@ -259,6 +262,12 @@ function DesktopApp() {
     templateDirty: false,
     auxiliaryDirty: false,
   });
+  const [autosave, setAutosave] = useState(
+    () => localStorage.getItem("bulletin-autosave") !== "false",
+  );
+  const [savingBulletin, setSavingBulletin] = useState(false);
+  const [unsavedBulletinPrompt, setUnsavedBulletinPrompt] =
+    useState<UnsavedBulletinPrompt>();
   useEffect(() => {
     if (!navigationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -274,6 +283,8 @@ function DesktopApp() {
   const templateDirty = useRef(false);
   const auxiliaryDirty = useRef(false);
   const savedRevision = useRef(0);
+  const bulletinEditSequence = useRef(0);
+  const bulletinSaveInFlight = useRef<Promise<boolean> | undefined>(undefined);
   const statusSequence = useRef(0);
   const editorFocusTimer = useRef<number | undefined>(undefined);
   const previewFocusTimer = useRef<number | undefined>(undefined);
@@ -337,7 +348,7 @@ function DesktopApp() {
     };
   }, [workspace, document, screen, showRulers]);
 
-  useEffect(() => {
+  async function saveCurrentBulletin() {
     if (
       !dirty.current ||
       !document ||
@@ -345,58 +356,97 @@ function DesktopApp() {
       !window.bulletin ||
       !relativePath
     )
-      return;
+      return !dirty.current;
+    if (bulletinSaveInFlight.current) return bulletinSaveInFlight.current;
     const saveSequence = ++statusSequence.current;
     setStatus("Saving…");
-    const timer = setTimeout(() => {
+    setSavingBulletin(true);
+    const currentDocument = document;
+    const currentPath = relativePath;
+    const currentRoot = workspace.root;
+    const editSequenceAtSave = bulletinEditSequence.current;
+    const operation = (async () => {
       const expected = savedRevision.current;
-      void window
-        .bulletin!.saveBulletin(
-          workspace.root,
-          relativePath,
-          document,
+      try {
+        const result = await window.bulletin!.saveBulletin(
+          currentRoot,
+          currentPath,
+          currentDocument,
           expected,
-        )
-        .then((result) => {
-          savedRevision.current = result.revision;
-          updateEditingState({ bulletinDirty: false });
-          const savedDocument = {
-            ...document,
-            revision: result.revision,
-            updatedAt: result.updatedAt,
-          };
-          setDocument(savedDocument);
-          setWorkspace((current) =>
+        );
+        savedRevision.current = result.revision;
+        const savedDocument = {
+          ...currentDocument,
+          revision: result.revision,
+          updatedAt: result.updatedAt,
+        };
+        const changedDuringSave =
+          bulletinEditSequence.current !== editSequenceAtSave;
+        if (changedDuringSave) {
+          setDocument((current) =>
             current
               ? {
                   ...current,
-                  bulletins: current.bulletins.some(
-                    (item) => item.path === relativePath,
-                  )
-                    ? current.bulletins.map((item) =>
-                        item.path === relativePath
-                          ? { path: relativePath, document: savedDocument }
-                          : item,
-                      )
-                    : [
-                        ...current.bulletins,
-                        { path: relativePath, document: savedDocument },
-                      ],
+                  revision: result.revision,
+                  updatedAt: result.updatedAt,
                 }
               : current,
           );
-          if (statusSequence.current === saveSequence) setStatus("Saved");
-        })
-        .catch((error) => {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          if (/conflict/i.test(message))
-            setBulletinConflict({ path: relativePath, document, message });
-          reportStatus(message);
-        });
-    }, 700);
-    return () => clearTimeout(timer);
-  }, [document, relativePath, workspace]);
+          updateEditingState({ bulletinDirty: true });
+        } else {
+          setDocument(savedDocument);
+          updateEditingState({ bulletinDirty: false });
+        }
+        setWorkspace((current) =>
+          current
+            ? {
+                ...current,
+                bulletins: current.bulletins.some(
+                  (item) => item.path === currentPath,
+                )
+                  ? current.bulletins.map((item) =>
+                      item.path === currentPath
+                        ? { path: currentPath, document: savedDocument }
+                        : item,
+                    )
+                  : [
+                      ...current.bulletins,
+                      { path: currentPath, document: savedDocument },
+                    ],
+              }
+            : current,
+        );
+        if (statusSequence.current === saveSequence)
+          setStatus(changedDuringSave ? "Unsaved changes" : "Saved");
+        return !changedDuringSave;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        if (/conflict/i.test(message))
+          setBulletinConflict({
+            path: currentPath,
+            document: currentDocument,
+            message,
+          });
+        reportStatus(message);
+        return false;
+      } finally {
+        setSavingBulletin(false);
+      }
+    })();
+    bulletinSaveInFlight.current = operation;
+    try {
+      return await operation;
+    } finally {
+      bulletinSaveInFlight.current = undefined;
+    }
+  }
+
+  useEffect(() => {
+    if (!autosave || !dirty.current || unsavedBulletinPrompt) return;
+    const timer = window.setTimeout(() => void saveCurrentBulletin(), 700);
+    return () => window.clearTimeout(timer);
+  }, [autosave, document, relativePath, workspace, unsavedBulletinPrompt]);
 
   useEffect(() => {
     if (!workspace || !window.bulletin?.onWorkspaceChanged) return;
@@ -474,7 +524,7 @@ function DesktopApp() {
       reportStatus(error instanceof Error ? error.message : String(error));
     }
   }
-  async function chooseWorkspace() {
+  async function chooseWorkspaceNow() {
     if (!window.bulletin) return;
     if (window.bulletin.platform === "browser") {
       setAvailableWorkspaces((await window.bulletin.listWorkspaces?.()) ?? []);
@@ -487,6 +537,9 @@ function DesktopApp() {
     } catch (error) {
       reportStatus(error instanceof Error ? error.message : String(error));
     }
+  }
+  function chooseWorkspace() {
+    requestBulletinLeave(chooseWorkspaceNow);
   }
   function selectTemplate(record: TemplateRecord) {
     setTemplate(record.template);
@@ -501,6 +554,7 @@ function DesktopApp() {
     const record = templateForReference(records, next.template);
     if (record) selectTemplate(record);
     setDocument(next);
+    bulletinEditSequence.current += 1;
     setRelativePath(path);
     savedRevision.current = next.revision;
     updateEditingState({ bulletinDirty: false });
@@ -539,19 +593,83 @@ function DesktopApp() {
       : base;
     openDocument(next, path);
     updateEditingState({ bulletinDirty: true });
+    reportStatus("Unsaved changes");
   }
   function startNew(from = template) {
     openNewBulletin(createBulletin(from));
   }
   function beginNewBulletin() {
-    setCreateDestination("bulletin");
+    requestBulletinLeave(() => setCreateDestination("bulletin"));
   }
   function changeDocument(next: BulletinDocumentV1) {
+    bulletinEditSequence.current += 1;
     updateEditingState({ bulletinDirty: true });
     setExportIssues([]);
     reportStatus("Unsaved changes");
     setDocument(next);
   }
+  function discardCurrentBulletinChanges() {
+    const saved = workspace?.bulletins.find(
+      (item) => item.path === relativePath,
+    );
+    if (saved) {
+      setDocument(saved.document);
+      savedRevision.current = saved.document.revision;
+    } else {
+      setDocument(undefined);
+      setRelativePath("");
+      savedRevision.current = 0;
+    }
+    updateEditingState({ bulletinDirty: false });
+    reportStatus("Changes discarded");
+  }
+  function requestBulletinLeave(action: () => void | Promise<void>) {
+    if (!dirty.current) {
+      void action();
+      return;
+    }
+    if (bulletinSaveInFlight.current) {
+      void saveCurrentBulletin().then((saved) => {
+        if (saved) void action();
+        else requestBulletinLeave(action);
+      });
+      return;
+    }
+    setUnsavedBulletinPrompt({ action });
+  }
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (
+        screen === "weekly" &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLocaleLowerCase() === "s"
+      ) {
+        event.preventDefault();
+        void saveCurrentBulletin();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [screen, document, relativePath, workspace]);
+
+  useEffect(() => {
+    if (
+      window.bulletin?.platform === "electron" &&
+      window.bulletin.onCloseRequested
+    ) {
+      return window.bulletin.onCloseRequested(() =>
+        requestBulletinLeave(() => window.bulletin?.confirmClose?.()),
+      );
+    }
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [document, relativePath, workspace, editingState.bulletinDirty]);
   async function deleteCurrentBulletin() {
     if (!document || !workspace || !window.bulletin) return;
     try {
@@ -978,6 +1096,7 @@ function DesktopApp() {
     icon: string;
     active: boolean;
     count?: number;
+    leavesBulletin?: boolean;
     action(): void;
   }> = [
     {
@@ -996,24 +1115,28 @@ function DesktopApp() {
       label: "Templates",
       icon: "◇",
       active: screen === "templates",
+      leavesBulletin: true,
       action: () => setScreen("templates"),
     },
     {
       label: "Page Templates",
       icon: "▣",
       active: screen === "page-templates",
+      leavesBulletin: true,
       action: () => setScreen("page-templates"),
     },
     {
       label: "Library",
       icon: "▤",
       active: screen === "library",
+      leavesBulletin: true,
       action: () => setScreen("library"),
     },
     {
       label: "Church Calendar",
       icon: "◉",
       active: screen === "church-year",
+      leavesBulletin: true,
       action: () => setScreen("church-year"),
     },
     {
@@ -1021,11 +1144,14 @@ function DesktopApp() {
       icon: "⌫",
       active: screen === "archive",
       count: trashCount,
+      leavesBulletin: true,
       action: () => setScreen("archive"),
     },
   ];
-  const runNavigationAction = (action: () => void) => {
-    action();
+  const runNavigationAction = (item: (typeof navigationItems)[number]) => {
+    if (item.leavesBulletin && screen === "weekly")
+      requestBulletinLeave(item.action);
+    else item.action();
   };
   const navigationMenu = (compact = false) => (
     <nav className={compact ? "compact-navigation" : undefined}>
@@ -1035,7 +1161,7 @@ function DesktopApp() {
           key={item.label}
           aria-label={compact ? item.label : undefined}
           title={compact ? item.label : undefined}
-          onClick={() => runNavigationAction(item.action)}
+          onClick={() => runNavigationAction(item)}
         >
           <span>{item.icon}</span>
           {!compact && item.label}
@@ -1056,7 +1182,7 @@ function DesktopApp() {
           <button
             key={item.path}
             onClick={() =>
-              runNavigationAction(() =>
+              requestBulletinLeave(() =>
                 openDocument(item.document, item.path),
               )
             }
@@ -1231,6 +1357,43 @@ function DesktopApp() {
             )}
             {screen === "weekly" && (
               <>
+                <label className="autosave-control">
+                  <input
+                    type="checkbox"
+                    checked={autosave}
+                    disabled={!workspaceWritable || !document}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setAutosave(enabled);
+                      localStorage.setItem(
+                        "bulletin-autosave",
+                        enabled ? "true" : "false",
+                      );
+                      reportStatus(
+                        enabled
+                          ? dirty.current
+                            ? "Autosave enabled"
+                            : "Autosave on"
+                          : dirty.current
+                            ? "Autosave off · unsaved changes"
+                            : "Autosave off",
+                      );
+                    }}
+                  />
+                  Autosave
+                </label>
+                <button
+                  className="secondary"
+                  disabled={
+                    !workspaceWritable ||
+                    !document ||
+                    !dirty.current ||
+                    savingBulletin
+                  }
+                  onClick={() => void saveCurrentBulletin()}
+                >
+                  {savingBulletin ? "Saving…" : "Save"}
+                </button>
                 {document && (
                   <button
                     className="danger-text"
@@ -1328,7 +1491,9 @@ function DesktopApp() {
                 root={workspace.root}
                 relativePath={relativePath}
                 onChange={changeDocument}
-                onOpenChurchCalendar={() => setScreen("church-year")}
+                onOpenChurchCalendar={() =>
+                  requestBulletinLeave(() => setScreen("church-year"))
+                }
                 onLibraryChange={async (library, alreadySaved) => {
                   if (!window.bulletin) return;
                   try {
@@ -1771,6 +1936,24 @@ function DesktopApp() {
           }}
         />
       )}
+      {unsavedBulletinPrompt && (
+        <UnsavedBulletinDialog
+          saving={savingBulletin}
+          onCancel={() => setUnsavedBulletinPrompt(undefined)}
+          onDiscard={async () => {
+            const action = unsavedBulletinPrompt.action;
+            setUnsavedBulletinPrompt(undefined);
+            discardCurrentBulletinChanges();
+            await action();
+          }}
+          onSave={async () => {
+            if (!(await saveCurrentBulletin())) return;
+            const action = unsavedBulletinPrompt.action;
+            setUnsavedBulletinPrompt(undefined);
+            await action();
+          }}
+        />
+      )}
       {createDestination && (
         <CreateFromDialog
           destination={createDestination}
@@ -1799,8 +1982,10 @@ function DesktopApp() {
           currentPath={relativePath}
           onClose={() => setBulletinPicker(false)}
           onSelect={(record) => {
-            setBulletinPicker(false);
-            openDocument(record.document, record.path);
+            requestBulletinLeave(() => {
+              setBulletinPicker(false);
+              openDocument(record.document, record.path);
+            });
           }}
         />
       )}
@@ -1810,20 +1995,26 @@ function DesktopApp() {
           current={workspace.root}
           onClose={() => setWorkspacePicker(false)}
           onSelect={async (root) => {
-            setWorkspacePicker(false);
-            await loadWorkspace(root);
-          }}
-          onCreate={async (name) => {
-            try {
-              const root = await window.bulletin!.createWorkspace!(name);
-              setAvailableWorkspaces(await window.bulletin!.listWorkspaces!());
+            requestBulletinLeave(async () => {
               setWorkspacePicker(false);
               await loadWorkspace(root);
-            } catch (error) {
-              reportStatus(
-                error instanceof Error ? error.message : String(error),
-              );
-            }
+            });
+          }}
+          onCreate={(name) => {
+            requestBulletinLeave(async () => {
+              try {
+                const root = await window.bulletin!.createWorkspace!(name);
+                setAvailableWorkspaces(
+                  await window.bulletin!.listWorkspaces!(),
+                );
+                setWorkspacePicker(false);
+                await loadWorkspace(root);
+              } catch (error) {
+                reportStatus(
+                  error instanceof Error ? error.message : String(error),
+                );
+              }
+            });
           }}
         />
       )}
@@ -1945,6 +2136,56 @@ function ConfirmDialog({
           </button>
           <button className="danger" onClick={() => void onConfirm()}>
             {confirmation.confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function UnsavedBulletinDialog({
+  saving,
+  onCancel,
+  onDiscard,
+  onSave,
+}: {
+  saving: boolean;
+  onCancel(): void;
+  onDiscard(): Promise<void>;
+  onSave(): Promise<void>;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="confirmation-modal unsaved-bulletin-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="unsaved-bulletin-title"
+      >
+        <div className="eyebrow">Unsaved bulletin</div>
+        <h2 id="unsaved-bulletin-title">Save before leaving?</h2>
+        <p>
+          This bulletin has changes that have not been saved to the shared
+          workspace.
+        </p>
+        <div>
+          <button className="secondary" disabled={saving} onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className="danger-text"
+            disabled={saving}
+            onClick={() => void onDiscard()}
+          >
+            Don&apos;t save
+          </button>
+          <button
+            className="primary"
+            autoFocus
+            disabled={saving}
+            onClick={() => void onSave()}
+          >
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </section>

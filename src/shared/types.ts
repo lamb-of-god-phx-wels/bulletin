@@ -427,6 +427,8 @@ export interface BulletinApi {
   checkForUpdates?(): Promise<AppUpdateStatus>;
   installUpdate?(): Promise<void>;
   reportEditingState?(state: EditingState): void;
+  onCloseRequested?(listener: () => void): () => void;
+  confirmClose?(): void;
   onUpdateStatus?(listener: (status: AppUpdateStatus) => void): () => void;
   restoreArchived?(root: string, record: ArchivedWorkspaceRecord): Promise<void>;
   permanentlyDeleteArchived?(root: string, record: ArchivedWorkspaceRecord): Promise<void>;

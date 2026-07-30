@@ -297,6 +297,35 @@ if (process.env.BULLETIN_PAGE_SETUP_ONLY === '1') {
   process.exit(0);
 }
 
+if (process.env.BULLETIN_AUTOSAVE_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  const autosave = await evaluate(`document.querySelector('.autosave-control input')?.checked`);
+  if (autosave) await evaluate(`document.querySelector('.autosave-control input').click()`);
+  await wait(`localStorage.getItem('bulletin-autosave')==='false'`, 'disabled autosave');
+  await fill('Sermon title', 'Manual save browser check');
+  await wait(`document.querySelector('.save-status')?.textContent.includes('Unsaved')`, 'manual bulletin remains unsaved');
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  const manualState = await evaluate(`({status:document.querySelector('.save-status')?.textContent,saveDisabled:Array.from(document.querySelectorAll('.top-actions button')).find(button=>button.textContent.trim()==='Save')?.disabled})`);
+  if (!manualState.status?.includes('Unsaved') || manualState.saveDisabled) throw new Error(`Autosave-off bulletin did not remain manually saveable: ${JSON.stringify(manualState)}`);
+  await evaluate(`Array.from(document.querySelectorAll('.top-actions button')).find(button=>button.textContent.trim()==='Save')?.click()`);
+  await wait(`document.querySelector('.save-status')?.textContent==='Saved'`, 'explicit bulletin save');
+  await fill('Sermon title', 'Leave guard browser check');
+  await click('Templates');
+  await wait(`Boolean(document.querySelector('.unsaved-bulletin-dialog'))`, 'unsaved bulletin leave prompt');
+  await evaluate(`Array.from(document.querySelectorAll('.unsaved-bulletin-dialog button')).find(button=>button.textContent.trim()==='Cancel')?.click()`);
+  if (!await evaluate(`Boolean(document.querySelector('.weekly-layout'))`)) throw new Error('Canceling the leave prompt left the bulletin editor.');
+  await click('Templates');
+  await wait(`Boolean(document.querySelector('.unsaved-bulletin-dialog'))`, 'second unsaved bulletin leave prompt');
+  await evaluate(`Array.from(document.querySelectorAll('.unsaved-bulletin-dialog button')).find(button=>button.textContent.trim()==='Save')?.click()`);
+  await wait(`Boolean(document.querySelector('.template-workbench'))`, 'saved before leaving bulletin');
+  if (await evaluate(`localStorage.getItem('bulletin-autosave')!=='false'`)) throw new Error('Autosave preference was not remembered.');
+  await evaluate(`localStorage.setItem('bulletin-autosave','true')`);
+  pass('supports optional autosave, explicit saving, and save-before-leaving protection');
+  console.log(`\n${results.length} browser autosave checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
 if (process.env.BULLETIN_SORTABLE_ONLY === '1') {
   await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));blocks.forEach(block=>block.removeAttribute('open'));const copyright=blocks.find(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));copyright?.scrollIntoView({block:'center'});return blocks.length})()`);
   const start = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.editor-scroll > .block-editor'));const sourceIndex=blocks.findIndex(block=>block.querySelector('.block-type')?.textContent.startsWith('copyright'));if(sourceIndex<2)throw new Error('Copyright block is unavailable for sorting');const source=blocks[sourceIndex];const target=blocks[sourceIndex-2];const handle=source.querySelector('.drag-handle');const handleRect=handle.getBoundingClientRect();const targetRect=target.getBoundingClientRect();return {sourceId:source.dataset.editorBlockId,sourceIndex,start:{x:handleRect.left+handleRect.width/2,y:handleRect.top+handleRect.height/2},target:{x:handleRect.left+handleRect.width/2,y:targetRect.top+targetRect.height*.25}}})()`);

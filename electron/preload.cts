@@ -14,6 +14,11 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   reportEditingState: state => ipcRenderer.send('editing:state', state),
+  onCloseRequested: listener => {
+    ipcRenderer.on('app:request-close', listener);
+    return () => ipcRenderer.removeListener('app:request-close', listener);
+  },
+  confirmClose: () => ipcRenderer.send('app:confirm-close'),
   onUpdateStatus: listener => {
     const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
     ipcRenderer.on('update:status', handler);

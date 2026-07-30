@@ -67,6 +67,52 @@ if (await evaluate(`document.body.textContent.toLowerCase().includes('browser de
 pass('loads a real persistent local workspace without demo wording');
 
 if (process.env.BULLETIN_PALETTE_ONLY === '1') {
+  const compactShell = await evaluate(`(()=>{const slot=document.querySelector('.sidebar-palette-slot')?.getBoundingClientRect(),palette=document.querySelector('.elements-sidebar .element-palette')?.getBoundingClientRect();return {editor:document.querySelector('.app-shell')?.classList.contains('editor-shell'),rail:Boolean(document.querySelector('.navigation-rail')),elements:Boolean(palette),collapse:Boolean(document.querySelector('.elements-sidebar .element-palette > header button')),bottomGap:slot&&palette?slot.bottom-palette.bottom:null}})()`);
+  if (!compactShell.editor || !compactShell.rail || !compactShell.elements || compactShell.collapse || Math.abs(compactShell.bottomGap ?? 99) > 1) throw new Error(`Compact editor shell is incomplete: ${JSON.stringify(compactShell)}`);
+  pass('shows an icon navigation rail and dedicated non-collapsible Elements sidebar');
+
+  const beforeDrawer = await evaluate(`(()=>{const main=document.querySelector('.main-area').getBoundingClientRect(),elements=document.querySelector('.elements-sidebar').getBoundingClientRect();return {main:{left:main.left,width:main.width},elements:{left:elements.left,width:elements.width}}})()`);
+  await evaluate(`document.querySelector('.navigation-toggle')?.click()`);
+  await wait(`document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation drawer open');
+  await new Promise(resolve => setTimeout(resolve, 220));
+  const afterDrawer = await evaluate(`(()=>{const main=document.querySelector('.main-area').getBoundingClientRect(),elements=document.querySelector('.elements-sidebar').getBoundingClientRect(),drawer=document.querySelector('.navigation-drawer').getBoundingClientRect();return {main:{left:main.left,width:main.width},elements:{left:elements.left,width:elements.width},drawer:{left:drawer.left,width:drawer.width},expanded:document.querySelector('.navigation-toggle')?.getAttribute('aria-expanded')}})()`);
+  if (Math.abs(beforeDrawer.main.left - afterDrawer.main.left) > 1 || Math.abs(beforeDrawer.main.width - afterDrawer.main.width) > 1 || Math.abs(beforeDrawer.elements.left - afterDrawer.elements.left) > 1 || Math.abs(beforeDrawer.elements.width - afterDrawer.elements.width) > 1 || Math.abs(afterDrawer.drawer.left) > 1 || Math.abs(afterDrawer.drawer.width - 232) > 1 || afterDrawer.expanded !== 'true') {
+    throw new Error(`Navigation drawer shifted the editor shell: ${JSON.stringify({ beforeDrawer, afterDrawer })}`);
+  }
+  pass('opens the full navigation as a 232px overlay without shifting the workspace');
+
+  await evaluate(`document.querySelector('.navigation-close')?.click()`);
+  await wait(`!document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation close button');
+  await evaluate(`document.querySelector('.navigation-toggle')?.click()`);
+  await wait(`document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation drawer reopen');
+  await evaluate(`document.querySelector('.navigation-scrim')?.click()`);
+  await wait(`!document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation outside click');
+  await evaluate(`document.querySelector('.navigation-toggle')?.click()`);
+  await wait(`document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation drawer escape setup');
+  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
+  await wait(`!document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation escape');
+  pass('closes navigation by its close button, outside click, and Escape');
+
+  await evaluate(`document.querySelector('.navigation-toggle')?.click()`);
+  await wait(`document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'navigation destination setup');
+  await evaluate(`Array.from(document.querySelectorAll('.navigation-drawer nav button')).find(button=>button.textContent.includes('Library'))?.click()`);
+  await wait(`Boolean(document.querySelector('.static-navigation'))&&!document.querySelector('.navigation-rail')`, 'expanded management navigation');
+  await evaluate(`Array.from(document.querySelectorAll('.static-navigation nav button')).find(button=>button.textContent.includes('Templates'))?.click()`);
+  await wait(`Boolean(document.querySelector('.navigation-rail'))&&Boolean(document.querySelector('.elements-sidebar .element-palette'))&&!document.querySelector('.template-workbench .element-palette')`, 'template palette portal attachment');
+  await evaluate(`document.querySelector('.navigation-toggle')?.click()`);
+  await wait(`document.querySelector('.app-shell')?.classList.contains('navigation-open')`, 'template navigation setup');
+  await evaluate(`Array.from(document.querySelectorAll('.navigation-drawer nav button')).find(button=>button.textContent.includes('Library'))?.click()`);
+  await wait(`Boolean(document.querySelector('.static-navigation'))`, 'return to management navigation');
+  await evaluate(`Array.from(document.querySelectorAll('.static-navigation nav button')).find(button=>button.textContent.includes('This week'))?.click()`);
+  await wait(`Boolean(document.querySelector('.navigation-rail'))&&Boolean(document.querySelector('.elements-sidebar .element-palette'))`, 'return to compact editor navigation');
+  pass('attaches the template palette correctly when entering Templates from expanded navigation');
+
+  await command('Emulation.setDeviceMetricsOverride', { width: 1120, height: 800, deviceScaleFactor: 1, mobile: false });
+  const compactWidth = await evaluate(`(()=>{const rail=document.querySelector('.navigation-rail').getBoundingClientRect(),elements=document.querySelector('.elements-sidebar').getBoundingClientRect(),main=document.querySelector('.main-area').getBoundingClientRect();return {rail:rail.width,elements:elements.width,mainLeft:main.left}})()`);
+  if (Math.abs(compactWidth.rail - 56) > 1 || Math.abs(compactWidth.elements - 168) > 1 || Math.abs(compactWidth.mainLeft - 224) > 1) throw new Error(`Compact shell widths changed at 1120px: ${JSON.stringify(compactWidth)}`);
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  pass('preserves compact rail and Elements widths at the narrower desktop layout');
+
   const initialCount = await evaluate(`document.querySelectorAll('.editor-scroll .palette-sortable-content > .block-editor').length`);
   await evaluate(`document.querySelector('.sidebar-palette-slot .element-palette-item')?.click()`);
   await wait(`document.querySelectorAll('.editor-scroll .palette-sortable-content > .block-editor').length===${initialCount + 1}`, 'palette click append');

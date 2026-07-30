@@ -290,6 +290,7 @@ function DesktopApp() {
   const initialPreviewZoom = storedPreviewZoom();
   const [workspace, setWorkspace] = useState<WorkspaceSummary>();
   const [screen, setScreen] = useState<Screen>("weekly");
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [document, setDocument] = useState<BulletinDocumentV1>();
   const [relativePath, setRelativePath] = useState("");
   const [template, setTemplate] = useState<TemplateV1>(defaultTemplate);
@@ -327,6 +328,15 @@ function DesktopApp() {
     templateDirty: false,
     auxiliaryDirty: false,
   });
+  useEffect(() => setNavigationOpen(false), [screen, document?.id]);
+  useEffect(() => {
+    if (!navigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavigationOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [navigationOpen]);
   const previewZoomMode = useRef<"page" | "width" | "manual">(
     initialPreviewZoom === undefined ? "page" : "manual",
   );
@@ -1023,100 +1033,226 @@ function DesktopApp() {
       reportStatus(error instanceof Error ? error.message : String(error));
     }
   };
+  const editorOpen =
+    screen === "templates" || (screen === "weekly" && Boolean(document));
+  const trashCount = workspace.sync?.archivedRecords.length ?? 0;
+  const navigationItems: Array<{
+    label: string;
+    icon: string;
+    active: boolean;
+    count?: number;
+    action(): void;
+  }> = [
+    {
+      label: "This week",
+      icon: "◫",
+      active: screen === "weekly",
+      action: showWeekly,
+    },
+    {
+      label: "Bulletins",
+      icon: "▦",
+      active: false,
+      action: () => setBulletinPicker(true),
+    },
+    {
+      label: "Templates",
+      icon: "◇",
+      active: screen === "templates",
+      action: () => setScreen("templates"),
+    },
+    {
+      label: "Page Templates",
+      icon: "▣",
+      active: screen === "page-templates",
+      action: () => setScreen("page-templates"),
+    },
+    {
+      label: "Library",
+      icon: "▤",
+      active: screen === "library",
+      action: () => setScreen("library"),
+    },
+    {
+      label: "Church Year",
+      icon: "◉",
+      active: screen === "church-year",
+      action: () => setScreen("church-year"),
+    },
+    {
+      label: "Trash",
+      icon: "⌫",
+      active: screen === "archive",
+      count: trashCount,
+      action: () => setScreen("archive"),
+    },
+  ];
+  const runNavigationAction = (action: () => void) => {
+    setNavigationOpen(false);
+    action();
+  };
+  const navigationMenu = (compact = false) => (
+    <nav className={compact ? "compact-navigation" : undefined}>
+      {navigationItems.map((item) => (
+        <button
+          className={item.active ? "active" : ""}
+          key={item.label}
+          aria-label={compact ? item.label : undefined}
+          title={compact ? item.label : undefined}
+          onClick={() => runNavigationAction(item.action)}
+        >
+          <span>{item.icon}</span>
+          {!compact && item.label}
+          {!compact && item.count ? ` (${item.count})` : ""}
+          {compact && item.count ? (
+            <small className="navigation-count">{item.count}</small>
+          ) : null}
+        </button>
+      ))}
+    </nav>
+  );
+  const recentBulletins = () => (
+    <div className="recent">
+      <div className="eyebrow">Recent bulletins</div>
+      {sortedBulletins(workspace.bulletins)
+        .slice(0, 6)
+        .map((item) => (
+          <button
+            key={item.path}
+            onClick={() =>
+              runNavigationAction(() =>
+                openDocument(item.document, item.path),
+              )
+            }
+          >
+            <b>
+              {new Date(
+                `${item.document.info.date}T12:00:00`,
+              ).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              })}
+            </b>
+            <span>{item.document.info.title}</span>
+          </button>
+        ))}
+    </div>
+  );
+  const navigationFooter = () => (
+    <div className="sidebar-bottom">
+      {window.bulletin?.platform === "electron" && (
+        <button
+          onClick={() => {
+            setNavigationOpen(false);
+            void checkForUpdates();
+          }}
+        >
+          ↻ Check for updates
+        </button>
+      )}
+      <button
+        onClick={() => {
+          setNavigationOpen(false);
+          chooseWorkspace();
+        }}
+      >
+        ⌂ Change workspace
+      </button>
+      <span title={workspace.root}>{workspaceName}</span>
+      <small>Version {updateStatus.currentVersion}</small>
+    </div>
+  );
   return (
     <div
-      className={`app-shell${workspaceWritable ? "" : " workspace-readonly"}`}
+      className={`app-shell${editorOpen ? " editor-shell" : ""}${navigationOpen ? " navigation-open" : ""}${workspaceWritable ? "" : " workspace-readonly"}`}
     >
-      <aside className="sidebar">
-        <div className="app-brand">
-          <span>✠</span>
-          <div>
-            <b>Bulletin</b>
-            <small>Builder</small>
-          </div>
-        </div>
-        <nav>
-          <button
-            className={screen === "weekly" ? "active" : ""}
-            onClick={showWeekly}
-          >
-            <span>◫</span>This week
-          </button>
-          <button onClick={() => setBulletinPicker(true)}>
-            <span>▦</span>Bulletins
-          </button>
-          <button
-            className={screen === "templates" ? "active" : ""}
-            onClick={() => setScreen("templates")}
-          >
-            <span>◇</span>Templates
-          </button>
-          <button
-            className={screen === "page-templates" ? "active" : ""}
-            onClick={() => setScreen("page-templates")}
-          >
-            <span>▣</span>Page Templates
-          </button>
-          <button
-            className={screen === "library" ? "active" : ""}
-            onClick={() => setScreen("library")}
-          >
-            <span>▤</span>Library
-          </button>
-          <button
-            className={screen === "church-year" ? "active" : ""}
-            onClick={() => setScreen("church-year")}
-          >
-            <span>◉</span>Church Year
-          </button>
-          <button
-            className={screen === "archive" ? "active" : ""}
-            onClick={() => setScreen("archive")}
-          >
-            <span>⌫</span>Trash
-            {workspace.sync?.archivedRecords.length
-              ? ` (${workspace.sync.archivedRecords.length})`
-              : ""}
-          </button>
-        </nav>
-        {(screen === "templates" || (screen === "weekly" && document)) ? (
-          <div
-            id="app-element-palette-slot"
-            className="sidebar-palette-slot"
-            aria-label="Elements"
-          />
-        ) : <div className="recent">
-          <div className="eyebrow">Recent bulletins</div>
-          {sortedBulletins(workspace.bulletins)
-            .slice(0, 6)
-            .map((item) => (
-              <button
-                key={item.path}
-                onClick={() => openDocument(item.document, item.path)}
-              >
-                <b>
-                  {new Date(
-                    `${item.document.info.date}T12:00:00`,
-                  ).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </b>
-                <span>{item.document.info.title}</span>
-              </button>
-            ))}
-        </div>}
-        <div className="sidebar-bottom">
-          {window.bulletin?.platform === "electron" && (
-            <button onClick={() => void checkForUpdates()}>
-              ↻ Check for updates
+      {editorOpen ? (
+        <>
+          <aside className="navigation-rail" aria-label="Quick navigation">
+            <button
+              className="navigation-toggle"
+              aria-label="Open navigation"
+              aria-controls="app-navigation-drawer"
+              aria-expanded={navigationOpen}
+              title="Open navigation"
+              onClick={() => setNavigationOpen(true)}
+            >
+              ☰
             </button>
+            {navigationMenu(true)}
+            <div className="navigation-rail-bottom">
+              {window.bulletin?.platform === "electron" && (
+                <button
+                  aria-label="Check for updates"
+                  title="Check for updates"
+                  onClick={() => void checkForUpdates()}
+                >
+                  ↻
+                </button>
+              )}
+              <button
+                aria-label="Change workspace"
+                title={`Change workspace · ${workspaceName}`}
+                onClick={chooseWorkspace}
+              >
+                ⌂
+              </button>
+            </div>
+          </aside>
+          {navigationOpen && (
+            <button
+              className="navigation-scrim"
+              aria-label="Close navigation"
+              onClick={() => setNavigationOpen(false)}
+            />
           )}
-          <button onClick={chooseWorkspace}>⌂ Change workspace</button>
-          <span title={workspace.root}>{workspaceName}</span>
-          <small>Version {updateStatus.currentVersion}</small>
-        </div>
-      </aside>
+          <aside
+            id="app-navigation-drawer"
+            className="sidebar navigation-drawer"
+            aria-label="Navigation"
+            aria-hidden={!navigationOpen}
+            inert={!navigationOpen}
+          >
+            <div className="app-brand">
+              <span>✠</span>
+              <div>
+                <b>Bulletin</b>
+                <small>Builder</small>
+              </div>
+              <button
+                className="navigation-close"
+                aria-label="Close navigation"
+                title="Close navigation"
+                onClick={() => setNavigationOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            {navigationMenu()}
+            {recentBulletins()}
+            {navigationFooter()}
+          </aside>
+          <aside className="elements-sidebar" aria-label="Elements">
+            <div
+              id="app-element-palette-slot"
+              className="sidebar-palette-slot"
+            />
+          </aside>
+        </>
+      ) : (
+        <aside className="sidebar static-navigation">
+          <div className="app-brand">
+            <span>✠</span>
+            <div>
+              <b>Bulletin</b>
+              <small>Builder</small>
+            </div>
+          </div>
+          {navigationMenu()}
+          {recentBulletins()}
+          {navigationFooter()}
+        </aside>
+      )}
       <main className="main-area">
         <header className="topbar">
           <div>

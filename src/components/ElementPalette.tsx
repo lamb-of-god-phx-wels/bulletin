@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { useEffect, useReducer, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ElementPaletteItem {
@@ -30,6 +30,12 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, onU
   portalTargetId?: string;
   onUse(item: ElementPaletteItem): void;
 }) {
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(() =>
+    portalTargetId ? document.getElementById(portalTargetId) : null
+  );
+  useLayoutEffect(() => {
+    setPortalTarget(portalTargetId ? document.getElementById(portalTargetId) : null);
+  }, [portalTargetId]);
   const collapsed = localStorage.getItem(storageKey) === 'collapsed';
   const setCollapsed = (value: boolean) => {
     localStorage.setItem(storageKey, value ? 'collapsed' : 'expanded');
@@ -53,6 +59,5 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, onU
       {actions && <div className="element-palette-actions">{actions}</div>}
     </div>}
   </aside>;
-  const portalTarget = portalTargetId ? document.getElementById(portalTargetId) : null;
   return portalTarget ? createPortal(palette, portalTarget) : palette;
 }

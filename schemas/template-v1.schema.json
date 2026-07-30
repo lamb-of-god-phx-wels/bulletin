@@ -33,7 +33,7 @@
       "properties": {
         "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
         "label": { "type": "string", "minLength": 1 },
-        "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.series", "church.name"] },
+        "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.churchEvent", "info.series", "church.name"] },
         "defaultValue": { "type": "string" },
         "multiline": { "type": "boolean" }
       },

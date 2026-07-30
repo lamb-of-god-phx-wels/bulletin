@@ -41,6 +41,7 @@ export function customBlockIssues(block: Pick<CustomBlock, 'name' | 'layoutText'
 export function resolveCustomBinding(binding: CustomBlockBinding, block: CustomBlock, document: BulletinDocumentV1): string {
   if (binding.source === 'weekly') return block.values?.[binding.key] ?? binding.defaultValue ?? '';
   if (binding.source === 'church.name') return document.church.name;
+  if (binding.source === 'info.churchWeek' || binding.source === 'info.churchEvent') return document.info.churchWeek || binding.defaultValue || '';
   if (binding.source === 'info.date') {
     const date = new Date(`${document.info.date}T12:00:00`);
     return Number.isNaN(date.valueOf()) ? document.info.date : date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });

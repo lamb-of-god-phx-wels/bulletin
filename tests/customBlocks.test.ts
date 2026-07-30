@@ -12,6 +12,7 @@ const block: CustomBlock = {
     { key: 'greeting', label: 'Greeting', source: 'weekly', defaultValue: 'Welcome!' },
     { key: 'sermonTitle', label: 'Sermon title', source: 'info.title' },
     { key: 'serviceDate', label: 'Service date', source: 'info.date' },
+    { key: 'churchEvent', label: 'Church event', source: 'info.churchEvent' },
     { key: 'churchName', label: 'Church name', source: 'church.name' }
   ]
 };
@@ -21,9 +22,12 @@ describe('custom bulletin blocks', () => {
     const document = createBulletin(defaultTemplate);
     document.info.date = '2026-06-07';
     document.info.title = 'God Loves Sinners';
+    document.info.churchWeek = 'Second Sunday after Pentecost';
     document.church.name = 'Lamb of God';
     expect(renderCustomBlockText({ ...block, values: { greeting: 'Please join us.' } }, document))
       .toContain('Please join us.\n\nSermon: God Loves Sinners on June 7, 2026 at Lamb of God');
+    expect(renderCustomBlockText({ ...block, layoutText: '{{churchEvent}}' }, document))
+      .toBe('Second Sunday after Pentecost');
   });
 
   it('keeps unknown placeholders visible and creates structured paragraphs', () => {

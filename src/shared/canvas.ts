@@ -52,13 +52,13 @@ export function defaultCanvasScene(): CanvasScene {
       },
       {
         id: 'cover-week',
-        name: 'Church week',
+        name: 'Church event',
         type: 'text',
         x: .4,
         y: .47,
         width: 2.8,
         height: .28,
-        source: { binding: 'info.churchWeek' },
+        source: { binding: 'info.churchEvent' },
         fontSizePt: 9,
         fontWeight: 'bold',
         overflow: 'shrinkToFit'
@@ -241,7 +241,7 @@ export function canvasBindingText(binding: CanvasTextBinding, document: Bulletin
   if (binding === 'church.name') return document.church.name;
   if (binding === 'info.title') return document.info.title;
   if (binding === 'info.series') return document.info.series ?? '';
-  if (binding === 'info.churchWeek') return document.info.churchWeek;
+  if (binding === 'info.churchWeek' || binding === 'info.churchEvent') return document.info.churchWeek;
   if (dateFormat === 'iso') return document.info.date;
   const date = new Date(`${document.info.date}T12:00:00Z`);
   const options: Intl.DateTimeFormatOptions = dateFormat === 'short'
@@ -339,7 +339,7 @@ export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath 
     if (element.type === 'block' && !canvasNativeBlockAllowed(element.block)) {
       issues.push({ path: `${path}/block/type`, message: `The ${element.block.type} block cannot be nested inside a canvas.`, severity: 'error' });
     }
-    if (element.type === 'text' && element.source.binding && !['info.title', 'info.date', 'info.churchWeek', 'info.series', 'church.name'].includes(element.source.binding)) {
+    if (element.type === 'text' && element.source.binding && !['info.title', 'info.date', 'info.churchWeek', 'info.churchEvent', 'info.series', 'church.name'].includes(element.source.binding)) {
       issues.push({ path: `${path}/source/binding`, message: `Unsupported canvas binding: ${element.source.binding}`, severity: 'error' });
     }
     const isLine = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');

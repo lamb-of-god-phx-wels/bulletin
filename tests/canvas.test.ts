@@ -47,7 +47,10 @@ describe('canvas cover scenes', () => {
   it('uses deterministic bindings and date formats', () => {
     const document = createBulletin(defaultTemplate, '2026-07-27');
     document.info.title = 'The Good Shepherd';
+    document.info.churchWeek = 'Ninth Sunday after Pentecost';
     expect(canvasBindingText('info.title', document)).toBe('The Good Shepherd');
+    expect(canvasBindingText('info.churchEvent', document)).toBe('Ninth Sunday after Pentecost');
+    expect(canvasBindingText('info.churchWeek', document)).toBe('Ninth Sunday after Pentecost');
     expect(canvasBindingText('info.date', document, 'long')).toBe('July 27, 2026');
     expect(canvasBindingText('info.date', document, 'iso')).toBe('2026-07-27');
   });

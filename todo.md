@@ -2,7 +2,6 @@
 
 * Undo/redo stack needs some work
 
-* Move page set-up to preview area or somewhere out of the way but intuitive
 * Communion sunday toggle
   * Generalize for custom bindable values
 * Make the "compact" content spacing option work
@@ -29,7 +28,6 @@
 
 ## Template/bulletin builder
 
-* Library items/selectors should be text search/filterable
 * Make autosave optional
 * Support revision history
 

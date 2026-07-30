@@ -11,6 +11,15 @@ export interface ElementPaletteItem {
   payload: unknown;
 }
 
+export function ElementSidebarPortal({ children, targetId = 'app-element-palette-slot' }: {
+  children: ReactNode;
+  targetId?: string;
+}) {
+  const [target, setTarget] = useState<HTMLElement | null>(() => document.getElementById(targetId));
+  useLayoutEffect(() => setTarget(document.getElementById(targetId)), [targetId]);
+  return target ? createPortal(children, target) : null;
+}
+
 function PaletteItem({ item, onUse }: { item: ElementPaletteItem; onUse(item: ElementPaletteItem): void }) {
   const drag = useDraggable({ id: `palette:${item.id}`, data: { paletteItem: item } });
   return <button
@@ -48,9 +57,10 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, onU
     window.addEventListener('element-palette:toggle', refresh);
     return () => window.removeEventListener('element-palette:toggle', refresh);
   }, []);
-  const isCollapsed = !portalTargetId && collapsed;
-  const palette = <aside className={`element-palette ${isCollapsed ? 'collapsed' : ''}`}>
-    <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div>{!portalTargetId && <button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>{isCollapsed ? '›' : '‹'}</button>}</header>
+  const isCollapsed = collapsed;
+  const docked = Boolean(portalTargetId);
+  const palette = <aside className={`element-palette ${docked ? 'docked' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
+    <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>{docked ? '›' : (isCollapsed ? '›' : '‹')}</button></header>
     {!isCollapsed && <div className="element-palette-scroll">
       {(['content', 'media', 'pages', 'shapes'] as const).map(category => {
         const categoryItems = items.filter(item => item.category === category);

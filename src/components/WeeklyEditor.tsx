@@ -5,7 +5,7 @@ import { ScriptureEditor } from "./ScriptureEditor";
 import { CanvasDesigner } from "./CanvasDesigner";
 import { PageTemplateEditor } from "./PageTemplateEditor";
 import { SortableHandle, SortableItem, SortableList } from "./SortableList";
-import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
+import { ElementPalette, ElementSidebarPortal, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
 import { LibraryTextFields } from "./LibraryTextFields";
@@ -573,15 +573,12 @@ export function WeeklyEditor({
           />
         </label>
       </section>
-      <details className="editor-card collapsible-editor page-setup-card">
+      <ElementSidebarPortal><details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
         <summary>
           <div>
-            <span className="block-type">Document</span>
-            <h3>Page setup</h3>
+            <div className="eyebrow">Document</div>
+            <b>Page setup</b>
           </div>
-          <small>
-            {document.layout?.marginIn ?? template.theme.marginIn} in margins
-          </small>
         </summary>
         <div className="collapsible-editor-fields">
           <p className="helper">
@@ -617,7 +614,7 @@ export function WeeklyEditor({
             </button>
           </div>
         </div>
-      </details>
+      </details></ElementSidebarPortal>
       <div className="editor-section-title">
         <div>
           <div className="eyebrow">Order of worship</div>

@@ -22,7 +22,7 @@ import {
   pageTemplateVersions,
 } from "../shared/pageTemplates";
 import { PageTemplateEditor } from "./PageTemplateEditor";
-import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
+import { ElementPalette, ElementSidebarPortal, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
@@ -392,13 +392,12 @@ export function TemplateBuilder({
             </label>
           </div>
         </section>
-        <details className="editor-card collapsible-editor page-setup-card">
+        <ElementSidebarPortal><details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
           <summary>
             <div>
-              <span className="block-type">Document</span>
-              <h3>Page setup</h3>
+              <div className="eyebrow">Document</div>
+              <b>Page setup</b>
             </div>
-            <small>{template.theme.marginIn} in margins</small>
           </summary>
           <div className="collapsible-editor-fields">
             <p className="helper">
@@ -424,7 +423,7 @@ export function TemplateBuilder({
               </small>
             </label>
           </div>
-        </details>
+        </details></ElementSidebarPortal>
         <section className="editor-card">
           <div className="editor-section-title">
             <div>

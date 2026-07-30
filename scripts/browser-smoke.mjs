@@ -277,15 +277,21 @@ if (process.env.BULLETIN_CREATE_FROM_ONLY === '1') {
 
 if (process.env.BULLETIN_PAGE_SETUP_ONLY === '1') {
   if (await evaluate(`Boolean(document.querySelector('.editor-pane .essentials input[type="number"]'))`)) throw new Error('Page margin remains in the weekly essentials card.');
-  const weeklySetup = await evaluate(`(()=>{const setup=document.querySelector('.editor-pane .page-setup-card');return {exists:Boolean(setup),open:setup?.open,label:setup?.querySelector('summary h3')?.textContent,margin:setup?.querySelector('input[type="number"]')?.value}})()`);
-  if (!weeklySetup.exists || weeklySetup.open || weeklySetup.label !== 'Page setup') throw new Error(`Weekly page setup is not a collapsed separate area: ${JSON.stringify(weeklySetup)}`);
-  await evaluate(`document.querySelector('.editor-pane .page-setup-card summary').click()`);
-  await wait(`document.querySelector('.editor-pane .page-setup-card')?.open`, 'opened weekly page setup');
+  const weeklySetup = await evaluate(`(()=>{const setup=document.querySelector('.elements-sidebar .page-setup-card'),palette=document.querySelector('.elements-sidebar .element-palette');return {exists:Boolean(setup),open:setup?.open,label:setup?.querySelector('summary b')?.textContent,collapsedSummary:setup?.querySelector('summary')?.textContent.trim(),margin:setup?.querySelector('input[type="number"]')?.value,abovePalette:Boolean(setup&&palette&&setup.getBoundingClientRect().top<palette.getBoundingClientRect().top),remainsInEditor:Boolean(document.querySelector('.editor-pane .page-setup-card'))}})()`);
+  if (!weeklySetup.exists || weeklySetup.open || weeklySetup.label !== 'Page setup' || weeklySetup.collapsedSummary.includes('margins') || !weeklySetup.abovePalette || weeklySetup.remainsInEditor) throw new Error(`Weekly page setup is not collapsed above Elements: ${JSON.stringify(weeklySetup)}`);
+  await evaluate(`document.querySelector('.elements-sidebar button[aria-label="Collapse elements"]')?.click()`);
+  await wait(`document.querySelector('.elements-sidebar .element-palette')?.classList.contains('collapsed')`, 'collapsed weekly Elements');
+  if (await evaluate(`Boolean(document.querySelector('.elements-sidebar .element-palette-scroll'))`)) throw new Error('Collapsed Elements still shows its palette.');
+  await evaluate(`document.querySelector('.elements-sidebar button[aria-label="Expand elements"]')?.click()`);
+  await wait(`!document.querySelector('.elements-sidebar .element-palette')?.classList.contains('collapsed')`, 'expanded weekly Elements');
+  await evaluate(`document.querySelector('.elements-sidebar .page-setup-card summary').click()`);
+  await wait(`document.querySelector('.elements-sidebar .page-setup-card')?.open`, 'opened weekly page setup');
   await click('Templates');
+  await wait(`Boolean(document.querySelector('.elements-sidebar .page-setup-card'))`, 'template page setup');
   if (await evaluate(`Boolean(Array.from(document.querySelectorAll('.template-workbench .editor-card')).find(card=>card.querySelector(':scope > h2')?.textContent==='Theme')?.querySelector('input[type="number"][max="1.25"]'))`)) throw new Error('Page margin remains in the template Theme card.');
-  const templateSetup = await evaluate(`(()=>{const setup=document.querySelector('.template-workbench .page-setup-card');return {exists:Boolean(setup),open:setup?.open,label:setup?.querySelector('summary h3')?.textContent,margin:setup?.querySelector('input[type="number"]')?.value}})()`);
-  if (!templateSetup.exists || templateSetup.open || templateSetup.label !== 'Page setup') throw new Error(`Template page setup is not a collapsed separate area: ${JSON.stringify(templateSetup)}`);
-  pass('keeps weekly and template margins in separate Page setup areas');
+  const templateSetup = await evaluate(`(()=>{const setup=document.querySelector('.elements-sidebar .page-setup-card'),palette=document.querySelector('.elements-sidebar .element-palette');return {exists:Boolean(setup),open:setup?.open,label:setup?.querySelector('summary b')?.textContent,collapsedSummary:setup?.querySelector('summary')?.textContent.trim(),margin:setup?.querySelector('input[type="number"]')?.value,abovePalette:Boolean(setup&&palette&&setup.getBoundingClientRect().top<palette.getBoundingClientRect().top),remainsInEditor:Boolean(document.querySelector('.template-workbench .page-setup-card'))}})()`);
+  if (!templateSetup.exists || templateSetup.open || templateSetup.label !== 'Page setup' || templateSetup.collapsedSummary.includes('margins') || !templateSetup.abovePalette || templateSetup.remainsInEditor) throw new Error(`Template page setup is not collapsed above Elements: ${JSON.stringify(templateSetup)}`);
+  pass('keeps weekly and template Page setup collapsed above Elements');
   console.log(`\n${results.length} browser Page setup checks passed.`);
   socket.close();
   process.exit(0);

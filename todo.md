@@ -13,7 +13,7 @@
   * e.g., song lyrics indented separate from heading
   * This should also be the base formatting granularity
 
-## Cover builder
+## Template pages
 
 * Change coordinate space thing to something Megan can understand
 * Be able to add a new sermon series graphic and save it to the template
@@ -25,6 +25,8 @@
 * Align/group capability
 * Send to front/back/forward/back
 * Reset to template defaults (undo all changes)
+* Support copy/paste
+
 
 
 ## Template/bulletin builder

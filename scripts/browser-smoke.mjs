@@ -64,6 +64,8 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1'
+    ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
@@ -226,20 +228,21 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_CHURCH_YEAR_ONLY === '1') {
-  if (await evaluate(`Boolean(document.querySelector('.editor-pane .church-week-names'))`)) throw new Error('Church Year management remains in the weekly editor.');
-  await click('Church Year');
-  await wait(`document.querySelector('.church-year-screen .church-week-names h2')?.textContent === 'Display-name overrides'`, 'dedicated Church Year flow');
-  await click('Add override');
-  const rowCount = await evaluate(`document.querySelectorAll('.church-year-screen .church-week-name-row').length`);
-  await evaluate(`(()=>{const row=document.querySelector('.church-year-screen .church-week-name-row:last-child');const inputs=row.querySelectorAll('input');for(const [input,value] of [[inputs[0],'Browser Test Sunday'],[inputs[1],'Preferred Sunday']]){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));}return true})()`);
-  await click('Save overrides');
-  await wait(`document.querySelector('.church-year-screen .church-week-names button.primary')?.textContent === 'Saved'`, 'saved Church Year override');
-  const saved = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.churchWeekNames?.some(name=>name.sourceName==='Browser Test Sunday'&&name.displayName==='Preferred Sunday'))`);
-  if (!saved || rowCount < 1) throw new Error('Church Year override was not persisted.');
+  if (await evaluate(`Boolean(document.querySelector('.editor-pane .church-calendar-screen'))`)) throw new Error('Church Calendar management remains in the weekly editor.');
+  await click('Church Calendar');
+  await wait(`document.querySelector('.church-calendar-screen h2')?.textContent === 'Church Calendar'`, 'dedicated Church Calendar flow');
+  const presetCount = await evaluate(`document.querySelectorAll('.church-calendar-grid .calendar-day i').length`);
+  await click('Add event');
+  await wait(`Boolean(document.querySelector('.calendar-event-editor'))`, 'church event editor');
+  await fill('Name', 'Browser Test Festival');
+  await fill('Priority', '95');
+  await click('Save calendar');
+  await wait(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.calendarEvents?.some(event=>event.name==='Browser Test Festival'&&event.priority===95))`, 'saved Church Calendar event');
+  if (presetCount < 1) throw new Error('Church Calendar did not render the WELS preset.');
   await click('Templates');
-  if (await evaluate(`Boolean(document.querySelector('.template-workbench .church-week-names'))`)) throw new Error('Church Year management appears in the template editor.');
-  pass('keeps Church Year override management in a separate persisted flow');
-  console.log(`\n${results.length} browser Church Year checks passed.`);
+  if (await evaluate(`Boolean(document.querySelector('.template-workbench .church-calendar-screen'))`)) throw new Error('Church Calendar management appears in the template editor.');
+  pass('edits synchronized Church Calendar events in a separate full-size flow');
+  console.log(`\n${results.length} browser Church Calendar checks passed.`);
   socket.close();
   process.exit(0);
 }

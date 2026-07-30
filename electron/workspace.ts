@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
-  ArchivedWorkspaceRecord, AssetRef, BulletinDocumentV1, ChurchWeekName, LibraryItemV1, LibraryManifestV1, SharedRecordKind,
+  ArchivedWorkspaceRecord, AssetRef, BulletinDocumentV1, ChurchCalendarEvent, ChurchWeekName, LibraryItemV1, LibraryManifestV1, SharedRecordKind,
   PageTemplateV1, TemplateV1, WorkspaceConflict, WorkspaceSummary
 } from '../src/shared/types.js';
 import type { DeclarativeComponentDefinition } from '../src/component-engine/types.js';
@@ -10,6 +10,7 @@ import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults.js'
 import { normalizeCanvasBlocks } from '../src/shared/canvas.js';
 import { normalizeLibrary } from '../src/shared/library.js';
 import { meetsMinimumVersion } from '../src/shared/version.js';
+import { migrateChurchWeekNames, WELS_CALENDAR_PRESET_VERSION } from '../src/shared/churchCalendar.js';
 
 interface WorkspaceFileV2 {
   schemaVersion: 2;
@@ -20,11 +21,12 @@ interface WorkspaceFileV2 {
   legacyLibraryHash?: string;
   minimumAppVersion?: string;
   minimumAppMessage?: string;
+  churchCalendarSeedVersion?: number;
 }
 
 interface SyncRecord<T> {
   format: 'bulletin-shared-record-v2';
-  kind: 'library-item' | 'church-week' | 'component';
+  kind: 'library-item' | 'church-week' | 'calendar-event' | 'component';
   recordId: string;
   revision: number;
   baseRevision: number;
@@ -37,6 +39,7 @@ interface LibraryRecords {
   name: string;
   items: Map<string, SyncRecord<LibraryItemV1>>;
   churchWeeks: Map<string, SyncRecord<ChurchWeekName>>;
+  calendarEvents: Map<string, SyncRecord<ChurchCalendarEvent>>;
   components: Map<string, SyncRecord<DeclarativeComponentDefinition>>;
   conflicts: WorkspaceConflict[];
 }
@@ -91,15 +94,17 @@ function safeSegment(value: string) {
 
 const itemKey = (item: Pick<LibraryItemV1, 'id' | 'version'>) => `${item.id}:${item.version}`;
 const churchWeekKey = (item: Pick<ChurchWeekName, 'sourceName'>) => item.sourceName.toLocaleLowerCase();
+const calendarEventKey = (item: Pick<ChurchCalendarEvent, 'id'>) => item.id;
 const componentKey = (item: Pick<DeclarativeComponentDefinition, 'type' | 'version'>) => `${item.type}:${item.version}`;
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
-function recordPath(root: string, kind: SyncRecord<unknown>['kind'], value: LibraryItemV1 | ChurchWeekName | DeclarativeComponentDefinition) {
+function recordPath(root: string, kind: SyncRecord<unknown>['kind'], value: LibraryItemV1 | ChurchWeekName | ChurchCalendarEvent | DeclarativeComponentDefinition) {
   if (kind === 'library-item') {
     const item = value as LibraryItemV1;
     return inside(root, `library/items/${safeSegment(item.id)}/v${item.version}.json`);
   }
   if (kind === 'church-week') return inside(root, `library/church-weeks/${safeSegment((value as ChurchWeekName).sourceName)}.json`);
+  if (kind === 'calendar-event') return inside(root, `library/calendar-events/${safeSegment((value as ChurchCalendarEvent).id)}.json`);
   const component = value as DeclarativeComponentDefinition;
   return inside(root, `library/components/${safeSegment(component.type)}/v${component.version}.json`);
 }
@@ -140,7 +145,7 @@ export async function assertWorkspaceWritable(root: string, currentVersion: stri
 
 export async function ensureWorkspace(root: string) {
   await Promise.all([
-    'bulletins', 'templates', 'assets', 'assets/blobs', 'library/items', 'library/church-weeks',
+    'bulletins', 'templates', 'assets', 'assets/blobs', 'library/items', 'library/church-weeks', 'library/calendar-events',
     'library/components', 'page-templates', 'archive', 'tombstones'
   ].map(folder => mkdir(inside(root, folder), { recursive: true })));
   const legacyLibrary = inside(root, 'library.json');
@@ -174,30 +179,46 @@ async function jsonFiles(folder: string): Promise<string[]> {
 }
 
 async function migrateLegacyLibrary(root: string) {
-  const metadata = await workspaceFile(root);
+  let metadata = await workspaceFile(root);
   const legacyPath = inside(root, 'library.json');
   const stored = await readJson<LibraryManifestV1>(legacyPath);
   const library = normalizeLibrary(stored);
   if (library !== stored) await atomicJson(legacyPath, library);
   const legacyLibraryHash = createHash('sha256').update(JSON.stringify(library)).digest('hex');
-  if (metadata.migratedAt && metadata.legacyLibraryHash === legacyLibraryHash) return;
-  for (const item of library.items) {
-    const file = recordPath(root, 'library-item', item);
-    await importLegacyRecord(file, makeRecord('library-item', itemKey(item), item));
+  if (!metadata.migratedAt || metadata.legacyLibraryHash !== legacyLibraryHash) {
+    for (const item of library.items) {
+      const file = recordPath(root, 'library-item', item);
+      await importLegacyRecord(file, makeRecord('library-item', itemKey(item), item));
+    }
+    for (const name of library.churchWeekNames ?? []) {
+      const file = recordPath(root, 'church-week', name);
+      await importLegacyRecord(file, makeRecord('church-week', churchWeekKey(name), name));
+    }
+    for (const definition of library.componentDefinitions ?? []) {
+      const file = recordPath(root, 'component', definition);
+      await importLegacyRecord(file, makeRecord('component', componentKey(definition), definition));
+    }
+    metadata = {
+      ...metadata,
+      libraryName: library.name,
+      migratedAt: metadata.migratedAt ?? new Date().toISOString(),
+      legacyLibraryHash
+    };
   }
-  for (const name of library.churchWeekNames ?? []) {
-    const file = recordPath(root, 'church-week', name);
-    await importLegacyRecord(file, makeRecord('church-week', churchWeekKey(name), name));
-  }
-  for (const definition of library.componentDefinitions ?? []) {
-    const file = recordPath(root, 'component', definition);
-    await importLegacyRecord(file, makeRecord('component', componentKey(definition), definition));
+  if (!metadata.churchCalendarSeedVersion) {
+    const storedNames = await loadRecordFolder<ChurchWeekName>(root, 'library/church-weeks', 'church-week');
+    const names = [...storedNames.records.values()].filter(record => !record.archivedAt).map(record => record.value);
+    for (const calendarEvent of migrateChurchWeekNames(names.length ? names : library.churchWeekNames ?? [])) {
+      await importLegacyRecord(recordPath(root, 'calendar-event', calendarEvent), makeRecord('calendar-event', calendarEventKey(calendarEvent), calendarEvent));
+    }
+    for (const record of storedNames.records.values()) {
+      if (record.archivedAt) continue;
+      await atomicJson(recordPath(root, 'church-week', record.value), { ...record, revision: record.revision + 1, baseRevision: record.revision, updatedAt: new Date().toISOString(), archivedAt: new Date().toISOString() });
+    }
+    metadata = { ...metadata, churchCalendarSeedVersion: WELS_CALENDAR_PRESET_VERSION };
   }
   await atomicJson(inside(root, 'workspace.json'), {
     ...metadata,
-    libraryName: library.name,
-    migratedAt: metadata.migratedAt ?? new Date().toISOString(),
-    legacyLibraryHash
   } satisfies WorkspaceFileV2);
 }
 
@@ -242,9 +263,10 @@ async function loadRecordFolder<T>(root: string, relative: string, kind: SyncRec
 }
 
 async function loadLibraryRecords(root: string): Promise<LibraryRecords> {
-  const [items, churchWeeks, components, metadata] = await Promise.all([
+  const [items, churchWeeks, calendarEvents, components, metadata] = await Promise.all([
     loadRecordFolder<LibraryItemV1>(root, 'library/items', 'library-item'),
     loadRecordFolder<ChurchWeekName>(root, 'library/church-weeks', 'church-week'),
+    loadRecordFolder<ChurchCalendarEvent>(root, 'library/calendar-events', 'calendar-event'),
     loadRecordFolder<DeclarativeComponentDefinition>(root, 'library/components', 'component'),
     workspaceFile(root)
   ]);
@@ -252,20 +274,23 @@ async function loadLibraryRecords(root: string): Promise<LibraryRecords> {
     name: metadata.libraryName,
     items: items.records,
     churchWeeks: churchWeeks.records,
+    calendarEvents: calendarEvents.records,
     components: components.records,
-    conflicts: [...items.conflicts, ...churchWeeks.conflicts, ...components.conflicts]
+    conflicts: [...items.conflicts, ...churchWeeks.conflicts, ...calendarEvents.conflicts, ...components.conflicts]
   };
 }
 
 function libraryManifest(records: LibraryRecords): LibraryManifestV1 {
   const items = [...records.items.values()].filter(record => !record.archivedAt).map(record => record.value);
   const churchWeekNames = [...records.churchWeeks.values()].filter(record => !record.archivedAt).map(record => record.value);
+  const calendarEvents = [...records.calendarEvents.values()].filter(record => !record.archivedAt).map(record => record.value);
   const componentDefinitions = [...records.components.values()].filter(record => !record.archivedAt).map(record => record.value);
   return normalizeLibrary({
     schemaVersion: 1,
     name: records.name,
     items,
     ...(churchWeekNames.length ? { churchWeekNames } : {}),
+    ...(calendarEvents.length ? { calendarEvents } : {}),
     ...(componentDefinitions.length ? { componentDefinitions } : {})
   });
 }
@@ -358,6 +383,7 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
   const deletedRecordIds = new Set(tombstones.filter(item => item.recordId).map(item => `${item.kind}:${item.recordId}`));
   for (const [key] of records.items) if (deletedRecordIds.has(`library-item:${key}`)) records.items.delete(key);
   for (const [key] of records.churchWeeks) if (deletedRecordIds.has(`church-week:${key}`)) records.churchWeeks.delete(key);
+  for (const [key] of records.calendarEvents) if (deletedRecordIds.has(`calendar-event:${key}`)) records.calendarEvents.delete(key);
   for (const [key] of records.components) if (deletedRecordIds.has(`component:${key}`)) records.components.delete(key);
   const bulletins = bulletinRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, document: { ...record.value, blocks: normalizeCanvasBlocks(record.value.blocks) } }));
   const templates = templateRecords.values.filter(record => !deletedPaths.has(record.path)).map(record => ({ path: record.path, template: { ...record.value, starterBlocks: normalizeCanvasBlocks(record.value.starterBlocks) } }));
@@ -387,6 +413,10 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
         ...[...records.churchWeeks.values()].filter(record => record.archivedAt).map(record => ({
           id: `church-week:${record.recordId}`, kind: 'church-week' as const, label: `${record.value.sourceName} → ${record.value.displayName}`,
           path: workspaceRelative(root, recordPath(root, 'church-week', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'church-week', record.value)), archivedAt: record.archivedAt!
+        })),
+        ...[...records.calendarEvents.values()].filter(record => record.archivedAt).map(record => ({
+          id: `calendar-event:${record.recordId}`, kind: 'calendar-event' as const, label: record.value.name,
+          path: workspaceRelative(root, recordPath(root, 'calendar-event', record.value)), originalPath: workspaceRelative(root, recordPath(root, 'calendar-event', record.value)), archivedAt: record.archivedAt!
         })),
         ...[...records.components.values()].filter(record => record.archivedAt).map(record => ({
           id: `component:${record.recordId}`, kind: 'component' as const, label: record.value.name,
@@ -537,6 +567,10 @@ export async function saveLibrary(root: string, library: LibraryManifestV1, prev
     new Map((baseline.churchWeekNames ?? []).map(item => [churchWeekKey(item), item])),
     new Map((next.churchWeekNames ?? []).map(item => [churchWeekKey(item), item])),
     value => recordPath(root, 'church-week', value), force);
+  await writeLibraryDiff(root, 'calendar-event', records.calendarEvents,
+    new Map((baseline.calendarEvents ?? []).map(item => [calendarEventKey(item), item])),
+    new Map((next.calendarEvents ?? []).map(item => [calendarEventKey(item), item])),
+    value => recordPath(root, 'calendar-event', value), force);
   await writeLibraryDiff(root, 'component', records.components,
     new Map((baseline.componentDefinitions ?? []).map(item => [componentKey(item), item])),
     new Map((next.componentDefinitions ?? []).map(item => [componentKey(item), item])),

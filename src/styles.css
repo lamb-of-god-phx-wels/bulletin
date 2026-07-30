@@ -548,23 +548,21 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .library-path { max-width: 420px; padding: 12px; border-radius: 8px; color: #6e726d; background: white; font: 11px monospace; overflow-wrap: anywhere; }
 .library-intro > div:last-child { display: grid; justify-items: end; gap: 9px; }
 .library-form { display: grid; gap: 12px; max-width: 850px; margin-top: 22px; }
-.church-year-screen { max-width: none; }
-.church-year-screen .library-intro { margin-bottom: 22px; }
-.church-week-names { display: grid; gap: 12px; max-width: 900px; margin-bottom: 14px; }
-.church-week-names > header { display: flex; align-items: center; justify-content: space-between; }
-.church-week-names > header > span { display: grid; gap: 3px; }
-.church-week-names > header h2 { margin: 0; font: 21px Georgia, serif; }
-.church-week-names > header > small { color: #7b7f79; }
-.church-week-name-list { display: grid; gap: 8px; }
-.church-week-name-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; }
-.church-week-name-row .danger-text { min-height: 38px; }
-.church-week-lookup-status { margin: -6px 0 14px; padding: 9px 11px; border-radius: 7px; font-size: 12px; line-height: 1.4; }
-.church-week-lookup-status.loading { color: #6e664f; background: #f5f0df; }
-.church-week-lookup-status.success { color: #466450; background: #eaf3ec; }
-.church-week-lookup-status.error { color: #8e3d32; background: #f8e9e6; }
-.church-week-override-dialog { width: min(520px, calc(100vw - 36px)); padding: 22px; border-radius: 12px; background: #fff; box-shadow: 0 20px 70px #1d272250; }
-.church-week-override-dialog h2 { margin: 4px 0 0; font: 24px Georgia, serif; }
-.church-week-override-dialog p { color: #5f655f; line-height: 1.5; }
+.church-calendar-screen { height: calc(100vh - 84px); overflow: hidden; background: #e2dfd7; }
+.church-calendar-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(280px, 1fr); align-items: center; gap: 22px; min-height: 92px; padding: 14px 22px; border-bottom: 1px solid #cdc8bd; background: #faf9f6; }
+.church-calendar-toolbar h2 { margin: 2px 0 3px; font: 25px Georgia, serif; }.church-calendar-toolbar p { margin: 0; color: #737971; font-size: 10px; }
+.calendar-navigation { display: grid; grid-template-columns: 30px auto 30px; gap: 5px; align-items: center; }.calendar-navigation strong { grid-column: 1 / -1; grid-row: 1; justify-self: center; font: 18px Georgia, serif; pointer-events: none; }.calendar-navigation button { z-index: 1; min-height: 30px; padding: 0 8px; }.calendar-navigation button:nth-child(2) { margin-left: 35px; margin-right: 35px; }
+.calendar-toolbar-actions { display: flex; justify-content: flex-end; gap: 7px; }
+.church-calendar-layout { position: relative; display: grid; grid-template-columns: minmax(650px, 1fr) 270px; height: calc(100% - 92px); }
+.church-calendar-grid { display: grid; grid-template: 28px repeat(6, minmax(70px, 1fr)) / repeat(7, minmax(90px, 1fr)); min-width: 0; min-height: 0; padding: 12px; }
+.calendar-weekday { display: grid; place-items: center; color: #6e746e; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.calendar-day { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 5px; padding: 7px; overflow: hidden; border: 1px solid #d5d1c7; border-right: 0; border-bottom: 0; border-radius: 0; color: #313c36; background: #fbfaf7; text-align: left; }.calendar-day:nth-child(7n) { border-right: 1px solid #d5d1c7; }.calendar-day.selected { position: relative; z-index: 1; outline: 2px solid #a6583b; outline-offset: -2px; background: #fff8f3; }.calendar-day.today > span { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; color: white; background: #9c5338; }.calendar-day.outside { background: #d9d6ce; }
+.calendar-day > span { flex: none; font-size: 11px; font-weight: 800; }.calendar-day > div { display: grid; gap: 3px; overflow: hidden; }.calendar-day i { display: block; overflow: hidden; padding: 3px 5px; border-left: 3px solid #a9a69d; border-radius: 3px; color: #53605a; background: #eeece5; font-size: 9px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }.calendar-day i.default { border-left-color: #a65336; color: #743c29; background: #f4e5db; }
+.calendar-day-panel { min-height: 0; padding: 18px; overflow: auto; border-left: 1px solid #c9c4b9; background: #f7f5f0; }.calendar-day-panel h3 { margin: 4px 0 16px; font: 20px Georgia, serif; }.calendar-day-panel > .primary { width: 100%; }.calendar-day-events { display: grid; gap: 6px; margin-top: 14px; }.calendar-day-events > button { display: flex; flex-direction: column; gap: 3px; padding: 10px; border: 1px solid #d8d3c9; border-radius: 7px; color: #354039; background: white; text-align: left; }.calendar-day-events small, .calendar-day-events p { color: #7a7f78; font-size: 9px; }
+.calendar-event-editor { position: absolute; z-index: 4; top: 0; right: 0; bottom: 0; width: min(470px, 100%); padding: 18px; overflow: auto; border-left: 1px solid #c5c0b5; background: #fbfaf7; box-shadow: -12px 0 35px #26322d25; }.calendar-event-editor > header { display: flex; align-items: start; justify-content: space-between; margin-bottom: 16px; }.calendar-event-editor h3 { margin: 4px 0; font: 22px Georgia, serif; }.calendar-event-editor > header button { padding: 0; border: 0; color: #737971; background: transparent; font-size: 24px; }.calendar-event-editor > label { margin-bottom: 12px; }
+.calendar-cycle { display: flex; gap: 14px; margin: 12px 0; padding: 10px; border: 1px solid #ddd8ce; }.calendar-cycle legend { color: #636963; font-size: 10px; font-weight: 800; }.calendar-rules-heading { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; }.calendar-rule { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 9px; padding: 10px; border: 1px solid #ddd8ce; border-radius: 8px; background: white; }.calendar-rule > label:first-child, .calendar-rule > .danger-text { grid-column: 1 / -1; }.calendar-rule .danger-text { justify-self: end; }.calendar-occurrence-preview { display: grid; gap: 4px; margin: 14px 0; padding: 10px; color: #666d66; background: #f0eee8; font-size: 10px; }.calendar-delete-event { margin-top: 12px; }
+.church-event-field { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.church-event-field > div { grid-column: 1 / -1; min-height: 28px; }
 .scripture-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
 .scripture-fetch { flex: 0 0 auto; }
 .scripture-editor-shell { border-top: 1px solid #e2ded5; background: #fff; }

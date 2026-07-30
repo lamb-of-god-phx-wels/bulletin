@@ -35,7 +35,6 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   readAsset: (...args) => ipcRenderer.invoke('asset:read', ...args),
   lookupScripture: input => ipcRenderer.invoke('scripture:lookup', input),
   openScripture: (...args) => ipcRenderer.invoke('scripture:open', ...args),
-  lookupChurchWeek: date => ipcRenderer.invoke('church-week:lookup', date),
   getPrintJob: () => ipcRenderer.invoke('print:job'),
   printReady: () => ipcRenderer.send('print:ready')
 };

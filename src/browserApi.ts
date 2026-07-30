@@ -4,6 +4,7 @@ import { randomId } from './shared/id';
 import { normalizeCanvasBlocks } from './shared/canvas';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
+import { migrateChurchWeekNames, welsCalendarPreset } from './shared/churchCalendar';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
 import churchLogoUrl from '../assets/church/logo.png';
 import seriesLogoUrl from '../assets/sermon_series/say_it_out_loud/logo.png';
@@ -99,7 +100,7 @@ async function createWorkspace(name: string, seedExample = false) {
       : [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }],
     pageTemplates: [{ path: `page-templates/${defaultPageTemplate.id}/v1.json`, pageTemplate: clone(defaultPageTemplate) }],
     bulletins: seedExample ? [{ path: 'bulletins/2026-06-07/bulletin.json', document: migrateLegacyBulletin(legacyExample) }] : [],
-    library: { schemaVersion: 1, name: `${name} Library`, items: [] }
+    library: { schemaVersion: 1, name: `${name} Library`, items: [], calendarEvents: welsCalendarPreset() }
   };
   await putRecord(workspaceStore, root, summary);
   setWorkspaceList([...existing, { root, name }]);
@@ -144,7 +145,10 @@ async function summary(root: string) {
   if (!value) throw new Error(`Workspace “${root}” no longer exists.`);
   value = { ...value, pageTemplates: value.pageTemplates ?? [] };
   if (!value.library) return value;
-  const library = normalizeLibrary(value.library);
+  const normalized = normalizeLibrary(value.library);
+  const library = normalized.calendarEvents === undefined
+    ? { ...normalized, calendarEvents: migrateChurchWeekNames(normalized.churchWeekNames ?? []) }
+    : normalized;
   if (library === value.library) return value;
   const migrated = { ...value, library };
   await putRecord(workspaceStore, root, migrated);
@@ -229,12 +233,6 @@ export async function installBrowserApi() {
       const payload = await response.json(); if (!response.ok) throw new Error(payload.error ?? 'BibleGateway.com import failed.'); return payload;
     },
     openScripture: async (reference, translation) => { window.open(`https://www.biblegateway.com/passage/?search=${encodeURIComponent(reference)}&version=${encodeURIComponent(translation)}`, '_blank', 'noopener,noreferrer'); },
-    lookupChurchWeek: async date => {
-      const response = await fetch('/__bulletin/church-week', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date }) });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? `Service Builder lookup failed (${response.status}).`);
-      return payload;
-    },
     getPrintJob: async () => JSON.parse(localStorage.getItem('bulletin-print-job') ?? 'null'),
     printReady: () => undefined
   };

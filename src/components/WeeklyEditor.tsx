@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { BlockFormattingModal } from "./BlockFormattingModal";
 import { BlockLibraryModal } from "./BlockLibraryModal";
 import { ScriptureEditor } from "./ScriptureEditor";
@@ -19,10 +19,7 @@ import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
-import {
-  churchWeekDisplayName,
-  churchWeekNameOverride,
-} from "../shared/churchWeeks";
+import { churchEventsForDate } from "../shared/churchCalendar";
 import {
   explodeTemplatePage,
   instantiatePageTemplate,
@@ -59,7 +56,7 @@ export function WeeklyEditor({
   onChange,
   onLibraryChange,
   onError,
-  onAuxiliaryDirtyChange,
+  onOpenChurchCalendar,
 }: {
   document: BulletinDocumentV1;
   template: TemplateV1;
@@ -70,7 +67,7 @@ export function WeeklyEditor({
   onChange(document: BulletinDocumentV1): void;
   onLibraryChange(library: LibraryManifestV1): Promise<void>;
   onError(message: string): void;
-  onAuxiliaryDirtyChange?(dirty: boolean): void;
+  onOpenChurchCalendar?(): void;
 }) {
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
@@ -82,36 +79,12 @@ export function WeeklyEditor({
   const [lookupStatus, setLookupStatus] = useState<
     Record<string, { state: "loading" | "success" | "error"; text: string }>
   >({});
-  const [churchWeekLookup, setChurchWeekLookup] = useState<{
-    state: "loading" | "success" | "error";
-    text: string;
-  }>();
-  const [pendingChurchWeek, setPendingChurchWeek] = useState<{
-    date: string;
-    sourceName: string;
-  }>();
-  const [churchWeekDisplayDraft, setChurchWeekDisplayDraft] = useState("");
-  const churchWeekLookupSequence = useRef(0);
-  const automaticChurchWeekLookup = useRef("");
-  const documentRef = useRef(document);
-  const libraryRef = useRef(library);
-  documentRef.current = document;
-  libraryRef.current = library;
+  const matchingChurchEvents = churchEventsForDate(document.info.date, library?.calendarEvents ?? []);
   useEffect(() => {
-    const key = `${document.id}:${document.info.date}`;
-    if (
-      !document.info.date ||
-      document.info.churchWeek ||
-      automaticChurchWeekLookup.current === key
-    )
-      return;
-    automaticChurchWeekLookup.current = key;
-    void updateDateFromServiceBuilder(document.info.date);
-  }, [document.id, document.info.date, document.info.churchWeek]);
-  useEffect(() => {
-    onAuxiliaryDirtyChange?.(Boolean(pendingChurchWeek));
-    return () => onAuxiliaryDirtyChange?.(false);
-  }, [pendingChurchWeek]);
+    if (!document.info.date || document.info.churchWeek) return;
+    const first = churchEventsForDate(document.info.date, library?.calendarEvents ?? [])[0];
+    if (first) onChange({ ...document, info: { ...document.info, churchWeek: first.name, churchEventId: first.id } });
+  }, [document.id, document.info.date, document.info.churchWeek, library?.calendarEvents]);
   const songFamilies = libraryFamilies(
     library?.items.filter((item) => item.kind === "song") ?? [],
   );
@@ -132,7 +105,8 @@ export function WeeklyEditor({
     block.bindings.some((binding) => binding.source === "weekly");
   const updateInfo = (key: keyof BulletinDocumentV1["info"], value: string) => {
     if (key === "date") {
-      void updateDateFromServiceBuilder(value);
+      const first = churchEventsForDate(value, library?.calendarEvents ?? [])[0];
+      onChange({ ...document, info: { ...document.info, date: value, churchWeek: first?.name ?? "", churchEventId: first?.id } });
       return;
     }
     onChange({ ...document, info: { ...document.info, [key]: value } });
@@ -551,96 +525,6 @@ export function WeeklyEditor({
       onError(error instanceof Error ? error.message : String(error));
     }
   };
-  async function updateDateFromServiceBuilder(date: string) {
-    const sequence = ++churchWeekLookupSequence.current;
-    setPendingChurchWeek(undefined);
-    setChurchWeekLookup(
-      date
-        ? {
-            state: "loading",
-            text: "Looking up the designated church week in Service Builder…",
-          }
-        : undefined,
-    );
-    onChange({
-      ...documentRef.current,
-      info: { ...documentRef.current.info, date, churchWeek: "" },
-    });
-    if (!date) return;
-    try {
-      if (!window.bulletin)
-        throw new Error("Service Builder lookup is unavailable.");
-      const { sourceName } = await window.bulletin.lookupChurchWeek(date);
-      if (sequence !== churchWeekLookupSequence.current) return;
-      const override = churchWeekNameOverride(
-        sourceName,
-        libraryRef.current?.churchWeekNames,
-      );
-      if (override) {
-        onChange({
-          ...documentRef.current,
-          info: {
-            ...documentRef.current.info,
-            date,
-            churchWeek: override.displayName,
-          },
-        });
-        setChurchWeekLookup({
-          state: "success",
-          text: `Service Builder: ${sourceName} → ${override.displayName}`,
-        });
-      } else {
-        setPendingChurchWeek({ date, sourceName });
-        setChurchWeekDisplayDraft(sourceName);
-        setChurchWeekLookup({
-          state: "success",
-          text: `Service Builder returned a new church-week name: ${sourceName}`,
-        });
-      }
-    } catch (error) {
-      if (sequence !== churchWeekLookupSequence.current) return;
-      const message = error instanceof Error ? error.message : String(error);
-      setChurchWeekLookup({ state: "error", text: message });
-      onError(message);
-    }
-  }
-  const saveChurchWeekOverride = async () => {
-    if (!pendingChurchWeek || !churchWeekDisplayDraft.trim()) return;
-    const currentLibrary = library ?? {
-      schemaVersion: 1 as const,
-      name: "Church Library",
-      items: [],
-    };
-    const churchWeekNames = [
-      ...(currentLibrary.churchWeekNames ?? []).filter(
-        (name) =>
-          name.sourceName.toLocaleLowerCase() !==
-          pendingChurchWeek.sourceName.toLocaleLowerCase(),
-      ),
-      {
-        sourceName: pendingChurchWeek.sourceName,
-        displayName: churchWeekDisplayDraft.trim(),
-      },
-    ];
-    try {
-      await onLibraryChange({ ...currentLibrary, churchWeekNames });
-      onChange({
-        ...documentRef.current,
-        info: {
-          ...documentRef.current.info,
-          date: pendingChurchWeek.date,
-          churchWeek: churchWeekDisplayDraft.trim(),
-        },
-      });
-      setChurchWeekLookup({
-        state: "success",
-        text: `Saved display-name override for ${pendingChurchWeek.sourceName}.`,
-      });
-      setPendingChurchWeek(undefined);
-    } catch {
-      // The parent reports the save error.
-    }
-  };
   return (
     <div className="editor-scroll">
       <section className="editor-card essentials">
@@ -653,34 +537,17 @@ export function WeeklyEditor({
             onChange={(e) => updateInfo("date", e.target.value)}
           />
         </label>
-        <label>
-          Church week
-          <input
-            list="church-week-names"
-            value={document.info.churchWeek}
-            onChange={(e) => updateInfo("churchWeek", e.target.value)}
-            onBlur={(e) =>
-              updateInfo(
-                "churchWeek",
-                churchWeekDisplayName(e.target.value, library?.churchWeekNames),
-              )
-            }
-          />
-          <datalist id="church-week-names">
-            {library?.churchWeekNames?.flatMap((name, index) => [
-              <option
-                value={name.displayName}
-                label={name.sourceName}
-                key={`${index}-display`}
-              />,
-              <option
-                value={name.sourceName}
-                label={name.displayName}
-                key={`${index}-source`}
-              />,
-            ])}
-          </datalist>
-        </label>
+        <div className="church-event-field">
+          <label>Church event<select value={matchingChurchEvents.some(event => event.id === document.info.churchEventId) ? document.info.churchEventId : ''} onChange={event => {
+            const selected = matchingChurchEvents.find(item => item.id === event.target.value);
+            onChange({ ...document, info: { ...document.info, churchEventId: selected?.id, churchWeek: selected?.name ?? document.info.churchWeek } });
+          }}><option value="">Custom text</option>{matchingChurchEvents.map(event => <option value={event.id} key={event.id}>{event.name}</option>)}</select></label>
+          <label>Bulletin text<input value={document.info.churchWeek} placeholder={matchingChurchEvents.length ? 'Church event text' : 'No calendar event for this date'} onChange={event => updateInfo("churchWeek", event.target.value)} /></label>
+          <div>{document.info.churchEventId && matchingChurchEvents.find(event => event.id === document.info.churchEventId)?.name !== document.info.churchWeek && <button className="text-button" onClick={() => {
+            const selected = matchingChurchEvents.find(event => event.id === document.info.churchEventId);
+            if (selected) onChange({ ...document, info: { ...document.info, churchWeek: selected.name } });
+          }}>Reset to calendar value</button>}{!matchingChurchEvents.length && <button className="text-button" onClick={onOpenChurchCalendar}>Add event in Church Calendar</button>}</div>
+        </div>
         <label>
           Series
           <input
@@ -703,67 +570,6 @@ export function WeeklyEditor({
           />
         </label>
       </section>
-      {churchWeekLookup && (
-        <div
-          className={`church-week-lookup-status ${churchWeekLookup.state}`}
-          role="status"
-          aria-live="polite"
-        >
-          {churchWeekLookup.text}
-        </div>
-      )}
-      {pendingChurchWeek && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="church-week-override-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="church-week-override-title"
-          >
-            <header>
-              <div>
-                <div className="eyebrow">New Service Builder name</div>
-                <h2 id="church-week-override-title">
-                  Create a display-name override
-                </h2>
-              </div>
-            </header>
-            <p>
-              Service Builder designates <b>{pendingChurchWeek.sourceName}</b>{" "}
-              for {pendingChurchWeek.date}. Choose how it should appear in this
-              bulletin and future bound text.
-            </p>
-            <label>
-              Bulletin display name
-              <input
-                autoFocus
-                value={churchWeekDisplayDraft}
-                onChange={(event) =>
-                  setChurchWeekDisplayDraft(event.target.value)
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void saveChurchWeekOverride();
-                }}
-              />
-            </label>
-            <div className="builder-actions">
-              <button
-                className="secondary"
-                onClick={() => setPendingChurchWeek(undefined)}
-              >
-                Cancel
-              </button>
-              <button
-                className="primary"
-                disabled={!churchWeekDisplayDraft.trim()}
-                onClick={() => void saveChurchWeekOverride()}
-              >
-                Save override and use
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
       <details className="editor-card collapsible-editor page-setup-card">
         <summary>
           <div>

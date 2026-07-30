@@ -30,7 +30,7 @@ interface BlockBase {
 
 export interface UnsupportedLegacyCoverBlock extends BlockBase { type: 'titlePage' | 'canvasCover' }
 export type CanvasCoordinateSpace = 'fullPage' | 'contentBox';
-export type CanvasTextBinding = 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
+export type CanvasTextBinding = 'info.title' | 'info.date' | 'info.churchWeek' | 'info.churchEvent' | 'info.series' | 'church.name';
 export interface CanvasGeometry { x: number; y: number; width: number; height: number }
 export interface CanvasTextSource {
   literal?: Paragraph[];
@@ -182,7 +182,7 @@ export interface TemplatePageBlock extends BlockBase {
   blocks: BulletinBlock[];
 }
 
-export type CustomBindingSource = 'weekly' | 'info.title' | 'info.date' | 'info.churchWeek' | 'info.series' | 'church.name';
+export type CustomBindingSource = 'weekly' | 'info.title' | 'info.date' | 'info.churchWeek' | 'info.churchEvent' | 'info.series' | 'church.name';
 export interface CustomBlockBinding {
   key: string;
   label: string;
@@ -235,7 +235,7 @@ export interface BulletinDocumentV1 {
   revision: number;
   template: { id: string; version: number };
   church: { name: string };
-  info: { title: string; series?: string; date: string; churchWeek: string };
+  info: { title: string; series?: string; date: string; churchWeek: string; churchEventId?: string };
   layout?: { marginIn?: number };
   blocks: BulletinBlock[];
   sourceNotes?: string;
@@ -292,7 +292,26 @@ export interface ChurchWeekName {
   sourceName: string;
   displayName: string;
 }
-export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'church-week' | 'component';
+export type ChurchLectionaryYear = 'A' | 'B' | 'C';
+export type ChurchEventRule =
+  | { kind: 'once'; date: string }
+  | { kind: 'annualDate'; month: number; day: number }
+  | { kind: 'nthWeekday'; month?: number; weekday: number; ordinal: 1 | 2 | 3 | 4 | 5 | -1 }
+  | { kind: 'weekdayOnOrAfter'; month: number; day: number; weekday: number }
+  | { kind: 'easter' }
+  | { kind: 'relativeDays'; eventId: string; days: number }
+  | { kind: 'weekdayRelative'; eventId: string; weekday: number; ordinal: 1 | 2 | 3 | 4 | 5; direction: 'before' | 'after' };
+export interface ChurchCalendarEvent {
+  id: string;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  rules: ChurchEventRule[];
+  lectionaryYears?: ChurchLectionaryYear[];
+  aliases?: string[];
+  needsRule?: boolean;
+}
+export type SharedRecordKind = 'bulletin' | 'template' | 'page-template' | 'library-item' | 'church-week' | 'calendar-event' | 'component';
 export interface WorkspaceConflict {
   id: string;
   kind: SharedRecordKind;
@@ -341,6 +360,7 @@ export interface LibraryManifestV1 {
   name: string;
   items: LibraryItemV1[];
   churchWeekNames?: ChurchWeekName[];
+  calendarEvents?: ChurchCalendarEvent[];
   componentDefinitions?: DeclarativeComponentDefinition[];
 }
 
@@ -384,6 +404,5 @@ export interface BulletinApi {
   readAsset(root: string, relativePath: string): Promise<string>;
   lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;
   openScripture(reference: string, translation: string): Promise<void>;
-  lookupChurchWeek(date: string): Promise<{ sourceName: string }>;
 }
 import type { DeclarativeComponentDefinition } from '../component-engine/types.js';

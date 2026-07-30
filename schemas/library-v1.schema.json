@@ -19,6 +19,24 @@
         "additionalProperties": false
       }
     },
+    "calendarEvents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "enabled", "priority", "rules"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "enabled": { "type": "boolean" },
+          "priority": { "type": "number" },
+          "rules": { "type": "array", "items": { "$ref": "#/$defs/churchEventRule" } },
+          "lectionaryYears": { "type": "array", "items": { "enum": ["A", "B", "C"] }, "uniqueItems": true },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "needsRule": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
     "componentDefinitions": {
       "type": "array",
       "items": {
@@ -37,5 +55,78 @@
         "additionalProperties": true
       }
     }
-  }, "additionalProperties": false
+  },
+  "$defs": {
+    "month": { "type": "integer", "minimum": 1, "maximum": 12 },
+    "day": { "type": "integer", "minimum": 1, "maximum": 31 },
+    "weekday": { "type": "integer", "minimum": 0, "maximum": 6 },
+    "eventId": { "type": "string", "minLength": 1 },
+    "churchEventRule": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "date"],
+          "properties": { "kind": { "const": "once" }, "date": { "type": "string", "format": "date" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "month", "day"],
+          "properties": { "kind": { "const": "annualDate" }, "month": { "$ref": "#/$defs/month" }, "day": { "$ref": "#/$defs/day" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "weekday", "ordinal"],
+          "properties": {
+            "kind": { "const": "nthWeekday" },
+            "month": { "$ref": "#/$defs/month" },
+            "weekday": { "$ref": "#/$defs/weekday" },
+            "ordinal": { "enum": [1, 2, 3, 4, 5, -1] }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "month", "day", "weekday"],
+          "properties": {
+            "kind": { "const": "weekdayOnOrAfter" },
+            "month": { "$ref": "#/$defs/month" },
+            "day": { "$ref": "#/$defs/day" },
+            "weekday": { "$ref": "#/$defs/weekday" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": { "kind": { "const": "easter" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "eventId", "days"],
+          "properties": {
+            "kind": { "const": "relativeDays" },
+            "eventId": { "$ref": "#/$defs/eventId" },
+            "days": { "type": "integer" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "eventId", "weekday", "ordinal", "direction"],
+          "properties": {
+            "kind": { "const": "weekdayRelative" },
+            "eventId": { "$ref": "#/$defs/eventId" },
+            "weekday": { "$ref": "#/$defs/weekday" },
+            "ordinal": { "enum": [1, 2, 3, 4, 5] },
+            "direction": { "enum": ["before", "after"] }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
 }

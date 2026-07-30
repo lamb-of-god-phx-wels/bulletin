@@ -15,7 +15,6 @@ import { canvasAssetRefs, canvasNativeBlocks, canvasSpace } from '../src/shared/
 import { flattenBlocks } from '../src/shared/blocks.js';
 import { copyAssetToBlobStore } from './assets.js';
 import { DialogPathStore } from './dialogPaths.js';
-import { lookupServiceBuilderChurchWeek } from './serviceBuilder.js';
 import { startWorkspaceWatcher } from './workspaceWatcher.js';
 import { createAppUpdateService, type AppUpdateService } from './updater.js';
 
@@ -97,7 +96,6 @@ function registerIpc() {
     url.searchParams.set('search', reference); url.searchParams.set('version', translation.toUpperCase());
     await shell.openExternal(url.toString());
   });
-  ipcMain.handle('church-week:lookup', (_event, date: string) => lookupServiceBuilderChurchWeek(date));
   ipcMain.handle('print:job', () => printJob);
   ipcMain.on('print:ready', () => printReady?.());
   ipcMain.handle('pdf:export', async (_event, root: string, relative: string, document: BulletinDocumentV1) => { await requireWritable(root); return exportPdf(root, relative, document); });

@@ -44,7 +44,7 @@ export function CreateFromDialog({ destination, templates, bulletins, initialTem
           <button role="tab" aria-selected={sourceKind === 'template'} className={sourceKind === 'template' ? 'active' : ''} onClick={() => switchKind('template')}>Templates <span>{templates.length}</span></button>
           <button role="tab" aria-selected={sourceKind === 'bulletin'} className={sourceKind === 'bulletin' ? 'active' : ''} onClick={() => switchKind('bulletin')}>Bulletins <span>{bulletins.length}</span></button>
         </div>
-        {sourceKind === 'bulletin' && <label>Search bulletins<input type="search" value={query} placeholder="Date, title, series, or church week" onChange={event => setQuery(event.target.value)} /></label>}
+        {sourceKind === 'bulletin' && <label>Search bulletins<input type="search" value={query} placeholder="Date, title, series, or church event" onChange={event => setQuery(event.target.value)} /></label>}
       </div>
       <div className="create-source-list">
         {sourceKind === 'template' && templates.map(record => <button className={selectedKey === record.path ? 'selected' : ''} key={record.path} onClick={() => setSelectedKey(record.path)}><span>◇</span><div><b>{record.template.name}</b><small>Version {record.template.version}{record.template.status === 'draft' ? ' · Draft' : ' · Published'}</small></div><strong>{selectedKey === record.path ? 'Selected' : 'Select'}</strong></button>)}

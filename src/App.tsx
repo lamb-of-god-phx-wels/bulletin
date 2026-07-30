@@ -52,6 +52,7 @@ import { validateBulletin } from "./shared/validation";
 import { templateForBulletin } from "./shared/documentLayout";
 import { randomId } from "./shared/id";
 import { prepackagedComponentDiagnostics } from "./componentDefinitions";
+import { churchEventsForDate } from "./shared/churchCalendar";
 import {
   duplicateBulletin,
   filterBulletins,
@@ -511,6 +512,18 @@ function DesktopApp() {
     setScreen("weekly");
   }
   function openNewBulletin(next: BulletinDocumentV1) {
+    const firstEvent = churchEventsForDate(
+      next.info.date,
+      workspace?.library?.calendarEvents ?? [],
+    )[0];
+    next = {
+      ...next,
+      info: {
+        ...next.info,
+        churchWeek: firstEvent?.name ?? "",
+        churchEventId: firstEvent?.id,
+      },
+    };
     const base = `bulletins/${next.info.date}/bulletin.json`;
     const path = workspace?.bulletins.some((item) => item.path === base)
       ? `bulletins/${next.info.date}/bulletin-${Date.now()}.json`
@@ -989,7 +1002,7 @@ function DesktopApp() {
       action: () => setScreen("library"),
     },
     {
-      label: "Church Year",
+      label: "Church Calendar",
       icon: "◉",
       active: screen === "church-year",
       action: () => setScreen("church-year"),
@@ -1188,7 +1201,7 @@ function DesktopApp() {
                   : screen === "page-templates"
                     ? "Page Templates"
                   : screen === "church-year"
-                    ? "Church Year"
+                    ? "Church Calendar"
                     : screen === "archive"
                       ? "Trash"
                       : workspace.library?.name}
@@ -1319,9 +1332,7 @@ function DesktopApp() {
                 root={workspace.root}
                 relativePath={relativePath}
                 onChange={changeDocument}
-                onAuxiliaryDirtyChange={(value) =>
-                  updateEditingState({ auxiliaryDirty: value })
-                }
+                onOpenChurchCalendar={() => setScreen("church-year")}
                 onLibraryChange={async (library) => {
                   if (!window.bulletin) return;
                   try {
@@ -1611,7 +1622,7 @@ function DesktopApp() {
                   workspace.library,
                 );
                 setWorkspace({ ...workspace, library });
-                reportStatus("Church Year overrides saved");
+                reportStatus("Church Calendar saved");
               } catch (error) {
                 const message =
                   error instanceof Error ? error.message : String(error);
@@ -1759,7 +1770,6 @@ function DesktopApp() {
                 source.kind === "template"
                   ? createBulletin(source.record.template, value)
                   : duplicateBulletin(source.record.document, value);
-              next.info.churchWeek = "";
               openNewBulletin(next);
             } else {
               await createNewTemplate(source, value);
@@ -1977,7 +1987,7 @@ function BulletinPicker({
               autoFocus
               type="search"
               value={query}
-              placeholder="Title, series, date, or church week"
+              placeholder="Title, series, date, or church event"
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
@@ -2020,7 +2030,7 @@ function BulletinPicker({
             <div className="bulletin-picker-empty">
               <span>⌕</span>
               <b>No matching bulletins</b>
-              <p>Try a title, date, series, or church-week name.</p>
+              <p>Try a title, date, series, or church event.</p>
             </div>
           )}
         </div>
@@ -2505,8 +2515,8 @@ function ArchiveView({
           <span>⌫</span>
           <h2>Trash is empty</h2>
           <p>
-            Deleted bulletins, templates, reusable pages, songs, overrides,
-            and components will appear here.
+            Deleted bulletins, templates, reusable pages, songs, calendar
+            events, and components will appear here.
           </p>
         </div>
       ) : (

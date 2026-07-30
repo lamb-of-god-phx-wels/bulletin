@@ -21,6 +21,7 @@ describe('public JSON contracts', () => {
     expect(ajv.compile(pageTemplateSchema)(defaultPageTemplate)).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], churchWeekNames: [{ sourceName: 'Epiphany 2', displayName: 'Second Sunday after Epiphany' }] })).toBe(true);
+    expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], calendarEvents: [{ id: 'easter', name: 'Easter', enabled: true, priority: 100, rules: [{ kind: 'easter' }] }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], componentDefinitions: [prepackagedComponentDefinitions[0]] })).toBe(true);
   });
 });

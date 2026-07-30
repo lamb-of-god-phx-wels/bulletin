@@ -115,25 +115,44 @@ describe('shared workspace', () => {
     const secondView = await openWorkspace(root);
     const song = { id: 'shared-song', version: 1, kind: 'song' as const, title: 'Shared Song' };
     await saveLibrary(root, { ...firstView.library!, items: [song] }, firstView.library);
-    await saveLibrary(root, {
-      ...secondView.library!,
-      churchWeekNames: [{ sourceName: 'Proper 12', displayName: 'Ninth Sunday after Pentecost' }]
-    }, secondView.library);
+    const localEvent = { id: 'church-anniversary', name: 'Church Anniversary', enabled: true, priority: 80, rules: [{ kind: 'annualDate' as const, month: 8, day: 15 }] };
+    await saveLibrary(root, { ...secondView.library!, calendarEvents: [...secondView.library!.calendarEvents!, localEvent] }, secondView.library);
     const merged = await openWorkspace(root);
     expect(merged.library?.items).toContainEqual(song);
-    expect(merged.library?.churchWeekNames).toEqual([{ sourceName: 'Proper 12', displayName: 'Ninth Sunday after Pentecost' }]);
+    expect(merged.library?.calendarEvents).toContainEqual(localEvent);
     expect((await readdir(join(root, 'library', 'items'))).length).toBe(1);
   });
 
-  it('rejects stale edits to the same church-week override', async () => {
+  it('rejects stale edits to the same calendar event', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
     const initial = await openWorkspace(root);
-    const withOverride = { ...initial.library!, churchWeekNames: [{ sourceName: 'Proper 12', displayName: 'Pentecost 9' }] };
-    await saveLibrary(root, withOverride, initial.library);
     const left = await openWorkspace(root);
     const right = await openWorkspace(root);
-    await saveLibrary(root, { ...left.library!, churchWeekNames: [{ sourceName: 'Proper 12', displayName: 'Ninth Sunday after Pentecost' }] }, left.library);
-    await expect(saveLibrary(root, { ...right.library!, churchWeekNames: [{ sourceName: 'Proper 12', displayName: 'Summer Sunday' }] }, right.library)).rejects.toThrow(/Conflict/);
+    const rename = (library: NonNullable<typeof initial.library>, name: string) => ({
+      ...library,
+      calendarEvents: library.calendarEvents!.map(event => event.id === 'proper-12' ? { ...event, name } : event)
+    });
+    await saveLibrary(root, rename(left.library!, 'Ninth Sunday after Pentecost'), left.library);
+    await expect(saveLibrary(root, rename(right.library!, 'Summer Sunday'), right.library)).rejects.toThrow(/Conflict/);
+  });
+
+  it('seeds WELS events once and migrates old display names into synchronized calendar records', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bulletin-workspace-')); roots.push(root);
+    await writeFile(join(root, 'library.json'), JSON.stringify({
+      schemaVersion: 1,
+      name: 'Legacy church',
+      items: [],
+      churchWeekNames: [{ sourceName: 'Proper 12', displayName: 'Ninth Sunday after Pentecost' }]
+    }));
+
+    const workspace = await openWorkspace(root);
+
+    expect(workspace.library?.calendarEvents?.find(event => event.id === 'proper-12')?.name).toBe('Ninth Sunday after Pentecost');
+    expect(workspace.library?.churchWeekNames).toBeUndefined();
+    expect(workspace.sync?.archivedRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'church-week', label: 'Proper 12 → Ninth Sunday after Pentecost' })
+    ]));
+    expect((await readdir(join(root, 'library', 'calendar-events'))).length).toBeGreaterThan(40);
   });
 
   it('detects synchronized conflict copies and can retain one copy', async () => {

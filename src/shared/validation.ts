@@ -3,6 +3,7 @@ import { customBlockIssues } from './customBlocks.js';
 import { validateCanvasScene } from './canvas.js';
 import { pageTemplateIssues, pageTemplateMargin } from './pageTemplates.js';
 import { estimateBlockPoints } from './pagination.js';
+import { songLibraryItem, songPresentations } from './songs.js';
 
 export function validateBulletin(value: unknown, library?: LibraryManifestV1, template?: TemplateV1): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -28,7 +29,15 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
       const title = block.type === 'libraryText' ? block.title : block.title ?? block.label;
       issues.push({ path: `/blocks/${index}/libraryItemId`, message: `The ${block.weeklyEditable ? '' : 'template-managed '}block “${title ?? block.libraryItemId}” references missing library item “${block.libraryItemId}”${block.libraryItemVersion ? ` version ${block.libraryItemVersion}` : ''}. Choose a replacement or remove the block from this bulletin.` });
     }
-    if (block.type === 'song' && block.renderMode === 'asset' && !block.asset && library && !library.items.some(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion) && item.assets?.length)) issues.push({ path: `/blocks/${index}/asset`, message: 'Choose a music image or PDF.' });
+    if (block.type === 'song' && library) {
+      const presentations = songPresentations(block, songLibraryItem(block, library));
+      if (!presentations.includes(block.renderMode)) issues.push({
+        path: `/blocks/${index}/renderMode`,
+        message: block.renderMode === 'lyrics'
+          ? 'The selected song does not include lyrics.'
+          : 'The selected song does not include a music image or PDF.'
+      });
+    }
     if (block.type === 'fullPageAsset' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an asset.' });
     if (block.type === 'image' && !block.asset?.path) issues.push({ path: `/blocks/${index}/asset/path`, message: 'Choose an image.' });
     if (block.type === 'image' && block.asset?.mediaType === 'application/pdf') issues.push({ path: `/blocks/${index}/asset/mediaType`, message: 'Image blocks require PNG, JPEG, or SVG assets.' });

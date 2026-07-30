@@ -3,8 +3,8 @@
   "kind": "component",
   "type": "bulletin:song",
   "version": 1,
-  "name": "Song or hymn",
-  "description": "A song heading with selected lyrics or a music asset.",
+  "name": "Song",
+  "description": "A library-backed song with an editable header and available lyrics or music image.",
   "inputSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -92,15 +92,14 @@
   "editor": {
     "icon": "♫",
     "fields": [
-      { "input": "label", "label": "Heading", "control": "text", "optional": true },
-      { "input": "title", "label": "Title", "control": "text" },
-      { "input": "contentMode", "label": "Content", "control": "select" },
-      { "input": "verses", "label": "Verses", "control": "collection", "optional": true },
-      { "input": "asset", "label": "Music image or PDF", "control": "asset", "optional": true }
+      { "input": "label", "label": "Header", "control": "text", "optional": true },
+      { "input": "title", "label": "Display title", "control": "text" },
+      { "input": "contentMode", "label": "Presentation", "control": "select" },
+      { "input": "verses", "label": "Verses", "control": "collection", "optional": true }
     ]
   },
   "sampleInputs": {
-    "label": "Hymn",
+    "label": "Song",
     "title": "New song",
     "contentMode": "lyrics",
     "verses": [

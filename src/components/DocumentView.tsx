@@ -1,10 +1,11 @@
 import { cloneElement, useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { AssetRef, BulletinDocumentV1, CustomBlock, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
+import type { AssetRef, BulletinDocumentV1, CustomBlock, CustomBlockStyle, LibraryManifestV1, Paragraph, TemplateV1 } from '../shared/types';
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
 import { childBlocks, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
 import { responsiveEntryRole } from '../shared/responsiveReading';
+import { songHeader, songTitle } from '../shared/songs';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
 import { boundRichTextParagraphs, canvasAssetRefs, canvasNativeBlocks } from '../shared/canvas';
 import { bookletPrinterSpreads, bookletReadingSpreads } from '../shared/booklet';
@@ -43,6 +44,22 @@ function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefin
     borderTop: block.type === 'copyright' ? border : undefined,
     borderRadius: block.type === 'copyright' ? undefined : `${style.borderRadiusPt}pt`
   };
+}
+
+function songPartStyle(
+  presentation: Partial<CustomBlockStyle> | undefined,
+  inline = false,
+): React.CSSProperties | undefined {
+  if (!presentation) return undefined;
+  const style = presentationStyle({
+    id: 'song-part',
+    type: 'richText',
+    content: [],
+    presentation,
+  });
+  if (!style || !inline) return style;
+  const { width: _width, marginLeft: _marginLeft, marginRight: _marginRight, ...inlineStyle } = style;
+  return inlineStyle;
 }
 
 function FlowAsset({ asset, source }: { asset: AssetRef; source?: string }) {
@@ -127,7 +144,24 @@ function BlockView({ block, library, assets, document, marginIn }: { block: Pagi
         <div className="translation">{block.translation}</div>
       </section>;
     }
-    case 'song': { const asset = block.asset ?? item?.assets?.[0]; const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section className="song">{block.showHeading !== false && <h3>{block.label ?? block.songType}: <span>{block.title ?? item?.title ?? block.libraryItemId}</span></h3>}{block.renderMode === 'asset' && asset ? <div className="song-asset" style={block.assetHeightIn ? { '--song-asset-height': `${block.assetHeightIn}in` } as React.CSSProperties : undefined}><FlowAsset asset={asset} source={assets[asset.path]} /></div> : content ? <Paragraphs content={content} /> : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}</section>; }
+    case 'song': {
+      const asset = block.asset ?? item?.assets?.[0];
+      const content = block.pageContent ?? block.contentOverride ?? item?.content;
+      const bodyStyle = songPartStyle(block.elements?.body?.presentation);
+      return <section className="song">
+        {block.showHeading !== false && <h3>
+          <span className="song-header" style={songPartStyle(block.elements?.header?.presentation, true)}>{songHeader(block)}:</span>{' '}
+          <span className="song-title" style={songPartStyle(block.elements?.title?.presentation, true)}>{songTitle(block, item)}</span>
+        </h3>}
+        <div className="song-body" style={bodyStyle}>
+          {block.renderMode === 'asset' && asset
+            ? <div className="song-asset" style={block.assetHeightIn ? { '--song-asset-height': `${block.assetHeightIn}in` } as React.CSSProperties : undefined}><FlowAsset asset={asset} source={assets[asset.path]} /></div>
+            : content
+              ? <Paragraphs content={content} />
+              : <p className="missing">Choose or add “{block.libraryItemId || 'song'}” in the shared library.</p>}
+        </div>
+      </section>;
+    }
     case 'libraryText': { const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section><h3 className="block-heading">{block.label ?? block.title ?? item?.title}</h3>{content ? <Paragraphs content={content} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>; }
     case 'announcements': return <section className="announcements"><h2>Announcements</h2>{block.items.map(item => <article className={item.asset ? `announcement-with-asset asset-${item.assetSide ?? 'right'}` : undefined} key={item.id}>{item.asset && <FlowAsset asset={item.asset} source={assets[item.asset.path]} />}<div><h3>{item.title}</h3><Paragraphs content={item.content} /></div></article>)}</section>;
     case 'copyright': {

@@ -209,17 +209,13 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
         }) : []
       };
     case 'bulletin:song': {
-      const verses = Array.isArray(sample.verses) ? sample.verses : [];
       return {
         ...base,
         type: 'song',
-        songType: 'hymn',
+        songType: 'song',
         libraryItemId: '',
         selection: { mode: 'all' },
-        renderMode: sample.contentMode === 'asset' ? 'asset' : 'lyrics',
-        label: typeof sample.label === 'string' ? sample.label : 'Hymn',
-        title: typeof sample.title === 'string' ? sample.title : definition.name,
-        contentOverride: verses.flatMap(verse => paragraphs((verse as Record<string, JsonValue>).body))
+        renderMode: sample.contentMode === 'asset' ? 'asset' : 'lyrics'
       };
     }
     case 'bulletin:announcements':

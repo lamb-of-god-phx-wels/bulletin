@@ -30,6 +30,7 @@ import { ElementPalette, type ElementPaletteItem } from './ElementPalette.js';
 import { canvasElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog.js';
 import { instantiateComponentDefinition } from '../componentDefinitions.js';
 import { NativeBlockFields } from './NativeBlockFields.js';
+import { songHeader } from '../shared/songs.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
 import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } from './DocumentView.js';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
@@ -349,6 +350,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   };
   const space = canvasSpace(scene, 0, canvasWidth, block.heightIn);
 
+  const elementName = (element: CanvasElement) =>
+    element.type === 'block' && element.block.type === 'song'
+      ? songHeader(element.block)
+      : element.name ?? element.id;
   const paletteItems = canvasElementPaletteItems(definitions);
   return <DndContext sensors={paletteSensors} onDragStart={event => setPaletteOverlay((event.active.data.current?.paletteItem as ElementPaletteItem | undefined)?.label ?? '')} onDragCancel={() => setPaletteOverlay('')} onDragEnd={endPaletteDrag}>
   <div className="canvas-designer" role="dialog" aria-modal="true" aria-labelledby="canvas-designer-title">
@@ -368,7 +373,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <ElementPalette items={paletteItems} storageKey="bulletin-elements-canvas" onUse={item => void placePaletteItem(item)} />
       <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>
       <ol>{[...scene.elements].reverse().map(element => <li className={selected.has(element.id) ? 'selected' : ''} key={element.id}>
-        <button onClick={event => select(element.id, event.shiftKey)}><span>{element.type === 'block' ? element.block.type === 'image' ? '▧' : '◇' : element.type === 'shape' ? element.shape === 'line' ? '╱' : '□' : element.type === 'text' ? 'T' : element.type === 'image' ? '▧' : element.type === 'line' ? '╱' : '□'}</span><b>{element.name ?? element.id}</b>{element.locked && <small>🔒</small>}</button>
+        <button onClick={event => select(element.id, event.shiftKey)}><span>{element.type === 'block' ? element.block.type === 'image' ? '▧' : '◇' : element.type === 'shape' ? element.shape === 'line' ? '╱' : '□' : element.type === 'text' ? 'T' : element.type === 'image' ? '▧' : element.type === 'line' ? '╱' : '□'}</span><b>{elementName(element)}</b>{element.locked && <small>🔒</small>}</button>
         <div><button title="Move forward" onClick={() => { const index = scene.elements.indexOf(element); if (index < scene.elements.length - 1) { const next = [...scene.elements]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; publish({ ...scene, elements: next }); } }}>↑</button><button title="Move backward" onClick={() => { const index = scene.elements.indexOf(element); if (index > 0) { const next = [...scene.elements]; [next[index], next[index - 1]] = [next[index - 1], next[index]]; publish({ ...scene, elements: next }); } }}>↓</button></div>
       </li>)}</ol>
     </aside>
@@ -398,13 +403,14 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <div className="builder-actions"><button className="secondary" onClick={async () => { const asset = await onChooseAsset?.(); if (asset) publish({ ...scene, background: { ...scene.background, asset, fit: 'cover' } }); }}>{scene.background?.asset ? 'Replace background' : 'Add image / PDF background'}</button>{scene.background?.asset && <button className="danger-text" onClick={() => { const background = { ...scene.background }; delete background.asset; publish({ ...scene, background }); }}>Remove</button>}</div>
       {scene.background?.asset && <label>Background fit<select value={scene.background.fit ?? 'cover'} onChange={event => publish({ ...scene, background: { ...scene.background, fit: event.target.value as 'contain' | 'cover' | 'fill' } })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label>}
       {primary ? <>
-        <h3>{primary.name ?? primary.id}</h3>
-        <label>Name<input value={primary.name ?? ''} disabled={!editable(primary)} onChange={event => updatePrimary({ name: event.target.value })} /></label>
+        <h3>{elementName(primary)}</h3>
+        {!(primary.type === 'block' && primary.block.type === 'song') &&
+          <label>Name<input value={primary.name ?? ''} disabled={!editable(primary)} onChange={event => updatePrimary({ name: event.target.value })} /></label>}
         <div className="canvas-geometry-grid">{(['x', 'y', 'width', 'height'] as const).map(key => <label key={key}>{key}<input type="number" step=".0625" value={primary[key]} disabled={!editable(primary)} onChange={event => setNumber(key, event.currentTarget.valueAsNumber)} /></label>)}</div>
         <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
-          {nativePrimary && <NativeBlockFields block={nativePrimary} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
+          {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} scope={scope} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
             <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
             <button className="secondary canvas-format-button" onClick={() => setFormattingElementId(primary.id)}>Format block…</button>

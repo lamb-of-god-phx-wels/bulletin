@@ -158,6 +158,7 @@ export interface SongBlock extends BlockBase {
   assetHeightIn?: number;
   showHeading?: boolean;
   contentOverride?: Paragraph[];
+  elements?: Partial<Record<'header' | 'title' | 'body', { presentation?: Partial<CustomBlockStyle> }>>;
 }
 export interface LibraryTextBlock extends BlockBase { type: 'libraryText'; libraryItemId: string; libraryItemVersion?: number; title?: string; contentOverride?: Paragraph[] }
 export interface AnnouncementsBlock extends BlockBase {

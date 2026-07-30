@@ -31,9 +31,19 @@ describe('component definitions', () => {
 
   it('describes songs as composed layout rather than a block prototype', () => {
     const song = prepackagedComponentDefinitions.find(definition => definition.type === 'bulletin:song')!;
+    expect(song.name).toBe('Song');
     expect(song).not.toHaveProperty('block');
+    expect(song.editor?.fields.map(field => field.input)).not.toContain('asset');
     expect(JSON.stringify(song.template)).toContain('bulletin:songVerse');
     expect(JSON.stringify(song.template)).toContain('core:image');
+    expect(instantiateComponentDefinition(song)).toMatchObject({
+      type: 'song',
+      songType: 'song',
+      libraryItemId: '',
+      renderMode: 'lyrics'
+    });
+    expect(instantiateComponentDefinition(song)).not.toHaveProperty('title');
+    expect(instantiateComponentDefinition(song)).not.toHaveProperty('contentOverride');
   });
 
   it('instantiates independent editable blocks from component defaults', () => {

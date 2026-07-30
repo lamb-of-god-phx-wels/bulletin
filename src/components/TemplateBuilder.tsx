@@ -24,8 +24,10 @@ import {
 import { PageTemplateEditor } from "./PageTemplateEditor";
 import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
+import { SongBlockFields } from "./SongBlockFields";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
+import { songHeader } from "../shared/songs";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -103,6 +105,8 @@ export function TemplateBuilder({
         ? block.name
         : block.type === "canvas"
           ? "Canvas"
+          : block.type === "song"
+            ? songHeader(block)
           : block.type === "paragraph"
             ? contentText(
                 (childBlocks(block)?.find(
@@ -195,6 +199,14 @@ export function TemplateBuilder({
           />
         </label>
       </div>
+    ) : block.type === "song" ? (
+      <SongBlockFields
+        block={block}
+        library={library}
+        template={template}
+        scope="template"
+        onChange={next => updateBlock(block.id, next)}
+      />
     ) : block.type === "image" ? (
       <div className="outline-options"><label className="outline-option">Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => updateBlock(block.id, { heightIn: event.currentTarget.valueAsNumber })} /></label><label className="outline-option">Fit<select value={block.fit ?? "contain"} onChange={event => updateBlock(block.id, { fit: event.target.value as "contain" | "cover" | "fill" })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></div>
     ) : null;

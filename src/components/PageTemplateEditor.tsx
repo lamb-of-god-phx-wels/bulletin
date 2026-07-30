@@ -4,21 +4,26 @@ import { instantiateComponentDefinition } from '../componentDefinitions';
 import { createBulletin } from '../shared/defaults';
 import { estimateBlockPoints } from '../shared/pagination';
 import { pageTemplateIssues, pageTemplateLayout } from '../shared/pageTemplates';
-import { paragraphsFromPlainText } from '../shared/plainText';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { BlockFormattingModal } from './BlockFormattingModal';
 import { BlockLibraryModal } from './BlockLibraryModal';
 import { CanvasDesigner } from './CanvasDesigner';
 import { DocumentView } from './DocumentView';
 import { SortableHandle, SortableItem, SortableList } from './SortableList';
-import { childBlocks, updateBlockTree } from '../shared/blocks';
+import { updateBlockTree } from '../shared/blocks';
 import { ElementPalette, type ElementPaletteItem } from './ElementPalette';
 import { flowElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog';
 import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
+import { songHeader } from '../shared/songs';
 
-const plain = (block: Extract<BulletinBlock, { type: 'richText' }>) => block.content.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n');
-const title = (block: BulletinBlock) => block.type === 'custom' ? block.name : block.type === 'canvas' ? 'Canvas' : block.label ?? ('text' in block ? block.text : block.type);
+const title = (block: BulletinBlock) => block.type === 'custom'
+  ? block.name
+  : block.type === 'canvas'
+    ? 'Canvas'
+    : block.type === 'song'
+      ? songHeader(block)
+      : block.label ?? ('text' in block ? block.text : block.type);
 
 export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onChange, onSave, onClose }: {
   value: PageTemplateV1;
@@ -43,18 +48,6 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const issues = [...pageTemplateIssues(value), ...(used > capacity ? [`Page content exceeds the available height by ${((used - capacity) / 72).toFixed(2)} inches.`] : [])];
   const change = (changes: Partial<PageTemplateV1>) => onChange({ ...value, ...changes, status: 'draft', updatedAt: new Date().toISOString() });
   const updateBlock = (next: BulletinBlock) => change({ blocks: updateBlockTree(value.blocks, next.id, next) });
-  const nativeFields = (block: BulletinBlock): React.ReactNode => <div className="page-native-fields">
-    {(block.type === 'heading' || block.type === 'sectionHeading' || block.type === 'sermonTitle') && <input value={block.text} onChange={event => updateBlock({ ...block, text: event.target.value })} />}
-    {block.type === 'richText' && <><label>Binding<select value={block.binding ?? ''} onChange={event => updateBlock({ ...block, binding: event.target.value as typeof block.binding || undefined, bindingOverride: undefined })}><option value="">Literal text</option><option value="info.title">Sermon title</option><option value="info.date">Service date</option><option value="info.churchEvent">Church event</option>{block.binding === 'info.churchWeek' && <option value="info.churchWeek">Church event (legacy)</option>}<option value="info.series">Series</option><option value="church.name">Church name</option></select></label><textarea rows={3} value={block.binding ? (block.bindingOverride ? plain({ ...block, content: block.bindingOverride }) : '') : plain(block)} placeholder={block.binding ? 'Uses the host bulletin value' : ''} onChange={event => updateBlock(block.binding ? { ...block, bindingOverride: paragraphsFromPlainText(event.target.value) } : { ...block, content: paragraphsFromPlainText(event.target.value) })} />{block.bindingOverride && <button className="text-button" onClick={() => { const { bindingOverride: _override, ...next } = block; updateBlock(next); }}>Reset to bound value</button>}{block.binding === 'info.date' && <label>Date format<select value={block.dateFormat ?? 'long'} onChange={event => updateBlock({ ...block, dateFormat: event.target.value as typeof block.dateFormat })}><option value="long">July 27, 2026</option><option value="medium">Jul 27, 2026</option><option value="short">7/27/26</option><option value="iso">2026-07-27</option></select></label>}</>}
-    {block.type === 'custom' && <><label>Block name<input value={block.name} onChange={event => updateBlock({ ...block, name: event.target.value })} /></label><label>Content layout<textarea rows={3} value={block.layoutText} onChange={event => updateBlock({ ...block, layoutText: event.target.value })} /></label></>}
-    {block.type === 'scriptureReading' && <><label>Reference<input value={block.reference} onChange={event => updateBlock({ ...block, reference: event.target.value })} /></label><label>Caption<input value={block.caption ?? ''} onChange={event => updateBlock({ ...block, caption: event.target.value || undefined })} /></label></>}
-    {block.type === 'song' && <><label>Display title<input value={block.title ?? ''} onChange={event => updateBlock({ ...block, title: event.target.value })} /></label><label>Library item ID<input value={block.libraryItemId} onChange={event => updateBlock({ ...block, libraryItemId: event.target.value })} /></label></>}
-    {block.type === 'libraryText' && <label>Library item ID<input value={block.libraryItemId} onChange={event => updateBlock({ ...block, libraryItemId: event.target.value })} /></label>}
-    {block.type === 'spacer' && <label>Size<select value={block.size} onChange={event => updateBlock({ ...block, size: event.target.value as typeof block.size })}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>}
-    {block.type === 'image' && <div className="field-row"><label>Height (in)<input type="number" min=".25" max="8.5" step=".0625" value={block.heightIn ?? 2.5} onChange={event => updateBlock({ ...block, heightIn: event.currentTarget.valueAsNumber })} /></label><label>Fit<select value={block.fit ?? 'contain'} onChange={event => updateBlock({ ...block, fit: event.target.value as typeof block.fit })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label></div>}
-    {block.type === 'announcements' && block.items.map((item, index) => <div className="page-native-child" key={item.id}><input value={item.title} onChange={event => updateBlock({ ...block, items: block.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, title: event.target.value } : entry) })} /><textarea rows={3} value={item.content.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : '').join('')).join('\n\n')} onChange={event => updateBlock({ ...block, items: block.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, content: paragraphsFromPlainText(event.target.value) } : entry) })} /></div>)}
-    {childBlocks(block)?.map(child => <div className="page-native-child" key={child.id}><small>{title(child)}</small>{nativeFields(child)}</div>)}
-  </div>;
   const save = async (publish: boolean) => {
     if (publish && issues.length) { setStatus(issues[0]); return; }
     setStatus(publish ? 'Publishing…' : 'Saving…');
@@ -94,7 +87,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
         /> : undefined}
       ><ol className="outline">{value.blocks.map(block => <SortableItem id={block.id} key={block.id}><li>
         <div className="outline-main"><b>{title(block)}</b><small>{block.type}</small>
-          {block.type !== 'canvas' && <NativeBlockFields block={block} onChange={updateBlock} />}
+          {block.type !== 'canvas' && <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" onChange={updateBlock} />}
           {block.type === 'canvas' && <small>7 × 8.5 in · full page</small>}
         </div><div className="reorder">{block.type === 'canvas' ? <button className="format-block-button" onClick={() => setCanvasId(block.id)}>Design</button> : <button className="format-block-button" onClick={() => setFormatId(block.id)}>Format</button>}{layout === 'regular' && <button className="danger-text" onClick={() => change({ blocks: value.blocks.filter(item => item.id !== block.id) })}>×</button>}{layout === 'regular' && <SortableHandle label={`Drag ${title(block)} to reorder`} />}</div>
       </li></SortableItem>)}</ol></SortableList>

@@ -1,7 +1,8 @@
-import type { BulletinBlock, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
+import type { BulletinBlock, CustomBlockStyle, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
 import { childBlocks } from './blocks.js';
 import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureReading.js';
 import { pageTemplateMargin } from './pageTemplates.js';
+import { songHeader } from './songs.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[]; marginIn?: number }
@@ -45,16 +46,17 @@ function basePoints(block: PaginatedBlock, template: TemplateV1): number {
 
 export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1, library?: LibraryManifestV1): number {
   const presentation = block.type === 'custom' ? { ...block.style, ...block.presentation } : block.presentation;
-  const formatted = (points: number) => {
-    if (!presentation) return points;
-    const widthFactor = Math.min(4, 100 / Math.max(10, presentation.widthPercent ?? 100));
-    const padding = presentation.paddingIn ?? { top: 0, bottom: 0 };
-    const margin = presentation.marginIn ?? { top: 0, bottom: 0 };
-    const borderPoints = (presentation.borderWidthPt ?? 0) * (block.type === 'copyright' ? 1 : 2);
+  const formatPoints = (points: number, style: Partial<CustomBlockStyle> | undefined, singleBorder = false) => {
+    if (!style) return points;
+    const widthFactor = Math.min(4, 100 / Math.max(10, style.widthPercent ?? 100));
+    const padding = style.paddingIn ?? { top: 0, bottom: 0 };
+    const margin = style.marginIn ?? { top: 0, bottom: 0 };
+    const borderPoints = (style.borderWidthPt ?? 0) * (singleBorder ? 1 : 2);
     const verticalBox = ((padding.top ?? 0) + (padding.bottom ?? 0) + (margin.top ?? 0) + (margin.bottom ?? 0)) * 72 + borderPoints;
-    const fontFactor = (presentation.fontSizePt ?? template.theme.bodySizePt) / template.theme.bodySizePt * ((presentation.lineHeight ?? template.theme.lineHeight) / template.theme.lineHeight);
+    const fontFactor = (style.fontSizePt ?? template.theme.bodySizePt) / template.theme.bodySizePt * ((style.lineHeight ?? template.theme.lineHeight) / template.theme.lineHeight);
     return points * widthFactor * fontFactor + verticalBox;
   };
+  const formatted = (points: number) => formatPoints(points, presentation, block.type === 'copyright');
   if (block.type === 'group') return formatted(block.children.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
   if (block.type === 'canvas') return formatted(block.heightIn * 72);
   if (block.type === 'image') return formatted((block.heightIn ?? 2.5) * 72);
@@ -69,9 +71,17 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
     return formatted(elements.reduce((total, element) => total + estimateBlockPoints(element, template, library), 0) + 10);
   }
   if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template) + (item.asset ? 54 : 0), 0));
-  if (block.type === 'song' && block.renderMode === 'asset') return formatted((block.showHeading === false ? 0 : 30) + (block.assetHeightIn ?? 5.6) * 72);
   const content = contentFor(block, library);
-  const fallback = (block.type === 'song' || block.type === 'libraryText') && !content ? 48 : 0;
+  if (block.type === 'song') {
+    const heading = block.showHeading === false
+      ? 0
+      : formatPoints(15, block.elements?.header?.presentation) + formatPoints(15, block.elements?.title?.presentation);
+    const body = block.renderMode === 'asset'
+      ? (block.assetHeightIn ?? 5.6) * 72
+      : contentPoints(content, template) + (!content ? 48 : 0);
+    return formatted(heading + formatPoints(body, block.elements?.body?.presentation));
+  }
+  const fallback = block.type === 'libraryText' && !content ? 48 : 0;
   const points = basePoints(block, template) + contentPoints(content, template) + fallback;
   const density = block.layout?.density === 'compact' ? .84 : 1;
   return formatted(points * density);
@@ -122,7 +132,7 @@ function contentFragment(block: PaginatedBlock, content: Paragraph[], index: num
   const common = { id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } };
   if (block.type === 'richText') return { ...block, ...common, content };
   if (block.type === 'scriptureReading') return { ...block, ...common, label: index ? `${block.label ?? 'Reading'} (continued)` : block.label, caption: index ? undefined : block.caption, resolved: { ...block.resolved!, content } };
-  if (block.type === 'song') return { ...block, ...common, label: index ? `${block.label ?? block.songType} (continued)` : block.label, pageContent: content };
+  if (block.type === 'song') return { ...block, ...common, label: index ? `${songHeader(block)} (continued)` : block.label, pageContent: content };
   if (block.type === 'libraryText') return { ...block, ...common, title: index ? `${block.title ?? 'Reusable text'} (continued)` : block.title, pageContent: content };
   return block;
 }

@@ -205,6 +205,12 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .response-editor-follower { border-left: 3px solid #a55b3d; }
 .response-add-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .content-reset { margin: 7px 10px 10px; }
+.song-block-fields { display: grid; min-width: 0; gap: 11px; margin-top: 8px; }
+.song-block-fields .field-row { margin-bottom: 0; }
+.song-block-fields > details { min-width: 0; }
+.song-block-fields > details textarea { min-height: 150px; }
+.song-format-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.song-format-actions .secondary { min-height: 34px; padding: 5px 10px; font-size: 11px; }
 .nested-blocks { display: grid; gap: 9px; margin-top: 10px; padding: 12px; border: 1px solid #e1ddd3; border-radius: 8px; background: #f7f5f0; }
 .nested-blocks-heading { display: flex; flex-direction: column; gap: 2px; }.nested-blocks-heading span { color: #7b7f79; font-size: 10px; }
 .nested-block-editor { padding: 11px; border: 1px solid #e0dcd2; border-radius: 7px; background: white; }.nested-block-editor > header { margin-bottom: 9px; }.nested-block-editor > header > div:first-child { display: flex; flex-direction: column; gap: 2px; }.nested-block-editor > label { margin-bottom: 8px; }
@@ -401,7 +407,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .page-content > .sermon-title:first-child,
 .page-content > section:first-child > .block-heading:first-child,
 .page-content > .song:first-child > h3:first-child { margin-top: 0 !important; }
-.block-heading span, .song h3 span { font-weight: 400; text-transform: none; }
+.block-heading span, .song h3 .song-title { font-weight: 400; text-transform: none; }
+.song h3 .song-header, .song h3 .song-title { display: inline-block; }
 .response-row { display: grid; grid-template-columns: .25in 1fr; gap: .04in; }
 .response-row p { margin-bottom: .08in; }
 .response-row .response-reader { font-weight: inherit; }
@@ -418,7 +425,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .scripture .scripture-body p:last-child { margin-bottom: 0; }
 .scripture .translation { color: #777; font-size: 7pt; text-align: right; }
 .song img, .song .flow-pdf { display: block; width: 100%; max-width: 100%; height: var(--song-asset-height, 5.6in); max-height: 5.8in; margin: .12in auto; border: 0; object-fit: contain; }
-.song > p { margin-bottom: .08in; white-space: pre-line; }
+.song-body > p { margin-bottom: .08in; white-space: pre-line; }
 .missing { padding: .1in; border-left: 3px solid #c78755; color: #99643e; background: #fbf4e9; font-style: italic; }
 .announcements > h2 { margin: 0 0 .25in; font: 15pt var(--display-font); text-align: center; text-transform: uppercase; }
 .announcements article h3 { margin: .14in 0 .04in; font-size: 9pt; text-transform: uppercase; }

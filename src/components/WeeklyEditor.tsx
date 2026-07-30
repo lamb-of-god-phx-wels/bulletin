@@ -7,6 +7,7 @@ import { PageTemplateEditor } from "./PageTemplateEditor";
 import { SortableHandle, SortableItem, SortableList } from "./SortableList";
 import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
+import { SongBlockFields } from "./SongBlockFields";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, findBlock, updateBlockTree } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
@@ -19,6 +20,7 @@ import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
+import { songHeader } from "../shared/songs";
 import {
   churchEventDisplayName,
   churchEventsForDate,
@@ -90,9 +92,6 @@ export function WeeklyEditor({
     const first = churchEventsForDate(document.info.date, library?.calendarEvents ?? [])[0];
     if (first) onChange({ ...document, info: { ...document.info, churchWeek: churchEventDisplayName(first, document.info.date, library?.calendarEvents ?? []), churchEventId: first.id } });
   }, [document.id, document.info.date, document.info.churchWeek, library?.calendarEvents]);
-  const songFamilies = libraryFamilies(
-    library?.items.filter((item) => item.kind === "song") ?? [],
-  );
   const liturgyFamilies = libraryFamilies(
     library?.items.filter((item) => item.kind === "liturgy") ?? [],
   );
@@ -155,6 +154,8 @@ export function WeeklyEditor({
         ? block.name
         : block.type === "canvas"
           ? "Canvas"
+          : block.type === "song"
+            ? songHeader(block)
           : block.type === "paragraph"
             ? paragraphHeader(block) || "Paragraph"
             : block.type === "richText" && block.scriptureRole
@@ -447,7 +448,7 @@ export function WeeklyEditor({
     else if (payload.kind === "fullPageAsset") void addPage(index);
   };
   const chooseBlockAsset = async (
-    block: Extract<BulletinBlock, { type: "song" | "image" | "fullPageAsset" }>,
+    block: Extract<BulletinBlock, { type: "image" | "fullPageAsset" }>,
   ) => {
     if (!root || !window.bulletin) return;
     try {
@@ -1012,150 +1013,13 @@ export function WeeklyEditor({
                     {nestedEditors(block)}
                   </>
                 )}
-                {block.type === "song" &&
-                  (() => {
-                    const family = songFamilies.find(
-                      (item) => item.id === block.libraryItemId,
-                    );
-                    const selected =
-                      family?.versions.find(
-                        (item) => item.version === block.libraryItemVersion,
-                      ) ?? family?.versions[0];
-                    return (
-                      <>
-                        <div className="field-row">
-                          <label>
-                            Library song
-                            <select
-                              value={block.libraryItemId}
-                              onChange={(e) => {
-                                const nextFamily = songFamilies.find(
-                                  (item) => item.id === e.target.value,
-                                );
-                                updateBlock(block.id, {
-                                  ...block,
-                                  libraryItemId: e.target.value,
-                                  libraryItemVersion:
-                                    nextFamily?.versions[0]?.version,
-                                  contentOverride: undefined,
-                                });
-                              }}
-                            >
-                              <option value="">Choose a song…</option>
-                              {songFamilies.map((item) => (
-                                <option value={item.id} key={item.id}>
-                                  {item.versions[0].title}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label>
-                            Version
-                            <select
-                              aria-label={`Version for ${block.id}`}
-                              disabled={!family}
-                              value={selected?.version ?? ""}
-                              onChange={(event) =>
-                                updateBlock(block.id, {
-                                  ...block,
-                                  libraryItemVersion: Number(
-                                    event.target.value,
-                                  ),
-                                  contentOverride: undefined,
-                                })
-                              }
-                            >
-                              <option value="">Choose a song first</option>
-                              {family?.versions.map((item) => (
-                                <option value={item.version} key={item.version}>
-                                  v{item.version}
-                                  {item.title !== family.versions[0].title
-                                    ? ` · ${item.title}`
-                                    : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                        <div className="field-row">
-                          <label>
-                            Display title
-                            <input
-                              value={block.title ?? ""}
-                              onChange={(e) =>
-                                updateBlock(block.id, {
-                                  ...block,
-                                  title: e.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label>
-                            Presentation
-                            <select
-                              value={block.renderMode}
-                              onChange={(e) =>
-                                updateBlock(block.id, {
-                                  ...block,
-                                  renderMode: e.target.value as
-                                    "lyrics" | "asset",
-                                })
-                              }
-                            >
-                              <option value="lyrics">Lyrics</option>
-                              <option value="asset">Music image</option>
-                            </select>
-                          </label>
-                        </div>
-                        {block.renderMode === "lyrics" && (
-                          <details>
-                            <summary>Edit lyrics for this bulletin</summary>
-                            <textarea
-                              rows={10}
-                              value={paragraphText(
-                                block.contentOverride ??
-                                  selected?.content ??
-                                  [],
-                              )}
-                              placeholder="Enter song lyrics…"
-                              onChange={(event) =>
-                                updateBlock(block.id, {
-                                  ...block,
-                                  contentOverride: paragraphsFromPlainText(
-                                    event.target.value,
-                                    { preserveLineBreaks: true },
-                                  ),
-                                })
-                              }
-                            />
-                            {block.contentOverride && (
-                              <button
-                                className="danger-text content-reset"
-                                onClick={() =>
-                                  updateBlock(block.id, {
-                                    ...block,
-                                    contentOverride: undefined,
-                                  })
-                                }
-                              >
-                                Restore library lyrics
-                              </button>
-                            )}
-                          </details>
-                        )}
-                        {block.renderMode === "asset" && (
-                          <button
-                            className="secondary"
-                            onClick={() => chooseBlockAsset(block)}
-                          >
-                            {block.asset
-                              ? `Replace ${block.asset.alt ?? "asset"}`
-                              : "Choose music image or PDF"}
-                          </button>
-                        )}
-                      </>
-                    );
-                  })()}
+                {block.type === "song" && <SongBlockFields
+                  block={block}
+                  library={library}
+                  template={template}
+                  scope="weekly"
+                  onChange={next => updateBlock(block.id, next)}
+                />}
                 {block.type === "libraryText" &&
                   (() => {
                     const family = liturgyFamilies.find(

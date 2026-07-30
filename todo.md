@@ -39,15 +39,6 @@
 * In "format" window, the preview should show the actual element preview rather than a generic example
 * Support for split scripture references
 
-* Songs
-  * "Song or hymn" -> "song"
-  * The Display Title should default to the library song title
-  * Header section should be editable
-  * Element header text should be the song header text
-  * Remove version selector
-  * Presentation should only show what's available
-    * Should not be able to override image
-
 * Responsive reading
   * Compact the UI
     * Also copyable

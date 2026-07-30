@@ -28,7 +28,6 @@
 
 ## Template/bulletin builder
 
-* Make autosave optional
 * Support revision history
 
 * "Templates" -> "Bulletin Templates"

@@ -8,11 +8,6 @@
 * Fix per sub-block formatting
 
 
-## Template pages
-
-* Reset to template defaults (undo all changes)
-
-
 ## Template/bulletin builder
 
 * Support revision history

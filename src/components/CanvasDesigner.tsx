@@ -1,5 +1,6 @@
 import { cloneElement, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactElement, type Ref } from 'react';
-import { DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import {
   canvasAssetRefs,
   canvasNativeBlocks,
@@ -35,6 +36,7 @@ import { BlockFormattingModal } from './BlockFormattingModal.js';
 import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } from './DocumentView.js';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
 import { ImageAssetDialog } from './ImageAssetDialog.js';
+import { SortableHandle, SortableItem } from './SortableList.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -84,7 +86,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [zoom, setZoom] = useState(hasInitialZoom ? initialZoom : .72);
   const zoomMode = useRef<'page' | 'width' | 'manual'>(hasInitialZoom ? 'manual' : 'page');
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
-  const paletteSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const paletteSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
   const [paletteOverlay, setPaletteOverlay] = useState('');
   const [pendingImage, setPendingImage] = useState<{ id: string; name: string; x: number; y: number; width: number; height: number }>();
   const canvasWidth = (block.widthMode ?? 'contentBox') === 'fullPage' ? 7 : 7 - marginIn * 2;
@@ -311,6 +316,21 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     const pxPerIn = bounds.width / canvasWidth;
     void placePaletteItem(item, (translated.left + translated.width / 2 - bounds.left) / pxPerIn - 1, (translated.top + translated.height / 2 - bounds.top) / pxPerIn - .375);
   };
+  const endDesignerDrag = (event: DragEndEvent) => {
+    setPaletteOverlay('');
+    const activeId = String(event.active.id);
+    if (!activeId.startsWith('canvas-layer:')) {
+      endPaletteDrag(event);
+      return;
+    }
+    const overId = event.over ? String(event.over.id) : '';
+    if (!overId.startsWith('canvas-layer:') || activeId === overId) return;
+    const frontToBack = [...scene.elements].reverse();
+    const sourceIndex = frontToBack.findIndex(element => `canvas-layer:${element.id}` === activeId);
+    const targetIndex = frontToBack.findIndex(element => `canvas-layer:${element.id}` === overId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    publish({ ...scene, elements: arrayMove(frontToBack, sourceIndex, targetIndex).reverse() });
+  };
   const duplicate = () => {
     const copies = scene.elements.filter(item => selected.has(item.id)).map(item => ({ ...clone(item), id: nextId(item.type), x: item.x + .125, y: item.y + .125 }));
     if (!copies.length) return;
@@ -358,8 +378,21 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     element.type === 'block' && element.block.type === 'song'
       ? songHeader(element.block)
       : element.name ?? element.id;
+  const elementIcon = (element: CanvasElement) =>
+    element.type === 'block'
+      ? element.block.type === 'image' ? '▧' : '◇'
+      : element.type === 'shape'
+        ? element.shape === 'line' ? '╱' : '□'
+        : element.type === 'text' ? 'T' : element.type === 'image' ? '▧' : element.type === 'line' ? '╱' : '□';
+  const elementKind = (element: CanvasElement) => {
+    const kind = element.type === 'block'
+      ? element.block.type
+      : element.type === 'shape' ? element.shape : element.type;
+    return kind.replace(/([a-z])([A-Z])/g, '$1 $2');
+  };
   const paletteItems = canvasElementPaletteItems(definitions);
-  return <DndContext sensors={paletteSensors} onDragStart={event => setPaletteOverlay((event.active.data.current?.paletteItem as ElementPaletteItem | undefined)?.label ?? '')} onDragCancel={() => setPaletteOverlay('')} onDragEnd={endPaletteDrag}>
+  const frontToBack = [...scene.elements].reverse();
+  return <DndContext sensors={paletteSensors} collisionDetection={closestCenter} autoScroll onDragStart={event => setPaletteOverlay((event.active.data.current?.paletteItem as ElementPaletteItem | undefined)?.label ?? '')} onDragCancel={() => setPaletteOverlay('')} onDragEnd={endDesignerDrag}>
   <div className="canvas-designer" role="dialog" aria-modal="true" aria-labelledby="canvas-designer-title">
     <header className="canvas-designer-toolbar">
       <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
@@ -373,13 +406,18 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       </div>
       <button className="primary" onClick={onClose}>Done</button>
     </header>
+    <aside className="canvas-elements-sidebar">
+      <ElementPalette items={paletteItems} storageKey="bulletin-elements-canvas" docked onUse={item => void placePaletteItem(item)} />
+    </aside>
     <aside className="canvas-layers">
-      <ElementPalette items={paletteItems} storageKey="bulletin-elements-canvas" onUse={item => void placePaletteItem(item)} />
       <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>
-      <ol>{[...scene.elements].reverse().map(element => <li className={selected.has(element.id) ? 'selected' : ''} key={element.id}>
-        <button onClick={event => select(element.id, event.shiftKey)}><span>{element.type === 'block' ? element.block.type === 'image' ? '▧' : '◇' : element.type === 'shape' ? element.shape === 'line' ? '╱' : '□' : element.type === 'text' ? 'T' : element.type === 'image' ? '▧' : element.type === 'line' ? '╱' : '□'}</span><b>{elementName(element)}</b>{element.locked && <small>🔒</small>}</button>
-        <div><button title="Move forward" onClick={() => { const index = scene.elements.indexOf(element); if (index < scene.elements.length - 1) { const next = [...scene.elements]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; publish({ ...scene, elements: next }); } }}>↑</button><button title="Move backward" onClick={() => { const index = scene.elements.indexOf(element); if (index > 0) { const next = [...scene.elements]; [next[index], next[index - 1]] = [next[index - 1], next[index]]; publish({ ...scene, elements: next }); } }}>↓</button></div>
-      </li>)}</ol>
+      <SortableContext items={frontToBack.map(element => `canvas-layer:${element.id}`)} strategy={verticalListSortingStrategy}><ol>{frontToBack.map(element => <SortableItem id={`canvas-layer:${element.id}`} key={element.id}><li className={selected.has(element.id) ? 'selected' : ''}>
+        <button className="canvas-layer-select" type="button" onClick={event => select(element.id, event.shiftKey)}>
+          <span className="canvas-layer-icon">{elementIcon(element)}</span>
+          <span className="canvas-layer-copy"><b>{elementName(element)}</b><small>{elementKind(element)}{element.groupId ? ' · Grouped' : ''}{element.locked ? ' · Locked' : ''}</small></span>
+        </button>
+        <div className="canvas-layer-actions"><button type="button" aria-label={`Move ${elementName(element)} forward`} title="Move forward" onClick={() => { const index = scene.elements.indexOf(element); if (index < scene.elements.length - 1) { const next = [...scene.elements]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; publish({ ...scene, elements: next }); } }}>↑</button><button type="button" aria-label={`Move ${elementName(element)} backward`} title="Move backward" onClick={() => { const index = scene.elements.indexOf(element); if (index > 0) { const next = [...scene.elements]; [next[index], next[index - 1]] = [next[index - 1], next[index]]; publish({ ...scene, elements: next }); } }}>↓</button><SortableHandle label={`Drag ${elementName(element)} to reorder layers`} /></div>
+      </li></SortableItem>)}</ol></SortableContext>
     </aside>
     <main className="canvas-workarea" ref={workarea} onWheel={handleWheel}>
       <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>

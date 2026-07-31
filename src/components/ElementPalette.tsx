@@ -32,11 +32,12 @@ function PaletteItem({ item, onUse }: { item: ElementPaletteItem; onUse(item: El
   ><span>{item.icon ?? '◇'}</span><b>{item.label}</b></button>;
 }
 
-export function ElementPalette({ items, storageKey, actions, portalTargetId, onUse }: {
+export function ElementPalette({ items, storageKey, actions, portalTargetId, docked = false, onUse }: {
   items: ElementPaletteItem[];
   storageKey: string;
   actions?: ReactNode;
   portalTargetId?: string;
+  docked?: boolean;
   onUse(item: ElementPaletteItem): void;
 }) {
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(() =>
@@ -58,9 +59,9 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, onU
     return () => window.removeEventListener('element-palette:toggle', refresh);
   }, []);
   const isCollapsed = collapsed;
-  const docked = Boolean(portalTargetId);
-  const palette = <aside className={`element-palette ${docked ? 'docked' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-    <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>{docked ? '›' : (isCollapsed ? '›' : '‹')}</button></header>
+  const isDocked = docked || Boolean(portalTargetId);
+  const palette = <aside className={`element-palette ${isDocked ? 'docked' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
+    <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>{isDocked ? '›' : (isCollapsed ? '›' : '‹')}</button></header>
     {!isCollapsed && <div className="element-palette-scroll">
       {(['content', 'media', 'pages', 'shapes'] as const).map(category => {
         const categoryItems = items.filter(item => item.category === category);

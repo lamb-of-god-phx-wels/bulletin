@@ -25,6 +25,7 @@ export function renderStructuredContent(container: HTMLElement, content: Paragra
       line.dataset.align = paragraph.align;
       line.style.textAlign = paragraph.align;
     }
+    if (paragraph.breakBefore) line.dataset.breakBefore = paragraph.breakBefore;
     if (!paragraph.children.length || (paragraph.children.length === 1 && paragraph.children[0].type === 'text' && !paragraph.children[0].text)) {
       const placeholder = owner.createElement('br');
       placeholder.dataset.placeholder = '';
@@ -114,7 +115,7 @@ export function scriptureContentFromEditor(container: HTMLElement): Paragraph[] 
       const children: Inline[] = [];
       node.childNodes.forEach(child => parseInline(child, children));
       const align = node.dataset.align || node.style.textAlign;
-      paragraphs.push({ type: 'paragraph', ...(align === 'left' || align === 'center' || align === 'right' ? { align } : {}), children: children.length ? children : [{ type: 'text', text: '' }] });
+      paragraphs.push({ type: 'paragraph', ...(align === 'left' || align === 'center' || align === 'right' ? { align } : {}), ...(node.dataset.breakBefore === 'line' ? { breakBefore: 'line' as const } : {}), children: children.length ? children : [{ type: 'text', text: '' }] });
     } else {
       parseInline(node, looseRuns);
     }

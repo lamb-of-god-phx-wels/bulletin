@@ -30,7 +30,7 @@ const paragraphPoints = (paragraph: Paragraph, template: TemplateV1) => {
   const wrappedLines = Math.max(1, Math.ceil(paragraphLength(paragraph) / charsPerLine(template)));
   return Math.max(explicitLines, wrappedLines) * template.theme.bodySizePt * template.theme.lineHeight + 8.64;
 };
-const contentPoints = (content: Paragraph[] | undefined, template: TemplateV1) => content?.reduce((total, paragraph) => total + paragraphPoints(paragraph, template), 0) ?? 0;
+const contentPoints = (content: Paragraph[] | undefined, template: TemplateV1) => content?.reduce((total, paragraph) => total + paragraphPoints(paragraph, template) - (paragraph.breakBefore === 'line' ? 8.64 : 0), 0) ?? 0;
 
 function basePoints(block: PaginatedBlock, template: TemplateV1): number {
   switch (block.type) {

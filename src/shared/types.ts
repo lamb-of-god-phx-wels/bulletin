@@ -8,6 +8,7 @@ export type Inline = TextRun | SymbolRun | LineBreakRun;
 export interface Paragraph {
   type: 'paragraph';
   align?: 'left' | 'center' | 'right';
+  breakBefore?: 'line';
   children: Inline[];
 }
 

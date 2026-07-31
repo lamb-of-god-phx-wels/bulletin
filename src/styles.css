@@ -527,6 +527,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .song h3 .song-header, .song h3 .song-title { display: inline-block; }
 .response-row { display: grid; grid-template-columns: .25in 1fr; gap: .04in; }
 .response-row p { margin-bottom: .08in; }
+.response-row p.before-structured-line-continuation { margin-bottom: 0; }
 .response-row .response-reader { font-weight: inherit; }
 .response-leader { font-weight: 400; }
 .response-follower { font-weight: 700; }
@@ -567,6 +568,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .responsive-reading-heading-row { align-items: end; }
 .responsive-reading-heading-row label { flex: 1; }
 .responsive-reading-editor { min-height: 150px; white-space: pre-wrap; }
+.responsive-reading-editor > [data-scripture-paragraph]:has(+ [data-break-before="line"]) { margin-bottom: 0; }
 .responsive-reading-error { margin: 0; }
 .responsive-reader-labels { align-items: end; }
 .responsive-reader-labels label { min-width: 0; }

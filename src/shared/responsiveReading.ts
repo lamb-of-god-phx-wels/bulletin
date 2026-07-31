@@ -121,20 +121,19 @@ export function parseResponsiveReadingContent(content: Paragraph[], settings: Re
         if (nonblank) throw new Error('Start the reading with a configured reader label followed by a colon.');
         return;
       }
-      pendingBreaks += lineIndex > 0 ? 1 : paragraphIndex > 0 ? 2 : 0;
+      pendingBreaks += lineIndex > 0 ? 1 : paragraphIndex > 0 ? paragraph.breakBefore === 'line' ? 1 : 2 : 0;
       if (!nonblank && !line.length) return;
       if (pendingBreaks >= 2) {
         current.content.push({ type: 'paragraph', ...(paragraph.align ? { align: paragraph.align } : {}), children: line.length ? line : [{ type: 'text', text: '' }] });
       } else if (pendingBreaks === 1) {
-        const target = current.content.at(-1)!;
-        target.children.push({ type: 'lineBreak' }, ...line);
+        current.content.push({ type: 'paragraph', breakBefore: 'line', ...(paragraph.align ? { align: paragraph.align } : {}), children: line.length ? line : [{ type: 'text', text: '' }] });
       } else if (line.length) {
         current.content.at(-1)!.children.push(...line);
       }
       pendingBreaks = 0;
     });
   });
-  if (current && pendingBreaks === 1) current.content.at(-1)!.children.push({ type: 'lineBreak' });
+  if (current && pendingBreaks === 1) current.content.push({ type: 'paragraph', breakBefore: 'line', children: [{ type: 'text', text: '' }] });
   if (current && pendingBreaks >= 2) current.content.push({ type: 'paragraph', children: [{ type: 'text', text: '' }] });
   return { entries };
 }
@@ -150,7 +149,12 @@ export function safeParseResponsiveReadingContent(content: Paragraph[], settings
 export function responsiveReadingEditorContent(entries: ResponsiveReadingEntry[], settings: ResponsiveReadingSettings): Paragraph[] {
   return entries.flatMap(entry => {
     const paragraphs = entry.content.length ? entry.content : [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }];
-    return paragraphs.map((paragraph, index) => ({
+    const lines = paragraphs.flatMap(paragraph => splitLines(paragraph.children).map((children, index) => ({
+      ...structuredClone(paragraph),
+      ...(index ? { breakBefore: 'line' as const } : {}),
+      children: children.length ? children : [{ type: 'text' as const, text: '' }],
+    })));
+    return lines.map((paragraph, index) => ({
       ...structuredClone(paragraph),
       children: index === 0
         ? [{ type: 'text' as const, text: `${responsiveEntryReader(entry, settings)}: ` }, ...structuredClone(paragraph.children)]

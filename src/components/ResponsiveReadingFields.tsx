@@ -40,7 +40,7 @@ export function ResponsiveReadingFields({ block, settings, template, onChange }:
       content={editorContent}
       label="Responsive reading"
       className="responsive-reading-editor"
-      enterMode="lineBreaks"
+      enterMode="responsiveLines"
       onChange={content => {
         const result = safeParseResponsiveReadingContent(content, settings, block.entries);
         if (result.error) {

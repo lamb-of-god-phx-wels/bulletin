@@ -44,7 +44,7 @@ describe('responsive reading roles', () => {
     ];
     const result = parseResponsiveReadingContent(source, defaultResponsiveReadingSettings);
     expect(result.entries).toHaveLength(3);
-    expect(result.entries?.[0]).toMatchObject({ role: 'leader', readerMode: 'configured', content: [{ children: [{ text: 'First words', marks: ['italic'] }, { type: 'lineBreak' }, { text: 'continued' }] }] });
+    expect(result.entries?.[0]).toMatchObject({ role: 'leader', readerMode: 'configured', content: [{ children: [{ text: 'First words', marks: ['italic'] }] }, { breakBefore: 'line', children: [{ text: 'continued' }] }] });
     expect(result.entries?.[1]).toMatchObject({ role: 'follower', content: [{ children: [{ text: 'Congregation', marks: ['bold'] }] }, { align: 'center', children: [{ text: 'second paragraph' }] }] });
     expect(result.entries?.[2]).toMatchObject({ role: 'all', content: [{ children: [{ text: 'Amen: indeed' }, { type: 'symbol', name: 'cross' }] }] });
   });
@@ -82,9 +82,23 @@ describe('responsive reading roles', () => {
       ],
     }], defaultResponsiveReadingSettings);
     expect(result.entries?.[0].content).toEqual([
-      { type: 'paragraph', children: [{ type: 'text', text: 'First line' }, { type: 'lineBreak' }, { type: 'text', text: 'Second line' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: 'First line' }] },
+      { type: 'paragraph', breakBefore: 'line', children: [{ type: 'text', text: 'Second line' }] },
       { type: 'paragraph', children: [{ type: 'text', text: 'Second paragraph' }] },
       { type: 'paragraph', children: [{ type: 'text', text: 'Third paragraph' }] },
+    ]);
+  });
+
+  it('preserves independent alignment for each hard line', () => {
+    const result = parseResponsiveReadingContent([
+      { type: 'paragraph', align: 'left', children: [{ type: 'text', text: 'M: First line' }] },
+      { type: 'paragraph', breakBefore: 'line', align: 'right', children: [{ type: 'text', text: 'Second line' }] },
+      { type: 'paragraph', align: 'center', children: [{ type: 'text', text: 'New paragraph' }] },
+    ], defaultResponsiveReadingSettings);
+    expect(result.entries?.[0].content).toMatchObject([
+      { align: 'left', children: [{ text: 'First line' }] },
+      { breakBefore: 'line', align: 'right', children: [{ text: 'Second line' }] },
+      { align: 'center', children: [{ text: 'New paragraph' }] },
     ]);
   });
 

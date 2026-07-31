@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignParagraphRange, formatTextRange, selectedTextMarks } from '../src/components/RichTextEditor';
+import { alignParagraphRange, formatTextRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
 import type { Paragraph } from '../src/shared/types';
 
 describe('rich-text segment formatting', () => {
@@ -51,5 +51,13 @@ describe('rich-text segment formatting', () => {
       { ...content[0], align: 'center' },
       content[1],
     ]);
+  });
+
+  it('copies hard lines with one newline and paragraphs with two', () => {
+    expect(structuredTextForClipboard([
+      { type: 'paragraph', children: [{ type: 'text', text: 'First' }] },
+      { type: 'paragraph', breakBefore: 'line', children: [{ type: 'text', text: 'Second' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: 'Third' }] },
+    ])).toBe('First\nSecond\n\nThird');
   });
 });

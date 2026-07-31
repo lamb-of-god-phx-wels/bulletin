@@ -103,6 +103,13 @@ export function alignParagraphRange(content: Paragraph[], start: number, end: nu
   });
 }
 
+export function structuredTextForClipboard(content: Paragraph[]) {
+  return content.map((paragraph, index) => {
+    const text = paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'symbol' ? '✠' : '\n').join('');
+    return `${index ? paragraph.breakBefore === 'line' ? '\n' : '\n\n' : ''}${text}`;
+  }).join('');
+}
+
 function selectionOffsets(editor: HTMLElement): SelectionOffsets | undefined {
   const selection = editor.ownerDocument.getSelection();
   if (!selection?.rangeCount) return;
@@ -146,7 +153,7 @@ function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
   selection?.addRange(range);
 }
 
-export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph' }: { content: Paragraph[]; label: string; onChange(content: Paragraph[]): void; className?: string; enterMode?: 'paragraph' | 'lineBreaks' }) {
+export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph' }: { content: Paragraph[]; label: string; onChange(content: Paragraph[]): void; className?: string; enterMode?: 'paragraph' | 'responsiveLines' }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const signatureRef = useRef('');
   const consecutiveEnterRef = useRef(false);
@@ -245,47 +252,58 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     <div ref={editorRef} className={`rich-text-editor ${className ?? ''}`.trim()} contentEditable role="textbox" aria-label={label} aria-multiline="true" spellCheck suppressContentEditableWarning onInput={event => {
       if (!['insertLineBreak', 'insertParagraph'].includes(event.nativeEvent.inputType)) consecutiveEnterRef.current = false;
       emit(); updateToolbar();
-    }} onMouseUp={updateToolbar} onKeyDown={event => {
-      if (enterMode !== 'lineBreaks') return;
+    }} onMouseUp={() => { consecutiveEnterRef.current = false; updateToolbar(); }} onKeyDown={event => {
+      if (enterMode !== 'responsiveLines') return;
       if (event.key !== 'Enter') {
         consecutiveEnterRef.current = false;
         return;
       }
       event.preventDefault();
-      if (consecutiveEnterRef.current) {
-        const editor = editorRef.current;
-        const selection = editor?.ownerDocument.getSelection();
-        const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
-        const start = range?.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer as Element : range?.startContainer.parentElement;
-        const paragraph = start?.closest<HTMLElement>('[data-scripture-paragraph]');
-        if (editor && selection && range && paragraph && editor.contains(paragraph)) {
-          range.deleteContents();
-          const tailRange = editor.ownerDocument.createRange();
-          tailRange.setStart(range.startContainer, range.startOffset);
-          tailRange.setEnd(paragraph, paragraph.childNodes.length);
-          const tail = tailRange.extractContents();
-          const next = editor.ownerDocument.createElement('div');
-          next.dataset.scriptureParagraph = '';
-          if (tail.childNodes.length) next.append(tail);
-          else {
-            const placeholder = editor.ownerDocument.createElement('br');
-            placeholder.dataset.placeholder = '';
-            next.append(placeholder);
-          }
-          paragraph.after(next);
-          const nextRange = editor.ownerDocument.createRange();
-          nextRange.setStart(next, 0);
-          nextRange.collapse(true);
-          selection.removeAllRanges();
-          selection.addRange(nextRange);
-          consecutiveEnterRef.current = false;
-          emit();
-        }
+      const editor = editorRef.current;
+      const selection = editor?.ownerDocument.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+      const start = range?.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer as Element : range?.startContainer.parentElement;
+      const paragraph = start?.closest<HTMLElement>('[data-scripture-paragraph]');
+      if (!editor || !selection || !range || !paragraph || !editor.contains(paragraph)) return;
+      if (consecutiveEnterRef.current && paragraph.dataset.breakBefore === 'line' && !(paragraph.textContent ?? '').replace(/\u200b/g, '').trim()) {
+        delete paragraph.dataset.breakBefore;
+        consecutiveEnterRef.current = false;
+        emit();
         return;
       }
+      range.deleteContents();
+      const tailRange = editor.ownerDocument.createRange();
+      tailRange.setStart(range.startContainer, range.startOffset);
+      tailRange.setEnd(paragraph, paragraph.childNodes.length);
+      const tail = tailRange.extractContents();
+      const next = editor.ownerDocument.createElement('div');
+      next.dataset.scriptureParagraph = '';
+      next.dataset.breakBefore = 'line';
+      if (tail.childNodes.length) next.append(tail);
+      const caretAnchor = editor.ownerDocument.createTextNode('\u200b');
+      if (!tail.childNodes.length) next.append(caretAnchor);
+      else next.prepend(caretAnchor);
+      paragraph.after(next);
+      const nextRange = editor.ownerDocument.createRange();
+      nextRange.setStart(caretAnchor, 1);
+      nextRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(nextRange);
       consecutiveEnterRef.current = true;
-      editorRef.current?.ownerDocument.execCommand('insertLineBreak');
-    }} onKeyUp={updateToolbar} onFocus={updateToolbar} onPaste={event => {
+      emit();
+    }} onKeyUp={updateToolbar} onFocus={updateToolbar} onCopy={event => {
+      if (enterMode !== 'responsiveLines') return;
+      const editor = editorRef.current;
+      const selection = editor?.ownerDocument.getSelection();
+      if (!editor || !selection?.rangeCount || selection.isCollapsed) return;
+      const range = selection.getRangeAt(0);
+      if (!editor.contains(range.commonAncestorContainer)) return;
+      const container = editor.ownerDocument.createElement('div');
+      container.append(range.cloneContents());
+      event.preventDefault();
+      event.clipboardData.setData('text/plain', structuredTextForClipboard(scriptureContentFromEditor(container)));
+      event.clipboardData.setData('text/html', container.innerHTML);
+    }} onPaste={event => {
       event.preventDefault();
       editorRef.current?.ownerDocument.execCommand('insertHTML', false, safeRichHtml(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')));
       emit();

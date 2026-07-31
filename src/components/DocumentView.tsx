@@ -18,7 +18,7 @@ const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index)
     : <span key={index} className={run.marks?.map(mark => `mark-${mark}`).join(' ')}>{run.text}</span>);
 
 function Paragraphs({ content }: { content: Paragraph[] }) {
-  return <>{content.map((paragraph, index) => <p key={index} style={{ textAlign: paragraph.align }}>{inlineText(paragraph)}</p>)}</>;
+  return <>{content.map((paragraph, index) => <p key={index} className={`${paragraph.breakBefore === 'line' ? 'structured-line-continuation' : ''} ${content[index + 1]?.breakBefore === 'line' ? 'before-structured-line-continuation' : ''}`.trim() || undefined} style={{ textAlign: paragraph.align }}>{inlineText(paragraph)}</p>)}</>;
 }
 
 function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefined {

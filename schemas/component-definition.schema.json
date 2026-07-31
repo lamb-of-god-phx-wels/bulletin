@@ -97,6 +97,7 @@
         "gapIn": { "type": "number", "minimum": 0 },
         "placement": { "enum": ["left", "center", "right"] },
         "textAlign": { "enum": ["left", "center", "right", "justify"] },
+        "verticalAlign": { "enum": ["top", "middle", "bottom"] },
         "paddingIn": { "$ref": "#/$defs/box" },
         "marginIn": { "$ref": "#/$defs/box" },
         "fontFamily": { "type": "string" },

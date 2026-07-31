@@ -189,4 +189,37 @@ describe('canvas cover scenes', () => {
     expect(markup).toContain('width:100%;height:100%;object-fit:cover');
     expect(markup).not.toContain('stale native image sizing');
   });
+
+  it('keeps native canvas horizontal and vertical typography alignment independent', () => {
+    const scene: CanvasScene = {
+      schemaVersion: 2,
+      coordinateSpace: 'fullPage',
+      elements: [{
+        id: 'heading',
+        type: 'block',
+        x: 1,
+        y: 1,
+        width: 3,
+        height: 1.5,
+        sizing: 'fixed',
+        verticalAlign: 'top',
+        block: {
+          id: 'native-heading',
+          type: 'heading',
+          text: 'Welcome',
+          presentation: { textAlign: 'right', verticalAlign: 'bottom' },
+        },
+      }],
+    };
+    const markup = renderToStaticMarkup(createElement(CanvasSceneView, {
+      scene,
+      document: createBulletin(defaultTemplate),
+      assets: {},
+      marginIn: 0,
+      renderNativeBlock: block => createElement('h3', { style: { textAlign: block.presentation?.textAlign } }, 'Welcome'),
+    }));
+
+    expect(markup).toContain('justify-content:flex-end');
+    expect(markup).toContain('text-align:right');
+  });
 });

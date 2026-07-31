@@ -82,17 +82,22 @@ function ToggleGroup<T extends string>({ label, value, options, onChange }: {
   </fieldset>;
 }
 
-export function InlineTypographyControls({ block, template, label = 'Typography', onChange }: {
+export function InlineTypographyControls({ block, template, label = 'Typography', verticalAlign, onVerticalAlignChange, onChange }: {
   block: BulletinBlock;
   template: TemplateV1;
   label?: string;
+  verticalAlign?: CustomBlockStyle['verticalAlign'];
+  onVerticalAlignChange?(verticalAlign: CustomBlockStyle['verticalAlign']): void;
   onChange(presentation: CustomBlockStyle): void;
 }) {
   const style = effectiveBlockStyle(block, template);
   const customFont = !fontOptions.some(option => option.value === style.fontFamily);
   const customLineHeight = !lineHeightOptions.some(option => option.value === style.lineHeight);
   const change = (changes: Partial<CustomBlockStyle>) =>
-    onChange(applyTypographyChange(block, template, changes));
+    onChange(applyTypographyChange(block, template, {
+      ...(verticalAlign ? { verticalAlign } : {}),
+      ...changes,
+    }));
 
   return <section className="inline-typography" aria-label={label}>
     <div className="inline-typography-title">{label}</div>
@@ -131,7 +136,7 @@ export function InlineTypographyControls({ block, template, label = 'Typography'
       </select>
     </label>
     <ToggleGroup
-      label="Alignment"
+      label="Horizontal"
       value={style.textAlign}
       onChange={textAlign => change({ textAlign })}
       options={[
@@ -139,6 +144,16 @@ export function InlineTypographyControls({ block, template, label = 'Typography'
         { value: 'center', label: '≡', title: 'Align center', iconClass: 'align-center' },
         { value: 'right', label: '≡', title: 'Align right', iconClass: 'align-right' },
         { value: 'justify', label: '☰', title: 'Justify', iconClass: 'align-justify' },
+      ]}
+    />
+    <ToggleGroup
+      label="Vertical"
+      value={verticalAlign ?? style.verticalAlign}
+      onChange={value => onVerticalAlignChange ? onVerticalAlignChange(value) : change({ verticalAlign: value })}
+      options={[
+        { value: 'top', label: 'T', title: 'Align top', iconClass: 'align-top' },
+        { value: 'middle', label: 'T', title: 'Align middle', iconClass: 'align-middle' },
+        { value: 'bottom', label: 'T', title: 'Align bottom', iconClass: 'align-bottom' },
       ]}
     />
     <div className="inline-typography-style" role="group" aria-label="Style">

@@ -669,10 +669,19 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
-          {nativePrimary && selected.size === 1 && supportsInlineTypography(nativePrimary) && <InlineTypographyControls block={nativePrimary} template={template} onChange={presentation => updatePrimary({ block: { ...nativePrimary, presentation } } as Partial<CanvasElement>)} />}
+          {nativePrimary && selected.size === 1 && supportsInlineTypography(nativePrimary) && <InlineTypographyControls
+            block={nativePrimary}
+            template={template}
+            verticalAlign={primary.verticalAlign ?? 'top'}
+            onVerticalAlignChange={verticalAlign => updatePrimary({
+              verticalAlign,
+              block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, verticalAlign } },
+            } as Partial<CanvasElement>)}
+            onChange={presentation => updatePrimary({ block: { ...nativePrimary, presentation } } as Partial<CanvasElement>)}
+          />}
           {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
-            <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
+            {!supportsInlineTypography(nativePrimary) && <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>}
             <button className="secondary canvas-format-button" onClick={() => setFormattingElementId(primary.id)}>Format block…</button>
           </>}
         </>}

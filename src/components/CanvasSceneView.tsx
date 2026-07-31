@@ -76,9 +76,10 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
       : native.type === 'richText'
         ? boundRichTextParagraphs(native, document).map((item, index) => <InlineParagraph paragraph={item} key={index} />)
         : 'text' in native ? native.text : native.label ?? (native.type === 'custom' ? native.name : native.type);
-    const vertical = element.verticalAlign === 'middle'
+    const verticalAlign = native.presentation?.verticalAlign ?? element.verticalAlign;
+    const vertical = verticalAlign === 'middle'
       ? 'center'
-      : element.verticalAlign === 'bottom'
+      : verticalAlign === 'bottom'
         ? 'flex-end'
         : 'flex-start';
     return <div className={`canvas-element canvas-native-block ${element.sizing === 'autoHeight' ? 'auto-height' : 'fixed-height'}`} data-canvas-element-id={element.id} style={{

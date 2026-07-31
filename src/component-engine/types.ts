@@ -32,6 +32,7 @@ export interface ComponentStyle {
   gapIn?: number;
   placement?: 'left' | 'center' | 'right';
   textAlign?: 'left' | 'center' | 'right' | 'justify';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
   paddingIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
   marginIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
   fontFamily?: string;

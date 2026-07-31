@@ -284,6 +284,9 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .inline-typography-group .align-center { text-align: center; font-size: 17px; }
 .inline-typography-group .align-right { text-align: right; font-size: 17px; }
 .inline-typography-group .align-justify { font-size: 12px; }
+.inline-typography-group .align-top { padding-top: 3px; padding-bottom: 13px; }
+.inline-typography-group .align-middle { padding-top: 8px; padding-bottom: 8px; }
+.inline-typography-group .align-bottom { padding-top: 13px; padding-bottom: 3px; }
 .inline-typography-style { flex: 0 0 auto; }
 .inline-typography-style > span { display: block; }
 .inline-typography-style .typography-bold { font-weight: 900; }

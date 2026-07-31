@@ -195,6 +195,7 @@ export interface CustomBlockStyle {
   widthPercent: number;
   placement: 'left' | 'center' | 'right';
   textAlign: 'left' | 'center' | 'right' | 'justify';
+  verticalAlign: 'top' | 'middle' | 'bottom';
   paddingIn: { top: number; right: number; bottom: number; left: number };
   marginIn: { top: number; bottom: number };
   fontFamily: string;

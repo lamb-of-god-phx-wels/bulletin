@@ -116,11 +116,11 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   if (canvasLayerRow.height < 63 || !canvasLayerRow.selected || canvasLayerRow.icon?.some(value => Math.abs(value - 36) > 1) || !canvasLayerRow.name || !canvasLayerRow.kind || canvasLayerRow.actions !== 2 || !canvasLayerRow.dragHandle) throw new Error(`Canvas Layers row does not match the template outline: ${JSON.stringify(canvasLayerRow)}`);
   await choose('Sizing', 'fixed');
   if (!await evaluate(`Boolean(document.querySelector('.canvas-properties .inline-typography'))`)) throw new Error('Canvas text is missing the bulletin quick typography controls.');
-  await choose('Vertical alignment', 'top');
+  await evaluate(`document.querySelector('.canvas-properties button[aria-label="Align top"]')?.click()`);
   await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.top-b.top)<1})()`, 'canvas text top alignment');
-  await choose('Vertical alignment', 'middle');
+  await evaluate(`document.querySelector('.canvas-properties button[aria-label="Align middle"]')?.click()`);
   await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<1})()`, 'canvas text middle alignment');
-  await choose('Vertical alignment', 'bottom');
+  await evaluate(`document.querySelector('.canvas-properties button[aria-label="Align bottom"]')?.click()`);
   await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.bottom-b.bottom)<1})()`, 'canvas text bottom alignment');
   const beforePaste = await evaluate(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length`);
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 });
@@ -719,7 +719,7 @@ if (process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1') {
   await evaluate(`(()=>{const block=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.textContent.includes('Opening Hymn'));const button=block?.querySelector('.format-block-button');if(!button)throw new Error('Opening Hymn format button missing');button.click();return true})()`);
   await wait(`Boolean(document.querySelector('.block-formatting-modal'))`, 'weekly block formatting modal');
   await fill('Width (%)', '70'); await fill('Left padding (in)', '0.2');
-  await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.block-formatting-modal .segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Text alignment');Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Right').click();return true})()`);
+  await evaluate(`(()=>{const field=Array.from(document.querySelectorAll('.block-formatting-modal .segmented-field')).find(element=>element.querySelector('legend')?.textContent==='Horizontal alignment');Array.from(field.querySelectorAll('button')).find(element=>element.textContent==='Right').click();return true})()`);
   await evaluate(`document.querySelector('.block-formatting-modal input[type="checkbox"]').click()`);
   await click('Apply formatting');
   await wait(`(()=>{const wrapper=document.querySelector('.preview-pane .song')?.closest('.block-presentation');return wrapper?.style.width==='70%'&&wrapper?.style.paddingLeft==='0.2in'&&wrapper?.style.textAlign==='right'})()`, 'weekly song formatting render');

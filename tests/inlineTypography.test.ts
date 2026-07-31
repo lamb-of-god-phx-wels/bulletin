@@ -32,6 +32,7 @@ describe('inline typography controls', () => {
     expect(effectiveBlockStyle(block, template)).toMatchObject({
       fontSizePt: 11.5,
       lineHeight: 1.4,
+      verticalAlign: 'top',
       widthPercent: 72,
       fontStyle: 'italic',
       paddingIn: { top: .1, right: .2, bottom: .3, left: .4 },
@@ -58,6 +59,23 @@ describe('inline typography controls', () => {
     expect(markup).toContain('aria-label="Regular capitalization"');
     expect(markup).toContain('aria-label="Small caps"');
     expect(markup).toContain('aria-label="Uppercase"');
+    expect(markup).toContain('<legend>Horizontal</legend>');
+    expect(markup).toContain('<legend>Vertical</legend>');
+    expect(markup).toContain('aria-label="Align top"');
+    expect(markup).toContain('aria-label="Align middle"');
+    expect(markup).toContain('aria-label="Align bottom"');
+  });
+
+  it('supports an externally controlled vertical alignment for fixed canvas boxes', () => {
+    const markup = renderToStaticMarkup(createElement(InlineTypographyControls, {
+      block: heading(),
+      template: defaultTemplate,
+      verticalAlign: 'bottom',
+      onVerticalAlignChange: () => undefined,
+      onChange: () => undefined,
+    }));
+
+    expect(markup).toContain('aria-label="Align bottom" aria-pressed="true"');
   });
 
   it('is limited to blocks that directly present text', () => {

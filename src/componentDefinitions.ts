@@ -100,6 +100,7 @@ function presentation(style: ComponentStyle | undefined): Partial<CustomBlockSty
     ...(style.widthPercent !== undefined ? { widthPercent: style.widthPercent } : {}),
     ...(style.placement ? { placement: style.placement } : {}),
     ...(style.textAlign ? { textAlign: style.textAlign } : {}),
+    ...(style.verticalAlign ? { verticalAlign: style.verticalAlign } : {}),
     ...(style.paddingIn ? {
       paddingIn: {
         top: style.paddingIn.top ?? 0,

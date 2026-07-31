@@ -4,6 +4,7 @@ export const defaultCustomBlockStyle: CustomBlockStyle = {
   widthPercent: 100,
   placement: 'left',
   textAlign: 'left',
+  verticalAlign: 'top',
   paddingIn: { top: 0, right: 0, bottom: 0, left: 0 },
   marginIn: { top: 0, bottom: .12 },
   fontFamily: 'body',

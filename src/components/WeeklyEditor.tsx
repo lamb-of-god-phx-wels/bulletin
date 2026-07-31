@@ -13,6 +13,8 @@ import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
 import { AnnouncementFields } from "./AnnouncementFields";
 import { CopyrightFields } from "./CopyrightFields";
+import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
+import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
 import {
   InlineTypographyControls,
   supportsInlineTypography,
@@ -22,8 +24,8 @@ import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "
 import { libraryFamilies } from "../shared/library";
 import { paragraphsFromPlainText } from "../shared/plainText";
 import {
-  defaultReaderForRole,
-  responsiveEntryRole,
+  effectiveResponsiveReadingSettings,
+  updateResponsiveReaderLabels,
 } from "../shared/responsiveReading";
 import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
@@ -98,6 +100,7 @@ export function WeeklyEditor({
     Record<string, { state: "loading" | "success" | "error"; text: string }>
   >({});
   const matchingChurchEvents = churchEventsForDate(document.info.date, library?.calendarEvents ?? []);
+  const responsiveReadingSettings = effectiveResponsiveReadingSettings(template, document);
   const calendarEventName = (event: (typeof matchingChurchEvents)[number]) =>
     churchEventDisplayName(event, document.info.date, library?.calendarEvents ?? []);
   useEffect(() => {
@@ -144,6 +147,19 @@ export function WeeklyEditor({
     onChange({
       ...document,
       layout: Object.keys(layout).length ? layout : undefined,
+    });
+  };
+  const updateResponsiveReadingSettings = (next: typeof responsiveReadingSettings) => onChange({
+    ...document,
+    responsiveReading: next,
+    blocks: updateResponsiveReaderLabels(document.blocks, responsiveReadingSettings, next),
+  });
+  const resetResponsiveReadingSettings = () => {
+    const next = effectiveResponsiveReadingSettings(template);
+    onChange({
+      ...document,
+      responsiveReading: undefined,
+      blocks: updateResponsiveReaderLabels(document.blocks, responsiveReadingSettings, next),
     });
   };
   const updateBlock = (id: string, next: BulletinBlock) =>
@@ -595,7 +611,15 @@ export function WeeklyEditor({
           />
         </label>
       </section>
-      <ElementSidebarPortal><details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
+      <ElementSidebarPortal><>
+      <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
+        <summary><div><div className="eyebrow">Document</div><b>Responsive readings</b></div></summary>
+        <div className="collapsible-editor-fields">
+          <ResponsiveReadingSettingsFields value={responsiveReadingSettings} onChange={updateResponsiveReadingSettings} />
+          <button type="button" className="text-button" disabled={!document.responsiveReading} onClick={resetResponsiveReadingSettings}>Reset to template defaults</button>
+        </div>
+      </details>
+      <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
         <summary>
           <div>
             <div className="eyebrow">Document</div>
@@ -636,7 +660,7 @@ export function WeeklyEditor({
             </button>
           </div>
         </div>
-      </details></ElementSidebarPortal>
+      </details></></ElementSidebarPortal>
       <div className="editor-section-title">
         <div>
           <div className="eyebrow">Order of worship</div>
@@ -757,124 +781,7 @@ export function WeeklyEditor({
                 )}
                 {block.type === "paragraph" && nestedEditors(block)}
                 {block.type === "responsiveReading" && (
-                  <>
-                    {block.entries.map((entry, entryIndex) => {
-                      const role = responsiveEntryRole(entry);
-                      const updateEntry = (changes: Partial<typeof entry>) =>
-                        updateBlock(block.id, {
-                          ...block,
-                          entries: block.entries.map((item, index) =>
-                            index === entryIndex
-                              ? { ...item, ...changes }
-                              : item,
-                          ),
-                        });
-                      return (
-                        <div
-                          className={`response-editor response-editor-${role}`}
-                          key={entryIndex}
-                        >
-                          <div className="field-row">
-                            <label>
-                              Role
-                              <select
-                                value={role}
-                                onChange={(event) => {
-                                  const nextRole = event.target.value as
-                                    "leader" | "follower";
-                                  updateEntry({
-                                    role: nextRole,
-                                    reader: /^[MC]$/i.test(entry.reader.trim())
-                                      ? defaultReaderForRole(nextRole)
-                                      : entry.reader,
-                                  });
-                                }}
-                              >
-                                <option value="leader">Leader</option>
-                                <option value="follower">
-                                  Follower / congregation
-                                </option>
-                              </select>
-                            </label>
-                            <label>
-                              Speaker label
-                              <input
-                                value={entry.reader}
-                                onChange={(event) =>
-                                  updateEntry({ reader: event.target.value })
-                                }
-                              />
-                            </label>
-                          </div>
-                          <label>
-                            {role === "follower"
-                              ? "Follower response"
-                              : "Leader response"}
-                            <textarea
-                              rows={4}
-                              value={paragraphText(entry.content)}
-                              onChange={(event) =>
-                                updateEntry({
-                                  content: paragraphs(event.target.value),
-                                })
-                              }
-                            />
-                          </label>
-                          <button
-                            className="danger-text"
-                            onClick={() =>
-                              updateBlock(block.id, {
-                                ...block,
-                                entries: block.entries.filter(
-                                  (_item, index) => index !== entryIndex,
-                                ),
-                              })
-                            }
-                          >
-                            Remove response
-                          </button>
-                        </div>
-                      );
-                    })}
-                    <div className="response-add-actions">
-                      <button
-                        className="secondary"
-                        onClick={() =>
-                          updateBlock(block.id, {
-                            ...block,
-                            entries: [
-                              ...block.entries,
-                              {
-                                role: "leader",
-                                reader: "M",
-                                content: paragraphs("New leader response"),
-                              },
-                            ],
-                          })
-                        }
-                      >
-                        ＋ Leader
-                      </button>
-                      <button
-                        className="secondary"
-                        onClick={() =>
-                          updateBlock(block.id, {
-                            ...block,
-                            entries: [
-                              ...block.entries,
-                              {
-                                role: "follower",
-                                reader: "C",
-                                content: paragraphs("New follower response"),
-                              },
-                            ],
-                          })
-                        }
-                      >
-                        ＋ Follower
-                      </button>
-                    </div>
-                  </>
+                  <ResponsiveReadingFields block={block} settings={responsiveReadingSettings} template={template} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {block.type === "scriptureReading" && (
                   <>

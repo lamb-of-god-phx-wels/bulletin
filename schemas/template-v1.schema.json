@@ -8,9 +8,26 @@
     "schemaVersion": { "const": 1 }, "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "name": { "type": "string" },
     "status": { "enum": ["draft", "published"] },
     "page": { "type": "object", "required": ["widthIn", "heightIn", "pageMultiple"], "properties": { "widthIn": { "const": 7 }, "heightIn": { "const": 8.5 }, "pageMultiple": { "const": 4 } }, "additionalProperties": false },
-    "theme": { "type": "object" }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
+    "theme": { "type": "object" }, "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
   },
   "$defs": {
+    "responsiveReadingSettings": {
+      "type": "object",
+      "required": ["labels"],
+      "properties": {
+        "labels": {
+          "type": "object",
+          "required": ["leader", "follower", "all"],
+          "properties": {
+            "leader": { "type": "string", "minLength": 1, "pattern": "^[^:\\r\\n]+$" },
+            "follower": { "type": "string", "minLength": 1, "pattern": "^[^:\\r\\n]+$" },
+            "all": { "type": "string", "minLength": 1, "pattern": "^[^:\\r\\n]+$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "block": {
       "type": "object",
       "required": ["id", "type"],

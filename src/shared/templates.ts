@@ -68,6 +68,7 @@ export function templateFromBulletin(source: BulletinDocumentV1, foundation: Tem
       ...template.theme,
       ...(source.layout?.marginIn !== undefined ? { marginIn: source.layout.marginIn } : {})
     },
+    responsiveReading: source.responsiveReading ?? foundation.responsiveReading,
     starterBlocks: source.blocks.map(reusableBlock)
   };
 }

@@ -64,4 +64,18 @@ describe('pagination', () => {
     const block: BulletinBlock = { id: 'song', type: 'song', songType: 'song', libraryItemId: 'song', libraryItemVersion: 1, selection: { mode: 'all' }, renderMode: 'lyrics', contentOverride: Array.from({ length: 50 }, () => ({ type: 'paragraph', children: [{ type: 'text', text: 'Weekly lyrics '.repeat(50) }] })) };
     expect(paginate([block], defaultTemplate, library).flatMap(page => page.blocks).filter(item => item.type === 'song').length).toBeGreaterThan(1);
   });
+
+  it('keeps a responsive-reading heading on only the first fragment and marks continuations', () => {
+    const block: BulletinBlock = {
+      id: 'responses',
+      type: 'responsiveReading',
+      heading: { id: 'responses-heading', type: 'heading', text: 'Responsive Reading' },
+      entries: [{ reader: 'M', role: 'leader', readerMode: 'configured', content: Array.from({ length: 55 }, () => ({ type: 'paragraph', children: [{ type: 'text', text: 'A long response '.repeat(40) }] })) }],
+    };
+    const fragments = paginate([block], defaultTemplate).flatMap(page => page.blocks).filter(item => item.type === 'responsiveReading');
+    expect(fragments.length).toBeGreaterThan(1);
+    expect(fragments[0].heading?.text).toBe('Responsive Reading');
+    expect(fragments.slice(1).every(fragment => !fragment.heading)).toBe(true);
+    expect(fragments.flatMap(fragment => fragment.entries).some(entry => entry.reader.includes('(cont.)'))).toBe(true);
+  });
 });

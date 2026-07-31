@@ -42,11 +42,12 @@ describe('multiple templates', () => {
     title.x = 1.25;
     title.block.bindingOverride = [{ type: 'paragraph', children: [{ type: 'text', text: 'One week only' }] }];
     bulletin.layout = { marginIn: .55 };
+    bulletin.responsiveReading = { labels: { leader: 'L', follower: 'P', all: 'All' } };
 
     const created = templateFromBulletin(bulletin, defaultTemplate, 'Bulletin Layout', records);
     const createdCover = created.starterBlocks.find(block => block.type === 'templatePage');
 
-    expect(created).toMatchObject({ id: 'bulletin-layout', name: 'Bulletin Layout', version: 1, status: 'draft', theme: { marginIn: .55 } });
+    expect(created).toMatchObject({ id: 'bulletin-layout', name: 'Bulletin Layout', version: 1, status: 'draft', theme: { marginIn: .55 }, responsiveReading: bulletin.responsiveReading });
     if (!createdCover || createdCover.type !== 'templatePage') throw new Error('Expected promoted page.');
     const createdCanvas = createdCover.blocks.find(block => block.type === 'canvas');
     if (!createdCanvas || createdCanvas.type !== 'canvas') throw new Error('Expected promoted canvas.');

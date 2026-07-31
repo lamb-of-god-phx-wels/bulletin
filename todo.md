@@ -8,13 +8,6 @@
 
 ## Template/bulletin builder
 
-* Responsive reading
-  * Compact the UI
-    * Also copyable
-  * Add support for parsing a block of text
-  * Rich text support
-  * Optionaly heading
-
 * Announcements
   * QR code
 

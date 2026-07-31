@@ -23,7 +23,7 @@ const evaluate = async expression => (await command('Runtime.evaluate', { expres
 const wait = async (expression, label, timeout = 8000) => {
   const started = Date.now();
   while (Date.now() - started < timeout) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)); }
-  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,viteError:document.querySelector('vite-error-overlay')?.shadowRoot?.textContent?.trim().slice(0,1200),body:document.body.innerText.trim().slice(0,500),rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
+  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,viteError:document.querySelector('vite-error-overlay')?.shadowRoot?.textContent?.trim().slice(0,1200),body:document.body.innerText.trim().slice(0,500),responsiveEditor:document.querySelector('.responsive-reading-editor')?.innerHTML,responsivePreview:Array.from(document.querySelectorAll('.preview-pane .response-row')).map(row=>row.innerHTML),rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
   throw new Error(`Timed out waiting for ${label}: ${JSON.stringify(context)}`);
 };
 const buttonExpression = text => `Array.from(document.querySelectorAll('button')).find(element => element.textContent.trim().includes(${JSON.stringify(text)}))`;
@@ -64,7 +64,7 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
@@ -666,17 +666,29 @@ if (process.env.BULLETIN_VERSE_NUMBERS_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_RESPONSIVE_ONLY === '1') {
+  if (!await evaluate(`Boolean(document.querySelector('.editor-pane .responsive-reading-editor'))`)) {
+    await click('Responsive reading');
+  }
+  await wait(`Boolean(document.querySelector('.editor-pane .responsive-reading-editor'))`, 'compact responsive reading editor');
   await wait(`Boolean(document.querySelector('.preview-pane .response-leader')&&document.querySelector('.preview-pane .response-follower'))`, 'leader and follower response rows');
   const weights = await evaluate(`(()=>{const weight=element=>Number.parseInt(getComputedStyle(element).fontWeight,10);const leader=document.querySelector('.preview-pane .response-leader');const follower=document.querySelector('.preview-pane .response-follower');return {leaderLabel:weight(leader.querySelector('.response-reader')),leaderText:weight(leader.querySelector('p')),followerLabel:weight(follower.querySelector('.response-reader')),followerText:weight(follower.querySelector('p')),synthesis:getComputedStyle(follower).fontSynthesisWeight}})()`);
   if (weights.leaderLabel >= 600 || weights.leaderText >= 600 || weights.followerLabel < 600 || weights.followerText < 600 || weights.synthesis === 'none') throw new Error(`Responsive reading weights are incorrect: ${JSON.stringify(weights)}`);
-  const responsiveBlockId = await evaluate(`document.querySelector('.editor-pane .response-editor').closest('[data-editor-block-id]').dataset.editorBlockId`);
-  const before = await evaluate(`document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-row').length`);
-  await evaluate(`Array.from(document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .response-add-actions').querySelectorAll('button')).find(button=>button.textContent.includes('Follower')).click()`);
-  await wait(`(()=>{const rows=document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-row');const added=rows[rows.length-1];return rows.length===${before + 1}&&added?.classList.contains('response-follower')&&added.textContent.includes('New follower response')&&Number.parseInt(getComputedStyle(added.querySelector('p')).fontWeight,10)>=600})()`, 'new follower response');
+  const responsiveBlockId = await evaluate(`document.querySelector('.editor-pane .responsive-reading-editor').closest('[data-editor-block-id]').dataset.editorBlockId`);
+  await evaluate(`(()=>{const editor=document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .responsive-reading-editor');editor.focus();const selection=getSelection();const range=document.createRange();range.selectNodeContents(editor);selection.removeAllRanges();selection.addRange(range);return true})()`);
+  await command('Input.insertText', { text: 'M: First' });
+  for (const character of ['X', 'Y', 'Z']) await command('Input.insertText', { text: character });
+  const enter = async () => { await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }); await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }); };
+  await enter(); await command('Input.insertText', { text: 'Second line' });
+  await enter(); await enter(); await command('Input.insertText', { text: 'Second paragraph' });
+  await enter(); await command('Input.insertText', { text: 'C: A follower response' });
+  await enter(); await command('Input.insertText', { text: 'All: Amen.' });
+  await wait(`(()=>{const rows=document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-row');const leaderParagraphs=rows[0]?.querySelectorAll('p');return rows.length===3&&leaderParagraphs?.length===2&&leaderParagraphs[0].textContent==='FirstXYZSecond line'&&leaderParagraphs[0].querySelector('br')&&leaderParagraphs[1].textContent==='Second paragraph'&&rows[1].classList.contains('response-follower')&&rows[2].classList.contains('response-all')&&rows[2].textContent.includes('Amen.')})()`, 'stable caret and responsive reading newline parsing');
+  await evaluate(`(()=>{const shell=document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .rich-text-editor-shell');const paragraphs=shell.querySelectorAll('.responsive-reading-editor > [data-scripture-paragraph]');const selection=getSelection();const range=document.createRange();range.selectNodeContents(paragraphs[1]);selection.removeAllRanges();selection.addRange(range);shell.querySelector('button[aria-label="Align right"]').click();return paragraphs.length})()`);
+  await wait(`(()=>{const paragraphs=document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-leader p');return paragraphs.length===2&&getComputedStyle(paragraphs[0]).textAlign!=='right'&&getComputedStyle(paragraphs[1]).textAlign==='right'})()`, 'single responsive reading paragraph alignment');
   await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved responsive reading roles');
-  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(responsiveBlockId)}).entries.at(-1))`);
-  if (stored.role !== 'follower' || stored.reader !== 'C') throw new Error(`Follower role was not persisted: ${JSON.stringify(stored)}`);
-  pass('distinguishes regular leaders from bold congregation responses');
+  const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(responsiveBlockId)}).entries)`);
+  if (stored.length !== 3 || stored[1].role !== 'follower' || stored[2].role !== 'all' || stored[0].content.length !== 2 || stored[0].content[0].children.filter(run=>run.type==='lineBreak').length !== 1) throw new Error(`Compact responsive reading was not persisted: ${JSON.stringify(stored)}`);
+  pass('keeps the caret stable and formats individual responsive reading paragraphs');
   console.log(`\n${results.length} browser MVP checks passed.`);
   socket.close();
   process.exit(0);

@@ -1,4 +1,4 @@
-import type { BulletinBlock, LibraryManifestV1, TemplateV1 } from '../shared/types';
+import type { BulletinBlock, LibraryManifestV1, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
 import { childBlocks, updateBlockTree } from '../shared/blocks';
 import { paragraphsFromPlainText } from '../shared/plainText';
 import { SongBlockFields } from './SongBlockFields';
@@ -6,14 +6,17 @@ import { ImageBlockFields } from './ImageBlockFields';
 import { LibraryTextFields } from './LibraryTextFields';
 import { AnnouncementFields } from './AnnouncementFields';
 import { CopyrightFields } from './CopyrightFields';
+import { ResponsiveReadingFields } from './ResponsiveReadingFields';
+import { effectiveResponsiveReadingSettings } from '../shared/responsiveReading';
 
 const plain = (content: Extract<BulletinBlock, { type: 'richText' }>['content'] | undefined) =>
   content?.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
 
-export function NativeBlockFields({ block, library, template, scope, root, imageTargetFolder = 'assets/images', onLibraryChange, onError, onChange }: {
+export function NativeBlockFields({ block, library, template, responsiveReadingSettings, scope, root, imageTargetFolder = 'assets/images', onLibraryChange, onError, onChange }: {
   block: BulletinBlock;
   library?: LibraryManifestV1;
   template: TemplateV1;
+  responsiveReadingSettings?: ResponsiveReadingSettings;
   scope: 'template' | 'weekly';
   root?: string;
   imageTargetFolder?: string;
@@ -21,6 +24,7 @@ export function NativeBlockFields({ block, library, template, scope, root, image
   onError?(message: string): void;
   onChange(block: BulletinBlock): void;
 }) {
+  const readerSettings = responsiveReadingSettings ?? effectiveResponsiveReadingSettings(template);
   const updateChild = (next: BulletinBlock) => onChange(updateBlockTree([block], next.id, next)[0]);
   return <div className="native-block-fields">
     {(block.type === 'heading' || block.type === 'sectionHeading' || block.type === 'sermonTitle') && <label>Text<input value={block.text} onChange={event => onChange({ ...block, text: event.target.value })} /></label>}
@@ -34,7 +38,7 @@ export function NativeBlockFields({ block, library, template, scope, root, image
     {block.type === 'group' && <><div className="field-row container-options"><label>Layout<select value={block.layoutMode ?? 'stack'} onChange={event => onChange({ ...block, layoutMode: event.target.value as NonNullable<typeof block.layoutMode> })}><option value="stack">Stack</option><option value="grid">Grid</option><option value="table">Table</option></select></label>{(block.layoutMode ?? 'stack') !== 'stack' && <label>Columns<input type="number" min="1" max="12" value={block.columns ?? 2} onChange={event => onChange({ ...block, columns: Math.max(1, Math.min(12, event.currentTarget.valueAsNumber || 1)) })} /></label>}{(block.layoutMode ?? 'stack') !== 'table' && <label>Gap (in)<input type="number" min="0" max="2" step=".025" value={block.gapIn ?? .12} onChange={event => onChange({ ...block, gapIn: Math.max(0, event.currentTarget.valueAsNumber || 0) })} /></label>}</div><button className="secondary" onClick={() => onChange({ ...block, children: [...block.children, { id: `${block.id}-item-${Date.now()}`, type: 'paragraph', children: [{ id: `${block.id}-text-${Date.now()}`, type: 'richText', role: 'body', content: paragraphsFromPlainText('New item') }] }] })}>＋ Item</button></>}
     {block.type === 'copyright' && <CopyrightFields block={block} onChange={onChange} />}
     {block.type === 'announcements' && <AnnouncementFields block={block} library={library} root={root} targetFolder={`${imageTargetFolder}/announcements`} onLibraryChange={onLibraryChange} onError={onError} onChange={onChange} />}
-    {block.type === 'responsiveReading' && block.entries.map((entry, index) => <div className="page-native-child" key={index}><input value={entry.reader} onChange={event => onChange({ ...block, entries: block.entries.map((item, itemIndex) => itemIndex === index ? { ...item, reader: event.target.value } : item) })} /><textarea rows={3} value={plain(entry.content)} onChange={event => onChange({ ...block, entries: block.entries.map((item, itemIndex) => itemIndex === index ? { ...item, content: paragraphsFromPlainText(event.target.value) } : item) })} /></div>)}
-    {childBlocks(block)?.map(child => <div className="page-native-child" key={child.id}><div className="page-native-child-heading"><small>{child.label ?? ('text' in child ? child.text : child.type)}</small>{block.type === 'group' && <button className="danger-text" aria-label={`Remove ${child.label ?? child.type}`} onClick={() => onChange({ ...block, children: block.children.filter(item => item.id !== child.id) })}>×</button>}</div><NativeBlockFields block={child} library={library} template={template} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={updateChild} /></div>)}
+    {block.type === 'responsiveReading' && <ResponsiveReadingFields block={block} settings={readerSettings} template={template} onChange={onChange} />}
+    {childBlocks(block)?.map(child => <div className="page-native-child" key={child.id}><div className="page-native-child-heading"><small>{child.label ?? ('text' in child ? child.text : child.type)}</small>{block.type === 'group' && <button className="danger-text" aria-label={`Remove ${child.label ?? child.type}`} onClick={() => onChange({ ...block, children: block.children.filter(item => item.id !== child.id) })}>×</button>}</div><NativeBlockFields block={child} library={library} template={template} responsiveReadingSettings={readerSettings} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={updateChild} /></div>)}
   </div>;
 }

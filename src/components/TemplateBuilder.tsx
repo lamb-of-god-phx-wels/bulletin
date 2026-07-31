@@ -32,11 +32,14 @@ import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
 import { AnnouncementFields } from "./AnnouncementFields";
 import { CopyrightFields } from "./CopyrightFields";
+import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
+import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
 import {
   InlineTypographyControls,
   supportsInlineTypography,
 } from "./InlineTypographyControls";
 import type { UndoRedoCommands } from "./useUndoRedo";
+import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, updateResponsiveReaderLabels } from "../shared/responsiveReading";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -144,6 +147,11 @@ export function TemplateBuilder({
     key: keyof TemplateV1["theme"],
     value: string | number,
   ) => updateTemplate({ theme: { ...template.theme, [key]: value } });
+  const responsiveReadingSettings = effectiveResponsiveReadingSettings(template);
+  const updateResponsiveReadingSettings = (next: typeof responsiveReadingSettings) => updateTemplate({
+    responsiveReading: next,
+    starterBlocks: updateResponsiveReaderLabels(template.starterBlocks, responsiveReadingSettings, next),
+  });
   const addBlock = (block: BulletinBlock, index = template.starterBlocks.length) => {
     updateTemplate({ starterBlocks: [...template.starterBlocks.slice(0, index), block, ...template.starterBlocks.slice(index)] });
     setBlockLibraryOpen(false);
@@ -229,6 +237,8 @@ export function TemplateBuilder({
       <AnnouncementFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}/announcements`} onLibraryChange={onLibraryChange} onError={message => setSaveStatus(message)} onChange={next => updateBlock(block.id, next)} />
     ) : block.type === "copyright" ? (
       <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
+    ) : block.type === "responsiveReading" ? (
+      <ResponsiveReadingFields block={block} settings={responsiveReadingSettings} template={template} onChange={next => updateBlock(block.id, next)} />
     ) : block.type === "image" ? (
       <ImageBlockFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}`} onLibraryChange={onLibraryChange} onChange={next => updateBlock(block.id, next)} onError={message => setSaveStatus(message)} />
     ) : null;
@@ -423,7 +433,15 @@ export function TemplateBuilder({
             </label>
           </div>
         </section>
-        <ElementSidebarPortal><details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
+        <ElementSidebarPortal><>
+        <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
+          <summary><div><div className="eyebrow">Document</div><b>Responsive readings</b></div></summary>
+          <div className="collapsible-editor-fields">
+            <ResponsiveReadingSettingsFields value={responsiveReadingSettings} onChange={updateResponsiveReadingSettings} />
+            <button type="button" className="text-button" disabled={!template.responsiveReading} onClick={() => updateResponsiveReadingSettings(defaultResponsiveReadingSettings)}>Reset labels</button>
+          </div>
+        </details>
+        <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
           <summary>
             <div>
               <div className="eyebrow">Document</div>
@@ -454,7 +472,7 @@ export function TemplateBuilder({
               </small>
             </label>
           </div>
-        </details></ElementSidebarPortal>
+        </details></></ElementSidebarPortal>
         <section className="editor-card">
           <div className="editor-section-title">
             <div>

@@ -530,6 +530,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .response-row .response-reader { font-weight: inherit; }
 .response-leader { font-weight: 400; }
 .response-follower { font-weight: 700; }
+.response-all { font-weight: 700; }
 .scripture > .block-presentation:first-child { margin-top: 0 !important; }
 .scripture-heading-line { display: flex; align-items: baseline; gap: var(--scripture-heading-gap, .12in); width: 100%; }
 .scripture-heading-line > .block-presentation { width: auto !important; }
@@ -552,6 +553,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .announcement-graphic-controls { align-items: end; }
 .rich-text-editor-shell { overflow: hidden; border: 1px solid #cbc7bd; border-radius: 7px; background: white; }
 .rich-text-toolbar { display: flex; gap: 3px; padding: 5px; border-bottom: 1px solid #ddd9d0; background: #f4f1eb; }
+.rich-text-toolbar-group { display: inline-flex; gap: 2px; padding-left: 3px; border-left: 1px solid #d3cfc5; }
 .rich-text-toolbar button { min-width: 30px; min-height: 28px; padding: 3px 7px; border: 1px solid #d3cfc5; border-radius: 5px; color: #4a534e; background: white; font-size: 10px; }
 .rich-text-toolbar .typography-bold { font-weight: 900; }.rich-text-toolbar .typography-italic { font-family: Georgia, serif; font-style: italic; }
 .rich-text-toolbar button.active { border-color: #72a8bd; color: #173d4a; background: #dcecf2; box-shadow: inset 0 0 0 1px #72a8bd; }
@@ -560,6 +562,15 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .rich-text-editor [data-marks*="bold"] { font-weight: 700; }
 .rich-text-editor [data-marks*="italic"] { font-style: italic; }
 .rich-text-editor [data-marks*="smallCaps"] { font-variant: small-caps; }
+.responsive-reading-fields { display: grid; gap: 8px; }
+.responsive-reading-heading-controls { display: grid; gap: 7px; }
+.responsive-reading-heading-row { align-items: end; }
+.responsive-reading-heading-row label { flex: 1; }
+.responsive-reading-editor { min-height: 150px; white-space: pre-wrap; }
+.responsive-reading-error { margin: 0; }
+.responsive-reader-labels { align-items: end; }
+.responsive-reader-labels label { min-width: 0; }
+.responsive-reading-settings-fields { display: grid; gap: 7px; }
 .undo-redo-controls { display: inline-flex; gap: 3px; align-items: center; }
 .undo-redo-controls button { min-width: 32px; padding-inline: 8px; font-size: 16px; line-height: 1; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }

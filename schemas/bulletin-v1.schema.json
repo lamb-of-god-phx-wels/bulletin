@@ -12,11 +12,29 @@
     "church": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } }, "additionalProperties": false },
     "info": { "type": "object", "required": ["title", "date", "churchWeek"], "properties": { "title": { "type": "string" }, "series": { "type": "string" }, "date": { "type": "string", "format": "date" }, "churchWeek": { "type": "string" }, "churchEventId": { "type": "string" } }, "additionalProperties": false },
     "layout": { "type": "object", "properties": { "marginIn": { "type": "number", "minimum": 0, "maximum": 1.25 } }, "additionalProperties": false },
+    "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" },
     "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
     "sourceNotes": { "type": "string" },
     "updatedAt": { "type": "string", "format": "date-time" }
   },
   "$defs": {
+    "responsiveReadingSettings": {
+      "type": "object",
+      "required": ["labels"],
+      "properties": {
+        "labels": {
+          "type": "object",
+          "required": ["leader", "follower", "all"],
+          "properties": {
+            "leader": { "type": "string", "minLength": 1, "pattern": "^[^:\\r\\n]+$" },
+            "follower": { "type": "string", "minLength": 1, "pattern": "^[^:\\r\\n]+$" },
+            "all": { "type": "string", "minLength": 1, "pattern": "^[^:\\r\\n]+$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "block": {
       "type": "object",
       "required": ["id", "type"],

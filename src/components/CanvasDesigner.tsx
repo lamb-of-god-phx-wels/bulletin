@@ -41,6 +41,7 @@ import { ImageAssetDialog } from './ImageAssetDialog.js';
 import { SortableHandle, SortableItem } from './SortableList.js';
 import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls.js';
 import { isRedoShortcut, isUndoShortcut, type UndoRedoCommands } from './useUndoRedo.js';
+import { effectiveResponsiveReadingSettings } from '../shared/responsiveReading.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -662,7 +663,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
       <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) setSelected(new Set()); }}>
-        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={document} marginIn={marginIn} />} />
+        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} marginIn={marginIn} />} />
         {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
         {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
         {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}
@@ -702,7 +703,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
             } as Partial<CanvasElement>)}
             onChange={presentation => updatePrimary({ block: { ...nativePrimary, presentation } } as Partial<CanvasElement>)}
           />}
-          {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
+          {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} responsiveReadingSettings={effectiveResponsiveReadingSettings(template, document)} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
             {!supportsInlineTypography(nativePrimary) && <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>}
             <button className="secondary canvas-format-button" onClick={() => setFormattingElementId(primary.id)}>Format block…</button>

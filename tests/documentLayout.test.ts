@@ -18,4 +18,12 @@ describe('bulletin page layout', () => {
     document.layout = { marginIn: defaultTemplate.theme.marginIn };
     expect(templateForBulletin(defaultTemplate, document)).toBe(defaultTemplate);
   });
+
+  it('applies a bulletin responsive-reading override without changing the template', () => {
+    const document = createBulletin(defaultTemplate);
+    document.responsiveReading = { labels: { leader: 'L', follower: 'P', all: 'Together' } };
+    const effective = templateForBulletin(defaultTemplate, document);
+    expect(effective.responsiveReading).toEqual(document.responsiveReading);
+    expect(defaultTemplate.responsiveReading?.labels.leader).toBe('M');
+  });
 });

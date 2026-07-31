@@ -2,14 +2,14 @@
   "schemaVersion": 2,
   "kind": "component",
   "type": "bulletin:responsiveReading",
-  "version": 1,
+  "version": 2,
   "name": "Responsive reading",
-  "description": "A sequence of independently editable leader and congregation responses.",
+  "description": "A compact rich-text sequence of leader, congregation, and all responses.",
   "inputSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "required": ["items"],
-    "properties": { "items": { "type": "array", "items": { "type": "object" } } },
+    "properties": { "heading": { "type": "string" }, "items": { "type": "array", "items": { "type": "object" } } },
     "additionalProperties": false
   },
   "template": {
@@ -55,6 +55,12 @@
         "reader": "C",
         "role": "follower",
         "body": { "blocks": [{ "type": "paragraph", "inlines": [{ "type": "text", "value": "New follower response" }] }] }
+      },
+      {
+        "id": "all-1",
+        "reader": "All",
+        "role": "all",
+        "body": { "blocks": [{ "type": "paragraph", "inlines": [{ "type": "text", "value": "Amen." }] }] }
       }
     ]
   }

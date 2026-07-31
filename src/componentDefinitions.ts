@@ -200,11 +200,13 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
       return {
         ...base,
         type: 'responsiveReading',
+        heading: typeof sample.heading === 'string' ? { id: `${base.id}-heading`, type: 'heading', text: sample.heading } : undefined,
         entries: Array.isArray(sample.items) ? sample.items.map(item => {
           const entry = item as Record<string, JsonValue>;
           return {
             reader: typeof entry.reader === 'string' ? entry.reader : '',
-            role: entry.role === 'follower' ? 'follower' as const : 'leader' as const,
+            role: entry.role === 'follower' ? 'follower' as const : entry.role === 'all' ? 'all' as const : 'leader' as const,
+            readerMode: 'configured' as const,
             content: paragraphs(entry.body)
           };
         }) : []

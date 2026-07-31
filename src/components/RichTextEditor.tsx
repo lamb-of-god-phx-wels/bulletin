@@ -8,6 +8,7 @@ type EditableMark = Extract<Marks[number], 'bold' | 'italic' | 'smallCaps'>;
 type SelectionOffsets = { start: number; end: number };
 
 const markOrder: Marks[number][] = ['bold', 'italic', 'smallCaps', 'superscript'];
+type ParagraphAlignment = NonNullable<Paragraph['align']>;
 
 function sameMarks(left?: Marks, right?: Marks) {
   return JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
@@ -89,6 +90,19 @@ export function formatTextRange(
   });
 }
 
+export function alignParagraphRange(content: Paragraph[], start: number, end: number, align: ParagraphAlignment): Paragraph[] {
+  let cursor = 0;
+  return content.map(paragraph => {
+    const length = paragraph.children.reduce((total, run) => total + (run.type === 'text' ? run.text.length : 1), 0);
+    const paragraphEnd = cursor + length;
+    const selected = start === end
+      ? start >= cursor && start <= paragraphEnd
+      : start <= paragraphEnd && end >= cursor;
+    cursor = paragraphEnd;
+    return selected ? { ...paragraph, align } : paragraph;
+  });
+}
+
 function selectionOffsets(editor: HTMLElement): SelectionOffsets | undefined {
   const selection = editor.ownerDocument.getSelection();
   if (!selection?.rangeCount) return;
@@ -132,9 +146,10 @@ function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
   selection?.addRange(range);
 }
 
-export function RichTextEditor({ content, label, onChange }: { content: Paragraph[]; label: string; onChange(content: Paragraph[]): void }) {
+export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph' }: { content: Paragraph[]; label: string; onChange(content: Paragraph[]): void; className?: string; enterMode?: 'paragraph' | 'lineBreaks' }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const signatureRef = useRef('');
+  const consecutiveEnterRef = useRef(false);
   const [activeMarks, setActiveMarks] = useState<EditableMark[]>([]);
   const signature = JSON.stringify(content);
   useLayoutEffect(() => {
@@ -169,6 +184,49 @@ export function RichTextEditor({ content, label, onChange }: { content: Paragrap
     setActiveMarks(selectedTextMarks(next, offsets.start, offsets.end));
     editor.focus();
   };
+  const applyAlignment = (align: ParagraphAlignment) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selection = editor.ownerDocument.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+    if (!range || !editor.contains(range.commonAncestorContainer)) return;
+    const paragraphs = Array.from(editor.querySelectorAll<HTMLElement>(':scope > [data-scripture-paragraph]'));
+    const selected = range.collapsed
+      ? paragraphs.filter(paragraph => paragraph.contains(range.startContainer) || paragraph === range.startContainer)
+      : paragraphs.filter(paragraph => range.intersectsNode(paragraph));
+    for (const paragraph of selected) {
+      paragraph.dataset.align = align;
+      paragraph.style.textAlign = align;
+    }
+    emit();
+    editor.focus();
+  };
+  const insertCross = () => {
+    const editor = editorRef.current;
+    const selection = editor?.ownerDocument.getSelection();
+    if (!editor || !selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+    const symbol = editor.ownerDocument.createElement('span');
+    symbol.dataset.symbol = 'cross';
+    symbol.textContent = '✠';
+    range.deleteContents();
+    range.insertNode(symbol);
+    range.setStartAfter(symbol);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    emit();
+    editor.focus();
+  };
+  const safeRichHtml = (html: string, plain: string) => {
+    if (!editorRef.current || !html) return pastedHtml(plain);
+    const source = editorRef.current.ownerDocument.createElement('div');
+    source.innerHTML = html;
+    const destination = editorRef.current.ownerDocument.createElement('div');
+    renderStructuredContent(destination, scriptureContentFromEditor(source));
+    return destination.innerHTML;
+  };
   const toolbarButton = (mark: EditableMark, text: string, title: string, className?: string) =>
     <button type="button" className={`${className ?? ''} ${activeMarks.includes(mark) ? 'active' : ''}`.trim()} aria-label={title} aria-pressed={activeMarks.includes(mark)} title={`${title} selected text`} onMouseDown={event => event.preventDefault()} onClick={() => applyFormatting(mark)}>{text}</button>;
   return <div className="rich-text-editor-shell">
@@ -177,10 +235,59 @@ export function RichTextEditor({ content, label, onChange }: { content: Paragrap
       {toolbarButton('italic', 'I', 'Italic', 'typography-italic')}
       {toolbarButton('smallCaps', 'Aᴀ', 'Small caps')}
       <button type="button" aria-label="Clear formatting" title="Clear formatting from selected text" onMouseDown={event => event.preventDefault()} onClick={() => applyFormatting()}>Clear</button>
+      <span className="rich-text-toolbar-group" aria-label="Paragraph alignment">
+        <button type="button" aria-label="Align left" title="Align paragraph left" onMouseDown={event => event.preventDefault()} onClick={() => applyAlignment('left')}>≡</button>
+        <button type="button" aria-label="Align center" title="Center paragraph" onMouseDown={event => event.preventDefault()} onClick={() => applyAlignment('center')}>≣</button>
+        <button type="button" aria-label="Align right" title="Align paragraph right" onMouseDown={event => event.preventDefault()} onClick={() => applyAlignment('right')}>≡</button>
+      </span>
+      <button type="button" aria-label="Insert cross" title="Insert cross" onMouseDown={event => event.preventDefault()} onClick={insertCross}>✠</button>
     </div>
-    <div ref={editorRef} className="rich-text-editor" contentEditable role="textbox" aria-label={label} aria-multiline="true" spellCheck suppressContentEditableWarning onInput={() => { emit(); updateToolbar(); }} onMouseUp={updateToolbar} onKeyUp={updateToolbar} onFocus={updateToolbar} onPaste={event => {
+    <div ref={editorRef} className={`rich-text-editor ${className ?? ''}`.trim()} contentEditable role="textbox" aria-label={label} aria-multiline="true" spellCheck suppressContentEditableWarning onInput={event => {
+      if (!['insertLineBreak', 'insertParagraph'].includes(event.nativeEvent.inputType)) consecutiveEnterRef.current = false;
+      emit(); updateToolbar();
+    }} onMouseUp={updateToolbar} onKeyDown={event => {
+      if (enterMode !== 'lineBreaks') return;
+      if (event.key !== 'Enter') {
+        consecutiveEnterRef.current = false;
+        return;
+      }
       event.preventDefault();
-      editorRef.current?.ownerDocument.execCommand('insertHTML', false, pastedHtml(event.clipboardData.getData('text/plain')));
+      if (consecutiveEnterRef.current) {
+        const editor = editorRef.current;
+        const selection = editor?.ownerDocument.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+        const start = range?.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer as Element : range?.startContainer.parentElement;
+        const paragraph = start?.closest<HTMLElement>('[data-scripture-paragraph]');
+        if (editor && selection && range && paragraph && editor.contains(paragraph)) {
+          range.deleteContents();
+          const tailRange = editor.ownerDocument.createRange();
+          tailRange.setStart(range.startContainer, range.startOffset);
+          tailRange.setEnd(paragraph, paragraph.childNodes.length);
+          const tail = tailRange.extractContents();
+          const next = editor.ownerDocument.createElement('div');
+          next.dataset.scriptureParagraph = '';
+          if (tail.childNodes.length) next.append(tail);
+          else {
+            const placeholder = editor.ownerDocument.createElement('br');
+            placeholder.dataset.placeholder = '';
+            next.append(placeholder);
+          }
+          paragraph.after(next);
+          const nextRange = editor.ownerDocument.createRange();
+          nextRange.setStart(next, 0);
+          nextRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(nextRange);
+          consecutiveEnterRef.current = false;
+          emit();
+        }
+        return;
+      }
+      consecutiveEnterRef.current = true;
+      editorRef.current?.ownerDocument.execCommand('insertLineBreak');
+    }} onKeyUp={updateToolbar} onFocus={updateToolbar} onPaste={event => {
+      event.preventDefault();
+      editorRef.current?.ownerDocument.execCommand('insertHTML', false, safeRichHtml(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')));
       emit();
     }} />
   </div>;

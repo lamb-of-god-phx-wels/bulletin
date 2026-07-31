@@ -4,7 +4,7 @@ import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/custom
 import { childBlocks, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
-import { responsiveEntryRole } from '../shared/responsiveReading';
+import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, responsiveEntryReader, responsiveEntryRole } from '../shared/responsiveReading';
 import { songHeader, songTitle } from '../shared/songs';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
 import { boundRichTextParagraphs, canvasAssetRefs, canvasNativeBlocks } from '../shared/canvas';
@@ -130,9 +130,9 @@ function BlockView({ block, library, assets, document, marginIn }: { block: Pagi
     case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
     case 'richText': return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><Paragraphs content={boundRichTextParagraphs(block, document)} /></div>;
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
-    case 'responsiveReading': return <div className="responsive">{block.entries.map((entry, index) => {
+    case 'responsiveReading': return <div className="responsive">{block.heading && <RenderedBlock block={block.heading as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} />}{block.entries.map((entry, index) => {
       const role = responsiveEntryRole(entry);
-      return <div className={`response-row response-${role}`} data-response-role={role} key={index}><span className="response-reader">{entry.reader}:</span><div><Paragraphs content={entry.content} /></div></div>;
+      return <div className={`response-row response-${role}`} data-response-role={role} key={index}><span className="response-reader">{responsiveEntryReader(entry, document.responsiveReading ?? defaultResponsiveReadingSettings)}:</span><div><Paragraphs content={entry.content} /></div></div>;
     })}</div>;
     case 'scriptureReading': {
       const elements = scriptureElementBlocks(block);
@@ -208,6 +208,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   onReady?(): void;
 }) {
   const effectiveTemplate = templateForBulletin(template, bulletin);
+  const renderDocument = useMemo(() => ({ ...bulletin, responsiveReading: effectiveResponsiveReadingSettings(effectiveTemplate, bulletin) }), [bulletin, effectiveTemplate]);
   const [assets, setAssets] = useState<Record<string, string>>({});
   const refs = useMemo(() => [...new Map(flattenBlocks(bulletin.blocks).flatMap(block => {
     const result: AssetRef[] = [];
@@ -256,7 +257,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   };
   const renderPage = (page: typeof pages[number], key: React.Key) => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={key} style={page.marginIn !== undefined ? { '--page-margin': `${page.marginIn}in` } as React.CSSProperties : undefined}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
-      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={bulletin} marginIn={page.marginIn ?? effectiveTemplate.theme.marginIn} />)}</div>
+      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={renderDocument} marginIn={page.marginIn ?? effectiveTemplate.theme.marginIn} />)}</div>
       {page.kind === 'content' && page.number > 1 && page.blocks[0]?.type !== 'templatePage' && <div className="page-number">{page.number}</div>}
     </article></div>;
   if (bookletMode) {

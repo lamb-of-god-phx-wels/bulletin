@@ -2,16 +2,16 @@
   "schemaVersion": 2,
   "kind": "component",
   "type": "bulletin:responsiveReadingItem",
-  "version": 1,
+  "version": 2,
   "name": "Responsive reading item",
-  "description": "One leader or congregation response with a reader label.",
+  "description": "One leader, congregation, or all response with a reader label.",
   "inputSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "required": ["reader", "body"],
     "properties": {
       "reader": { "type": "string" },
-      "role": { "enum": ["leader", "follower"] },
+      "role": { "enum": ["leader", "follower", "all"] },
       "body": { "type": "object", "required": ["blocks"], "properties": { "blocks": { "type": "array" } } }
     },
     "additionalProperties": false

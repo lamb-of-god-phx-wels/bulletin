@@ -126,14 +126,19 @@ export interface RichTextBlock extends BlockBase {
   dateFormat?: 'long' | 'medium' | 'short' | 'iso';
 }
 export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string }
-export type ResponsiveReadingRole = 'leader' | 'follower';
+export type ResponsiveReadingRole = 'leader' | 'follower' | 'all';
+export interface ResponsiveReadingSettings {
+  labels: Record<ResponsiveReadingRole, string>;
+}
 export interface ResponsiveReadingEntry {
   reader: string;
   role?: ResponsiveReadingRole;
+  readerMode?: 'configured' | 'custom';
   content: Paragraph[];
 }
 export interface ResponsiveReadingBlock extends BlockBase {
   type: 'responsiveReading';
+  heading?: HeadingBlock;
   entries: ResponsiveReadingEntry[];
 }
 export interface ScriptureBlock extends BlockBase {
@@ -245,6 +250,7 @@ export interface BulletinDocumentV1 {
   church: { name: string };
   info: { title: string; series?: string; date: string; churchWeek: string; churchEventId?: string };
   layout?: { marginIn?: number };
+  responsiveReading?: ResponsiveReadingSettings;
   blocks: BulletinBlock[];
   sourceNotes?: string;
   updatedAt: string;
@@ -268,6 +274,7 @@ export interface TemplateV1 {
   status: 'draft' | 'published';
   page: { widthIn: 7; heightIn: 8.5; pageMultiple: 4 };
   theme: ThemeV1;
+  responsiveReading?: ResponsiveReadingSettings;
   starterBlocks: BulletinBlock[];
   filler: { kind: 'blank' | 'asset'; asset?: AssetRef };
   updatedAt: string;

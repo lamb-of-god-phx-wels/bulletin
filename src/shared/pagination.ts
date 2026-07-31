@@ -3,6 +3,7 @@ import { childBlocks } from './blocks.js';
 import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureReading.js';
 import { pageTemplateMargin } from './pageTemplates.js';
 import { songHeader } from './songs.js';
+import { effectiveResponsiveReadingSettings, responsiveEntryReader } from './responsiveReading.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[]; marginIn?: number }
@@ -70,7 +71,7 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
   if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
-  if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + 8);
+  if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + (block.heading ? estimateBlockPoints(block.heading, template, library) : 0) + 8);
   if (block.type === 'scriptureReading') {
     const elements = scriptureElementBlocks(block)
       .filter(element => element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
@@ -153,9 +154,12 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
       return groupParagraphs(content, Math.max(72, usable - basePoints(block, template)), template).map((group, index) => contentFragment(block, group, index));
     }
     if (block.type === 'responsiveReading' && block.entries.length) {
+      const settings = effectiveResponsiveReadingSettings(template);
       const entries = block.entries.flatMap(entry => {
         const chunks = groupParagraphs(entry.content, usable, template);
-        return (chunks.length ? chunks : [entry.content]).map((content, index) => ({ ...entry, reader: index ? `${entry.reader} (cont.)` : entry.reader, content }));
+        return (chunks.length ? chunks : [entry.content]).map((content, index) => index
+          ? { ...entry, reader: `${responsiveEntryReader(entry, settings)} (cont.)`, readerMode: 'custom' as const, content }
+          : { ...entry, content });
       });
       const groups: typeof block.entries[] = []; let group: typeof block.entries = []; let used = 0;
       for (const entry of entries) {
@@ -164,7 +168,7 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
         group.push(entry); used += height;
       }
       if (group.length) groups.push(group);
-      return groups.map((entries, index) => ({ ...block, id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, entries, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
+      return groups.map((entries, index) => ({ ...block, heading: index ? undefined : block.heading, id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, entries, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
     }
     if (block.type === 'announcements' && block.items.length) {
       const capacity = usable - basePoints(block, template);

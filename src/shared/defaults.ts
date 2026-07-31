@@ -2,6 +2,7 @@ import type { BulletinDocumentV1, PageTemplateV1, TemplateV1 } from './types.js'
 import { defaultChurchInfoChildren } from './blocks.js';
 import { createCanvasBlock, defaultCanvasScene } from './canvas.js';
 import { instantiatePageTemplate } from './pageTemplates.js';
+import { defaultResponsiveReadingSettings } from './responsiveReading.js';
 
 const now = () => new Date().toISOString();
 
@@ -33,6 +34,7 @@ export const defaultTemplate: TemplateV1 = {
     lineHeight: 1.28,
     marginIn: 0.4
   },
+  responsiveReading: structuredClone(defaultResponsiveReadingSettings),
   starterBlocks: [
     instantiatePageTemplate(defaultPageTemplate, 'cover'),
     { id: 'church-info', type: 'churchInfo', children: defaultChurchInfoChildren() },

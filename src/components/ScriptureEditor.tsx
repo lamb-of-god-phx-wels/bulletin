@@ -21,6 +21,10 @@ export function renderStructuredContent(container: HTMLElement, content: Paragra
   for (const paragraph of content.length ? content : [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }]) {
     const line = owner.createElement('div');
     line.dataset.scriptureParagraph = '';
+    if (paragraph.align) {
+      line.dataset.align = paragraph.align;
+      line.style.textAlign = paragraph.align;
+    }
     if (!paragraph.children.length || (paragraph.children.length === 1 && paragraph.children[0].type === 'text' && !paragraph.children[0].text)) {
       const placeholder = owner.createElement('br');
       placeholder.dataset.placeholder = '';
@@ -109,7 +113,8 @@ export function scriptureContentFromEditor(container: HTMLElement): Paragraph[] 
       flushLoose();
       const children: Inline[] = [];
       node.childNodes.forEach(child => parseInline(child, children));
-      paragraphs.push({ type: 'paragraph', children: children.length ? children : [{ type: 'text', text: '' }] });
+      const align = node.dataset.align || node.style.textAlign;
+      paragraphs.push({ type: 'paragraph', ...(align === 'left' || align === 'center' || align === 'right' ? { align } : {}), children: children.length ? children : [{ type: 'text', text: '' }] });
     } else {
       parseInline(node, looseRuns);
     }

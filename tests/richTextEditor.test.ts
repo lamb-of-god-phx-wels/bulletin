@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTextRange, selectedTextMarks } from '../src/components/RichTextEditor';
+import { alignParagraphRange, formatTextRange, selectedTextMarks } from '../src/components/RichTextEditor';
 import type { Paragraph } from '../src/shared/types';
 
 describe('rich-text segment formatting', () => {
@@ -39,6 +39,17 @@ describe('rich-text segment formatting', () => {
     const cleared = formatTextRange(combined, 4, 13);
     expect(cleared[0].children).toEqual([
       { type: 'text', text: 'One important notice' },
+    ]);
+  });
+
+  it('aligns only paragraphs touched by the selection', () => {
+    const content: Paragraph[] = [
+      { type: 'paragraph', children: [{ type: 'text', text: 'First' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: 'Second' }] },
+    ];
+    expect(alignParagraphRange(content, 0, 4, 'center')).toEqual([
+      { ...content[0], align: 'center' },
+      content[1],
     ]);
   });
 });

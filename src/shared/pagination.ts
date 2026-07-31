@@ -57,7 +57,13 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
     return points * widthFactor * fontFactor + verticalBox;
   };
   const formatted = (points: number) => formatPoints(points, presentation, block.type === 'copyright');
-  if (block.type === 'group') return formatted(block.children.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
+  if (block.type === 'group') {
+    const childPoints = block.children.map(child => estimateBlockPoints(child, template, library));
+    const columns = Math.max(1, Math.min(12, block.columns ?? 2));
+    if ((block.layoutMode ?? 'stack') === 'stack') return formatted(childPoints.reduce((total, points) => total + points, 0) + Math.max(0, childPoints.length - 1) * (block.gapIn ?? 0) * 72);
+    const rows = Array.from({ length: Math.ceil(childPoints.length / columns) }, (_, row) => Math.max(0, ...childPoints.slice(row * columns, (row + 1) * columns)));
+    return formatted(rows.reduce((total, points) => total + points, 0) + Math.max(0, rows.length - 1) * (block.layoutMode === 'table' ? 0 : (block.gapIn ?? .12) * 72));
+  }
   if (block.type === 'canvas') return formatted(block.heightIn * 72);
   if (block.type === 'image') return formatted((block.heightIn ?? 2.5) * 72);
   if (block.type === 'paragraph') return formatted(childBlocks(block)!.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));

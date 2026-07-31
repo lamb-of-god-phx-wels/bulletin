@@ -4,6 +4,7 @@ import { instantiateComponentDefinition } from '../componentDefinitions';
 import { createBulletin } from '../shared/defaults';
 import { estimateBlockPoints } from '../shared/pagination';
 import { pageTemplateIssues, pageTemplateLayout } from '../shared/pageTemplates';
+import { createLayoutContainer } from '../shared/blocks';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { BlockFormattingModal } from './BlockFormattingModal';
 import { BlockLibraryModal } from './BlockLibraryModal';
@@ -70,6 +71,9 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === 'component') {
       const block = instantiateComponentDefinition(payload.definition);
+      change({ blocks: [...value.blocks.slice(0, index), block, ...value.blocks.slice(index)] });
+    } else if (payload.kind === 'container') {
+      const block = createLayoutContainer(payload.layoutMode, `container-${randomId()}`);
       change({ blocks: [...value.blocks.slice(0, index), block, ...value.blocks.slice(index)] });
     } else if (payload.kind === 'image' && root && window.bulletin) {
       setImageIndex(index);
@@ -208,7 +212,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     </>}
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={template} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
     {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} onClose={() => setCanvasId(undefined)} /> : null; })()}
-    {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
+    {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
     {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
   </div>;
 }

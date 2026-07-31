@@ -423,6 +423,33 @@ function assetRefs(value: unknown, result: AssetRef[] = []): AssetRef[] {
   return result;
 }
 
+interface StoredBulletinRevision extends BulletinDocumentV1 {
+  revisionMetadata?: { bulletinPath: string; label: string; createdAt: string };
+}
+
+async function loadBulletinRevisions(root: string, bulletins: WorkspaceSummary['bulletins']) {
+  const files = (await jsonFiles(inside(root, 'bulletins'))).filter(file => file.includes(`${path.sep}revisions${path.sep}`));
+  return (await Promise.all(files.map(async file => {
+    try {
+      const stored = await readJson<StoredBulletinRevision>(file);
+      const fileInfo = await stat(file);
+      const relative = workspaceRelative(root, file);
+      const { revisionMetadata, ...document } = stored;
+      const inferredPath = bulletins.find(record => record.document.id === stored.id)?.path
+        ?? `${relative.slice(0, relative.indexOf('/revisions/'))}/bulletin.json`;
+      const fileLabel = path.basename(file, '.json').replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/, '').replaceAll('-', ' ');
+      return {
+        path: relative,
+        bulletinPath: revisionMetadata?.bulletinPath ?? inferredPath,
+        label: revisionMetadata?.label ?? (fileLabel || 'Revision'),
+        createdAt: revisionMetadata?.createdAt ?? fileInfo.mtime.toISOString(),
+        document: { ...document, blocks: normalizeCanvasBlocks(document.blocks) } as BulletinDocumentV1
+      };
+    } catch { return undefined; }
+  }))).filter((record): record is NonNullable<typeof record> => Boolean(record))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 export async function openWorkspace(root: string, currentVersion = '0.0.0'): Promise<WorkspaceSummary> {
   const compatibility = await workspaceCompatibility(root, currentVersion);
   if (compatibility.writable) await ensureWorkspace(root);
@@ -453,9 +480,11 @@ export async function openWorkspace(root: string, currentVersion = '0.0.0'): Pro
   const refs = assetRefs({ bulletins, templates, pageTemplates, library });
   const unavailableAssets: string[] = [];
   for (const asset of refs) if (!await exists(inside(root, asset.path))) unavailableAssets.push(asset.path);
+  const revisions = await loadBulletinRevisions(root, bulletins);
   return {
     root,
     bulletins,
+    revisions,
     templates,
     pageTemplates,
     library,
@@ -867,7 +896,10 @@ export async function createRevision(root: string, bulletinRelative: string, doc
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const project = path.dirname(bulletinRelative);
   const relative = path.join(project, 'revisions', `${stamp}-${safeLabel}.json`);
-  await atomicJson(inside(root, relative), document);
+  await atomicJson(inside(root, relative), {
+    ...document,
+    revisionMetadata: { bulletinPath: normalizeWorkspacePath(bulletinRelative), label, createdAt: new Date().toISOString() }
+  } satisfies StoredBulletinRevision);
   return relative;
 }
 

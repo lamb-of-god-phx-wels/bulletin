@@ -117,7 +117,13 @@ function BlockView({ block, library, assets, document, marginIn }: { block: Pagi
       <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />
     )}</section>;
     case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</div>;
-    case 'group': return <section className="block-group">{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
+    case 'group': {
+      const mode = block.layoutMode ?? 'stack';
+      return <section className={`block-group layout-${mode}`} style={{
+        '--layout-gap': `${mode === 'table' ? 0 : block.gapIn ?? 0}in`,
+        '--layout-columns': Math.max(1, Math.min(12, block.columns ?? (mode === 'stack' ? 1 : 2)))
+      } as React.CSSProperties}>{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} key={child.id} />)}</section>;
+    }
     case 'sermonTitle': return <h1 className="sermon-title">{block.text}</h1>;
     case 'sectionHeading': return <h2 className="section-heading">✠ {block.text} ✠</h2>;
     case 'heading': return <h3 className="block-heading">{block.text}</h3>;

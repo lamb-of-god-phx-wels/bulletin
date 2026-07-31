@@ -41,7 +41,7 @@ export function CreateFromDialog({ destination, templates, bulletins, initialTem
       <div className="create-from-settings">
         <label>{destination === 'bulletin' ? 'Service date' : 'New template name'}<input autoFocus type={destination === 'bulletin' ? 'date' : 'text'} value={value} placeholder={destination === 'template' ? 'e.g. Festival Service' : undefined} onChange={event => setValue(event.target.value)} /></label>
         <div className="create-from-tabs" role="tablist" aria-label="Source type">
-          <button role="tab" aria-selected={sourceKind === 'template'} className={sourceKind === 'template' ? 'active' : ''} onClick={() => switchKind('template')}>Templates <span>{templates.length}</span></button>
+          <button role="tab" aria-selected={sourceKind === 'template'} className={sourceKind === 'template' ? 'active' : ''} onClick={() => switchKind('template')}>Bulletin Templates <span>{templates.length}</span></button>
           <button role="tab" aria-selected={sourceKind === 'bulletin'} className={sourceKind === 'bulletin' ? 'active' : ''} onClick={() => switchKind('bulletin')}>Bulletins <span>{bulletins.length}</span></button>
         </div>
         {sourceKind === 'bulletin' && <label>Search bulletins<input type="search" value={query} placeholder="Date, title, series, or church event" onChange={event => setQuery(event.target.value)} /></label>}

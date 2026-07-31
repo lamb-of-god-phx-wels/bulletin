@@ -8,15 +8,6 @@
 * Fix per sub-block formatting
 
 
-## Template/bulletin builder
-
-* Support revision history
-
-* "Templates" -> "Bulletin Templates"
-* table/grid support
-* In "format" window, the preview should show the actual element preview rather than a generic example
-* Support for split scripture references
-
 * Responsive reading
   * Compact the UI
     * Also copyable
@@ -25,12 +16,10 @@
   * Optionaly heading
 
 * Announcements
-  * Graphics
   * QR code
 
 * Revisioning - add date to version display
 
-* Italics for song/asset names in copyright block
 
 
 ## Library

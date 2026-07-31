@@ -64,13 +64,41 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_BUILDER_TODOS_ONLY === '1') {
+  await evaluate(`(()=>{const toggle=document.querySelector('.autosave-control input');if(toggle?.checked)toggle.click();return true})()`);
+  const navigationLabels = await evaluate(`Array.from(document.querySelectorAll('.sidebar nav button')).map(button=>button.textContent.trim())`);
+  if (!navigationLabels.some(label => label.endsWith('Bulletin Templates')) || navigationLabels.some(label => label.endsWith('◇Templates'))) throw new Error(`Bulletin Templates navigation label is missing: ${JSON.stringify(navigationLabels)}`);
+  const paletteLabels = await evaluate(`Array.from(document.querySelectorAll('.element-palette-item b')).map(label=>label.textContent.trim())`);
+  for (const label of ['Stack', 'Grid', 'Table']) if (!paletteLabels.includes(label)) throw new Error(`${label} container is missing from the palette.`);
+  await click('Stack');
+  await wait(`Boolean(document.querySelector('.preview-pane .block-group.layout-stack'))`, 'stack container preview');
+  await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.block-editor')).find(item=>item.querySelector('.block-type')?.textContent.startsWith('group'));editor?.setAttribute('open','');editor?.querySelector('.format-block-button')?.click();return Boolean(editor)})()`);
+  await wait(`Boolean(document.querySelector('.block-formatting-modal .format-actual-preview .block-group.layout-stack'))`, 'actual container format preview');
+  if (await evaluate(`document.querySelector('.block-formatting-modal')?.textContent.includes('Sample block content appears here')`)) throw new Error('The Format window still shows generic sample content.');
+  await evaluate(`document.querySelector('.block-formatting-modal button[aria-label="Close block formatting"]')?.click()`);
+  await click('Announcements');
+  await wait(`(()=>{const editors=Array.from(document.querySelectorAll('.block-editor'));const editor=editors.reverse().find(item=>item.querySelector('.block-type')?.textContent.startsWith('announcements'));editor?.setAttribute('open','');return Boolean(editor?.querySelector('.rich-text-editor')&&Array.from(editor.querySelectorAll('button')).some(button=>button.textContent.includes('graphic')))})()`, 'rich announcement and graphic controls');
+  await evaluate(`(()=>{const editors=Array.from(document.querySelectorAll('.block-editor')),editor=editors.reverse().find(item=>item.querySelector('.block-type')?.textContent.startsWith('announcements')),rich=editor?.querySelector('.rich-text-editor'),button=editor&&Array.from(editor.querySelectorAll('.rich-text-toolbar button')).find(item=>item.getAttribute('aria-label')==='Italic');if(!rich||!button)return false;const range=document.createRange();range.selectNodeContents(rich);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);button.click();return true})()`);
+  await wait(`Boolean(document.querySelector('.preview-pane .announcements .mark-italic'))`, 'rich announcement formatting preview');
+  await click('Save');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'manual save checkpoint');
+  await click('History');
+  await wait(`Boolean(document.querySelector('.revision-history-modal'))`, 'revision history dialog');
+  if (!await evaluate(`Boolean(document.querySelector('.revision-history-modal li'))`)) throw new Error('Manual save did not create a revision history entry.');
+  await evaluate(`document.querySelector('.revision-history-modal button[aria-label="Close revision history"]')?.click()`);
+  pass('supports history, builder containers, actual format previews, and rich announcement graphics');
+  console.log(`\n${results.length} browser builder checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });

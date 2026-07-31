@@ -11,12 +11,14 @@ import { SongBlockFields } from "./SongBlockFields";
 import { LibraryTextFields } from "./LibraryTextFields";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
+import { AnnouncementFields } from "./AnnouncementFields";
+import { CopyrightFields } from "./CopyrightFields";
 import {
   InlineTypographyControls,
   supportsInlineTypography,
 } from "./InlineTypographyControls";
 import { instantiateComponentDefinition } from "../componentDefinitions";
-import { childBlocks, findBlock, updateBlockTree } from "../shared/blocks";
+import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
 import { paragraphsFromPlainText } from "../shared/plainText";
 import {
@@ -451,6 +453,10 @@ export function WeeklyEditor({
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === "component") {
       const block = { ...instantiateComponentDefinition(payload.definition), weeklyEditable: true } as BulletinBlock;
+      onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, index) });
+      setPendingAddedBlockId(block.id);
+    } else if (payload.kind === "container") {
+      const block = { ...createLayoutContainer(payload.layoutMode, `container-${randomId()}`), weeklyEditable: true };
       onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, index) });
       setPendingAddedBlockId(block.id);
     } else if (payload.kind === "page") setPageInsertionIndex(index);
@@ -1078,66 +1084,7 @@ export function WeeklyEditor({
                     );
                   })()}
                 {block.type === "announcements" && (
-                  <>
-                    {block.items.map((item, itemIndex) => (
-                      <div className="announcement-editor" key={item.id}>
-                        <label>
-                          Title
-                          <input
-                            value={item.title}
-                            onChange={(e) =>
-                              updateBlock(block.id, {
-                                ...block,
-                                items: block.items.map((old, i) =>
-                                  i === itemIndex
-                                    ? { ...old, title: e.target.value }
-                                    : old,
-                                ),
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Details
-                          <textarea
-                            rows={4}
-                            value={paragraphText(item.content)}
-                            onChange={(e) =>
-                              updateBlock(block.id, {
-                                ...block,
-                                items: block.items.map((old, i) =>
-                                  i === itemIndex
-                                    ? {
-                                        ...old,
-                                        content: paragraphs(e.target.value),
-                                      }
-                                    : old,
-                                ),
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                    ))}
-                    <button
-                      className="secondary"
-                      onClick={() =>
-                        updateBlock(block.id, {
-                          ...block,
-                          items: [
-                            ...block.items,
-                            {
-                              id: `announcement-${Date.now()}`,
-                              title: "New announcement",
-                              content: [paragraphs("")[0]],
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      ＋ Announcement
-                    </button>
-                  </>
+                  <AnnouncementFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets/announcements`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {block.type === "custom" && (
                   <div className="custom-weekly-fields">
@@ -1315,23 +1262,13 @@ export function WeeklyEditor({
                   </div>
                 )}
                 {(block.type === "churchInfo" || block.type === "group") &&
-                  nestedEditors(block)}
+                  <>{block.type === 'group' && <div className="field-row container-options">
+                    <label>Layout<select value={block.layoutMode ?? 'stack'} onChange={event => updateBlock(block.id, { ...block, layoutMode: event.target.value as NonNullable<typeof block.layoutMode> })}><option value="stack">Stack</option><option value="grid">Grid</option><option value="table">Table</option></select></label>
+                    {(block.layoutMode ?? 'stack') !== 'stack' && <label>Columns<input type="number" min="1" max="12" value={block.columns ?? 2} onChange={event => updateBlock(block.id, { ...block, columns: Math.max(1, Math.min(12, event.currentTarget.valueAsNumber || 1)) })} /></label>}
+                    {(block.layoutMode ?? 'stack') !== 'table' && <label>Gap (in)<input type="number" min="0" max="2" step=".025" value={block.gapIn ?? .12} onChange={event => updateBlock(block.id, { ...block, gapIn: Math.max(0, event.currentTarget.valueAsNumber || 0) })} /></label>}
+                  </div>}{nestedEditors(block)}</>}
                 {block.type === "copyright" && (
-                  <label>
-                    Additional copyright text
-                    <textarea
-                      rows={5}
-                      value={paragraphText(block.extra ?? [])}
-                      placeholder="Library and Scripture notices are generated automatically."
-                      onChange={(event) => {
-                        const text = event.target.value;
-                        const next = { ...block };
-                        if (text.trim()) next.extra = paragraphs(text);
-                        else delete next.extra;
-                        updateBlock(block.id, next);
-                      }}
-                    />
-                  </label>
+                  <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {block.type === "spacer" && (
                   <label>
@@ -1502,6 +1439,8 @@ export function WeeklyEditor({
             <BlockFormattingModal
               block={block}
               template={template}
+              document={document}
+              library={library}
               scope="weekly"
               onClose={() => setFormattingBlockId(undefined)}
               onSave={(presentation, layout) => {

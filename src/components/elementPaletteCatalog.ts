@@ -7,12 +7,13 @@ export type ElementPalettePayload =
   | { kind: 'image' }
   | { kind: 'page' }
   | { kind: 'fullPageAsset' }
+  | { kind: 'container'; layoutMode: 'stack' | 'grid' | 'table' }
   | { kind: 'shape'; shape: 'rectangle' | 'line' };
 
 const latestDefinitions = (definitions: DeclarativeComponentDefinition[]) =>
   [...new Map(definitions.slice().sort((left, right) => left.version - right.version).map(definition => [definition.type, definition])).values()];
 
-export function flowElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[], includePages = true): ElementPaletteItem[] {
+export function flowElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[], includePages = true, includeContainers = true): ElementPaletteItem[] {
   const components = [...prepackagedComponentDefinitions, ...latestDefinitions(workspaceDefinitions)].map(definition => ({
     id: `component:${definition.type}@${definition.version}`,
     label: definition.name,
@@ -23,6 +24,11 @@ export function flowElementPaletteItems(workspaceDefinitions: DeclarativeCompone
   }));
   return [
     ...components,
+    ...(includeContainers ? [
+      { id: 'container:stack', label: 'Stack', description: 'Arrange child elements vertically with consistent spacing.', icon: '☷', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'stack' as const } },
+      { id: 'container:grid', label: 'Grid', description: 'Arrange child elements in equal-width columns.', icon: '▦', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'grid' as const } },
+      { id: 'container:table', label: 'Table', description: 'Arrange child elements in bordered rows and columns.', icon: '▥', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'table' as const } }
+    ] : []),
     { id: 'native:image', label: 'Image', description: 'An image that flows with document content.', icon: '▧', category: 'media', payload: { kind: 'image' } },
     ...(includePages ? [
       { id: 'native:page', label: 'Page', description: 'Insert or create a reusable page.', icon: '▣', category: 'pages' as const, payload: { kind: 'page' as const } },
@@ -33,7 +39,7 @@ export function flowElementPaletteItems(workspaceDefinitions: DeclarativeCompone
 
 export function canvasElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[]): ElementPaletteItem[] {
   return [
-    ...flowElementPaletteItems(workspaceDefinitions, false),
+    ...flowElementPaletteItems(workspaceDefinitions, false, false),
     { id: 'shape:rectangle', label: 'Rectangle', icon: '□', category: 'shapes', payload: { kind: 'shape', shape: 'rectangle' } },
     { id: 'shape:line', label: 'Line', icon: '╱', category: 'shapes', payload: { kind: 'shape', shape: 'line' } }
   ] as ElementPaletteItem[];

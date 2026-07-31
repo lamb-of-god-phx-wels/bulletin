@@ -21,7 +21,17 @@ describe('shared workspace', () => {
     const saved = await saveBulletin(root, relative, document, 0);
     expect(saved.revision).toBe(1);
     const revision = await createRevision(root, relative, { ...document, revision: 1 }, 'Sunday export');
-    expect(JSON.parse(await readFile(join(root, revision), 'utf8')).info.date).toBe('2026-06-07');
+    expect(JSON.parse(await readFile(join(root, revision), 'utf8'))).toMatchObject({
+      info: { date: '2026-06-07' },
+      revisionMetadata: { bulletinPath: relative, label: 'Sunday export' }
+    });
+    const reopened = await openWorkspace(root);
+    expect(reopened.revisions).toEqual([expect.objectContaining({
+      path: revision.replaceAll('\\', '/'),
+      bulletinPath: relative,
+      label: 'Sunday export',
+      document: expect.objectContaining({ revision: 1 })
+    })]);
   });
 
   it('opens a workspace read-only when the app is older than its minimum version', async () => {

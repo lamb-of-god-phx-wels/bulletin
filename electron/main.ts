@@ -10,6 +10,7 @@ import {
   readAssetData, resolveWorkspaceConflict, restoreArchived, saveBulletin, saveLibrary, savePageTemplate, saveTemplate, trashLibraryImages, trashLibraryRecords
 } from './workspace.js';
 import { lookupBibleGatewayWeb } from './bibleGatewayScraper.js';
+import { normalizeScriptureReference } from '../src/shared/scriptureReference.js';
 import { templateForBulletin } from '../src/shared/documentLayout.js';
 import { canvasAssetRefs, canvasNativeBlocks, canvasSpace } from '../src/shared/canvas.js';
 import { flattenBlocks } from '../src/shared/blocks.js';
@@ -103,7 +104,7 @@ function registerIpc() {
   ipcMain.handle('scripture:lookup', (_event, input: Parameters<BulletinApi['lookupScripture']>[0]) => lookupBibleGatewayWeb(input));
   ipcMain.handle('scripture:open', async (_event, reference: string, translation: string) => {
     const url = new URL('https://www.biblegateway.com/passage/');
-    url.searchParams.set('search', reference); url.searchParams.set('version', translation.toUpperCase());
+    url.searchParams.set('search', normalizeScriptureReference(reference)); url.searchParams.set('version', translation.toUpperCase());
     await shell.openExternal(url.toString());
   });
   ipcMain.handle('print:job', () => printJob);

@@ -3,8 +3,10 @@ import { paragraphsFromPlainText } from '../shared/plainText.js';
 import {
   selectSong,
   songFamilies,
+  songHeader,
   songLibraryItem,
   songPresentations,
+  songTitle,
 } from '../shared/songs.js';
 import type { BulletinBlock, CustomBlockStyle, LibraryManifestV1, Paragraph, SongBlock, TemplateV1 } from '../shared/types.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
@@ -61,7 +63,11 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
     id: `${block.id}-${part}`,
     type: 'richText' as const,
     role: part === 'body' ? 'body' as const : 'header' as const,
-    content: [],
+    content: part === 'header'
+      ? paragraphsFromPlainText(songHeader(block))
+      : part === 'title'
+        ? paragraphsFromPlainText(songTitle(block, selected))
+        : block.contentOverride ?? selected?.content ?? paragraphsFromPlainText('No song body is available.'),
     presentation: {
       ...songPartDefaults[part],
       ...block.elements?.[part]?.presentation,
@@ -186,6 +192,7 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
   {formatPart && <BlockFormattingModal
     block={partBlock(formatPart)}
     template={template}
+    library={library}
     scope={scope}
     name={songPartNames[formatPart]}
     hidePageFlow

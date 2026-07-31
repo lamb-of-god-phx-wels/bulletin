@@ -15,7 +15,7 @@ function appendRun(runs: Inline[], run: Inline) {
   }
 }
 
-function renderRuns(container: HTMLElement, content: Paragraph[]) {
+export function renderStructuredContent(container: HTMLElement, content: Paragraph[]) {
   container.replaceChildren();
   const owner = container.ownerDocument;
   for (const paragraph of content.length ? content : [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }]) {
@@ -85,7 +85,12 @@ function parseInline(node: Node, runs: Inline[], inheritedMarks?: Marks) {
     return;
   }
   const ownMarks = node.dataset.marks?.split(',').filter(Boolean) as Marks | undefined;
-  const marks = ownMarks?.length ? ownMarks : inheritedMarks;
+  const semanticMarks: Marks = [
+    ...(['B', 'STRONG'].includes(node.tagName) ? ['bold' as const] : []),
+    ...(['I', 'EM'].includes(node.tagName) ? ['italic' as const] : []),
+  ];
+  const mergedMarks = [...new Set([...(inheritedMarks ?? []), ...(ownMarks ?? []), ...semanticMarks])] as Marks;
+  const marks = mergedMarks.length ? mergedMarks : undefined;
   const isNestedBlock = node.tagName === 'DIV' || node.tagName === 'P';
   if (isNestedBlock && runs.length && runs.at(-1)?.type !== 'lineBreak') appendRun(runs, { type: 'lineBreak' });
   node.childNodes.forEach(child => parseInline(child, runs, marks));
@@ -138,7 +143,7 @@ export function ScriptureEditor({ content, onChange }: { content: Paragraph[]; o
   useLayoutEffect(() => {
     const editor = editorRef.current;
     if (!editor || signature === lastSignatureRef.current) return;
-    renderRuns(editor, content);
+    renderStructuredContent(editor, content);
     lastSignatureRef.current = signature;
     historyRef.current = [content];
     historyIndexRef.current = 0;
@@ -173,7 +178,7 @@ export function ScriptureEditor({ content, onChange }: { content: Paragraph[]; o
     if (!editor || target < 0 || target >= historyRef.current.length) return;
     historyIndexRef.current = target;
     const next = historyRef.current[target];
-    renderRuns(editor, next);
+    renderStructuredContent(editor, next);
     lastSignatureRef.current = JSON.stringify(next);
     onChange(next);
     editor.focus();

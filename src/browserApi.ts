@@ -5,6 +5,7 @@ import { normalizeCanvasBlocks } from './shared/canvas';
 import { normalizeLibrary } from './shared/library';
 import { migrateLegacyBulletin } from './shared/migrate';
 import { migrateChurchWeekNames, upgradeWelsCalendarPresets, welsCalendarPreset } from './shared/churchCalendar';
+import { normalizeScriptureReference } from './shared/scriptureReference';
 import type { AssetRef, BulletinApi, BulletinDocumentV1, LibraryManifestV1, TemplateV1, WorkspaceSummary } from './shared/types';
 import churchLogoUrl from '../assets/church/logo.png';
 import seriesLogoUrl from '../assets/sermon_series/say_it_out_loud/logo.png';
@@ -99,6 +100,7 @@ async function createWorkspace(name: string, seedExample = false) {
       ? [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }, { path: `templates/${exampleTemplate.id}/v1.json`, template: clone(exampleTemplate) }]
       : [{ path: `templates/${defaultTemplate.id}/v1.json`, template: clone(defaultTemplate) }],
     pageTemplates: [{ path: `page-templates/${defaultPageTemplate.id}/v1.json`, pageTemplate: clone(defaultPageTemplate) }],
+    revisions: [],
     bulletins: seedExample ? [{ path: 'bulletins/2026-06-07/bulletin.json', document: migrateLegacyBulletin(legacyExample) }] : [],
     library: { schemaVersion: 1, name: `${name} Library`, items: [], calendarEvents: welsCalendarPreset() }
   };
@@ -143,7 +145,7 @@ function mediaType(file: File): AssetRef['mediaType'] {
 async function summary(root: string) {
   let value = await getRecord<WorkspaceSummary>(workspaceStore, root);
   if (!value) throw new Error(`Workspace “${root}” no longer exists.`);
-  value = { ...value, pageTemplates: value.pageTemplates ?? [] };
+  value = { ...value, pageTemplates: value.pageTemplates ?? [], revisions: value.revisions ?? [] };
   if (!value.library) return value;
   const normalized = normalizeLibrary(value.library);
   const migratedLibrary = normalized.calendarEvents === undefined
@@ -172,6 +174,7 @@ export async function installBrowserApi() {
       return {
         ...current,
         bulletins: current.bulletins.map(record => ({ ...record, document: { ...record.document, blocks: normalizeCanvasBlocks(record.document.blocks) } })),
+        revisions: (current.revisions ?? []).map(record => ({ ...record, document: { ...record.document, blocks: normalizeCanvasBlocks(record.document.blocks) } })),
         templates: current.templates.map(record => ({ ...record, template: { ...record.template, starterBlocks: normalizeCanvasBlocks(record.template.starterBlocks) } })),
         pageTemplates: current.pageTemplates.map(record => ({ ...record, pageTemplate: { ...record.pageTemplate, blocks: normalizeCanvasBlocks(record.pageTemplate.blocks) } }))
       };
@@ -248,7 +251,14 @@ export async function installBrowserApi() {
       return { library, pageTemplateIds };
     },
     createRevision: async (root, bulletinPath, document, label) => {
-      const key = `${root}:revision:${bulletinPath}:${Date.now()}:${label}`; await putRecord(workspaceStore, key, document); return key;
+      const current = await summary(root);
+      const createdAt = new Date().toISOString();
+      const path = `${bulletinPath.slice(0, bulletinPath.lastIndexOf('/'))}/revisions/${createdAt.replace(/[:.]/g, '-')}-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'revision'}.json`;
+      await putRecord(workspaceStore, root, {
+        ...current,
+        revisions: [{ path, bulletinPath, label, createdAt, document: clone(document) }, ...(current.revisions ?? [])]
+      });
+      return path;
     },
     exportPdf: async (root, _path, document) => {
       localStorage.setItem('bulletin-print-job', JSON.stringify({ root, document }));
@@ -268,7 +278,7 @@ export async function installBrowserApi() {
       const response = await fetch('/__bulletin/bible-gateway', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
       const payload = await response.json(); if (!response.ok) throw new Error(payload.error ?? 'BibleGateway.com import failed.'); return payload;
     },
-    openScripture: async (reference, translation) => { window.open(`https://www.biblegateway.com/passage/?search=${encodeURIComponent(reference)}&version=${encodeURIComponent(translation)}`, '_blank', 'noopener,noreferrer'); },
+    openScripture: async (reference, translation) => { window.open(`https://www.biblegateway.com/passage/?search=${encodeURIComponent(normalizeScriptureReference(reference))}&version=${encodeURIComponent(translation)}`, '_blank', 'noopener,noreferrer'); },
     getPrintJob: async () => JSON.parse(localStorage.getItem('bulletin-print-job') ?? 'null'),
     printReady: () => undefined
   };

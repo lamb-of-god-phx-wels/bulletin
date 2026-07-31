@@ -763,6 +763,9 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     return <div className="canvas-formatting-layer"><BlockFormattingModal
       block={element.block}
       template={template}
+      document={document}
+      library={library}
+      assets={resolvedAssets}
       scope={scope}
       onClose={() => setFormattingElementId(undefined)}
       onSave={(presentation, layout) => {

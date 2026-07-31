@@ -7,7 +7,7 @@ export interface ElementPaletteItem {
   label: string;
   description?: string;
   icon?: string;
-  category: 'content' | 'media' | 'pages' | 'shapes';
+  category: 'content' | 'layout' | 'media' | 'pages' | 'shapes';
   payload: unknown;
 }
 
@@ -63,7 +63,7 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, doc
   const palette = <aside className={`element-palette ${isDocked ? 'docked' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
     <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>{isDocked ? '›' : (isCollapsed ? '›' : '‹')}</button></header>
     {!isCollapsed && <div className="element-palette-scroll">
-      {(['content', 'media', 'pages', 'shapes'] as const).map(category => {
+      {(['content', 'layout', 'media', 'pages', 'shapes'] as const).map(category => {
         const categoryItems = items.filter(item => item.category === category);
         return categoryItems.length ? <section key={category}><small>{category}</small>{categoryItems.map(item => <PaletteItem item={item} onUse={onUse} key={item.id} />)}</section> : null;
       })}

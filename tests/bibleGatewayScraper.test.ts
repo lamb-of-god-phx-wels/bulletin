@@ -35,6 +35,13 @@ describe('Bible Gateway public-page importer', () => {
     await expect(lookupBibleGatewayWeb({ reference: 'John 3:16', translation: 'NIV' }, fetchMock)).rejects.toThrow('blocked or rate-limited');
   });
 
+  it('preserves split verse ranges and accepts parenthesized display references', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(page));
+    await lookupBibleGatewayWeb({ reference: '(John 1:1–3, 5–6)', translation: 'NIV' }, fetchMock);
+    const url = fetchMock.mock.calls[0][0] as URL;
+    expect(url.searchParams.get('search')).toBe('John 1:1-3,5-6');
+  });
+
   it('fails safely when passage markup or attribution is missing', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response('<html><body>Page changed</body></html>'));
     await expect(lookupBibleGatewayWeb({ reference: 'John 3:16', translation: 'NIV' }, fetchMock)).rejects.toThrow('did not return recognizable passage text');

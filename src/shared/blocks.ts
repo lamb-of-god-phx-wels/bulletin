@@ -1,4 +1,4 @@
-import type { BulletinBlock, ChurchInfoBlock, CustomBlockStyle, Paragraph } from './types.js';
+import type { BulletinBlock, ChurchInfoBlock, CustomBlockStyle, GroupBlock, Paragraph } from './types.js';
 import { scriptureElementBlocks, updateScriptureElement } from './scriptureReading.js';
 
 const text = (value: string): Paragraph[] => [{ type: 'paragraph', children: [{ type: 'text', text: value }] }];
@@ -17,6 +17,23 @@ export function defaultChurchInfoChildren(): BulletinBlock[] {
     paragraph('church-children', 'Children’s Room', 'Children are always welcome in worship. A children’s room is available for families who need it.'),
     paragraph('church-contact', undefined, 'Church information is maintained in the shared content library.', presentation({ textAlign: 'center', paddingIn: { top: .25, right: .25, bottom: .25, left: .25 }, marginIn: { top: .4, bottom: 0 }, borderWidthPt: 1, borderColor: '#d8d4cb' }))
   ];
+}
+
+export function createLayoutContainer(layoutMode: NonNullable<GroupBlock['layoutMode']>, id: string): GroupBlock {
+  const count = layoutMode === 'stack' ? 1 : 2;
+  return {
+    id,
+    type: 'group',
+    label: layoutMode === 'stack' ? 'Stack' : layoutMode === 'grid' ? 'Grid' : 'Table',
+    layoutMode,
+    columns: layoutMode === 'stack' ? 1 : 2,
+    gapIn: layoutMode === 'table' ? 0 : .12,
+    children: Array.from({ length: count }, (_, index) => paragraph(
+      `${id}-item-${index + 1}`,
+      undefined,
+      layoutMode === 'table' ? `Cell ${index + 1}` : `Item ${index + 1}`
+    ))
+  };
 }
 
 export function childBlocks(block: BulletinBlock): BulletinBlock[] | undefined {

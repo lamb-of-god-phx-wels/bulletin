@@ -3,7 +3,7 @@ import { BlockLibraryModal } from "./BlockLibraryModal";
 import { BlockFormattingModal } from "./BlockFormattingModal";
 import { customBlockIssues } from "../shared/customBlocks";
 import { instantiateComponentDefinition } from "../componentDefinitions";
-import { childBlocks, findBlock, updateBlockTree } from "../shared/blocks";
+import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "../shared/blocks";
 import { scriptureElementNames } from "../shared/scriptureReading";
 import type { DeclarativeComponentDefinition } from "../component-engine/types";
 import type {
@@ -30,6 +30,8 @@ import { randomId } from "../shared/id";
 import { songHeader } from "../shared/songs";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
+import { AnnouncementFields } from "./AnnouncementFields";
+import { CopyrightFields } from "./CopyrightFields";
 import {
   InlineTypographyControls,
   supportsInlineTypography,
@@ -146,6 +148,7 @@ export function TemplateBuilder({
   const usePaletteItem = async (item: ElementPaletteItem, index: number) => {
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === "component") addBlock(instantiateComponentDefinition(payload.definition), index);
+    else if (payload.kind === "container") addBlock(createLayoutContainer(payload.layoutMode, `container-${randomId()}`), index);
     else if (payload.kind === "page") setPageInsertionIndex(index);
     else if (payload.kind === "image") setImageIndex(index);
     else if (payload.kind === "fullPageAsset" && root && window.bulletin) {
@@ -203,6 +206,13 @@ export function TemplateBuilder({
           />
         </label>
       </div>
+    ) : block.type === "group" ? (
+      <div className="outline-options container-options">
+        <label className="outline-option">Layout<select value={block.layoutMode ?? 'stack'} onChange={event => updateBlock(block.id, { layoutMode: event.target.value as NonNullable<typeof block.layoutMode> })}><option value="stack">Stack</option><option value="grid">Grid</option><option value="table">Table</option></select></label>
+        {(block.layoutMode ?? 'stack') !== 'stack' && <label className="outline-option">Columns<input type="number" min="1" max="12" value={block.columns ?? 2} onChange={event => updateBlock(block.id, { columns: Math.max(1, Math.min(12, event.currentTarget.valueAsNumber || 1)) })} /></label>}
+        {(block.layoutMode ?? 'stack') !== 'table' && <label className="outline-option">Gap (in)<input type="number" min="0" max="2" step=".025" value={block.gapIn ?? .12} onChange={event => updateBlock(block.id, { gapIn: Math.max(0, event.currentTarget.valueAsNumber || 0) })} /></label>}
+        <button className="secondary" onClick={() => updateBlock(block.id, { children: [...block.children, { id: `${block.id}-item-${Date.now()}`, type: 'paragraph', children: [{ id: `${block.id}-text-${Date.now()}`, type: 'richText', role: 'body', content: textContent('New item') }] }] })}>＋ Item</button>
+      </div>
     ) : block.type === "song" ? (
       <SongBlockFields
         block={block}
@@ -212,6 +222,10 @@ export function TemplateBuilder({
         root={root}
         onChange={next => updateBlock(block.id, next)}
       />
+    ) : block.type === "announcements" ? (
+      <AnnouncementFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}/announcements`} onLibraryChange={onLibraryChange} onError={message => setSaveStatus(message)} onChange={next => updateBlock(block.id, next)} />
+    ) : block.type === "copyright" ? (
+      <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
     ) : block.type === "image" ? (
       <ImageBlockFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}`} onLibraryChange={onLibraryChange} onChange={next => updateBlock(block.id, next)} onError={message => setSaveStatus(message)} />
     ) : null;
@@ -274,6 +288,7 @@ export function TemplateBuilder({
               >
                 Format
               </button>
+              {parent.type === 'group' && <button className="danger-text" aria-label={`Remove ${blockTitle(child)}`} onClick={() => updateBlock(parent.id, { children: parent.children.filter(item => item.id !== child.id) })}>×</button>}
             </div>
             {nestedOutline(child)}
           </li>
@@ -678,6 +693,7 @@ export function TemplateBuilder({
             <BlockFormattingModal
               block={block}
               template={template}
+              library={library}
               scope="template"
               onClose={() => setFormattingBlockId(undefined)}
               onSave={(presentation, layout) => {

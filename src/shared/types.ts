@@ -169,7 +169,13 @@ export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: P
 export interface ImageBlock extends BlockBase { type: 'image'; asset: AssetRef; fit?: 'contain' | 'cover' | 'fill'; heightIn?: number; alt?: string }
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }
-export interface GroupBlock extends BlockBase { type: 'group'; children: BulletinBlock[] }
+export interface GroupBlock extends BlockBase {
+  type: 'group';
+  children: BulletinBlock[];
+  layoutMode?: 'stack' | 'grid' | 'table';
+  columns?: number;
+  gapIn?: number;
+}
 export type PageMarginSetting =
   | { mode: 'inherit'; referenceMarginIn: number }
   | { mode: 'fixed'; marginIn: number };
@@ -400,11 +406,19 @@ export interface ValidationIssue { path: string; message: string }
 export interface WorkspaceSummary {
   root: string;
   bulletins: Array<{ path: string; document: BulletinDocumentV1 }>;
+  revisions?: BulletinRevisionRecord[];
   templates: Array<{ path: string; template: TemplateV1 }>;
   pageTemplates: Array<{ path: string; pageTemplate: PageTemplateV1 }>;
   library?: LibraryManifestV1;
   sync?: WorkspaceSyncStatus;
   compatibility?: WorkspaceCompatibility;
+}
+export interface BulletinRevisionRecord {
+  path: string;
+  bulletinPath: string;
+  label: string;
+  createdAt: string;
+  document: BulletinDocumentV1;
 }
 export interface WorkspaceChange { root: string; paths: string[]; occurredAt: string }
 

@@ -6,6 +6,7 @@ import {
   VERSE_NUMBER_END,
   VERSE_NUMBER_START
 } from '../src/shared/scriptureText.js';
+import { normalizeScriptureReference } from '../src/shared/scriptureReference.js';
 
 export interface BibleGatewayWebRequest {
   reference: string;
@@ -67,7 +68,7 @@ function publisherAttribution(html: string) {
 }
 
 export async function lookupBibleGatewayWeb(input: BibleGatewayWebRequest, fetchImpl: FetchLike = fetch): Promise<NonNullable<ScriptureBlock['resolved']>> {
-  const reference = input.reference.trim();
+  const reference = normalizeScriptureReference(input.reference);
   const translation = input.translation.trim().toUpperCase();
   if (!reference) throw new Error('Enter a Scripture reference first.');
   if (!translation) throw new Error('Enter a Bible Gateway translation code, such as NIV or EHV.');

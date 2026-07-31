@@ -41,6 +41,7 @@ import {
 import type {
   AppUpdateStatus,
   ArchivedWorkspaceRecord,
+  BulletinRevisionRecord,
   BulletinDocumentV1,
   EditingState,
   LibraryItemV1,
@@ -238,6 +239,7 @@ function DesktopApp() {
   const [exportIssues, setExportIssues] = useState<ValidationIssue[]>([]);
   const [exporting, setExporting] = useState(false);
   const [bookletPreview, setBookletPreview] = useState(false);
+  const [revisionHistoryOpen, setRevisionHistoryOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [showRulers, setShowRulers] = useState(
     () => localStorage.getItem("bulletin-show-rulers") !== "false",
@@ -348,7 +350,7 @@ function DesktopApp() {
     };
   }, [workspace, document, screen, showRulers]);
 
-  async function saveCurrentBulletin() {
+  async function saveCurrentBulletin(createCheckpoint = false) {
     if (
       !dirty.current ||
       !document ||
@@ -380,6 +382,37 @@ function DesktopApp() {
           revision: result.revision,
           updatedAt: result.updatedAt,
         };
+        let checkpointFailed = false;
+        if (createCheckpoint) {
+          const createdAt = new Date().toISOString();
+          try {
+            const revisionPath = await window.bulletin!.createRevision(
+              currentRoot,
+              currentPath,
+              savedDocument,
+              "manual save",
+            );
+            setWorkspace((current) =>
+              current
+                ? {
+                    ...current,
+                    revisions: [
+                      {
+                        path: revisionPath,
+                        bulletinPath: currentPath,
+                        label: "manual save",
+                        createdAt,
+                        document: savedDocument,
+                      },
+                      ...(current.revisions ?? []),
+                    ],
+                  }
+                : current,
+            );
+          } catch {
+            checkpointFailed = true;
+          }
+        }
         const changedDuringSave =
           bulletinEditSequence.current !== editSequenceAtSave;
         if (changedDuringSave) {
@@ -417,7 +450,13 @@ function DesktopApp() {
             : current,
         );
         if (statusSequence.current === saveSequence)
-          setStatus(changedDuringSave ? "Unsaved changes" : "Saved");
+          setStatus(
+            changedDuringSave
+              ? "Unsaved changes"
+              : checkpointFailed
+                ? "Saved · history checkpoint failed"
+                : "Saved",
+          );
         return !changedDuringSave;
       } catch (error) {
         const message =
@@ -1112,7 +1151,7 @@ function DesktopApp() {
       action: () => setBulletinPicker(true),
     },
     {
-      label: "Templates",
+      label: "Bulletin Templates",
       icon: "◇",
       active: screen === "templates",
       leavesBulletin: true,
@@ -1390,9 +1429,20 @@ function DesktopApp() {
                     !dirty.current ||
                     savingBulletin
                   }
-                  onClick={() => void saveCurrentBulletin()}
+                  onClick={() => void saveCurrentBulletin(true)}
                 >
                   {savingBulletin ? "Saving…" : "Save"}
+                </button>
+                <button
+                  className="secondary"
+                  disabled={!document}
+                  onClick={async () => {
+                    const latest = await window.bulletin!.openWorkspace(workspace.root);
+                    setWorkspace(current => current ? { ...current, revisions: latest.revisions ?? [] } : current);
+                    setRevisionHistoryOpen(true);
+                  }}
+                >
+                  History
                 </button>
                 {document && (
                   <button
@@ -1925,6 +1975,24 @@ function DesktopApp() {
           onClose={() => setBookletPreview(false)}
         />
       )}
+      {revisionHistoryOpen && document && (
+        <RevisionHistoryDialog
+          revisions={(workspace.revisions ?? []).filter(record => record.bulletinPath === relativePath || record.document.id === document.id)}
+          onClose={() => setRevisionHistoryOpen(false)}
+          onRestore={async revision => {
+            if (dirty.current && !window.confirm("Discard the current unsaved changes and restore this revision?")) return;
+            await window.bulletin!.createRevision(workspace.root, relativePath, document, "before restore");
+            const restoredInput = { ...revision.document, revision: savedRevision.current, updatedAt: document.updatedAt };
+            const saved = await window.bulletin!.saveBulletin(workspace.root, relativePath, restoredInput, savedRevision.current);
+            const restored = { ...restoredInput, revision: saved.revision, updatedAt: saved.updatedAt };
+            setRevisionHistoryOpen(false);
+            openDocument(restored, relativePath, workspace.templates);
+            const latest = await window.bulletin!.openWorkspace(workspace.root);
+            setWorkspace(latest);
+            reportStatus(`Restored revision from ${new Date(revision.createdAt).toLocaleString()}`);
+          }}
+        />
+      )}
       {confirmation && (
         <ConfirmDialog
           confirmation={confirmation}
@@ -1947,7 +2015,7 @@ function DesktopApp() {
             await action();
           }}
           onSave={async () => {
-            if (!(await saveCurrentBulletin())) return;
+            if (!(await saveCurrentBulletin(true))) return;
             const action = unsavedBulletinPrompt.action;
             setUnsavedBulletinPrompt(undefined);
             await action();
@@ -2191,6 +2259,24 @@ function UnsavedBulletinDialog({
       </section>
     </div>
   );
+}
+
+function RevisionHistoryDialog({ revisions, onClose, onRestore }: {
+  revisions: BulletinRevisionRecord[];
+  onClose(): void;
+  onRestore(revision: BulletinRevisionRecord): Promise<void>;
+}) {
+  const [restoring, setRestoring] = useState<string>();
+  return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="revision-history-modal" role="dialog" aria-modal="true" aria-labelledby="revision-history-title">
+      <header><div><div className="eyebrow">Bulletin revisions</div><h2 id="revision-history-title">Revision history</h2><p>Manual saves, exports, and safety backups appear here.</p></div><button aria-label="Close revision history" onClick={onClose}>×</button></header>
+      {revisions.length ? <ol>{revisions.map(revision => <li key={revision.path}>
+        <div><b>{revision.label}</b><span>{new Date(revision.createdAt).toLocaleString()}</span><small>Revision {revision.document.revision} · {revision.document.info.title}</small></div>
+        <button className="secondary" disabled={Boolean(restoring)} onClick={async () => { setRestoring(revision.path); try { await onRestore(revision); } finally { setRestoring(undefined); } }}>{restoring === revision.path ? 'Restoring…' : 'Restore'}</button>
+      </li>)}</ol> : <p className="empty-state">No saved revisions yet. Use Save or export the bulletin to create one.</p>}
+      <footer><button className="secondary" onClick={onClose}>Close</button></footer>
+    </section>
+  </div>;
 }
 
 function BulletinPicker({

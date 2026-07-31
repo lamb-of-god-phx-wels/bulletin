@@ -489,7 +489,9 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .canvas-smart-guide.horizontal { right: 0; left: 0; height: 0; border-top: 1px solid #b5498c; box-shadow: 0 0 0 1px #ffffff80; }
 .canvas-selection-layer { position: absolute; z-index: 4; overflow: visible; pointer-events: none; }
 .canvas-selection { position: absolute; border: 1px solid transparent; pointer-events: auto; cursor: move; }
+.canvas-selection-layer.show-bounds .canvas-selection { border-color: #72a8bd80; background: #72a8bd0d; }
 .canvas-selection.selected { border-color: #b34f2d; outline: 1px solid white; }
+.canvas-selection-layer.show-bounds .canvas-selection.selected { border-color: #b34f2d; background: transparent; }
 .canvas-selection.locked { cursor: not-allowed; }
 .canvas-selection.locked.selected::before { content: '🔒'; position: absolute; top: -18px; left: -1px; font-size: 11px; }
 .canvas-resize-handle { position: absolute; right: -5px; bottom: -5px; width: 9px; height: 9px; border: 1px solid white; background: #b34f2d; cursor: nwse-resize; }

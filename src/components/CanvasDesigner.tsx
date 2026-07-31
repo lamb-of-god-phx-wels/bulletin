@@ -101,6 +101,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const zoomMode = useRef<'page' | 'width' | 'manual'>(hasInitialZoom ? 'manual' : 'page');
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
+  const [showBounds, setShowBounds] = useState(() => localStorage.getItem('bulletin-canvas-show-bounds') === 'true');
   const [snapEnabled, setSnapEnabled] = useState(() => localStorage.getItem('bulletin-canvas-snap') !== 'false');
   const [clipboardAvailable, setClipboardAvailable] = useState(() => canvasElementClipboard.length > 0);
   const paletteSensors = useSensors(
@@ -154,6 +155,12 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       const next = !current;
       localStorage.setItem('bulletin-show-guides', String(next));
       return next;
+    });
+  };
+  const toggleBounds = () => {
+    setShowBounds(current => {
+      localStorage.setItem('bulletin-canvas-show-bounds', String(!current));
+      return !current;
     });
   };
   const toggleSnap = () => {
@@ -245,10 +252,17 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   });
   const beginDrag = (event: React.PointerEvent, element: CanvasElement, resize = false) => {
     event.stopPropagation();
-    select(element.id, event.shiftKey);
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
     const related = selectionFor(element.id);
-    const ids = event.shiftKey ? new Set([...selected, ...related]) : selected.has(element.id) ? selected : related;
+    const ids = additive
+      ? new Set(selected)
+      : selected.has(element.id) ? selected : related;
+    if (additive) {
+      if (ids.has(element.id)) related.forEach(id => ids.delete(id));
+      else related.forEach(id => ids.add(id));
+    }
     setSelected(ids);
+    if (!ids.has(element.id)) return;
     if (![...ids].every(id => { const item = elements.get(id); return item && editable(item); })) return;
     if (snapGuideTimer.current !== undefined) window.clearTimeout(snapGuideTimer.current);
     const dragScene = clone(scene);
@@ -377,6 +391,11 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         return;
       }
       const command = event.ctrlKey || event.metaKey;
+      if (command && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        setSelected(new Set(scene.elements.map(element => element.id)));
+        return;
+      }
       if ((command && event.key.toLowerCase() === 'c') || (event.ctrlKey && event.key === 'Insert')) {
         if (selected.size) {
           event.preventDefault();
@@ -616,6 +635,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       </div>
       <div className="canvas-view-tools">
         <button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button>
+        <button type="button" className={`guide-toggle ${showBounds ? 'active' : ''}`} aria-label={`${showBounds ? 'Hide' : 'Show'} content bounding boxes`} aria-pressed={showBounds} onClick={toggleBounds}>Boxes</button>
         <button type="button" className={`guide-toggle ${snapEnabled ? 'active' : ''}`} aria-label={`${snapEnabled ? 'Disable' : 'Enable'} snapping`} aria-pressed={snapEnabled} onClick={toggleSnap}>Snap</button>
         <button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button>
         <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitCanvas} />
@@ -628,7 +648,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     <aside className="canvas-layers">
       <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>
       <SortableContext items={frontToBack.map(element => `canvas-layer:${element.id}`)} strategy={verticalListSortingStrategy}><ol>{frontToBack.map(element => <SortableItem id={`canvas-layer:${element.id}`} key={element.id}><li className={selected.has(element.id) ? 'selected' : ''} onContextMenu={event => openContextMenu(event, element)}>
-        <button className="canvas-layer-select" type="button" onClick={event => select(element.id, event.shiftKey)}>
+        <button className="canvas-layer-select" type="button" onClick={event => select(element.id, event.shiftKey || event.ctrlKey || event.metaKey)}>
           <span className="canvas-layer-icon">{elementIcon(element)}</span>
           <span className="canvas-layer-copy"><b>{elementName(element)}</b><small>{elementKind(element)}{element.groupId ? ' · Grouped' : ''}{element.locked ? ' · Locked' : ''}</small></span>
         </button>
@@ -643,7 +663,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
         {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
         {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}
-        <div className="canvas-selection-layer" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }}>
+        <div className={`canvas-selection-layer ${showBounds ? 'show-bounds' : ''}`} style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }}>
           {scene.elements.map(element => {
             const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
             const metrics = line ? canvasLineMetrics(element) : undefined;

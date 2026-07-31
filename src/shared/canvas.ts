@@ -1,5 +1,6 @@
 import type {
   AssetRef,
+  BulletinBlock,
   BulletinDocumentV1,
   CanvasBlock,
   CanvasElement,
@@ -9,6 +10,7 @@ import type {
   Paragraph,
   ValidationIssue
 } from './types.js';
+import { flattenBlocks } from './blocks.js';
 
 export const CANVAS_PAGE = Object.freeze({ width: 7, height: 8.5 });
 export const CANVAS_GRID_IN = 1 / 16;
@@ -216,12 +218,121 @@ export function snapCanvasValue(value: number, bypass = false) {
   return bypass ? value : Math.round(value / CANVAS_GRID_IN) * CANVAS_GRID_IN;
 }
 
+export interface CanvasSnapResult {
+  value: number;
+  guide?: number;
+}
+
+export function snapCanvasAxis(
+  value: number,
+  size: number,
+  extent: number,
+  targetLines: number[] = [],
+  bypass = false
+): CanvasSnapResult {
+  if (bypass) return { value };
+  const lines = [...new Set([0, extent / 2, extent, ...targetLines].filter(Number.isFinite))];
+  const candidates = lines.flatMap(guide => [
+    { value: guide, guide },
+    { value: guide - size / 2, guide },
+    { value: guide - size, guide }
+  ]);
+  const nearest = candidates.reduce<{ value: number; guide: number } | undefined>((best, candidate) =>
+    !best || Math.abs(candidate.value - value) < Math.abs(best.value - value) ? candidate : best, undefined);
+  return nearest && Math.abs(nearest.value - value) <= .08
+    ? nearest
+    : { value: snapCanvasValue(value) };
+}
+
 export function snapCanvasPosition(value: number, size: number, extent: number, nearbyEdges: number[] = [], bypass = false) {
-  if (bypass) return value;
-  const grid = snapCanvasValue(value);
-  const targets = [0, extent - size, (extent - size) / 2, ...nearbyEdges.flatMap(edge => [edge, edge - size, edge - size / 2])];
-  const nearest = targets.reduce((best, target) => Math.abs(target - value) < Math.abs(best - value) ? target : best, targets[0]);
-  return Math.abs(nearest - value) <= .08 ? nearest : grid;
+  return snapCanvasAxis(value, size, extent, nearbyEdges, bypass).value;
+}
+
+export function canvasElementBounds(elements: CanvasElement[]) {
+  if (!elements.length) return { x: 0, y: 0, width: 0, height: 0 };
+  const x = Math.min(...elements.map(element => element.x));
+  const y = Math.min(...elements.map(element => element.y));
+  const right = Math.max(...elements.map(element => element.x + element.width));
+  const bottom = Math.max(...elements.map(element => element.y + Math.max(0, element.height)));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+export type CanvasLayerAction = 'front' | 'forward' | 'backward' | 'back';
+
+export function reorderCanvasElements(elements: CanvasElement[], selectedIds: Set<string>, action: CanvasLayerAction) {
+  if (!selectedIds.size) return elements;
+  if (action === 'front') return [
+    ...elements.filter(element => !selectedIds.has(element.id)),
+    ...elements.filter(element => selectedIds.has(element.id))
+  ];
+  if (action === 'back') return [
+    ...elements.filter(element => selectedIds.has(element.id)),
+    ...elements.filter(element => !selectedIds.has(element.id))
+  ];
+  const next = [...elements];
+  if (action === 'forward') {
+    for (let index = next.length - 2; index >= 0; index--) {
+      if (selectedIds.has(next[index].id) && !selectedIds.has(next[index + 1].id)) {
+        [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      }
+    }
+  } else {
+    for (let index = 1; index < next.length; index++) {
+      if (selectedIds.has(next[index].id) && !selectedIds.has(next[index - 1].id)) {
+        [next[index], next[index - 1]] = [next[index - 1], next[index]];
+      }
+    }
+  }
+  return next;
+}
+
+const freshCopyId = (source: string, used: Set<string>) => {
+  const base = `${source}-copy`;
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) candidate = `${base}-${suffix++}`;
+  used.add(candidate);
+  return candidate;
+};
+
+function cloneCanvasBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
+  const next = { ...structuredClone(block), id: freshCopyId(block.id, used) } as BulletinBlock;
+  if (next.type === 'group' || next.type === 'churchInfo') {
+    next.children = next.children?.map(child => cloneCanvasBlock(child, used));
+  }
+  if (next.type === 'paragraph') {
+    next.children = next.children.map(child => cloneCanvasBlock(child, used) as typeof child);
+  }
+  return next;
+}
+
+export function cloneCanvasSelection(
+  elements: CanvasElement[],
+  selectedIds: Set<string>,
+  offset = .125,
+  existingElements: CanvasElement[] = elements
+) {
+  const usedElementIds = new Set(existingElements.map(element => element.id));
+  const usedBlockIds = new Set(flattenBlocks(existingElements.flatMap(element => element.type === 'block' ? [element.block] : [])).map(block => block.id));
+  const groupIds = new Map<string, string>();
+  return elements.filter(element => selectedIds.has(element.id)).map(element => {
+    const next = {
+      ...structuredClone(element),
+      id: freshCopyId(element.id, usedElementIds),
+      x: element.x + offset,
+      y: element.y + offset
+    } as CanvasElement;
+    if (element.groupId) {
+      let groupId = groupIds.get(element.groupId);
+      if (!groupId) {
+        groupId = `${element.groupId}-copy-${groupIds.size + 1}`;
+        groupIds.set(element.groupId, groupId);
+      }
+      next.groupId = groupId;
+    }
+    if (next.type === 'block') next.block = cloneCanvasBlock(next.block, usedBlockIds);
+    return next;
+  });
 }
 
 export function canvasLineMetrics(element: CanvasGeometry & { rotationDeg?: number }) {

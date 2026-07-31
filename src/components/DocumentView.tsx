@@ -229,7 +229,9 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     void window.document.fonts.ready.then(() => new Promise<void>(resolve => setTimeout(resolve, 500))).then(onReady);
   }, [assets, refs, onReady]);
   const allPages = paginate(bulletin.blocks, effectiveTemplate, library);
-  const pages = singlePage ? allPages.slice(0, 1) : allPages;
+  const pages = singlePage
+    ? allPages.length ? allPages.slice(0, 1) : [{ number: 1, kind: 'content' as const, blocks: [] }]
+    : allPages;
   const stackProps = {
     className: `document-stack ${print ? 'is-print' : ''} ${bookletMode ? 'is-booklet' : ''} ${onBlockSelect && !print ? 'is-interactive' : ''}`,
     onClick: onBlockSelect && !print ? (event: React.MouseEvent<HTMLDivElement>) => {

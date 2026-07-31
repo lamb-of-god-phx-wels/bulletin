@@ -3,14 +3,16 @@ import { closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor, 
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import {
   canvasAssetRefs,
+  canvasElementBounds,
   canvasNativeBlocks,
   canvasLineMetrics,
   canvasSpace,
   canvasTextParagraphs,
-  convertCanvasCoordinateSpace,
+  cloneCanvasSelection,
   normalizeCanvasScene,
+  reorderCanvasElements,
   rotateCanvasLine,
-  snapCanvasPosition,
+  snapCanvasAxis,
   snapCanvasValue,
   validateCanvasScene
 } from '../shared/canvas.js';
@@ -37,6 +39,7 @@ import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } fro
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
 import { ImageAssetDialog } from './ImageAssetDialog.js';
 import { SortableHandle, SortableItem } from './SortableList.js';
+import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -44,6 +47,13 @@ const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => 
 }));
 const plainText = (content: Paragraph[] | undefined) => content?.map(item => item.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
 const clone = <T,>(value: T): T => structuredClone(value);
+const CANVAS_CLIPBOARD_PREFIX = 'bulletin-canvas-elements:';
+let canvasElementClipboard: CanvasElement[] = [];
+
+const isTextInput = (target: EventTarget | null) =>
+  target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable);
+const matchingSnapGuide = (position: number, size: number, lines: number[]) =>
+  lines.find(line => [position, position + size / 2, position + size].some(edge => Math.abs(edge - line) < .001));
 
 function CanvasDropTarget({ stage, children }: { stage: MutableRefObject<HTMLDivElement | null>; children: ReactElement<{ ref?: Ref<HTMLDivElement>; className?: string }> }) {
   const drop = useDroppable({ id: 'canvas-stage-drop' });
@@ -78,7 +88,11 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
   const [formattingElementId, setFormattingElementId] = useState<string>();
-  const drag = useRef<{ x: number; y: number; scene: CanvasScene; resize: boolean } | undefined>(undefined);
+  const [, setSnapGuides] = useState<{ x?: number; y?: number }>({});
+  const snapGuidesRef = useRef<{ x?: number; y?: number }>({});
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>();
+  const drag = useRef<{ x: number; y: number; scene: CanvasScene; preview: CanvasScene; ids: Set<string>; resize: boolean } | undefined>(undefined);
+  const snapGuideTimer = useRef<number | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
   const workarea = useRef<HTMLElement>(null);
   const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
@@ -86,6 +100,9 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [zoom, setZoom] = useState(hasInitialZoom ? initialZoom : .72);
   const zoomMode = useRef<'page' | 'width' | 'manual'>(hasInitialZoom ? 'manual' : 'page');
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
+  const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
+  const [snapEnabled, setSnapEnabled] = useState(() => localStorage.getItem('bulletin-canvas-snap') !== 'false');
+  const [clipboardAvailable, setClipboardAvailable] = useState(() => canvasElementClipboard.length > 0);
   const paletteSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -132,6 +149,36 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       return next;
     });
   };
+  const toggleGuides = () => {
+    setShowGuides(current => {
+      const next = !current;
+      localStorage.setItem('bulletin-show-guides', String(next));
+      return next;
+    });
+  };
+  const toggleSnap = () => {
+    setSnapEnabled(current => {
+      const next = !current;
+      localStorage.setItem('bulletin-canvas-snap', String(next));
+      return next;
+    });
+  };
+  const updateSnapGuides = (next: { x?: number; y?: number }) => {
+    snapGuidesRef.current = next;
+    setSnapGuides(next);
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!(event.target as Element | null)?.closest('.canvas-context-menu')) setContextMenu(undefined);
+    };
+    window.addEventListener('pointerdown', dismiss);
+    return () => window.removeEventListener('pointerdown', dismiss);
+  }, [contextMenu]);
+  useEffect(() => () => {
+    if (snapGuideTimer.current !== undefined) window.clearTimeout(snapGuideTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!workarea.current) return;
@@ -203,11 +250,13 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     const ids = event.shiftKey ? new Set([...selected, ...related]) : selected.has(element.id) ? selected : related;
     setSelected(ids);
     if (![...ids].every(id => { const item = elements.get(id); return item && editable(item); })) return;
+    if (snapGuideTimer.current !== undefined) window.clearTimeout(snapGuideTimer.current);
     const dragScene = clone(scene);
     if (resize) dragScene.elements = dragScene.elements.map(item => ids.has(item.id) && item.type === 'block' && item.sizing === 'autoHeight'
       ? { ...item, height: measuredHeights[item.id] ?? item.height, sizing: 'fixed' }
       : item);
-    drag.current = { x: event.clientX, y: event.clientY, scene: dragScene, resize };
+    drag.current = { x: event.clientX, y: event.clientY, scene: dragScene, preview: dragScene, ids, resize };
+    setContextMenu(undefined);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveDrag = (event: React.PointerEvent) => {
@@ -215,35 +264,133 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     const pixelsPerInch = stage.current.getBoundingClientRect().width / canvasWidth;
     const dx = (event.clientX - drag.current.x) / pixelsPerInch;
     const dy = (event.clientY - drag.current.y) / pixelsPerInch;
-    setScene({
-      ...drag.current.scene,
-      elements: drag.current.scene.elements.map(element => {
-        if (!selected.has(element.id) || !editable(element)) return element;
-        const others = drag.current!.scene.elements.filter(item => !selected.has(item.id));
-        const space = canvasSpace(drag.current!.scene, 0, canvasWidth, block.heightIn);
-        const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
-        return drag.current!.resize
-          ? line && element.rotationDeg !== undefined
-            ? { ...element, width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: 0 }
-            : { ...element, ...(element.type === 'block' ? { sizing: 'fixed' as const } : {}), width: Math.max(1 / 16, snapCanvasValue(element.width + dx, event.altKey)), height: Math.max(line ? 0 : 1 / 16, snapCanvasValue(element.height + dy, event.altKey)) }
+    const active = drag.current.scene.elements.filter(element => drag.current!.ids.has(element.id));
+    const others = drag.current.scene.elements.filter(element => !drag.current!.ids.has(element.id));
+    const currentSpace = canvasSpace(drag.current.scene, 0, canvasWidth, block.heightIn);
+    const xTargets = [
+      ...(marginIn > 0 ? [marginIn, currentSpace.width - marginIn] : []),
+      ...others.flatMap(item => [item.x, item.x + item.width / 2, item.x + item.width])
+    ];
+    const yTargets = [
+      ...(marginIn > 0 ? [marginIn, currentSpace.height - marginIn] : []),
+      ...others.flatMap(item => [item.y, item.y + item.height / 2, item.y + item.height])
+    ];
+    const bypass = !snapEnabled || event.altKey;
+    const horizontalLines = [0, currentSpace.width / 2, currentSpace.width, ...xTargets];
+    const verticalLines = [0, currentSpace.height / 2, currentSpace.height, ...yTargets];
+    let next: CanvasScene;
+    if (drag.current.resize) {
+      const element = active[0];
+      if (!element) return;
+      const right = snapCanvasAxis(element.x + element.width + dx, 0, currentSpace.width, xTargets, bypass);
+      const bottom = snapCanvasAxis(element.y + element.height + dy, 0, currentSpace.height, yTargets, bypass);
+      const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
+      next = {
+        ...drag.current.scene,
+        elements: drag.current.scene.elements.map(item => item.id !== element.id ? item : line && element.rotationDeg !== undefined
+          ? { ...item, width: Math.max(1 / 16, right.value - element.x), height: 0 } as CanvasElement
           : {
-              ...element,
-              x: snapCanvasPosition(element.x + dx, element.width, space.width, others.flatMap(item => [item.x, item.x + item.width / 2, item.x + item.width]), event.altKey),
-              y: snapCanvasPosition(element.y + dy, element.height, space.height, others.flatMap(item => [item.y, item.y + item.height / 2, item.y + item.height]), event.altKey)
-            };
-      })
-    });
+              ...item,
+              ...(item.type === 'block' ? { sizing: 'fixed' as const } : {}),
+              width: Math.max(1 / 16, right.value - element.x),
+              height: Math.max(line ? 0 : 1 / 16, bottom.value - element.y)
+            } as CanvasElement)
+      };
+      updateSnapGuides(bypass ? {} : {
+        x: right.guide ?? matchingSnapGuide(right.value, 0, horizontalLines),
+        y: line ? undefined : bottom.guide ?? matchingSnapGuide(bottom.value, 0, verticalLines)
+      });
+    } else {
+      const bounds = canvasElementBounds(active);
+      const horizontal = snapCanvasAxis(bounds.x + dx, bounds.width, currentSpace.width, xTargets, bypass);
+      const vertical = snapCanvasAxis(bounds.y + dy, bounds.height, currentSpace.height, yTargets, bypass);
+      const moveX = horizontal.value - bounds.x;
+      const moveY = vertical.value - bounds.y;
+      next = {
+        ...drag.current.scene,
+        elements: drag.current.scene.elements.map(element => drag.current!.ids.has(element.id) && editable(element)
+          ? { ...element, x: element.x + moveX, y: element.y + moveY }
+          : element)
+      };
+      updateSnapGuides(bypass ? {} : {
+        x: horizontal.guide ?? matchingSnapGuide(horizontal.value, bounds.width, horizontalLines),
+        y: vertical.guide ?? matchingSnapGuide(vertical.value, bounds.height, verticalLines)
+      });
+    }
+    drag.current.preview = next;
+    setScene(next);
   };
   const endDrag = () => {
     if (!drag.current) return;
     const previous = drag.current.scene;
+    const next = drag.current.preview;
     drag.current = undefined;
-    publish(scene, previous);
+    snapGuideTimer.current = window.setTimeout(() => {
+      updateSnapGuides({});
+      snapGuideTimer.current = undefined;
+    }, 180);
+    publish(next, previous);
+  };
+
+  const addClonedElements = (source: CanvasElement[]) => {
+    if (!source.length) return;
+    let copies = cloneCanvasSelection(source, new Set(source.map(element => element.id)), .125, scene.elements);
+    const bounds = canvasElementBounds(copies);
+    const currentSpace = canvasSpace(scene, 0, canvasWidth, block.heightIn);
+    const shiftX = bounds.width <= currentSpace.width
+      ? bounds.x < 0 ? -bounds.x : bounds.x + bounds.width > currentSpace.width ? currentSpace.width - bounds.x - bounds.width : 0
+      : 0;
+    const shiftY = bounds.height <= currentSpace.height
+      ? bounds.y < 0 ? -bounds.y : bounds.y + bounds.height > currentSpace.height ? currentSpace.height - bounds.y - bounds.height : 0
+      : 0;
+    if (shiftX || shiftY) copies = copies.map(element => ({ ...element, x: element.x + shiftX, y: element.y + shiftY }));
+    publish({ ...scene, elements: [...scene.elements, ...copies] });
+    setSelected(new Set(copies.map(element => element.id)));
+  };
+  const copySelection = () => {
+    const copied = scene.elements.filter(element => selected.has(element.id)).map(clone);
+    if (!copied.length) return;
+    canvasElementClipboard = copied;
+    setClipboardAvailable(true);
+    const serialized = `${CANVAS_CLIPBOARD_PREFIX}${JSON.stringify(copied)}`;
+    void navigator.clipboard?.writeText(serialized).catch(() => undefined);
+  };
+  const pasteSelection = (serialized?: string) => {
+    let source = canvasElementClipboard;
+    if (serialized?.startsWith(CANVAS_CLIPBOARD_PREFIX)) {
+      try {
+        const parsed = JSON.parse(serialized.slice(CANVAS_CLIPBOARD_PREFIX.length));
+        if (Array.isArray(parsed)) source = parsed as CanvasElement[];
+      } catch {
+        // Keep the reliable in-application clipboard fallback.
+      }
+    }
+    addClonedElements(source);
   };
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement)?.matches('input, textarea, select')) return;
+      if (isTextInput(event.target)) return;
+      if (event.key === 'Escape' && contextMenu) {
+        event.preventDefault();
+        setContextMenu(undefined);
+        return;
+      }
+      const command = event.ctrlKey || event.metaKey;
+      if ((command && event.key.toLowerCase() === 'c') || (event.ctrlKey && event.key === 'Insert')) {
+        if (selected.size) {
+          event.preventDefault();
+          copySelection();
+        }
+        return;
+      }
+      if ((command && event.key.toLowerCase() === 'v') || (event.shiftKey && event.key === 'Insert')) {
+        if (canvasElementClipboard.length) {
+          event.preventDefault();
+          pasteSelection();
+        }
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (event.shiftKey) redo(); else undo();
@@ -265,8 +412,27 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         updateElements(element => ({ ...element, x: element.x + direction[0] * step, y: element.y + direction[1] * step }));
       }
     };
+    const copyEvent = (event: ClipboardEvent) => {
+      if (isTextInput(event.target) || !selected.size) return;
+      copySelection();
+      event.clipboardData?.setData('text/plain', `${CANVAS_CLIPBOARD_PREFIX}${JSON.stringify(canvasElementClipboard)}`);
+      event.preventDefault();
+    };
+    const pasteEvent = (event: ClipboardEvent) => {
+      if (isTextInput(event.target)) return;
+      const serialized = event.clipboardData?.getData('text/plain');
+      if (!serialized?.startsWith(CANVAS_CLIPBOARD_PREFIX) && !canvasElementClipboard.length) return;
+      event.preventDefault();
+      pasteSelection(serialized);
+    };
     window.addEventListener('keydown', keydown);
-    return () => window.removeEventListener('keydown', keydown);
+    window.addEventListener('copy', copyEvent);
+    window.addEventListener('paste', pasteEvent);
+    return () => {
+      window.removeEventListener('keydown', keydown);
+      window.removeEventListener('copy', copyEvent);
+      window.removeEventListener('paste', pasteEvent);
+    };
   });
 
   const undo = () => {
@@ -326,21 +492,69 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     const overId = event.over ? String(event.over.id) : '';
     if (!overId.startsWith('canvas-layer:') || activeId === overId) return;
     const frontToBack = [...scene.elements].reverse();
-    const sourceIndex = frontToBack.findIndex(element => `canvas-layer:${element.id}` === activeId);
+    const activeElement = frontToBack.find(element => `canvas-layer:${element.id}` === activeId);
+    if (!activeElement) return;
+    const movingIds = new Set(activeElement.groupId
+      ? scene.elements.filter(element => element.groupId === activeElement.groupId).map(element => element.id)
+      : [activeElement.id]);
+    if (movingIds.has(overId.slice('canvas-layer:'.length))) return;
+    if (movingIds.size > 1) {
+      const moving = frontToBack.filter(element => movingIds.has(element.id));
+      const remaining = frontToBack.filter(element => !movingIds.has(element.id));
+      const targetIndex = remaining.findIndex(element => `canvas-layer:${element.id}` === overId);
+      if (targetIndex < 0) return;
+      publish({ ...scene, elements: [...remaining.slice(0, targetIndex), ...moving, ...remaining.slice(targetIndex)].reverse() });
+      setSelected(movingIds);
+      return;
+    }
+    const sourceIndex = frontToBack.findIndex(element => element.id === activeElement.id);
     const targetIndex = frontToBack.findIndex(element => `canvas-layer:${element.id}` === overId);
     if (sourceIndex < 0 || targetIndex < 0) return;
     publish({ ...scene, elements: arrayMove(frontToBack, sourceIndex, targetIndex).reverse() });
   };
   const duplicate = () => {
-    const copies = scene.elements.filter(item => selected.has(item.id)).map(item => ({ ...clone(item), id: nextId(item.type), x: item.x + .125, y: item.y + .125 }));
-    if (!copies.length) return;
-    publish({ ...scene, elements: [...scene.elements, ...copies] });
-    setSelected(new Set(copies.map(item => item.id)));
+    addClonedElements(scene.elements.filter(item => selected.has(item.id)));
   };
   const group = () => {
     if (selected.size < 2) return;
-    const groupId = `group-${Date.now().toString(36)}`;
+    const used = new Set(scene.elements.flatMap(element => element.groupId ? [element.groupId] : []));
+    let index = 1;
+    while (used.has(`group-${index}`)) index++;
+    const groupId = `group-${index}`;
     updateElements(element => ({ ...element, groupId }));
+  };
+  const ungroup = () => {
+    if (![...selected].some(id => elements.get(id)?.groupId)) return;
+    updateElements(element => {
+      const next = { ...element };
+      delete next.groupId;
+      return next;
+    });
+  };
+  const changeLayer = (action: 'front' | 'forward' | 'backward' | 'back') => {
+    const next = reorderCanvasElements(scene.elements, selected, action);
+    if (next.some((element, index) => element !== scene.elements[index])) {
+      publish({ ...scene, elements: next });
+    }
+    setContextMenu(undefined);
+  };
+  const changeLayerFor = (element: CanvasElement, action: 'forward' | 'backward') => {
+    const ids = selected.has(element.id) ? selected : selectionFor(element.id);
+    const next = reorderCanvasElements(scene.elements, ids, action);
+    if (next.some((item, index) => item !== scene.elements[index])) publish({ ...scene, elements: next });
+    setSelected(ids);
+  };
+  const openContextMenu = (event: React.MouseEvent, element: CanvasElement) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selected.has(element.id)) {
+      const next = selectionFor(element.id);
+      setSelected(next);
+    }
+    setContextMenu({
+      x: Math.max(6, Math.min(event.clientX, window.innerWidth - 184)),
+      y: Math.max(6, Math.min(event.clientY, window.innerHeight - 142))
+    });
   };
   const align = (edge: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
     const items = scene.elements.filter(item => selected.has(item.id));
@@ -397,10 +611,12 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     <header className="canvas-designer-toolbar">
       <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
       <div className="canvas-tools">
-        <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
+        <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={!selected.size} onClick={copySelection}>Copy</button><button disabled={!clipboardAvailable} onClick={() => pasteSelection()}>Paste</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size || ![...selected].some(id => elements.get(id)?.groupId)} onClick={ungroup}>Ungroup</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
         <button disabled={!past.length} onClick={undo}>Undo</button><button disabled={!future.length} onClick={redo}>Redo</button>
       </div>
       <div className="canvas-view-tools">
+        <button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button>
+        <button type="button" className={`guide-toggle ${snapEnabled ? 'active' : ''}`} aria-label={`${snapEnabled ? 'Disable' : 'Enable'} snapping`} aria-pressed={snapEnabled} onClick={toggleSnap}>Snap</button>
         <button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button>
         <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitCanvas} />
       </div>
@@ -411,26 +627,28 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     </aside>
     <aside className="canvas-layers">
       <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>
-      <SortableContext items={frontToBack.map(element => `canvas-layer:${element.id}`)} strategy={verticalListSortingStrategy}><ol>{frontToBack.map(element => <SortableItem id={`canvas-layer:${element.id}`} key={element.id}><li className={selected.has(element.id) ? 'selected' : ''}>
+      <SortableContext items={frontToBack.map(element => `canvas-layer:${element.id}`)} strategy={verticalListSortingStrategy}><ol>{frontToBack.map(element => <SortableItem id={`canvas-layer:${element.id}`} key={element.id}><li className={selected.has(element.id) ? 'selected' : ''} onContextMenu={event => openContextMenu(event, element)}>
         <button className="canvas-layer-select" type="button" onClick={event => select(element.id, event.shiftKey)}>
           <span className="canvas-layer-icon">{elementIcon(element)}</span>
           <span className="canvas-layer-copy"><b>{elementName(element)}</b><small>{elementKind(element)}{element.groupId ? ' · Grouped' : ''}{element.locked ? ' · Locked' : ''}</small></span>
         </button>
-        <div className="canvas-layer-actions"><button type="button" aria-label={`Move ${elementName(element)} forward`} title="Move forward" onClick={() => { const index = scene.elements.indexOf(element); if (index < scene.elements.length - 1) { const next = [...scene.elements]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; publish({ ...scene, elements: next }); } }}>↑</button><button type="button" aria-label={`Move ${elementName(element)} backward`} title="Move backward" onClick={() => { const index = scene.elements.indexOf(element); if (index > 0) { const next = [...scene.elements]; [next[index], next[index - 1]] = [next[index - 1], next[index]]; publish({ ...scene, elements: next }); } }}>↓</button><SortableHandle label={`Drag ${elementName(element)} to reorder layers`} /></div>
+        <div className="canvas-layer-actions"><button type="button" aria-label={`Move ${elementName(element)} forward`} title="Move forward" onClick={() => changeLayerFor(element, 'forward')}>↑</button><button type="button" aria-label={`Move ${elementName(element)} backward`} title="Move backward" onClick={() => changeLayerFor(element, 'backward')}>↓</button><SortableHandle label={`Drag ${elementName(element)} to reorder layers`} /></div>
       </li></SortableItem>)}</ol></SortableContext>
     </aside>
     <main className="canvas-workarea" ref={workarea} onWheel={handleWheel}>
       <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
-      <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { if (event.target === event.currentTarget) setSelected(new Set()); }}>
+      <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) setSelected(new Set()); }}>
         <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={document} marginIn={marginIn} />} />
-        <div className="canvas-safe-guide" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }} />
+        {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
+        {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
+        {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}
         <div className="canvas-selection-layer" style={{ left: `${space.x}in`, top: `${space.y}in`, width: `${space.width}in`, height: `${space.height}in` }}>
           {scene.elements.map(element => {
             const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
             const metrics = line ? canvasLineMetrics(element) : undefined;
-            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onPointerDown={event => beginDrag(event, element)}>
-              {selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
+            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onContextMenu={event => openContextMenu(event, element)} onPointerDown={event => beginDrag(event, element)}>
+              {selected.size === 1 && selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
             </div>;
           })}
         </div>
@@ -440,7 +658,6 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     </main>
     <aside className="canvas-properties">
       <div className="eyebrow">Properties</div>
-      <label>Coordinate space<select value={scene.coordinateSpace} onChange={event => publish(convertCanvasCoordinateSpace(scene, event.target.value as CanvasScene['coordinateSpace'], 0))}><option value="fullPage">Canvas bounds</option><option value="contentBox">Canvas content box</option></select></label>
       <label>Background color<input type="color" value={scene.background?.color ?? '#ffffff'} onChange={event => publish({ ...scene, background: { ...scene.background, color: event.target.value } })} /></label>
       <div className="builder-actions"><button className="secondary" onClick={async () => { const asset = await onChooseAsset?.(); if (asset) publish({ ...scene, background: { ...scene.background, asset, fit: 'cover' } }); }}>{scene.background?.asset ? 'Replace background' : 'Add image / PDF background'}</button>{scene.background?.asset && <button className="danger-text" onClick={() => { const background = { ...scene.background }; delete background.asset; publish({ ...scene, background }); }}>Remove</button>}</div>
       {scene.background?.asset && <label>Background fit<select value={scene.background.fit ?? 'cover'} onChange={event => publish({ ...scene, background: { ...scene.background, fit: event.target.value as 'contain' | 'cover' | 'fill' } })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label>}
@@ -452,6 +669,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
+          {nativePrimary && selected.size === 1 && supportsInlineTypography(nativePrimary) && <InlineTypographyControls block={nativePrimary} template={template} onChange={presentation => updatePrimary({ block: { ...nativePrimary, presentation } } as Partial<CanvasElement>)} />}
           {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
             <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
@@ -498,6 +716,17 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         setSelected(new Set([element.id]));
       }}
     />}
+    {contextMenu && <div
+      className="canvas-context-menu"
+      role="menu"
+      style={{ left: contextMenu.x, top: contextMenu.y }}
+      onPointerDown={event => event.stopPropagation()}
+    >
+      <button role="menuitem" onClick={() => changeLayer('front')}>Bring to front</button>
+      <button role="menuitem" onClick={() => changeLayer('forward')}>Bring forward</button>
+      <button role="menuitem" onClick={() => changeLayer('backward')}>Send backward</button>
+      <button role="menuitem" onClick={() => changeLayer('back')}>Send to back</button>
+    </div>}
   </div>
   {formattingElementId && (() => {
     const element = scene.elements.find(item => item.id === formattingElementId);

@@ -3,11 +3,15 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   canvasBindingText,
+  canvasElementBounds,
+  cloneCanvasSelection,
   convertCanvasCoordinateSpace,
   createCanvasBlock,
   defaultCanvasScene,
   normalizeCanvasScene,
   rotateCanvasLine,
+  reorderCanvasElements,
+  snapCanvasAxis,
   snapCanvasValue,
   snapCanvasPosition,
   validateCanvasScene
@@ -78,6 +82,50 @@ describe('canvas cover scenes', () => {
     expect(snapCanvasValue(.1, true)).toBe(.1);
     expect(snapCanvasPosition(2.96, 1, 7)).toBe(3);
     expect(snapCanvasPosition(2.96, 1, 7, [], true)).toBe(2.96);
+    expect(snapCanvasAxis(2.96, 1, 7)).toEqual({ value: 3, guide: 3.5 });
+    expect(snapCanvasAxis(2.96, 1, 7, [], true)).toEqual({ value: 2.96 });
+  });
+
+  it('moves layer selections without changing their internal order', () => {
+    const elements: CanvasScene['elements'] = [
+      { id: 'back', type: 'shape', shape: 'rectangle', x: 0, y: 0, width: 1, height: 1 },
+      { id: 'middle-a', type: 'shape', shape: 'rectangle', x: 1, y: 0, width: 1, height: 1 },
+      { id: 'middle-b', type: 'shape', shape: 'rectangle', x: 2, y: 0, width: 1, height: 1 },
+      { id: 'front', type: 'shape', shape: 'rectangle', x: 3, y: 0, width: 1, height: 1 }
+    ];
+    const selected = new Set(['middle-a', 'middle-b']);
+    expect(reorderCanvasElements(elements, selected, 'front').map(element => element.id)).toEqual(['back', 'front', 'middle-a', 'middle-b']);
+    expect(reorderCanvasElements(elements, selected, 'back').map(element => element.id)).toEqual(['middle-a', 'middle-b', 'back', 'front']);
+    expect(reorderCanvasElements(elements, selected, 'forward').map(element => element.id)).toEqual(['back', 'front', 'middle-a', 'middle-b']);
+  });
+
+  it('copies native canvas selections with fresh element, block, and group IDs', () => {
+    const elements: CanvasScene['elements'] = [{
+      id: 'heading',
+      type: 'block',
+      x: 1,
+      y: 2,
+      width: 3,
+      height: .5,
+      groupId: 'group-1',
+      block: { id: 'heading-block', type: 'heading', text: 'Welcome' }
+    }, {
+      id: 'rule',
+      type: 'shape',
+      shape: 'line',
+      x: 1,
+      y: 2.6,
+      width: 3,
+      height: 0,
+      groupId: 'group-1'
+    }];
+    const copies = cloneCanvasSelection(elements, new Set(elements.map(element => element.id)));
+    expect(copies.map(element => element.id)).toEqual(['heading-copy', 'rule-copy']);
+    expect(copies[0].groupId).toBe(copies[1].groupId);
+    expect(copies[0].groupId).not.toBe('group-1');
+    expect(copies[0]).toMatchObject({ x: 1.125, y: 2.125, block: { id: 'heading-block-copy' } });
+    expect(canvasElementBounds(copies)).toMatchObject({ x: 1.125, y: 2.125, width: 3 });
+    expect(canvasElementBounds(copies).height).toBeCloseTo(.6);
   });
 
   it('rotates lines explicitly while preserving their length', () => {

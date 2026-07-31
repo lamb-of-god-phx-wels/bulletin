@@ -76,20 +76,24 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
       : native.type === 'richText'
         ? boundRichTextParagraphs(native, document).map((item, index) => <InlineParagraph paragraph={item} key={index} />)
         : 'text' in native ? native.text : native.label ?? (native.type === 'custom' ? native.name : native.type);
+    const vertical = element.verticalAlign === 'middle'
+      ? 'center'
+      : element.verticalAlign === 'bottom'
+        ? 'flex-end'
+        : 'flex-start';
     return <div className={`canvas-element canvas-native-block ${element.sizing === 'autoHeight' ? 'auto-height' : 'fixed-height'}`} data-canvas-element-id={element.id} style={{
       ...geometry(element),
       height: element.sizing === 'autoHeight' ? 'auto' : `${element.height}in`,
-      overflow: element.sizing === 'fixed' ? 'hidden' : undefined,
-      display: native.type === 'image' ? undefined : 'flex',
-      flexDirection: native.type === 'image' ? undefined : 'column',
-      justifyContent: native.type === 'image'
-        ? undefined
-        : element.verticalAlign === 'middle'
-          ? 'center'
-          : element.verticalAlign === 'bottom'
-            ? 'flex-end'
-            : 'flex-start'
-    }}>{native.type === 'image' ? fallback : renderNativeBlock?.(native) ?? fallback}</div>;
+      overflow: element.sizing === 'fixed' ? 'hidden' : undefined
+    }}>{native.type === 'image'
+      ? fallback
+      : <div className="canvas-native-content" style={{
+          display: 'flex',
+          minHeight: 0,
+          height: element.sizing === 'fixed' ? '100%' : 'auto',
+          flexDirection: 'column',
+          justifyContent: vertical
+        }}>{renderNativeBlock?.(native) ?? fallback}</div>}</div>;
   }
   if (element.type === 'rectangle') return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
     ...geometry(element),

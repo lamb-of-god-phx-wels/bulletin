@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults';
 import { boundRichTextParagraphs, createCanvasBlock } from '../src/shared/canvas';
 import { createBulletin } from '../src/shared/defaults';
@@ -13,6 +15,7 @@ import {
   pageTemplateMargin
 } from '../src/shared/pageTemplates';
 import { validateBulletin } from '../src/shared/validation';
+import { DocumentView } from '../src/components/DocumentView';
 
 describe('single-page templates', () => {
   it('keeps canvas and regular page layouts distinct', () => {
@@ -83,5 +86,19 @@ describe('single-page templates', () => {
     document.layout = { marginIn: .5 };
     document.blocks = [instantiatePageTemplate(source, 'page')];
     expect(validateBulletin(document, undefined, defaultTemplate).some(issue => issue.message.includes('overflows'))).toBe(true);
+  });
+
+  it('shows a blank physical page for an empty single-page preview', () => {
+    const document = createBulletin(defaultTemplate, '2026-07-29');
+    document.blocks = [];
+    const markup = renderToStaticMarkup(createElement(DocumentView, {
+      document,
+      template: defaultTemplate,
+      singlePage: true,
+      rulers: false,
+      guides: false
+    }));
+    expect(markup).toContain('page-frame');
+    expect(markup).toContain('document-page page-kind-content');
   });
 });

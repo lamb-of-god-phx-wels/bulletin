@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { DeclarativeComponentDefinition } from '../component-engine/types';
 import { createPageTemplate, duplicatePageTemplate, nextPageTemplateVersion, pageTemplateChoices, pageTemplateLayout, pageTemplateVersions, type PageTemplateRecord } from '../shared/pageTemplates';
-import { paginate } from '../shared/pagination';
-import { createBulletin } from '../shared/defaults';
 import { createCanvasBlock } from '../shared/canvas';
 import { randomId } from '../shared/id';
 import type { BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
@@ -46,27 +44,6 @@ export function PageTemplatesView({ records, template, document, library, root, 
     const name = window.prompt('Name for the copy', `${selected.pageTemplate.name} copy`);
     if (name?.trim()) edit(duplicatePageTemplate(selected.pageTemplate, name.trim(), records));
   };
-  const capture = (source: BulletinDocumentV1, label: string) => {
-    const pages = paginate(source.blocks, template, library).filter(page => page.kind !== 'filler');
-    const answer = window.prompt(`Page number to capture (1–${pages.length})`, '1');
-    if (!answer) return;
-    const number = Number(answer);
-    const page = pages.find(candidate => candidate.number === number);
-    if (!page) { onError('Choose an existing non-filler page.'); return; }
-    if (page.blocks.some(block => block.sourceBlockId)) {
-      onError('This page contains part of a block that continues on another page. Split or shorten that block before capturing the page.');
-      return;
-    }
-    const name = window.prompt('Page template name', `${label} — page ${number}`);
-    if (!name?.trim()) return;
-    const linked = page.blocks.length === 1 && page.blocks[0].type === 'templatePage' ? page.blocks[0] : undefined;
-    edit(createPageTemplate(
-      name.trim(),
-      records,
-      linked?.type === 'templatePage' ? linked.blocks : page.blocks,
-      linked?.type === 'templatePage' ? linked.margin : { mode: 'fixed', marginIn: source.layout?.marginIn ?? template.theme.marginIn }
-    ));
-  };
   const save = async (publish: boolean) => {
     if (!draft) return;
     const current = records.find(record => record.pageTemplate.id === draft.id && record.pageTemplate.version === draft.version && record.pageTemplate.status === draft.status);
@@ -81,7 +58,7 @@ export function PageTemplatesView({ records, template, document, library, root, 
     setDraft(saved.pageTemplate);
   };
   return <div className="page-templates-screen">
-    <header className="library-intro"><div><div className="eyebrow">Synchronized reusable pages</div><h2>{choices.length} page template{choices.length === 1 ? '' : 's'}</h2><p>Create either a positioned canvas page or a regular block-layout page, then pin it into any bulletin or bulletin template.</p></div><div className="builder-actions"><button className="secondary" disabled={!document} onClick={() => document && capture(document, document.info.title)}>Capture bulletin page</button><button className="secondary" onClick={() => capture(createBulletin(template), template.name)}>Capture template page</button><button className="secondary" disabled={!selected} onClick={duplicate}>Duplicate</button><button className="primary" onClick={createBlank}>＋ New page template</button></div></header>
+    <header className="library-intro"><div><div className="eyebrow">Synchronized reusable pages</div><h2>{choices.length} page template{choices.length === 1 ? '' : 's'}</h2><p>Create either a positioned canvas page or a regular block-layout page, then pin it into any bulletin or bulletin template.</p></div><div className="builder-actions"><button className="secondary" disabled={!selected} onClick={duplicate}>Duplicate</button><button className="primary" onClick={createBlank}>＋ New page template</button></div></header>
     {!choices.length ? <div className="empty-state"><span>▣</span><h2>No reusable pages yet</h2><p>Create a blank page to begin.</p></div> : <section className="page-template-cards">{choices.map(record => <article className={record.pageTemplate.id === selected?.pageTemplate.id ? 'selected' : ''} key={record.pageTemplate.id} onClick={() => setSelectedId(record.pageTemplate.id)}>
       <div><b>{record.pageTemplate.name}</b><small>{pageTemplateLayout(record.pageTemplate) === 'canvas' ? 'Canvas' : 'Regular layout'} · Latest v{record.pageTemplate.version} · {record.pageTemplate.status} · {record.pageTemplate.margin.mode === 'inherit' ? 'inherits margins' : `${record.pageTemplate.margin.marginIn} in margins`}</small></div>
       <div className="builder-actions"><button className="secondary" onClick={event => { event.stopPropagation(); edit(record.pageTemplate); }}>Edit</button><button className="danger-text" onClick={event => { event.stopPropagation(); void onArchive(record).catch(error => onError(error instanceof Error ? error.message : String(error))); }}>Delete</button></div>

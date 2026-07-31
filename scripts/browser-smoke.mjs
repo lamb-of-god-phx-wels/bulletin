@@ -66,7 +66,7 @@ await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
   : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
-  : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1'
+  : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
@@ -92,8 +92,10 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await wait(`document.querySelector('.canvas-elements-sidebar > .element-palette')?.classList.contains('collapsed')&&!document.querySelector('.canvas-elements-sidebar > .element-palette .element-palette-scroll')`, 'canvas Elements collapse');
   await evaluate(`document.querySelector('.canvas-elements-sidebar > .element-palette > header button')?.click()`);
   await wait(`!document.querySelector('.canvas-elements-sidebar > .element-palette')?.classList.contains('collapsed')&&Boolean(document.querySelector('.canvas-elements-sidebar > .element-palette .element-palette-scroll'))`, 'canvas Elements expand');
-  const canvasViewport = await evaluate(`({zoom:Boolean(document.querySelector('.canvas-designer select[aria-label="Preview zoom"]')),rulers:document.querySelectorAll('.canvas-stage-frame .page-rulers').length,horizontalTicks:document.querySelectorAll('.canvas-stage-frame .ruler-horizontal .ruler-tick').length,verticalTicks:document.querySelectorAll('.canvas-stage-frame .ruler-vertical .ruler-tick').length,legacyLabels:document.querySelectorAll('.canvas-ruler-label').length})`);
-  if (!canvasViewport.zoom || canvasViewport.rulers !== 1 || canvasViewport.horizontalTicks !== 29 || canvasViewport.verticalTicks !== 35 || canvasViewport.legacyLabels) throw new Error(`Canvas viewport controls are incomplete: ${JSON.stringify(canvasViewport)}`);
+  const canvasViewport = await evaluate(`({zoom:Boolean(document.querySelector('.canvas-designer select[aria-label="Preview zoom"]')),rulers:document.querySelectorAll('.canvas-stage-frame .page-rulers').length,horizontalTicks:document.querySelectorAll('.canvas-stage-frame .ruler-horizontal .ruler-tick').length,verticalTicks:document.querySelectorAll('.canvas-stage-frame .ruler-vertical .ruler-tick').length,legacyLabels:document.querySelectorAll('.canvas-ruler-label').length,boundsSelector:Boolean(Array.from(document.querySelectorAll('.canvas-properties label')).find(label=>label.textContent.includes('Coordinate space'))),snap:document.querySelector('.canvas-designer button[aria-label$="snapping"]')?.getAttribute('aria-pressed'),guides:document.querySelector('.canvas-designer button[aria-label$="guides"]')?.getAttribute('aria-pressed')})`);
+  if (!canvasViewport.zoom || canvasViewport.rulers !== 1 || canvasViewport.horizontalTicks !== 29 || canvasViewport.verticalTicks !== 35 || canvasViewport.legacyLabels || canvasViewport.boundsSelector || canvasViewport.snap !== 'true') throw new Error(`Canvas viewport controls are incomplete: ${JSON.stringify(canvasViewport)}`);
+  await evaluate(`(()=>{const button=document.querySelector('.canvas-designer button[aria-label$="guides"]');if(button?.getAttribute('aria-pressed')!=='true')button?.click();return true})()`);
+  await wait(`Boolean(document.querySelector('.canvas-stage .canvas-safe-guide'))&&localStorage.getItem('bulletin-show-guides')==='true'`, 'canvas guide toggle');
   await evaluate(`Array.from(document.querySelectorAll('.canvas-designer .preview-zoom-presets button')).find(button=>button.textContent.trim()==='100%')?.click()`);
   await wait(`Math.abs(document.querySelector('.canvas-stage').getBoundingClientRect().width-672)<1`, '100% canvas zoom');
   const canvasRulerGeometry = await evaluate(`(()=>{const stage=document.querySelector('.canvas-stage').getBoundingClientRect(),horizontal=document.querySelector('.canvas-stage-frame .ruler-horizontal').getBoundingClientRect(),vertical=document.querySelector('.canvas-stage-frame .ruler-vertical').getBoundingClientRect();return {stage:[stage.width,stage.height],horizontal:horizontal.width,vertical:vertical.height}})()`);
@@ -113,12 +115,33 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   const canvasLayerRow = await evaluate(`(()=>{const row=document.querySelector('.canvas-layers ol li'),icon=row?.querySelector('.canvas-layer-icon')?.getBoundingClientRect(),copy=row?.querySelector('.canvas-layer-copy');return {height:row?.getBoundingClientRect().height,selected:row?.classList.contains('selected'),icon:[icon?.width,icon?.height],name:copy?.querySelector('b')?.textContent,kind:copy?.querySelector('small')?.textContent,actions:row?.querySelectorAll('.canvas-layer-actions button').length,dragHandle:Boolean(row?.querySelector('.drag-handle'))}})()`);
   if (canvasLayerRow.height < 63 || !canvasLayerRow.selected || canvasLayerRow.icon?.some(value => Math.abs(value - 36) > 1) || !canvasLayerRow.name || !canvasLayerRow.kind || canvasLayerRow.actions !== 2 || !canvasLayerRow.dragHandle) throw new Error(`Canvas Layers row does not match the template outline: ${JSON.stringify(canvasLayerRow)}`);
   await choose('Sizing', 'fixed');
+  if (!await evaluate(`Boolean(document.querySelector('.canvas-properties .inline-typography'))`)) throw new Error('Canvas text is missing the bulletin quick typography controls.');
   await choose('Vertical alignment', 'top');
-  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector(':scope > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.top-b.top)<1})()`, 'canvas text top alignment');
+  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.top-b.top)<1})()`, 'canvas text top alignment');
   await choose('Vertical alignment', 'middle');
-  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector(':scope > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<1})()`, 'canvas text middle alignment');
+  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<1})()`, 'canvas text middle alignment');
   await choose('Vertical alignment', 'bottom');
-  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector(':scope > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.bottom-b.bottom)<1})()`, 'canvas text bottom alignment');
+  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.bottom-b.bottom)<1})()`, 'canvas text bottom alignment');
+  const beforePaste = await evaluate(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length`);
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 });
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'v', code: 'KeyV', windowsVirtualKeyCode: 86, modifiers: 2 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'v', code: 'KeyV', windowsVirtualKeyCode: 86, modifiers: 2 });
+  await wait(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length===${beforePaste + 1}`, 'canvas keyboard copy and paste');
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Insert', code: 'Insert', windowsVirtualKeyCode: 45, modifiers: 2 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Insert', code: 'Insert', windowsVirtualKeyCode: 45, modifiers: 2 });
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Insert', code: 'Insert', windowsVirtualKeyCode: 45, modifiers: 8 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Insert', code: 'Insert', windowsVirtualKeyCode: 45, modifiers: 8 });
+  await wait(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length===${beforePaste + 2}`, 'canvas Insert-key copy and paste');
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+  await wait(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length===${beforePaste + 1}`, 'remove latest pasted canvas copy');
+  for (const count of [beforePaste + 2, beforePaste + 1, beforePaste]) {
+    await evaluate(`Array.from(document.querySelectorAll('.canvas-tools button')).find(button=>button.textContent.trim()==='Undo')?.click()`);
+    await wait(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length===${count}`, `clipboard undo ${count}`);
+  }
+  await evaluate(`Array.from(document.querySelectorAll('.canvas-layers li')).find(row=>row.querySelector('.canvas-layer-copy b')?.textContent==='Heading')?.querySelector('.canvas-layer-select')?.click()`);
+  await wait(`Boolean(document.querySelector('.canvas-properties .canvas-format-button'))`, 'reselect canvas heading');
   await click('Format block');
   await wait(`Boolean(document.querySelector('.canvas-formatting-layer .block-formatting-modal'))`, 'canvas native block formatting');
   const formattingSections = await evaluate(`Array.from(document.querySelectorAll('.canvas-formatting-layer .appearance-section > h3')).map(element=>element.textContent)`);
@@ -130,7 +153,17 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await fill('Weight (pt)', '3');
   await fill('Rotation (°)', '45');
   await wait(`(()=>{const line=document.querySelector('.canvas-stage .canvas-line'),stroke=line?.querySelector('line'),selection=document.querySelector('.canvas-selection.selected');return stroke?.style.strokeWidth==='3pt'&&line.style.transform==='rotate(45deg)'&&selection?.style.transform==='rotate(45deg)'})()`, 'canvas line weight and rotation');
-  const layerDrag = await evaluate(`(()=>{const rows=Array.from(document.querySelectorAll('.canvas-layers ol li')),heading=rows.find(row=>row.querySelector('.canvas-layer-copy b')?.textContent==='Heading'),front=rows[0],handle=heading?.querySelector('.drag-handle'),a=handle?.getBoundingClientRect(),b=front?.getBoundingClientRect();return {start:{x:a?.left+a?.width/2,y:a?.top+a?.height/2},end:{x:b?.left+b?.width/2,y:b?.top+b?.height/2}}})()`);
+  await evaluate(`(()=>{const heading=Array.from(document.querySelectorAll('.canvas-layers li')).find(row=>row.querySelector('.canvas-layer-copy b')?.textContent==='Heading')?.querySelector('.canvas-layer-select');heading?.dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}));return Boolean(heading)})()`);
+  await wait(`document.querySelectorAll('.canvas-selection.selected').length===2`, 'canvas shift multi-selection');
+  await evaluate(`Array.from(document.querySelectorAll('.canvas-tools button')).find(button=>button.textContent.trim()==='Group')?.click()`);
+  await wait(`Array.from(document.querySelectorAll('.canvas-layers .canvas-layer-copy small')).filter(element=>element.textContent.includes('Grouped')).length===2`, 'canvas grouping');
+  await evaluate(`Array.from(document.querySelectorAll('.canvas-tools button')).find(button=>button.textContent.trim()==='Ungroup')?.click()`);
+  await wait(`!Array.from(document.querySelectorAll('.canvas-layers .canvas-layer-copy small')).some(element=>element.textContent.includes('Grouped'))`, 'canvas ungrouping');
+  await evaluate(`(()=>{const heading=Array.from(document.querySelectorAll('.canvas-layers li')).find(row=>row.querySelector('.canvas-layer-copy b')?.textContent==='Heading');heading?.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:700,clientY:350}));return Boolean(heading)})()`);
+  await wait(`Boolean(document.querySelector('.canvas-context-menu'))`, 'canvas layer context menu');
+  await evaluate(`Array.from(document.querySelectorAll('.canvas-context-menu button')).find(button=>button.textContent.trim()==='Bring to front')?.click()`);
+  await wait(`!document.querySelector('.canvas-context-menu')`, 'canvas layer context command');
+  const layerDrag = await evaluate(`(()=>{const rows=Array.from(document.querySelectorAll('.canvas-layers ol li')),heading=rows.find(row=>row.querySelector('.canvas-layer-copy b')?.textContent==='Heading'),back=rows.at(-1),handle=heading?.querySelector('.drag-handle'),a=handle?.getBoundingClientRect(),b=back?.getBoundingClientRect();return {start:{x:a?.left+a?.width/2,y:a?.top+a?.height/2},end:{x:b?.left+b?.width/2,y:b?.top+b?.height/2}}})()`);
   await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: layerDrag.start.x, y: layerDrag.start.y, button: 'left', buttons: 1, clickCount: 1 });
   for (let step = 1; step <= 6; step++) {
     const ratio = step / 6;
@@ -138,9 +171,13 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
     await new Promise(resolve => setTimeout(resolve, 35));
   }
   await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: layerDrag.end.x, y: layerDrag.end.y, button: 'left', buttons: 0, clickCount: 1 });
-  await wait(`document.querySelector('.canvas-layers ol li:first-child .canvas-layer-copy b')?.textContent==='Heading'`, 'canvas layer drag reorder');
+  await wait(`document.querySelector('.canvas-layers ol li:last-child .canvas-layer-copy b')?.textContent==='Heading'`, 'canvas layer drag reorder');
+  await new Promise(resolve => setTimeout(resolve, 120));
+  const designerVerticalOffset = await evaluate(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b?(a.bottom-b.bottom)/a.height:null})()`);
   await evaluate(`document.querySelector('.canvas-designer-toolbar > button.primary')?.click()`);
   await wait(`!document.querySelector('.canvas-designer')`, 'canvas designer close');
+  const previewVerticalOffset = await evaluate(`(()=>{const box=document.querySelector('.page-template-preview .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b?(a.bottom-b.bottom)/a.height:null})()`);
+  if (designerVerticalOffset === null || previewVerticalOffset === null || Math.abs(designerVerticalOffset - previewVerticalOffset) > .01) throw new Error(`Canvas vertical alignment differs between designer and page preview: ${JSON.stringify({ designerVerticalOffset, previewVerticalOffset })}`);
   await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.includes('Save draft'))?.click()`);
   await wait(`document.querySelector('.template-save-status')?.textContent.includes('Draft saved')`, 'browser canvas page save');
   await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.trim()==='Done')?.click()`);
@@ -151,7 +188,7 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await wait(`Boolean(document.querySelector('.canvas-designer'))`, 'saved page canvas reopen');
   const reopenedElements = await evaluate(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length`);
   if (reopenedElements !== initialElements + 2) throw new Error(`Browser canvas page lost its elements after save: ${initialElements + 2} expected, ${reopenedElements} found.`);
-  if (!await evaluate(`document.querySelector('.canvas-layers ol li:first-child .canvas-layer-copy b')?.textContent==='Heading'`)) throw new Error('Canvas layer drag order was not persisted.');
+  if (!await evaluate(`document.querySelector('.canvas-layers ol li:last-child .canvas-layer-copy b')?.textContent==='Heading'`)) throw new Error('Canvas layer drag order was not persisted.');
   await evaluate(`document.querySelector('.canvas-designer-toolbar > button.primary')?.click()`);
   await wait(`!document.querySelector('.canvas-designer')`, 'reopened canvas designer close');
   const publishDisabled = await evaluate(`Array.from(document.querySelectorAll('.page-template-designer header button')).find(button=>button.textContent.includes('Publish version'))?.disabled`);
@@ -161,6 +198,42 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   pass('creates, zooms, formats and vertically aligns text, rotates lines, drag-edits, saves, reopens, and publishes a browser canvas page template');
   if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
   console.log(`\n${results.length} browser canvas-page checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
+if (process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1500, height: 900, deviceScaleFactor: 1, mobile: false });
+  await click('Page Templates');
+  await wait(`Boolean(document.querySelector('.page-templates-screen'))`, 'Page Templates screen');
+  if (await evaluate(`Array.from(document.querySelectorAll('.page-templates-screen button')).some(button=>button.textContent.includes('Capture'))`)) throw new Error('Broken page capture actions are still visible.');
+  await evaluate(`window.prompt=(()=>{const answers=['Browser regular regression'];return()=>answers.shift()??null})()`);
+  await click('New page template');
+  await wait(`Boolean(document.querySelector('.page-layout-choice'))`, 'regular page layout choice');
+  await click('Regular layout');
+  await wait(`Boolean(document.querySelector('.page-template-designer.page-template-regular'))`, 'new regular page template editor');
+  const regularLayout = await evaluate(`(()=>{const sidebar=document.querySelector('.page-template-elements'),editor=document.querySelector('.page-template-flow-editor'),preview=document.querySelector('.page-template-preview'),setup=sidebar?.querySelector('.page-setup-card'),palette=sidebar?.querySelector('.element-palette'),page=preview?.querySelector('.document-page'),content=page?.querySelector(':scope > .page-content');const a=sidebar?.getBoundingClientRect(),b=editor?.getBoundingClientRect(),c=preview?.getBoundingClientRect();return {dark:getComputedStyle(sidebar).backgroundColor,columns:Boolean(a&&b&&c&&Math.abs(a.right-b.left)<1&&Math.abs(b.right-c.left)<1),setup:Boolean(setup),setupAbove:Boolean(setup&&palette&&setup.getBoundingClientRect().top<palette.getBoundingClientRect().top),palette:Boolean(palette),blank:Boolean(page&&content&&!content.children.length),missing:preview?.textContent.includes('Missing'),zoom:Boolean(preview?.querySelector('select[aria-label="Preview zoom"]'))}})()`);
+  if (regularLayout.dark !== 'rgb(39, 50, 46)' || !regularLayout.columns || !regularLayout.setup || !regularLayout.setupAbove || !regularLayout.palette || !regularLayout.blank || regularLayout.missing || !regularLayout.zoom) throw new Error(`Regular page template editor does not match the bulletin layout: ${JSON.stringify(regularLayout)}`);
+  await evaluate(`(()=>{const palette=document.querySelector('.page-template-elements .element-palette');if(palette?.classList.contains('collapsed'))palette.querySelector('header button')?.click();return true})()`);
+  await wait(`Boolean(document.querySelector('.page-template-elements .element-palette-scroll'))`, 'expanded regular page Elements');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-elements .element-palette-item')).find(button=>button.textContent.includes('Heading'))?.click()`);
+  await wait(`document.querySelectorAll('.page-template-flow-editor .block-editor').length===1`, 'regular page heading insertion');
+  await evaluate(`document.querySelector('.page-template-flow-editor .block-editor').open=true`);
+  await wait(`Boolean(document.querySelector('.page-template-flow-editor .inline-typography'))`, 'regular page quick typography');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-elements .element-palette-item')).find(button=>button.textContent.includes('Section heading'))?.click()`);
+  await wait(`document.querySelectorAll('.page-template-flow-editor .block-editor').length===2`, 'regular page second insertion');
+  const regularDrag = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.page-template-flow-editor .block-editor')),source=blocks[1],target=blocks[0],handle=source.querySelector('.drag-handle'),a=handle.getBoundingClientRect(),b=target.getBoundingClientRect();return {first:blocks[0].dataset.editorBlockId,start:{x:a.left+a.width/2,y:a.top+a.height/2},end:{x:a.left+a.width/2,y:b.top+3}}})()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: regularDrag.start.x, y: regularDrag.start.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 6; step++) {
+    const ratio = step / 6;
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: regularDrag.start.x, y: regularDrag.start.y + (regularDrag.end.y - regularDrag.start.y) * ratio, button: 'left', buttons: 1 });
+    await new Promise(resolve => setTimeout(resolve, 35));
+  }
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: regularDrag.end.x, y: regularDrag.end.y, button: 'left', buttons: 0, clickCount: 1 });
+  await wait(`document.querySelector('.page-template-flow-editor .block-editor')?.dataset.editorBlockId!==${JSON.stringify(regularDrag.first)}`, 'regular page block reorder');
+  pass('uses the bulletin editor layout for regular page templates, including a blank page, docked palette, formatting, and sorting');
+  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
+  console.log(`\n${results.length} browser regular-page checks passed.`);
   socket.close();
   process.exit(0);
 }

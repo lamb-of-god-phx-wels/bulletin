@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type WheelEvent as ReactWheelEvent } from 'react';
 import type { DeclarativeComponentDefinition } from '../component-engine/types';
 import { instantiateComponentDefinition } from '../componentDefinitions';
 import { createBulletin } from '../shared/defaults';
@@ -17,6 +17,8 @@ import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
 import { songHeader } from '../shared/songs';
 import { ImageAssetDialog } from './ImageAssetDialog';
+import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls';
+import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
 
 const title = (block: BulletinBlock) => block.type === 'custom'
   ? block.name
@@ -44,6 +46,12 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const [formatId, setFormatId] = useState<string>();
   const [status, setStatus] = useState('');
   const [imageIndex, setImageIndex] = useState<number>();
+  const preview = useRef<HTMLElement>(null);
+  const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
+  const [zoom, setZoom] = useState(Number.isFinite(initialZoom) && initialZoom >= .1 && initialZoom <= 2 ? initialZoom : .72);
+  const zoomMode = useRef<'page' | 'width' | 'manual'>(Number.isFinite(initialZoom) ? 'manual' : 'page');
+  const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
+  const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
   const marginIn = value.margin.mode === 'fixed' ? value.margin.marginIn : value.margin.referenceMarginIn;
   const layout = pageTemplateLayout(value);
   const previewTemplate = useMemo<TemplateV1>(() => ({ ...template, theme: { ...template.theme, marginIn }, starterBlocks: value.blocks }), [template, value.blocks, marginIn]);
@@ -67,35 +75,137 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       setImageIndex(index);
     }
   };
-  return <div className="page-template-designer" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
-    <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions">{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
-    <aside className="page-template-controls">
+  const changeZoom = (next: number) => {
+    zoomMode.current = 'manual';
+    setZoom(next);
+    localStorage.setItem('bulletin-preview-zoom', String(next));
+  };
+  const fitPreview = (mode: 'width' | 'page') => {
+    const stack = preview.current?.querySelector<HTMLElement>('.document-stack');
+    if (!stack) return;
+    const rulerWidth = showRulers ? 46 : 0;
+    const rulerHeight = showRulers ? 75 : 0;
+    const fitWidth = (stack.clientWidth - 48 - rulerWidth) / 672;
+    const fitPage = Math.min(fitWidth, (stack.clientHeight - 56 - rulerHeight) / 816);
+    const next = Math.round(Math.max(.1, Math.min(2, mode === 'width' ? fitWidth : fitPage)) * 1000) / 1000;
+    zoomMode.current = mode;
+    setZoom(next);
+    localStorage.setItem('bulletin-preview-zoom', String(next));
+  };
+  const handlePreviewWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    if (!event.ctrlKey || event.deltaY === 0) return;
+    event.preventDefault();
+    zoomMode.current = 'manual';
+    setZoom(current => {
+      const next = stepPreviewZoom(current, event.deltaY < 0 ? 1 : -1);
+      localStorage.setItem('bulletin-preview-zoom', String(next));
+      return next;
+    });
+  };
+  const toggleRulers = () => {
+    setShowRulers(current => {
+      const next = !current;
+      localStorage.setItem('bulletin-show-rulers', String(next));
+      return next;
+    });
+  };
+  const toggleGuides = () => {
+    setShowGuides(current => {
+      const next = !current;
+      localStorage.setItem('bulletin-show-guides', String(next));
+      return next;
+    });
+  };
+  useEffect(() => {
+    if (!preview.current) return;
+    const applyFit = () => {
+      if (zoomMode.current !== 'manual') fitPreview(zoomMode.current);
+    };
+    const timer = window.setTimeout(applyFit);
+    const observer = new ResizeObserver(applyFit);
+    observer.observe(preview.current);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [showRulers]);
+  const pageSetup = <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
+    <summary><div><div className="eyebrow">Reusable page</div><b>Page setup</b></div></summary>
+    <div className="collapsible-editor-fields">
       <label>Name<input value={value.name} onChange={event => change({ name: event.target.value })} /></label>
       <label>Margins<select value={value.margin.mode} onChange={event => change({ margin: event.target.value === 'fixed' ? { mode: 'fixed', marginIn } : { mode: 'inherit', referenceMarginIn: marginIn } })}><option value="inherit">Inherit host margins</option><option value="fixed">Use fixed margins</option></select></label>
       <label>{value.margin.mode === 'fixed' ? 'Fixed margin' : 'Designer reference margin'}<input type="number" min="0" max="1.25" step=".05" value={marginIn} onChange={event => {
         const next = Math.max(0, Math.min(1.25, event.currentTarget.valueAsNumber));
         if (Number.isFinite(next)) change({ margin: value.margin.mode === 'fixed' ? { mode: 'fixed', marginIn: next } : { mode: 'inherit', referenceMarginIn: next } });
       }} /></label>
-      {layout === 'canvas' && <p className="helper">This page is a single positioned canvas. Use Design to edit its contents.</p>}
+    </div>
+  </details>;
+  const palette = <ElementPalette
+    items={flowElementPaletteItems(definitions, false)}
+    storageKey="bulletin-elements-page-template"
+    portalTargetId="page-template-element-palette-slot"
+    onUse={item => void usePaletteItem(item, value.blocks.length)}
+    actions={<button className="text-button" onClick={() => setLibraryOpen(true)}>Manage components…</button>}
+  />;
+  const previewPane = <main className="page-template-preview" ref={preview} onWheel={handlePreviewWheel}>
+    <div className="preview-toolbar">
+      <div><b>Page preview</b><span>7 × 8.5 inches</span></div>
+      <div className="preview-toolbar-end">
+        <button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button>
+        <button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button>
+        <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitPreview} />
+      </div>
+    </div>
+    <DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage />
+  </main>;
+  return <div className={`page-template-designer page-template-${layout}`} role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
+    <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions">{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
+    {layout === 'regular' ? <>
+      <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
+      <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
+        <div className="editor-section-title"><div><div className="eyebrow">Page content</div><h2>Elements</h2><small>{value.blocks.length} block{value.blocks.length === 1 ? '' : 's'}</small></div></div>
+        <SortableList
+          items={value.blocks}
+          onChange={blocks => change({ blocks })}
+          onInsert={(descriptor, index) => void usePaletteItem(descriptor as ElementPaletteItem, index)}
+          dockedPalette
+          palette={palette}
+        >
+          {value.blocks.map(block => <SortableItem id={block.id} key={block.id}><details className="editor-card block-editor collapsible-editor" data-editor-block-id={block.id} tabIndex={-1}>
+            <summary>
+              <div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><h3>{title(block)}</h3></div>
+              <div className="reorder" onClick={event => event.preventDefault()}>
+                <button className="format-block-button" title="Format block" onClick={() => setFormatId(block.id)}>Format</button>
+                <button className="danger-text" title={`Remove ${title(block)}`} aria-label={`Remove ${title(block)}`} onClick={() => change({ blocks: value.blocks.filter(item => item.id !== block.id) })}>×</button>
+                <SortableHandle label={`Drag ${title(block)} to reorder`} />
+              </div>
+            </summary>
+            <div className="collapsible-editor-fields">
+              {supportsInlineTypography(block) && <InlineTypographyControls block={block} template={previewTemplate} onChange={presentation => updateBlock({ ...block, presentation } as BulletinBlock)} />}
+              <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} />
+            </div>
+          </details></SortableItem>)}
+        </SortableList>
+        {issues.length > 0 && <div className="validation warning">{issues.map(issue => <p key={issue}>{issue}</p>)}</div>}{status && <p className="template-save-status">{status}</p>}
+      </div></section>
+      {previewPane}
+    </> : <>
+      <aside className="page-template-controls">
+        {pageSetup}
+        <p className="helper">This page is a single positioned canvas. Use Design to edit its contents.</p>
       <SortableList
         items={value.blocks}
         onChange={blocks => change({ blocks })}
-        onInsert={layout === 'regular' ? (descriptor, index) => void usePaletteItem(descriptor as ElementPaletteItem, index) : undefined}
-        palette={layout === 'regular' ? <ElementPalette
-          items={flowElementPaletteItems(definitions, false)}
-          storageKey="bulletin-elements-page-template"
-          onUse={item => void usePaletteItem(item, value.blocks.length)}
-          actions={<button className="text-button" onClick={() => setLibraryOpen(true)}>Manage components…</button>}
-        /> : undefined}
+        onInsert={undefined}
       ><ol className="outline">{value.blocks.map(block => <SortableItem id={block.id} key={block.id}><li>
         <div className="outline-main"><b>{title(block)}</b><small>{block.type}</small>
-          {block.type !== 'canvas' && <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} />}
           {block.type === 'canvas' && <small>7 × 8.5 in · full page</small>}
-        </div><div className="reorder">{block.type === 'canvas' ? <button className="format-block-button" onClick={() => setCanvasId(block.id)}>Design</button> : <button className="format-block-button" onClick={() => setFormatId(block.id)}>Format</button>}{layout === 'regular' && <button className="danger-text" onClick={() => change({ blocks: value.blocks.filter(item => item.id !== block.id) })}>×</button>}{layout === 'regular' && <SortableHandle label={`Drag ${title(block)} to reorder`} />}</div>
+        </div><div className="reorder"><button className="format-block-button" onClick={() => setCanvasId(block.id)}>Design</button></div>
       </li></SortableItem>)}</ol></SortableList>
       {issues.length > 0 && <div className="validation warning">{issues.map(issue => <p key={issue}>{issue}</p>)}</div>}{status && <p className="template-save-status">{status}</p>}
-    </aside>
-    <main className="page-template-preview"><DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers guides zoom={.72} singlePage /></main>
+      </aside>
+      {previewPane}
+    </>}
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={template} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
     {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}

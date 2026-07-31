@@ -554,8 +554,12 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .rich-text-toolbar { display: flex; gap: 3px; padding: 5px; border-bottom: 1px solid #ddd9d0; background: #f4f1eb; }
 .rich-text-toolbar button { min-width: 30px; min-height: 28px; padding: 3px 7px; border: 1px solid #d3cfc5; border-radius: 5px; color: #4a534e; background: white; font-size: 10px; }
 .rich-text-toolbar .typography-bold { font-weight: 900; }.rich-text-toolbar .typography-italic { font-family: Georgia, serif; font-style: italic; }
+.rich-text-toolbar button.active { border-color: #72a8bd; color: #173d4a; background: #dcecf2; box-shadow: inset 0 0 0 1px #72a8bd; }
 .rich-text-editor { min-height: 90px; padding: 9px 10px; outline: none; font-size: 12px; line-height: 1.4; }
 .rich-text-editor:focus { box-shadow: inset 0 0 0 2px #72a8bd66; }.rich-text-editor > div { margin-bottom: .55em; }
+.rich-text-editor [data-marks*="bold"] { font-weight: 700; }
+.rich-text-editor [data-marks*="italic"] { font-style: italic; }
+.rich-text-editor [data-marks*="smallCaps"] { font-variant: small-caps; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }
 .copyright > p { margin-bottom: 0; }
 .copyright > p + p { margin-top: 1.25em; }

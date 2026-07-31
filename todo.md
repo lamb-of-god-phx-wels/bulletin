@@ -1,29 +1,34 @@
 # TODO
 
 * Undo/redo stack needs some work
-
+* Consolidate "Text" and "Reusable Library Text" into single "Text" element.
 * Communion sunday toggle
   * Generalize for custom bindable values
 * Make the "compact" content spacing option work
 * Fix per sub-block formatting
-* Ability to overwrite "built-in" block formatting
-  * e.g., song lyrics indented separate from heading
-  * This should also be the base formatting granularity
+
 
 ## Template pages
 
-* Change coordinate space thing to something Megan can understand
-* Be able to add a new sermon series graphic and save it to the template
+* Remove canvas bounds selection  
+* The preview for vertical alignment is wrong, but the final placement after exiting the canvas designer is correct.
 * Get some more text editing tools
   * Not all available formatting is available
-* Text button and snaps to center vertical/horizontal, other elements, etc.
+  * The typography formatting should match the quick formatting that was added for the bulletin editor
+* Add "snap" feature.
+  * Snaps to center vertical/horizontal, other elements, etc.
   * Togglable
   * Office-style
-* Align/group capability
-* Send to front/back/forward/back
+* Align/group capability for elements
+  * Implies multi-select capability
+* Send to front/back/forward/back by right-clicking element
 * Reset to template defaults (undo all changes)
 * Support copy/paste
-
+  * Support common keyboard shortcuts (ctrl+C/ctrl+V, ctrl/shift+Insert)
+* Guides toggle
+* Remove "capture from template/bulletin" for now - they are broken
+* Fix the formatting/layout for the "regular layout" version - it should look and feel exactly like the bulletin editor in terms of sidebar/elements layout, etc.
+  * An empty element list should result in a blank page, not missing page.
 
 
 ## Template/bulletin builder

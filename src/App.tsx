@@ -67,6 +67,12 @@ import {
   sortedBulletins,
   type BulletinRecord,
 } from "./shared/bulletins";
+import {
+  isRedoShortcut,
+  isUndoShortcut,
+  UndoRedoButtons,
+  useUndoRedoHistory,
+} from "./components/useUndoRedo";
 
 type Screen =
   | "weekly"
@@ -270,6 +276,8 @@ function DesktopApp() {
   const [savingBulletin, setSavingBulletin] = useState(false);
   const [unsavedBulletinPrompt, setUnsavedBulletinPrompt] =
     useState<UnsavedBulletinPrompt>();
+  const documentHistory = useUndoRedoHistory<BulletinDocumentV1>();
+  const templateHistory = useUndoRedoHistory<TemplateV1>();
   useEffect(() => {
     if (!navigationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -506,13 +514,17 @@ function DesktopApp() {
             nextDocument &&
             nextDocument.document.revision !== savedRevision.current
           ) {
+            documentHistory.reset();
             setDocument(nextDocument.document);
             savedRevision.current = nextDocument.document.revision;
           }
           const nextTemplate = next.templates.find(
             (item) => item.path === templatePath,
           );
-          if (nextTemplate) setTemplate(nextTemplate.template);
+          if (nextTemplate) {
+            templateHistory.reset();
+            setTemplate(nextTemplate.template);
+          }
           const conflicts = next.sync?.conflicts.length ?? 0;
           const pending = next.sync?.unavailableAssets.length ?? 0;
           reportStatus(
@@ -533,6 +545,8 @@ function DesktopApp() {
     if (!window.bulletin) return;
     try {
       const next = await window.bulletin.openWorkspace(root);
+      documentHistory.reset();
+      templateHistory.reset();
       setWorkspace(next);
       updateEditingState({
         bulletinDirty: false,
@@ -581,6 +595,7 @@ function DesktopApp() {
     requestBulletinLeave(chooseWorkspaceNow);
   }
   function selectTemplate(record: TemplateRecord) {
+    templateHistory.reset();
     setTemplate(record.template);
     setTemplatePath(record.path);
     updateEditingState({ templateDirty: false });
@@ -592,6 +607,7 @@ function DesktopApp() {
   ) {
     const record = templateForReference(records, next.template);
     if (record) selectTemplate(record);
+    documentHistory.reset();
     setDocument(next);
     bulletinEditSequence.current += 1;
     setRelativePath(path);
@@ -641,20 +657,55 @@ function DesktopApp() {
     requestBulletinLeave(() => setCreateDestination("bulletin"));
   }
   function changeDocument(next: BulletinDocumentV1) {
+    if (!document || next === document) return;
+    documentHistory.record(document);
+    applyDocumentHistoryValue(next);
+  }
+  function applyDocumentHistoryValue(next: BulletinDocumentV1) {
     bulletinEditSequence.current += 1;
     updateEditingState({ bulletinDirty: true });
     setExportIssues([]);
     reportStatus("Unsaved changes");
     setDocument(next);
   }
+  function undoDocument() {
+    if (!document) return;
+    const previous = documentHistory.undo(document);
+    if (previous) applyDocumentHistoryValue(previous);
+  }
+  function redoDocument() {
+    if (!document) return;
+    const next = documentHistory.redo(document);
+    if (next) applyDocumentHistoryValue(next);
+  }
+  function changeTemplate(next: TemplateV1) {
+    if (next === template) return;
+    templateHistory.record(template);
+    applyTemplateHistoryValue(next);
+  }
+  function applyTemplateHistoryValue(next: TemplateV1) {
+    updateEditingState({ templateDirty: true });
+    reportStatus("Unsaved changes");
+    setTemplate(next);
+  }
+  function undoTemplate() {
+    const previous = templateHistory.undo(template);
+    if (previous) applyTemplateHistoryValue(previous);
+  }
+  function redoTemplate() {
+    const next = templateHistory.redo(template);
+    if (next) applyTemplateHistoryValue(next);
+  }
   function discardCurrentBulletinChanges() {
     const saved = workspace?.bulletins.find(
       (item) => item.path === relativePath,
     );
     if (saved) {
+      documentHistory.reset();
       setDocument(saved.document);
       savedRevision.current = saved.document.revision;
     } else {
+      documentHistory.reset();
       setDocument(undefined);
       setRelativePath("");
       savedRevision.current = 0;
@@ -679,6 +730,33 @@ function DesktopApp() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if ((event.target as Element | null)?.closest?.(".modal-backdrop")) return;
+      if (
+        window.document.querySelector(
+          ".canvas-designer, .page-template-designer, .block-formatting-modal",
+        )
+      )
+        return;
+      if (screen === "weekly" && isUndoShortcut(event)) {
+        event.preventDefault();
+        undoDocument();
+        return;
+      }
+      if (screen === "weekly" && isRedoShortcut(event)) {
+        event.preventDefault();
+        redoDocument();
+        return;
+      }
+      if (screen === "templates" && isUndoShortcut(event)) {
+        event.preventDefault();
+        undoTemplate();
+        return;
+      }
+      if (screen === "templates" && isRedoShortcut(event)) {
+        event.preventDefault();
+        redoTemplate();
+        return;
+      }
       if (
         screen === "weekly" &&
         (event.ctrlKey || event.metaKey) &&
@@ -688,9 +766,9 @@ function DesktopApp() {
         void saveCurrentBulletin();
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [screen, document, relativePath, workspace]);
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [screen, document, template, relativePath, workspace]);
 
   useEffect(() => {
     if (
@@ -723,6 +801,7 @@ function DesktopApp() {
       )[0];
       if (latest) openDocument(latest.document, latest.path);
       else {
+        documentHistory.reset();
         setDocument(undefined);
         setRelativePath("");
         savedRevision.current = 0;
@@ -850,6 +929,7 @@ function DesktopApp() {
             }
           : current,
       );
+      templateHistory.reset();
       setTemplate(next);
       setTemplatePath(path);
       setScreen("templates");
@@ -871,6 +951,7 @@ function DesktopApp() {
       sortedTemplateRecords(templates)[0];
     if (!selected) return;
     setWorkspace((current) => (current ? { ...current, templates } : current));
+    templateHistory.reset();
     setTemplate(selected.template);
     setTemplatePath(selected.path);
   }
@@ -1094,6 +1175,18 @@ function DesktopApp() {
       ? workspace.root.slice(6).replaceAll("-", " ")
       : workspace.root);
   const workspaceWritable = workspace.compatibility?.writable !== false;
+  const documentUndoCommands = {
+    canUndo: documentHistory.canUndo,
+    canRedo: documentHistory.canRedo,
+    undo: undoDocument,
+    redo: redoDocument,
+  };
+  const templateUndoCommands = {
+    canUndo: templateHistory.canUndo,
+    canRedo: templateHistory.canRedo,
+    undo: undoTemplate,
+    redo: redoTemplate,
+  };
   const updateKey = `${updateStatus.phase}:${updateStatus.availableVersion ?? updateStatus.currentVersion}`;
   const updateVisible =
     ["available", "downloading", "ready", "error"].includes(
@@ -1374,6 +1467,13 @@ function DesktopApp() {
             </span>
             {(screen === "weekly" || screen === "templates") && (
               <>
+                <UndoRedoButtons
+                  history={
+                    screen === "weekly"
+                      ? documentUndoCommands
+                      : templateUndoCommands
+                  }
+                />
                 <button
                   type="button"
                   className={`guide-toggle ${showGuides ? "active" : ""}`}
@@ -1541,6 +1641,7 @@ function DesktopApp() {
                 root={workspace.root}
                 relativePath={relativePath}
                 onChange={changeDocument}
+                history={documentUndoCommands}
                 onOpenChurchCalendar={() =>
                   requestBulletinLeave(() => setScreen("church-year"))
                 }
@@ -1653,10 +1754,8 @@ function DesktopApp() {
                 }
                 library={workspace.library}
                 root={workspace.root}
-                onChange={(next) => {
-                  updateEditingState({ templateDirty: true });
-                  setTemplate(next);
-                }}
+                onChange={changeTemplate}
+                history={templateUndoCommands}
                 onDefinitionsChange={async (componentDefinitions) => {
                   if (!window.bulletin) return;
                   const library = {
@@ -2122,6 +2221,7 @@ function DesktopApp() {
             setRelativePath(copyPath);
             savedRevision.current = 0;
             updateEditingState({ bulletinDirty: true });
+            documentHistory.reset();
             setDocument({
               ...local,
               id: randomId(),

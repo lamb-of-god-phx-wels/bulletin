@@ -36,6 +36,7 @@ import {
   InlineTypographyControls,
   supportsInlineTypography,
 } from "./InlineTypographyControls";
+import type { UndoRedoCommands } from "./useUndoRedo";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -66,6 +67,7 @@ export function TemplateBuilder({
   library,
   root,
   onChange,
+  history,
   onDefinitionsChange,
   onLibraryChange,
   onSave,
@@ -80,6 +82,7 @@ export function TemplateBuilder({
   library?: LibraryManifestV1;
   root?: string;
   onChange(value: TemplateV1): void;
+  history: UndoRedoCommands;
   onDefinitionsChange(value: DeclarativeComponentDefinition[]): Promise<void>;
   onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onSave(publish: boolean): Promise<void>;
@@ -726,6 +729,7 @@ export function TemplateBuilder({
                   : null
               }
               onChange={(next) => updateBlock(next.id, next)}
+              history={history}
               onClose={() => setCanvasBlockId(undefined)}
             />
           ) : null;
@@ -766,6 +770,7 @@ export function TemplateBuilder({
                     block.sourceDigest || pageTemplateDigest(next),
                 })
               }
+              history={history}
               onClose={() => setTemplatePageBlockId(undefined)}
             />
           );

@@ -20,6 +20,7 @@ import { songHeader } from '../shared/songs';
 import { ImageAssetDialog } from './ImageAssetDialog';
 import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
+import { isRedoShortcut, isUndoShortcut, UndoRedoButtons, useUndoRedoHistory, type UndoRedoCommands } from './useUndoRedo';
 
 const title = (block: BulletinBlock) => block.type === 'custom'
   ? block.name
@@ -29,7 +30,7 @@ const title = (block: BulletinBlock) => block.type === 'custom'
       ? songHeader(block)
       : block.label ?? ('text' in block ? block.text : block.type);
 
-export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onLibraryChange, onError, onChange, onSave, onClose }: {
+export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onLibraryChange, onError, onChange, history, onSave, onClose }: {
   value: PageTemplateV1;
   template: TemplateV1;
   document?: BulletinDocumentV1;
@@ -39,6 +40,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   onLibraryChange?(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError?(message: string): void;
   onChange(value: PageTemplateV1): void;
+  history?: UndoRedoCommands;
   onSave?(publish: boolean): Promise<void>;
   onClose(): void;
 }) {
@@ -53,13 +55,31 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const zoomMode = useRef<'page' | 'width' | 'manual'>(Number.isFinite(initialZoom) ? 'manual' : 'page');
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
+  const localHistory = useUndoRedoHistory<PageTemplateV1>();
   const marginIn = value.margin.mode === 'fixed' ? value.margin.marginIn : value.margin.referenceMarginIn;
   const layout = pageTemplateLayout(value);
   const previewTemplate = useMemo<TemplateV1>(() => ({ ...template, theme: { ...template.theme, marginIn }, starterBlocks: value.blocks }), [template, value.blocks, marginIn]);
   const used = value.blocks.reduce((total, block) => total + estimateBlockPoints(block, previewTemplate, library), 0);
   const capacity = (8.5 - marginIn * 2) * 72;
   const issues = [...pageTemplateIssues(value), ...(used > capacity ? [`Page content exceeds the available height by ${((used - capacity) / 72).toFixed(2)} inches.`] : [])];
-  const change = (changes: Partial<PageTemplateV1>) => onChange({ ...value, ...changes, status: 'draft', updatedAt: new Date().toISOString() });
+  const change = (changes: Partial<PageTemplateV1>) => {
+    if (!history) localHistory.record(value);
+    onChange({ ...value, ...changes, status: 'draft', updatedAt: new Date().toISOString() });
+  };
+  const undoLocal = () => {
+    const previous = localHistory.undo(value);
+    if (previous) onChange(previous);
+  };
+  const redoLocal = () => {
+    const next = localHistory.redo(value);
+    if (next) onChange(next);
+  };
+  const activeHistory: UndoRedoCommands = history ?? {
+    canUndo: localHistory.canUndo,
+    canRedo: localHistory.canRedo,
+    undo: undoLocal,
+    redo: redoLocal,
+  };
   const updateBlock = (next: BulletinBlock) => change({ blocks: updateBlockTree(value.blocks, next.id, next) });
   const save = async (publish: boolean) => {
     if (publish && issues.length) { setStatus(issues[0]); return; }
@@ -133,6 +153,21 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       observer.disconnect();
     };
   }, [showRulers]);
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if ((event.target as Element | null)?.closest?.('.modal-backdrop')) return;
+      if (window.document.querySelector('.canvas-designer, .block-formatting-modal')) return;
+      if (isUndoShortcut(event)) {
+        event.preventDefault();
+        activeHistory.undo();
+      } else if (isRedoShortcut(event)) {
+        event.preventDefault();
+        activeHistory.redo();
+      }
+    };
+    window.addEventListener('keydown', keydown, true);
+    return () => window.removeEventListener('keydown', keydown, true);
+  }, [value, history, localHistory.canUndo, localHistory.canRedo]);
   const pageSetup = <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
     <summary><div><div className="eyebrow">Reusable page</div><b>Page setup</b></div></summary>
     <div className="collapsible-editor-fields">
@@ -163,7 +198,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     <DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage />
   </main>;
   return <div className={`page-template-designer page-template-${layout}`} role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
-    <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions">{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
+    <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
     {layout === 'regular' ? <>
       <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
       <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
@@ -211,7 +246,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       {previewPane}
     </>}
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={template} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
-    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} onClose={() => setCanvasId(undefined)} /> : null; })()}
+    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} history={activeHistory} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
     {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
   </div>;

@@ -40,6 +40,7 @@ import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
 import { ImageAssetDialog } from './ImageAssetDialog.js';
 import { SortableHandle, SortableItem } from './SortableList.js';
 import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls.js';
+import { isRedoShortcut, isUndoShortcut, type UndoRedoCommands } from './useUndoRedo.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -63,7 +64,7 @@ function CanvasDropTarget({ stage, children }: { stage: MutableRefObject<HTMLDiv
   });
 }
 
-export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, imageTargetFolder = 'assets/canvases', onLibraryChange, onError, onChooseAsset, onChange, onClose }: {
+export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, imageTargetFolder = 'assets/canvases', onLibraryChange, onError, onChooseAsset, onChange, history, onClose }: {
   block: CanvasBlock;
   document: BulletinDocumentV1;
   template: TemplateV1;
@@ -78,13 +79,12 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   onError?(message: string): void;
   onChooseAsset?(): Promise<AssetRef | null>;
   onChange(block: CanvasBlock): void;
+  history: UndoRedoCommands;
   onClose(): void;
 }) {
   const initial = normalizeCanvasScene(block.scene);
   const [scene, setScene] = useState<CanvasScene>(() => clone(initial));
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [past, setPast] = useState<CanvasScene[]>([]);
-  const [future, setFuture] = useState<CanvasScene[]>([]);
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
   const [formattingElementId, setFormattingElementId] = useState<string>();
@@ -229,9 +229,17 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     return () => { active = false; };
   }, [root, scene, resolvedAssets, library]);
 
-  const publish = (next: CanvasScene, previous = scene) => {
-    setPast(value => [...value.slice(-49), clone(previous)]);
-    setFuture([]);
+  useEffect(() => {
+    if (drag.current) return;
+    const next = normalizeCanvasScene(block.scene);
+    if (JSON.stringify(next) !== JSON.stringify(scene)) {
+      setScene(clone(next));
+      const ids = new Set(next.elements.map(element => element.id));
+      setSelected(current => new Set([...current].filter(id => ids.has(id))));
+    }
+  }, [block.scene]);
+
+  const publish = (next: CanvasScene, _previous = scene) => {
     setScene(next);
     onChange({ ...block, scene: next });
   };
@@ -384,12 +392,24 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (isTextInput(event.target)) return;
+      if ((event.target as Element | null)?.closest?.('.modal-backdrop')) return;
+      if (window.document.querySelector('.block-formatting-modal')) return;
       if (event.key === 'Escape' && contextMenu) {
         event.preventDefault();
         setContextMenu(undefined);
         return;
       }
+      if (isUndoShortcut(event)) {
+        event.preventDefault();
+        history.undo();
+        return;
+      }
+      if (isRedoShortcut(event)) {
+        event.preventDefault();
+        history.redo();
+        return;
+      }
+      if (isTextInput(event.target)) return;
       const command = event.ctrlKey || event.metaKey;
       if (command && event.key.toLowerCase() === 'a') {
         event.preventDefault();
@@ -408,11 +428,6 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
           event.preventDefault();
           pasteSelection();
         }
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) redo(); else undo();
         return;
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -444,28 +459,16 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       event.preventDefault();
       pasteSelection(serialized);
     };
-    window.addEventListener('keydown', keydown);
+    window.addEventListener('keydown', keydown, true);
     window.addEventListener('copy', copyEvent);
     window.addEventListener('paste', pasteEvent);
     return () => {
-      window.removeEventListener('keydown', keydown);
+      window.removeEventListener('keydown', keydown, true);
       window.removeEventListener('copy', copyEvent);
       window.removeEventListener('paste', pasteEvent);
     };
   });
 
-  const undo = () => {
-    const previous = past.at(-1);
-    if (!previous) return;
-    setPast(value => value.slice(0, -1)); setFuture(value => [clone(scene), ...value]); setScene(previous);
-    onChange({ ...block, scene: previous });
-  };
-  const redo = () => {
-    const next = future[0];
-    if (!next) return;
-    setFuture(value => value.slice(1)); setPast(value => [...value, clone(scene)]); setScene(next);
-    onChange({ ...block, scene: next });
-  };
   const nextId = (prefix: string) => {
     let index = 1;
     while (elements.has(`${prefix}-${index}`)) index++;
@@ -631,7 +634,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
       <div className="canvas-tools">
         <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={!selected.size} onClick={copySelection}>Copy</button><button disabled={!clipboardAvailable} onClick={() => pasteSelection()}>Paste</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size || ![...selected].some(id => elements.get(id)?.groupId)} onClick={ungroup}>Ungroup</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
-        <button disabled={!past.length} onClick={undo}>Undo</button><button disabled={!future.length} onClick={redo}>Redo</button>
+        <button disabled={!history.canUndo} onClick={history.undo}>Undo</button><button disabled={!history.canRedo} onClick={history.redo}>Redo</button>
       </div>
       <div className="canvas-view-tools">
         <button type="button" className={`guide-toggle ${showGuides ? 'active' : ''}`} aria-label={`${showGuides ? 'Hide' : 'Show'} guides`} aria-pressed={showGuides} onClick={toggleGuides}>Guides</button>

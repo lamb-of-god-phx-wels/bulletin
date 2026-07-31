@@ -48,6 +48,7 @@ import type {
   Paragraph,
   TemplateV1,
 } from "../shared/types";
+import type { UndoRedoCommands } from "./useUndoRedo";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -68,6 +69,7 @@ export function WeeklyEditor({
   root,
   relativePath,
   onChange,
+  history,
   onLibraryChange,
   onError,
   onOpenChurchCalendar,
@@ -79,6 +81,7 @@ export function WeeklyEditor({
   root?: string;
   relativePath: string;
   onChange(document: BulletinDocumentV1): void;
+  history: UndoRedoCommands;
   onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
   onOpenChurchCalendar?(): void;
@@ -1469,6 +1472,7 @@ export function WeeklyEditor({
               onError={onError}
               onChooseAsset={chooseCanvasAsset}
               onChange={(next) => updateBlock(next.id, next)}
+              history={history}
               onClose={() => setCanvasBlockId(undefined)}
             />
           ) : null;
@@ -1510,6 +1514,7 @@ export function WeeklyEditor({
                   sourceDigest: block.sourceDigest || pageTemplateDigest(next),
                 })
               }
+              history={history}
               onClose={() => setTemplatePageBlockId(undefined)}
             />
           );

@@ -134,8 +134,6 @@ export function ScriptureEditor({ content, onChange }: { content: Paragraph[]; o
   const savedRangeRef = useRef<Range | null>(null);
   const lastSignatureRef = useRef('');
   const selectedMarkerRef = useRef<HTMLElement | null>(null);
-  const historyRef = useRef<Paragraph[][]>([content]);
-  const historyIndexRef = useRef(0);
   const [verseNumber, setVerseNumber] = useState('');
   const [editingMarker, setEditingMarker] = useState(false);
   const signature = JSON.stringify(content);
@@ -145,8 +143,6 @@ export function ScriptureEditor({ content, onChange }: { content: Paragraph[]; o
     if (!editor || signature === lastSignatureRef.current) return;
     renderStructuredContent(editor, content);
     lastSignatureRef.current = signature;
-    historyRef.current = [content];
-    historyIndexRef.current = 0;
     selectedMarkerRef.current = null;
     setEditingMarker(false);
   }, [content, signature]);
@@ -163,25 +159,9 @@ export function ScriptureEditor({ content, onChange }: { content: Paragraph[]; o
     if (!editor) return;
     const next = scriptureContentFromEditor(editor);
     const nextSignature = JSON.stringify(next);
-    const currentHistory = historyRef.current[historyIndexRef.current];
-    if (JSON.stringify(currentHistory) !== nextSignature) {
-      historyRef.current = [...historyRef.current.slice(0, historyIndexRef.current + 1), next].slice(-100);
-      historyIndexRef.current = historyRef.current.length - 1;
-    }
     lastSignatureRef.current = nextSignature;
     onChange(next);
     saveSelection();
-  };
-  const moveThroughHistory = (by: number) => {
-    const editor = editorRef.current;
-    const target = historyIndexRef.current + by;
-    if (!editor || target < 0 || target >= historyRef.current.length) return;
-    historyIndexRef.current = target;
-    const next = historyRef.current[target];
-    renderStructuredContent(editor, next);
-    lastSignatureRef.current = JSON.stringify(next);
-    onChange(next);
-    editor.focus();
   };
   const chooseMarker = (marker: HTMLElement) => {
     selectedMarkerRef.current?.classList.remove('is-selected');
@@ -252,17 +232,6 @@ export function ScriptureEditor({ content, onChange }: { content: Paragraph[]; o
       spellCheck
       suppressContentEditableWarning
       onInput={emit}
-      onKeyDown={event => {
-        if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-        const key = event.key.toLowerCase();
-        if (key === 'z' && !event.shiftKey) {
-          event.preventDefault();
-          moveThroughHistory(-1);
-        } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
-          event.preventDefault();
-          moveThroughHistory(1);
-        }
-      }}
       onKeyUp={saveSelection}
       onMouseUp={saveSelection}
       onBlur={saveSelection}

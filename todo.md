@@ -1,12 +1,12 @@
 # TODO
 
-* Undo/redo stack needs some work
 * Consolidate "Text" and "Reusable Library Text" into single "Text" element.
 * Communion sunday toggle
   * Generalize for custom bindable values
 * Make the "compact" content spacing option work
 * Fix per sub-block formatting
 
+## Template/bulletin builder
 
 * Responsive reading
   * Compact the UI

@@ -560,6 +560,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .rich-text-editor [data-marks*="bold"] { font-weight: 700; }
 .rich-text-editor [data-marks*="italic"] { font-style: italic; }
 .rich-text-editor [data-marks*="smallCaps"] { font-variant: small-caps; }
+.undo-redo-controls { display: inline-flex; gap: 3px; align-items: center; }
+.undo-redo-controls button { min-width: 32px; padding-inline: 8px; font-size: 16px; line-height: 1; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }
 .copyright > p { margin-bottom: 0; }
 .copyright > p + p { margin-top: 1.25em; }

@@ -6,8 +6,9 @@ import {
   songLibraryItem,
   songPresentations,
 } from '../shared/songs.js';
-import type { BulletinBlock, LibraryManifestV1, Paragraph, SongBlock, TemplateV1 } from '../shared/types.js';
+import type { BulletinBlock, CustomBlockStyle, LibraryManifestV1, Paragraph, SongBlock, TemplateV1 } from '../shared/types.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
+import { InlineTypographyControls } from './InlineTypographyControls.js';
 import { LibraryBrowserDialog } from './LibraryBrowserDialog.js';
 import { libraryCatalogRecords } from '../shared/libraryCatalog.js';
 
@@ -16,6 +17,16 @@ const songPartNames: Record<SongPart, string> = {
   header: 'Song header',
   title: 'Song display title',
   body: 'Song body',
+};
+const songPartTabNames: Record<SongPart, string> = {
+  header: 'Header',
+  title: 'Display title',
+  body: 'Body',
+};
+const songPartDefaults: Record<SongPart, Partial<CustomBlockStyle>> = {
+  header: { fontWeight: 'bold', textTransform: 'uppercase' },
+  title: { fontWeight: 'normal', textTransform: 'none' },
+  body: { fontWeight: 'normal', textTransform: 'none' },
 };
 
 const plainText = (content: Paragraph[] | undefined) =>
@@ -32,6 +43,7 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
   onChange(block: SongBlock): void;
 }) {
   const [formatPart, setFormatPart] = useState<SongPart>();
+  const [activePart, setActivePart] = useState<SongPart>('header');
   const [choosing, setChoosing] = useState(false);
   const families = songFamilies(library);
   const selected = songLibraryItem(block, library);
@@ -45,20 +57,26 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
     !selected
   );
 
-  const partBlock = formatPart ? {
-    id: `${block.id}-${formatPart}`,
+  const partBlock = (part: SongPart) => ({
+    id: `${block.id}-${part}`,
     type: 'richText' as const,
-    role: formatPart === 'body' ? 'body' as const : 'header' as const,
+    role: part === 'body' ? 'body' as const : 'header' as const,
     content: [],
-    presentation: block.elements?.[formatPart]?.presentation,
-  } satisfies BulletinBlock : undefined;
-  const savePartFormatting = (part: SongPart, presentation: NonNullable<NonNullable<SongBlock['elements']>[SongPart]>['presentation'] | undefined) => {
+    presentation: {
+      ...songPartDefaults[part],
+      ...block.elements?.[part]?.presentation,
+    },
+  }) satisfies BulletinBlock;
+  const updatePartFormatting = (part: SongPart, presentation: NonNullable<NonNullable<SongBlock['elements']>[SongPart]>['presentation'] | undefined) => {
     const elements = { ...block.elements };
     if (presentation) elements[part] = { presentation };
     else delete elements[part];
     const next: SongBlock = { ...block, elements };
     if (!Object.keys(elements).length) delete next.elements;
     onChange(next);
+  };
+  const savePartFormatting = (part: SongPart, presentation: NonNullable<NonNullable<SongBlock['elements']>[SongPart]>['presentation'] | undefined) => {
+    updatePartFormatting(part, presentation);
     setFormatPart(undefined);
   };
 
@@ -132,12 +150,27 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
       >Restore library lyrics</button>}
     </details>}
     {legacyAsset && <p className="helper">This document contains a legacy local music image. It remains printable but cannot be replaced.</p>}
-    <div className="song-format-actions">
-      {(Object.keys(songPartNames) as SongPart[]).map(part => <button
-        className="secondary"
-        key={part}
-        onClick={() => setFormatPart(part)}
-      >Format {part === 'title' ? 'display title' : part}</button>)}
+    <div className="song-typography">
+      <div className="song-part-tabs" role="group" aria-label="Song text part">
+        {(Object.keys(songPartNames) as SongPart[]).map(part => <button
+          type="button"
+          className={activePart === part ? 'active' : ''}
+          aria-pressed={activePart === part}
+          key={part}
+          onClick={() => setActivePart(part)}
+        >{songPartTabNames[part]}</button>)}
+      </div>
+      <InlineTypographyControls
+        block={partBlock(activePart)}
+        template={template}
+        label={`${songPartTabNames[activePart]} typography`}
+        onChange={presentation => updatePartFormatting(activePart, presentation)}
+      />
+      <button
+        type="button"
+        className="text-button song-more-formatting"
+        onClick={() => setFormatPart(activePart)}
+      >More formatting…</button>
     </div>
   </div>
   {choosing && root && <LibraryBrowserDialog
@@ -150,8 +183,8 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
     onClose={() => setChoosing(false)}
     onSelect={record => { onChange(selectSong(block, record.targetId, library)); setChoosing(false); }}
   />}
-  {formatPart && partBlock && <BlockFormattingModal
-    block={partBlock}
+  {formatPart && <BlockFormattingModal
+    block={partBlock(formatPart)}
     template={template}
     scope={scope}
     name={songPartNames[formatPart]}

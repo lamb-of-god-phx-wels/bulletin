@@ -31,7 +31,6 @@
 * Support revision history
 
 * "Templates" -> "Bulletin Templates"
-* Basic typography/formatting in main editing space rather than under "format" button
 * table/grid support
 * In "format" window, the preview should show the actual element preview rather than a generic example
 * Support for split scripture references

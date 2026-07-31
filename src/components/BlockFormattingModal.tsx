@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { defaultCustomBlockStyle } from '../shared/customBlocks';
 import { childBlocks } from '../shared/blocks';
 import { scriptureElementNames } from '../shared/scriptureReading';
 import { songHeader } from '../shared/songs';
 import type { BulletinBlock, CustomBlockStyle, LayoutHints, TemplateV1 } from '../shared/types';
+import { effectiveBlockStyle } from './InlineTypographyControls';
 
 function NumberField({ label, value, min, max, step = .05, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange(value: number): void }) {
   return <label>{label}<input type="number" value={value} min={min} max={max} step={step} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) onChange(event.currentTarget.valueAsNumber); }} /></label>;
@@ -24,7 +24,7 @@ function displayName(block: BulletinBlock) {
 }
 
 export function BlockFormattingModal({ block, template, scope, name, hidePageFlow = false, onClose, onSave }: { block: BulletinBlock; template: TemplateV1; scope: 'template' | 'weekly'; name?: string; hidePageFlow?: boolean; onClose(): void; onSave(presentation: Partial<CustomBlockStyle> | undefined, layout: LayoutHints | undefined): void }) {
-  const baseline: CustomBlockStyle = { ...defaultCustomBlockStyle, fontSizePt: template.theme.bodySizePt, lineHeight: template.theme.lineHeight, ...(block.type === 'custom' ? block.style : {}), ...block.presentation };
+  const baseline = effectiveBlockStyle(block, template);
   const [styleValue, setStyleValue] = useState(baseline);
   const [layout, setLayout] = useState<LayoutHints>({ density: 'normal', ...block.layout });
   const style = (changes: Partial<CustomBlockStyle>) => setStyleValue(current => ({ ...current, ...changes }));

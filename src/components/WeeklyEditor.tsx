@@ -11,6 +11,10 @@ import { SongBlockFields } from "./SongBlockFields";
 import { LibraryTextFields } from "./LibraryTextFields";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
+import {
+  InlineTypographyControls,
+  supportsInlineTypography,
+} from "./InlineTypographyControls";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, findBlock, updateBlockTree } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
@@ -233,6 +237,15 @@ export function WeeklyEditor({
             </div>
           </summary>
           <div className="collapsible-editor-fields">
+            {supportsInlineTypography(child) && (
+              <InlineTypographyControls
+                block={child}
+                template={template}
+                onChange={(presentation) =>
+                  updateBlock(child.id, { ...child, presentation })
+                }
+              />
+            )}
             {isScripture ? (
               <p className="helper">
                 Edit this element’s content above. Use Format for its width,
@@ -683,6 +696,15 @@ export function WeeklyEditor({
                 </div>
               </summary>
               <div className="collapsible-editor-fields">
+                {supportsInlineTypography(block) && (
+                  <InlineTypographyControls
+                    block={block}
+                    template={template}
+                    onChange={(presentation) =>
+                      updateBlock(block.id, { ...block, presentation })
+                    }
+                  />
+                )}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <div className="missing-template-content">
                     <b>Template content needs attention</b>

@@ -64,7 +64,7 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
@@ -552,6 +552,48 @@ if (process.env.BULLETIN_MARGIN_ONLY === '1') {
   await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.3in'`, 'restored template page margin');
   pass('overrides and restores page margins for one bulletin');
   console.log(`\n${results.length} browser MVP checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
+if (process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1') {
+  await click('This week');
+  await wait(`Boolean(document.querySelector('.block-editor'))`, 'weekly editor for inline typography');
+  await evaluate(`(()=>{const block=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering');if(!block)throw new Error('Weekly text block missing');block.open=true;return true})()`);
+  await wait(`Boolean(Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('.inline-typography'))`, 'weekly inline typography');
+  await evaluate(`(()=>{const font=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('[aria-label="Typography font"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(font,'Georgia, serif');font.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('[aria-label="Typography font"]')?.value==='Georgia, serif'`, 'weekly inline font');
+  await evaluate(`(()=>{const size=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('[aria-label="Typography size"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(size,'16');size.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('[aria-label="Typography size"]')?.value==='16'`, 'weekly inline size');
+  await evaluate(`(()=>{const spacing=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('[aria-label="Typography line spacing"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(spacing,'1.5');spacing.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('[aria-label="Typography line spacing"]')?.value==='1.5'`, 'weekly inline line spacing');
+  await evaluate(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('button[aria-label="Align center"]').click()`);
+  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('button[aria-label="Align center"]')?.getAttribute('aria-pressed')==='true'`, 'weekly inline alignment');
+  await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('button[aria-label="Bold"]');if(button.getAttribute('aria-pressed')!=='true')button.click();return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('button[aria-label="Bold"]')?.getAttribute('aria-pressed')==='true'`, 'weekly inline bold');
+  await evaluate(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('button[aria-label="Small caps"]').click()`);
+  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('button[aria-label="Small caps"]')?.getAttribute('aria-pressed')==='true'`, 'weekly inline small caps');
+  await wait(`(()=>{const heading=Array.from(document.querySelectorAll('.preview-pane .section-heading')).find(element=>element.textContent.includes('The Gathering')),wrapper=heading?.closest('.block-presentation');return wrapper?.style.fontFamily==='Georgia, serif'&&wrapper?.style.fontSize==='16pt'&&wrapper?.style.lineHeight==='1.5'&&wrapper?.style.textAlign==='center'&&wrapper?.style.fontWeight==='bold'&&wrapper?.style.fontVariant==='small-caps'})()`, 'weekly inline typography preview');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'weekly inline typography autosave');
+  const weeklyTypography = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id==='gathering').presentation)`);
+  if (weeklyTypography?.fontFamily !== 'Georgia, serif' || weeklyTypography?.fontSizePt !== 16 || weeklyTypography?.lineHeight !== 1.5 || weeklyTypography?.fontWeight !== 'bold' || weeklyTypography?.textTransform !== 'small-caps') throw new Error(`Weekly inline typography was not persisted: ${JSON.stringify(weeklyTypography)}`);
+  await click('Templates');
+  await wait(`Boolean(Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='The Gathering')?.querySelector('.inline-typography'))`, 'template inline typography');
+  await evaluate(`(()=>{const row=Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='The Gathering'),size=row.querySelector('[aria-label="Typography size"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(size,'15');size.dispatchEvent(new Event('input',{bubbles:true}));row.querySelector('button[aria-label="Uppercase"]').click();return true})()`);
+  await wait(`(()=>{const heading=Array.from(document.querySelectorAll('.builder-preview .section-heading')).find(element=>element.textContent.includes('The Gathering')),wrapper=heading?.closest('.block-presentation');return wrapper?.style.fontSize==='15pt'&&wrapper?.style.textTransform==='uppercase'})()`, 'template inline typography preview');
+  await evaluate(`(()=>{const row=Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='Opening Hymn');if(!row)throw new Error('Template song row missing');const title=Array.from(row.querySelectorAll('.song-part-tabs button')).find(button=>button.textContent==='Display title');title.click();return true})()`);
+  await wait(`Boolean(document.querySelector('[aria-label="Display title typography"]'))`, 'song part typography selector');
+  await evaluate(`document.querySelector('[aria-label="Display title typography"] button[aria-label="Italic"]').click()`);
+  await wait(`(()=>{const title=document.querySelector('.builder-preview .song-title'),wrapper=title?.closest('.song-title');return title?.style.fontStyle==='italic'})()`, 'independent song title typography');
+  await evaluate(`Array.from(document.querySelectorAll('.song-part-tabs button')).find(button=>button.textContent==='Header').click()`);
+  await wait(`Boolean(document.querySelector('[aria-label="Header typography"]'))`, 'song header typography selector');
+  await evaluate(`document.querySelector('[aria-label="Header typography"] button[aria-label="Small caps"]').click()`);
+  await wait(`(()=>{const header=document.querySelector('.builder-preview .song-header');return header?.style.fontVariant==='small-caps'&&header?.style.textTransform==='none'})()`, 'song header small caps');
+  await evaluate(`document.querySelector('[aria-label="Header typography"] button[aria-label="Regular capitalization"]').click()`);
+  await wait(`(()=>{const header=document.querySelector('.builder-preview .song-header');return !header?.style.fontVariant&&header?.style.textTransform==='none'&&getComputedStyle(header).textTransform==='none'})()`, 'song header regular capitalization');
+  pass('edits weekly, template, and song-part typography in the main editing space');
+  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
+  console.log(`\n${results.length} inline typography checks passed.`);
   socket.close();
   process.exit(0);
 }

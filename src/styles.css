@@ -267,8 +267,33 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .song-block-fields .field-row { margin-bottom: 0; }
 .song-block-fields > details { min-width: 0; }
 .song-block-fields > details textarea { min-height: 150px; }
-.song-format-actions { display: flex; flex-wrap: wrap; gap: 7px; }
-.song-format-actions .secondary { min-height: 34px; padding: 5px 10px; font-size: 11px; }
+.inline-typography { display: flex; align-items: end; flex-wrap: wrap; gap: 7px; min-width: 0; margin: 0 0 12px; padding: 10px; border: 1px solid #ded8cc; border-radius: 8px; background: #faf8f3; }
+.inline-typography-title { flex-basis: 100%; color: #8f593f; font-size: 9px; font-weight: 800; letter-spacing: .09em; line-height: 1; text-transform: uppercase; }
+.inline-typography label { flex: 1 1 118px; min-width: 0; gap: 4px; font-size: 9px; }
+.inline-typography .inline-typography-size { flex: 0 0 62px; }
+.inline-typography .inline-typography-spacing { flex-basis: 105px; }
+.inline-typography input, .inline-typography select { height: 31px; min-width: 0; padding: 0 7px; font-size: 10px; }
+.inline-typography-group { flex: 0 0 auto; min-width: 0; margin: 0; padding: 0; border: 0; }
+.inline-typography-group legend, .inline-typography-style > span { margin-bottom: 4px; color: #5d625e; font-size: 9px; font-weight: 700; line-height: 1.2; }
+.inline-typography-group > div, .inline-typography-style > div { display: flex; overflow: hidden; border: 1px solid #d5d1c8; border-radius: 6px; }
+.inline-typography-group button, .inline-typography-style button { width: 29px; height: 29px; padding: 0 6px; border: 0; border-right: 1px solid #dedad1; color: #686e69; background: #fff; font-size: 10px; line-height: 1; }
+.inline-typography-group button:last-child, .inline-typography-style button:last-child { border-right: 0; }
+.inline-typography-group button:hover, .inline-typography-style button:hover { background: #f3eee7; }
+.inline-typography-group button.active, .inline-typography-style button.active { color: white; background: #9e5033; }
+.inline-typography-group .align-left { text-align: left; font-size: 17px; }
+.inline-typography-group .align-center { text-align: center; font-size: 17px; }
+.inline-typography-group .align-right { text-align: right; font-size: 17px; }
+.inline-typography-group .align-justify { font-size: 12px; }
+.inline-typography-style { flex: 0 0 auto; }
+.inline-typography-style > span { display: block; }
+.inline-typography-style .typography-bold { font-weight: 900; }
+.inline-typography-style .typography-italic { font-family: Georgia, serif; font-style: italic; }
+.song-typography { min-width: 0; padding-top: 2px; }
+.song-part-tabs { display: flex; width: fit-content; max-width: 100%; overflow: hidden; margin-bottom: 7px; border: 1px solid #d5d1c8; border-radius: 6px; }
+.song-part-tabs button { min-height: 29px; padding: 4px 9px; border: 0; border-right: 1px solid #dedad1; color: #686e69; background: #fff; font-size: 10px; }
+.song-part-tabs button:last-child { border-right: 0; }
+.song-part-tabs button.active { color: white; background: #9e5033; }
+.song-more-formatting { margin-top: -7px; font-size: 10px; }
 .nested-blocks { display: grid; gap: 9px; margin-top: 10px; padding: 12px; border: 1px solid #e1ddd3; border-radius: 8px; background: #f7f5f0; }
 .nested-blocks-heading { display: flex; flex-direction: column; gap: 2px; }.nested-blocks-heading span { color: #7b7f79; font-size: 10px; }
 .nested-block-editor { padding: 11px; border: 1px solid #e0dcd2; border-radius: 7px; background: white; }.nested-block-editor > header { margin-bottom: 9px; }.nested-block-editor > header > div:first-child { display: flex; flex-direction: column; gap: 2px; }.nested-block-editor > label { margin-bottom: 8px; }
@@ -514,7 +539,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .field-help { margin-top: 5px; color: #7b7f79; font-size: 10px; font-weight: 500; line-height: 1.4; }
 .outline { margin: 0; padding: 0; list-style: none; }
 .outline li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #ece9e1; }
-.outline .outline-main { display: flex; flex-direction: column; }
+.outline .outline-main { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; }
+.outline .outline-main > .inline-typography { margin-top: 7px; }
 .outline small { margin-top: 2px; color: #8b8d88; }
 .outline .outline-main .check { flex-direction: row; margin-top: 6px; color: #777b75; font-size: 10px; }
 .outline .outline-options { display: grid; gap: 5px; margin-top: 7px; }

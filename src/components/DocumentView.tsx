@@ -38,7 +38,7 @@ function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefin
     textAlign: style.textAlign, fontFamily: style.fontFamily === 'body' ? 'var(--body-font)' : style.fontFamily === 'display' ? 'var(--display-font)' : style.fontFamily,
     fontSize: `${style.fontSizePt}pt`, lineHeight: style.lineHeight, fontWeight: style.fontWeight, fontStyle: style.fontStyle,
     fontVariant: style.textTransform === 'small-caps' ? 'small-caps' : undefined,
-    textTransform: style.textTransform === 'uppercase' ? 'uppercase' : undefined,
+    textTransform: style.textTransform === 'uppercase' ? 'uppercase' : 'none',
     color: style.color, backgroundColor: style.backgroundColor ?? 'transparent',
     border: block.type === 'copyright' ? undefined : border,
     borderTop: block.type === 'copyright' ? border : undefined,

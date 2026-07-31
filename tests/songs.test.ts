@@ -83,15 +83,16 @@ describe('song blocks', () => {
     expect(markup).not.toContain('Version');
     expect(markup).not.toContain('Choose music image');
     expect(markup).not.toContain('Replace');
-    expect(markup).toContain('Format header');
-    expect(markup).toContain('Format display title');
-    expect(markup).toContain('Format body');
+    expect(markup).toContain('aria-label="Song text part"');
+    expect(markup).toContain('Header typography');
+    expect(markup).toContain('More formatting…');
+    expect(markup).toContain('aria-label="Uppercase" aria-pressed="true"');
   });
 
   it('renders header, display-title, and body formatting independently', () => {
     const song = block({
       elements: {
-        header: { presentation: { fontSizePt: 14 } },
+        header: { presentation: { fontSizePt: 14, textTransform: 'small-caps' } },
         title: { presentation: { fontSizePt: 18 } },
         body: { presentation: { fontStyle: 'italic' } },
       },
@@ -103,9 +104,24 @@ describe('song blocks', () => {
       library,
       rulers: false,
     }));
-    expect(markup).toMatch(/class="song-header"[^>]*font-size:14pt/);
+    expect(markup).toMatch(/class="song-header"[^>]*font-size:14pt[^>]*font-variant:small-caps[^>]*text-transform:none/);
     expect(markup).toMatch(/class="song-title"[^>]*font-size:18pt/);
     expect(markup).toMatch(/class="song-body"[^>]*font-style:italic/);
+  });
+
+  it('lets regular capitalization override the song heading’s built-in uppercase style', () => {
+    const song = block({
+      label: 'Opening Hymn',
+      elements: { header: { presentation: { textTransform: 'none' } } },
+    });
+    const document = { ...createBulletin(defaultTemplate, '2026-08-02'), blocks: [song] };
+    const markup = renderToStaticMarkup(createElement(DocumentView, {
+      document,
+      template: defaultTemplate,
+      library,
+      rulers: false,
+    }));
+    expect(markup).toMatch(/class="song-header"[^>]*text-transform:none/);
   });
 
   it('validates the selected presentation against the pinned library content', () => {

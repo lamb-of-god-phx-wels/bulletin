@@ -30,6 +30,10 @@ import { randomId } from "../shared/id";
 import { songHeader } from "../shared/songs";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
+import {
+  InlineTypographyControls,
+  supportsInlineTypography,
+} from "./InlineTypographyControls";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -228,6 +232,15 @@ export function TemplateBuilder({
                 {child.type} · Nested element
                 {child.presentation ? " · Formatted" : ""}
               </small>
+              {supportsInlineTypography(child) && (
+                <InlineTypographyControls
+                  block={child}
+                  template={template}
+                  onChange={(presentation) =>
+                    updateBlock(child.id, { presentation })
+                  }
+                />
+              )}
               {child.type === "richText" &&
                 !child.scriptureRole &&
                 editingBlockIds.has(child.id) && (
@@ -460,6 +473,15 @@ export function TemplateBuilder({
                         {block.type === "custom" ? "Church block" : block.type}
                         {block.presentation ? " · Formatted" : ""}
                       </small>
+                      {supportsInlineTypography(block) && (
+                        <InlineTypographyControls
+                          block={block}
+                          template={template}
+                          onChange={(presentation) =>
+                            updateBlock(block.id, { presentation })
+                          }
+                        />
+                      )}
                       <label className="check">
                         <input
                           type="checkbox"

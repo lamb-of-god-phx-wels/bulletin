@@ -90,6 +90,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [scene, setScene] = useState<CanvasScene>(() => clone(initial));
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editingElementId, setEditingElementId] = useState<string>();
+  const [editingMinimumHeightIn, setEditingMinimumHeightIn] = useState<number>();
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
   const [formattingElementId, setFormattingElementId] = useState<string>();
@@ -106,6 +107,12 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const zoomMode = useRef<'page' | 'width' | 'manual'>(hasInitialZoom ? 'manual' : 'page');
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
   const enterTextEditing = (elementId: string) => {
+    const rendered = Array.from(stage.current?.querySelectorAll<HTMLElement>('[data-canvas-element-id]') ?? [])
+      .find(candidate => candidate.dataset.canvasElementId === elementId);
+    const stageWidth = stage.current?.getBoundingClientRect().width;
+    setEditingMinimumHeightIn(rendered && stageWidth
+      ? rendered.getBoundingClientRect().height / (stageWidth / canvasWidth)
+      : undefined);
     setSelected(new Set([elementId]));
     setEditingElementId(elementId);
     window.requestAnimationFrame(() => {
@@ -701,7 +708,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
       <CanvasDropTarget stage={stage}><div className={`canvas-stage ${editingElementId ? 'is-text-editing' : ''}`} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) { setSelected(new Set()); setEditingElementId(undefined); } }}>
-        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
+        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} editingElementId={editingElementId} editingMinimumHeightIn={editingMinimumHeightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
         {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
         {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
         {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}

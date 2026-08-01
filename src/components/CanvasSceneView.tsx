@@ -56,11 +56,12 @@ function CanvasLineView({ element }: {
   </svg>;
 }
 
-function CanvasElementView({ element, document, assets, renderNativeBlock }: {
+function CanvasElementView({ element, document, assets, renderNativeBlock, editingMinimumHeightIn }: {
   element: CanvasElement;
   document: BulletinDocumentV1;
   assets: Record<string, string>;
   renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block'], element: Extract<CanvasElement, { type: 'block' }>) => ReactNode;
+  editingMinimumHeightIn?: number;
 }) {
   if (element.type === 'shape') {
     if (element.shape === 'line') return <CanvasLineView element={element as typeof element & { shape: 'line' }} />;
@@ -82,16 +83,22 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
       : verticalAlign === 'bottom'
         ? 'flex-end'
         : 'flex-start';
-    return <div className={`canvas-element canvas-native-block ${element.sizing === 'autoHeight' ? 'auto-height' : 'fixed-height'}`} data-canvas-element-id={element.id} style={{
+    const autoHeight = (element.sizing ?? 'autoHeight') === 'autoHeight';
+    const minimumHeightIn = autoHeight
+      ? Math.max(element.height, editingMinimumHeightIn ?? 0)
+      : editingMinimumHeightIn;
+    return <div className={`canvas-element canvas-native-block ${autoHeight ? 'auto-height' : 'fixed-height'}`} data-canvas-element-id={element.id} style={{
       ...geometry(element),
-      height: element.sizing === 'autoHeight' ? 'auto' : `${element.height}in`,
+      height: autoHeight ? 'auto' : `${element.height}in`,
+      minHeight: minimumHeightIn === undefined ? undefined : `${minimumHeightIn}in`,
       overflow: element.sizing === 'fixed' ? 'hidden' : undefined
     }}>{native.type === 'image'
       ? fallback
       : <div className="canvas-native-content" style={{
           display: 'flex',
           minHeight: 0,
-          height: element.sizing === 'fixed' ? '100%' : 'auto',
+          height: autoHeight ? 'auto' : '100%',
+          ...(minimumHeightIn === undefined ? {} : { minHeight: `${minimumHeightIn}in` }),
           flexDirection: 'column',
           justifyContent: vertical
         }}>{renderNativeBlock?.(native, element) ?? fallback}</div>}</div>;
@@ -127,7 +134,7 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
   </div>;
 }
 
-export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7, heightIn = 8.5, renderNativeBlock }: {
+export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7, heightIn = 8.5, renderNativeBlock, editingElementId, editingMinimumHeightIn }: {
   scene: CanvasScene;
   document: BulletinDocumentV1;
   assets: Record<string, string>;
@@ -135,6 +142,8 @@ export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7
   widthIn?: number;
   heightIn?: number;
   renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block'], element: Extract<CanvasElement, { type: 'block' }>) => ReactNode;
+  editingElementId?: string;
+  editingMinimumHeightIn?: number;
 }) {
   const space = canvasSpace(scene, marginIn, widthIn, heightIn);
   const background = scene.background;
@@ -154,7 +163,7 @@ export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7
       ? assets[background.asset.path] && <embed className="canvas-pdf-background" src={`${assets[background.asset.path]}#page=${background.asset.page ?? 1}&toolbar=0&navpanes=0`} type="application/pdf" />
       : assets[background.asset.path] && <img className="canvas-background-image" src={assets[background.asset.path]} alt={background.asset.alt ?? ''} style={{ objectFit: background.fit ?? 'cover' }} />)}
     <div className="canvas-elements">
-      {scene.elements.map(element => <CanvasElementView element={element} document={document} assets={assets} renderNativeBlock={renderNativeBlock} key={element.id} />)}
+      {scene.elements.map(element => <CanvasElementView element={element} document={document} assets={assets} renderNativeBlock={renderNativeBlock} editingMinimumHeightIn={element.id === editingElementId ? editingMinimumHeightIn : undefined} key={element.id} />)}
     </div>
   </div>;
 }

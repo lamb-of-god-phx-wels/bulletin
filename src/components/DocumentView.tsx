@@ -7,6 +7,7 @@ import { templateForBulletin } from '../shared/documentLayout';
 import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, responsiveEntryReader, responsiveEntryRole, responsiveReadingEditorContent, safeParseResponsiveReadingContent } from '../shared/responsiveReading';
 import { songHeader, songTitle } from '../shared/songs';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
+import { useLibraryFontsReady } from './LibraryFonts';
 import { boundRichTextParagraphs, canvasAssetRefs, canvasNativeBlocks } from '../shared/canvas';
 import { bookletPrinterSpreads, bookletReadingSpreads } from '../shared/booklet';
 import { CanvasSceneView } from './CanvasSceneView';
@@ -233,7 +234,9 @@ function BlockView({ block, library, assets, document, marginIn, onBlockChange }
     case 'responsiveReading': return <div className="responsive">{block.heading && <RenderedBlock block={block.heading as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} />}<ResponsiveReadingPreview block={block} settings={document.responsiveReading ?? defaultResponsiveReadingSettings} onChange={onBlockChange} /></div>;
     case 'scriptureReading': {
       const elements = scriptureElementBlocks(block);
-      const visible = elements.filter(element => element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
+      const visible = elements.filter(element => block.paginationContinuation
+        ? element.scriptureRole === 'body'
+        : element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
       const renderElement = (element: typeof elements[number]) =>
         element.scriptureRole === 'body' && !block.resolved
           ? <div className="missing preview-block" data-block-id={element.id} key={element.id}>Passage text has not been resolved. Add it before export.</div>
@@ -244,7 +247,7 @@ function BlockView({ block, library, assets, document, marginIn, onBlockChange }
       return <section className="scripture">
         {inlineHeading && <div className="scripture-heading-line" style={{ '--scripture-heading-gap': `${Math.max(0, block.headingReferenceGapIn ?? 0.12)}in` } as React.CSSProperties}>{renderElement(heading)}{renderElement(reference)}</div>}
         {visible.filter(element => !inlineHeading || (element !== heading && element !== reference)).map(renderElement)}
-        <div className="translation">{block.translation}</div>
+        {!block.paginationContinuation && <div className="translation">{block.translation}</div>}
       </section>;
     }
     case 'song': {
@@ -305,6 +308,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   onBlockChange?(block: BulletinBlock): void;
   onReady?(): void;
 }) {
+  const fontsReady = useLibraryFontsReady();
   const effectiveTemplate = templateForBulletin(template, bulletin);
   const renderDocument = useMemo(() => ({ ...bulletin, responsiveReading: effectiveResponsiveReadingSettings(effectiveTemplate, bulletin) }), [bulletin, effectiveTemplate]);
   const [assets, setAssets] = useState<Record<string, string>>({});
@@ -330,9 +334,9 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   }, [root, refs]);
   useEffect(() => {
     const expected = refs.length;
-    if (!onReady || Object.keys(assets).length < expected) return;
+    if (!onReady || !fontsReady || Object.keys(assets).length < expected) return;
     void window.document.fonts.ready.then(() => new Promise<void>(resolve => setTimeout(resolve, 500))).then(onReady);
-  }, [assets, refs, onReady]);
+  }, [assets, refs, fontsReady, onReady]);
   const allPages = paginate(bulletin.blocks, effectiveTemplate, library);
   const pages = singlePage
     ? allPages.length ? allPages.slice(0, 1) : [{ number: 1, kind: 'content' as const, blocks: [] }]

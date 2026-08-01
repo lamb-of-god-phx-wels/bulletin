@@ -257,6 +257,37 @@ export function canvasElementBounds(elements: CanvasElement[]) {
   return { x, y, width: right - x, height: bottom - y };
 }
 
+export type CanvasResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
+
+export function resizeCanvasGeometry<T extends CanvasGeometry>(
+  element: T,
+  corner: CanvasResizeCorner,
+  dx: number,
+  dy: number,
+  extentWidth: number,
+  extentHeight: number,
+  minimumWidth = 1 / 16,
+  minimumHeight = 1 / 16,
+): T {
+  const originalRight = element.x + element.width;
+  const originalBottom = element.y + element.height;
+  const west = corner.endsWith('w');
+  const north = corner.startsWith('n');
+  const left = west
+    ? Math.max(0, Math.min(originalRight - minimumWidth, element.x + dx))
+    : element.x;
+  const right = west
+    ? originalRight
+    : Math.max(left + minimumWidth, Math.min(extentWidth, originalRight + dx));
+  const top = north
+    ? Math.max(0, Math.min(originalBottom - minimumHeight, element.y + dy))
+    : element.y;
+  const bottom = north
+    ? originalBottom
+    : Math.max(top + minimumHeight, Math.min(extentHeight, originalBottom + dy));
+  return { ...element, x: left, y: top, width: right - left, height: bottom - top };
+}
+
 export type CanvasLayerAction = 'front' | 'forward' | 'backward' | 'back';
 
 export function reorderCanvasElements(elements: CanvasElement[], selectedIds: Set<string>, action: CanvasLayerAction) {

@@ -912,7 +912,8 @@ export async function readAssetData(root: string, relative: string) {
     throw error;
   }
   const extension = path.extname(file).toLowerCase();
-  const media = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf' : 'image/jpeg';
+  const media = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf'
+    : extension === '.ttf' ? 'font/ttf' : extension === '.otf' ? 'font/otf' : extension === '.woff' ? 'font/woff' : extension === '.woff2' ? 'font/woff2' : 'image/jpeg';
   return `data:${media};base64,${bytes.toString('base64')}`;
 }
 

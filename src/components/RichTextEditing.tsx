@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CustomBlockStyle, InlineTextStyle, Marks, Paragraph } from '../shared/types';
+import { useFontOptions } from './LibraryFonts';
 
 export type RichTextToolbarState = {
   marks: Marks;
@@ -80,6 +81,7 @@ const lineHeights = [
 
 export function RichTextToolbar({ className = '' }: { className?: string }) {
   const { active, toolbar, refresh } = useRichTextEditing();
+  const fontOptions = useFontOptions();
   const disabled = !active;
   const command = (run: (adapter: RichTextAdapter) => void) => {
     if (!active) return;
@@ -95,8 +97,8 @@ export function RichTextToolbar({ className = '' }: { className?: string }) {
   }}>
     <label>Font<select disabled={disabled} value={toolbar.fontFamily ?? ''} onChange={event => command(adapter => adapter.inlineStyle({ fontFamily: event.target.value }))}>
       {!toolbar.fontFamily && <option value="">Font</option>}
-      <option value="body">Template body</option><option value="display">Template display</option>
-      <option value="Arial, sans-serif">Arial</option><option value="Georgia, serif">Georgia</option><option value="Times New Roman, serif">Times New Roman</option>
+      {toolbar.fontFamily && !fontOptions.some(option => option.value === toolbar.fontFamily) && <option value={toolbar.fontFamily}>{toolbar.fontFamily}</option>}
+      {fontOptions.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
     </select></label>
     <label>Size<input disabled={disabled} type="number" min="6" max="72" step=".5" value={toolbar.fontSizePt ?? ''} placeholder="Size" onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) command(adapter => adapter.inlineStyle({ fontSizePt: event.currentTarget.valueAsNumber })); }} /></label>
     <label>Spacing<select disabled={disabled} value={toolbar.lineHeight ?? ''} onChange={event => command(adapter => adapter.paragraph({ lineHeight: Number(event.target.value) }))}>

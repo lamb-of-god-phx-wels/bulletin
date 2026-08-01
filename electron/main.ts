@@ -89,16 +89,19 @@ function registerIpc() {
   ipcMain.handle('workspace:resolve-conflict', async (_event, root, conflictRecord, keepPath) => { await requireWritable(root); return resolveWorkspaceConflict(root, conflictRecord, keepPath); });
   ipcMain.handle('revision:create', async (_event, ...args: Parameters<BulletinApi['createRevision']>) => { await requireWritable(args[0]); return createRevision(...args); });
   ipcMain.handle('asset:read', (_event, root: string, relative: string) => readAssetData(root, relative));
-  ipcMain.handle('asset:import', async (_event, root: string, targetFolder: string) => {
+  ipcMain.handle('asset:import', async (_event, root: string, targetFolder: string, kind: 'page' | 'font' = 'page') => {
     await requireWritable(root);
-    const result = await dialog.showOpenDialog({ properties: ['openFile'], defaultPath: await dialogPaths.get('asset'), filters: [{ name: 'Page assets', extensions: ['png', 'jpg', 'jpeg', 'svg', 'pdf'] }] });
+    const result = await dialog.showOpenDialog({ properties: ['openFile'], defaultPath: await dialogPaths.get('asset'), filters: kind === 'font'
+      ? [{ name: 'Font files', extensions: ['ttf', 'otf', 'woff', 'woff2'] }]
+      : [{ name: 'Page assets', extensions: ['png', 'jpg', 'jpeg', 'svg', 'pdf'] }] });
     if (result.canceled) return null;
     const source = result.filePaths[0];
     await dialogPaths.remember('asset', path.dirname(source));
     void targetFolder; // Kept in the public API for browser compatibility.
     const destination = await copyAssetToBlobStore(source, root);
     const extension = path.extname(source).toLowerCase();
-    const mediaType = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf' : 'image/jpeg';
+    const mediaType = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf'
+      : extension === '.ttf' ? 'font/ttf' : extension === '.otf' ? 'font/otf' : extension === '.woff' ? 'font/woff' : extension === '.woff2' ? 'font/woff2' : 'image/jpeg';
     return { path: path.relative(root, destination), mediaType, alt: path.basename(source) };
   });
   ipcMain.handle('scripture:lookup', (_event, input: Parameters<BulletinApi['lookupScripture']>[0]) => lookupBibleGatewayWeb(input));

@@ -6,7 +6,7 @@ import {
   VERSE_NUMBER_END,
   VERSE_NUMBER_START
 } from '../src/shared/scriptureText.js';
-import { normalizeScriptureReference } from '../src/shared/scriptureReference.js';
+import { normalizeScriptureReference, strictScriptureReferenceIssue } from '../src/shared/scriptureReference.js';
 
 export interface BibleGatewayWebRequest {
   reference: string;
@@ -72,6 +72,8 @@ export async function lookupBibleGatewayWeb(input: BibleGatewayWebRequest, fetch
   const translation = input.translation.trim().toUpperCase();
   if (!reference) throw new Error('Enter a Scripture reference first.');
   if (!translation) throw new Error('Enter a Bible Gateway translation code, such as NIV or EHV.');
+  const referenceIssue = strictScriptureReferenceIssue(reference);
+  if (referenceIssue) throw new Error(referenceIssue);
 
   const url = new URL('https://www.biblegateway.com/passage/');
   url.searchParams.set('search', reference);

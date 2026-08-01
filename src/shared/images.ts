@@ -9,7 +9,7 @@ export interface LibraryImageChoice {
   folderId?: string;
 }
 
-export const isImageAsset = (asset: AssetRef) => asset.mediaType !== 'application/pdf';
+export const isImageAsset = (asset: AssetRef) => asset.mediaType.startsWith('image/');
 const folders = (library?: LibraryManifestV1) => library?.folders ?? library?.imageFolders ?? [];
 const imageCatalog = (library?: LibraryManifestV1) => library?.catalog
   ?? (library?.imageCatalog ?? []).map(entry => ({ targetKind: 'library-item' as const, targetId: entry.imageId, folderId: entry.folderId, displayName: entry.displayName }));

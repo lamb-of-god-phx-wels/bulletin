@@ -23,6 +23,7 @@ import {
 } from "./components/CreateFromDialog";
 import { ImageAssetDialog } from "./components/ImageAssetDialog";
 import { LibraryBrowserDialog } from "./components/LibraryBrowserDialog";
+import { LibraryFontProvider } from "./components/LibraryFonts";
 import { createBulletin, defaultTemplate } from "./shared/defaults";
 import { libraryFamilies, type LibraryFamily } from "./shared/library";
 import { paginate } from "./shared/pagination";
@@ -1349,7 +1350,7 @@ function DesktopApp() {
     </div>
   );
   return (
-    <div
+    <LibraryFontProvider root={workspace.root} library={workspace.library}><div
       className={`app-shell${editorOpen ? " editor-shell" : ""}${navigationOpen ? " navigation-open" : ""}${workspaceWritable ? "" : " workspace-readonly"}`}
     >
       {editorOpen ? (
@@ -2265,7 +2266,7 @@ function DesktopApp() {
           }}
         />
       )}
-    </div>
+    </div></LibraryFontProvider>
   );
 }
 
@@ -2615,6 +2616,7 @@ function LibraryView({
       const asset = await window.bulletin.importAsset(
         workspace.root,
         `assets/library/${draft.id}`,
+        draft.kind === "font" ? "font" : "page",
       );
       if (asset) setDraft({ ...draft, asset });
     } catch (error) {
@@ -2630,6 +2632,10 @@ function LibraryView({
         .replace(/(^-|-$)/g, "");
     if (!id || !draft.title.trim()) {
       onError("Enter a title and stable ID before saving the library item.");
+      return;
+    }
+    if (draft.kind === "font" && !draft.asset) {
+      onError("Attach a TTF, OTF, WOFF, or WOFF2 file before saving the font.");
       return;
     }
     const version =
@@ -2888,7 +2894,7 @@ function LibraryView({
               <option value="font">Font</option>
             </select>
           </label>
-          <label>
+          {draft.kind !== "font" && <label>
             Structured text
             <textarea
               rows={6}
@@ -2896,7 +2902,7 @@ function LibraryView({
               onChange={(e) => setDraft({ ...draft, text: e.target.value })}
               placeholder="Separate paragraphs or verses with a blank line"
             />
-          </label>
+          </label>}
           <label>
             Copyright or license notice
             <textarea
@@ -2912,8 +2918,8 @@ function LibraryView({
               onClick={chooseAsset}
             >
               {draft.asset
-                ? `Replace ${draft.asset.alt ?? "image or PDF"}`
-                : "Attach image or PDF"}
+                ? `Replace ${draft.asset.alt ?? (draft.kind === "font" ? "font file" : "image or PDF")}`
+                : draft.kind === "font" ? "Attach font file" : "Attach image or PDF"}
             </button>
             <button className="secondary" onClick={closeForm}>
               Cancel
@@ -3267,7 +3273,7 @@ function PrintApp() {
       block.scene.background?.asset?.mediaType === "application/pdf",
   );
   return (
-    <div
+    <LibraryFontProvider root={job.root} library={workspace.library}><div
       className={`print-screen ${browser ? "browser-print" : "electron-print"}`}
     >
       {browser && (
@@ -3311,6 +3317,6 @@ function PrintApp() {
           else window.bulletin?.printReady();
         }}
       />
-    </div>
+    </div></LibraryFontProvider>
   );
 }

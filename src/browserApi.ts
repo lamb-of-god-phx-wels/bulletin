@@ -115,10 +115,10 @@ async function ensureDefaultWorkspace() {
   return createWorkspace('Lamb of God');
 }
 
-function chooseFile(): Promise<File | null> {
+function chooseFile(kind: 'page' | 'font' = 'page'): Promise<File | null> {
   return new Promise(resolve => {
     const input = document.createElement('input');
-    input.type = 'file'; input.accept = '.png,.jpg,.jpeg,.svg,.pdf';
+    input.type = 'file'; input.accept = kind === 'font' ? '.ttf,.otf,.woff,.woff2' : '.png,.jpg,.jpeg,.svg,.pdf';
     input.hidden = true;
     document.body.append(input);
     const finish = (file: File | null) => { input.remove(); resolve(file); };
@@ -136,6 +136,10 @@ function dataUrl(file: File): Promise<string> {
 }
 
 function mediaType(file: File): AssetRef['mediaType'] {
+  if (file.type === 'font/ttf' || file.name.toLowerCase().endsWith('.ttf')) return 'font/ttf';
+  if (file.type === 'font/otf' || file.name.toLowerCase().endsWith('.otf')) return 'font/otf';
+  if (file.type === 'font/woff' || file.name.toLowerCase().endsWith('.woff')) return 'font/woff';
+  if (file.type === 'font/woff2' || file.name.toLowerCase().endsWith('.woff2')) return 'font/woff2';
   if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) return 'application/pdf';
   if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) return 'image/png';
   if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) return 'image/svg+xml';
@@ -267,8 +271,8 @@ export async function installBrowserApi() {
       window.dispatchEvent(new Event('bulletin:open-print'));
       return 'Opening print preview';
     },
-    importAsset: async (root, targetFolder) => {
-      const file = await chooseFile(); if (!file) return null;
+    importAsset: async (root, targetFolder, kind = 'page') => {
+      const file = await chooseFile(kind); if (!file) return null;
       const path = `${targetFolder}/${Date.now()}-${randomId()}-${file.name}`;
       await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
       return { path, mediaType: mediaType(file), alt: file.name };

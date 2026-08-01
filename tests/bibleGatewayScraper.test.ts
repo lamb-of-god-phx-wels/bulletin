@@ -50,6 +50,15 @@ describe('Bible Gateway public-page importer', () => {
   it('validates the request before fetching', async () => {
     const fetchMock = vi.fn<typeof fetch>();
     await expect(lookupBibleGatewayWeb({ reference: '', translation: 'NIV' }, fetchMock)).rejects.toThrow('Enter a Scripture reference');
+    await expect(lookupBibleGatewayWeb({ reference: 'Jude 2', translation: 'NIV' }, fetchMock)).rejects.toThrow('Jude has only one chapter');
+    await expect(lookupBibleGatewayWeb({ reference: '2 John 3', translation: 'NIV' }, fetchMock)).rejects.toThrow('2 John has only one chapter');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts explicit verses and the whole chapter for single-chapter books', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => new Response(page));
+    await lookupBibleGatewayWeb({ reference: 'Jude 1:2', translation: 'NIV' }, fetchMock);
+    await lookupBibleGatewayWeb({ reference: 'Jude 1', translation: 'NIV' }, fetchMock);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

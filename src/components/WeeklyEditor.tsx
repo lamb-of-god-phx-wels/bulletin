@@ -490,6 +490,7 @@ export function WeeklyEditor({
           text: "Passage import is unavailable. Open the passage and paste the approved text manually.",
         },
       }));
+      onError("Passage import is unavailable. Paste the approved text manually.");
       return;
     }
     setLookupStatus((current) => ({
@@ -513,7 +514,8 @@ export function WeeklyEditor({
         },
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const detail = error instanceof Error ? error.message : String(error);
+      const message = `Passage import failed: ${detail}`;
       setLookupStatus((current) => ({
         ...current,
         [block.id]: { state: "error", text: message },
@@ -852,10 +854,10 @@ export function WeeklyEditor({
                     {lookupStatus[block.id] && (
                       <p
                         className={`lookup-status ${lookupStatus[block.id].state}`}
-                        role="status"
-                        aria-live="polite"
+                        role={lookupStatus[block.id].state === "error" ? "alert" : "status"}
+                        aria-live={lookupStatus[block.id].state === "error" ? "assertive" : "polite"}
                       >
-                        {lookupStatus[block.id].text}
+                        {lookupStatus[block.id].state === "error" && <span aria-hidden="true">⚠ </span>}{lookupStatus[block.id].text}
                       </p>
                     )}
                     <details>

@@ -26,6 +26,7 @@ import { ElementPalette, ElementSidebarPortal, type ElementPaletteItem } from ".
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
+import { useFontOptions } from "./LibraryFonts";
 import { randomId } from "../shared/id";
 import { songHeader } from "../shared/songs";
 import { ImageAssetDialog } from "./ImageAssetDialog";
@@ -91,6 +92,7 @@ export function TemplateBuilder({
   canDeleteVersion: boolean;
   canDeleteTemplate: boolean;
 }) {
+  const fontOptions = useFontOptions();
   const [saveStatus, setSaveStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [blockLibraryOpen, setBlockLibraryOpen] = useState(false);
@@ -369,6 +371,7 @@ export function TemplateBuilder({
           <label>
             Body font
             <input
+              list="template-font-families"
               value={template.theme.bodyFont}
               onChange={(event) => updateTheme("bodyFont", event.target.value)}
             />
@@ -376,12 +379,14 @@ export function TemplateBuilder({
           <label>
             Display font
             <input
+              list="template-font-families"
               value={template.theme.displayFont}
               onChange={(event) =>
                 updateTheme("displayFont", event.target.value)
               }
             />
           </label>
+          <datalist id="template-font-families">{fontOptions.filter(option => option.value !== 'body' && option.value !== 'display').map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</datalist>
           <div className="field-row">
             <label>
               Accent

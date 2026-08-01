@@ -78,4 +78,29 @@ describe('pagination', () => {
     expect(fragments.slice(1).every(fragment => !fragment.heading)).toBe(true);
     expect(fragments.flatMap(fragment => fragment.entries).some(entry => entry.reader.includes('(cont.)'))).toBe(true);
   });
+
+  it('flows scripture through remaining space and suppresses continuation headings', () => {
+    const scripture: BulletinBlock = {
+      id: 'reading', type: 'scriptureReading', label: 'First Reading', reference: 'John 1:1-40', translation: 'NIV',
+      resolved: { source: 'manual', retrievedAt: '2026-08-01T00:00:00.000Z', attribution: 'Test', content: Array.from({ length: 32 }, (_, index) => ({ type: 'paragraph', children: [{ type: 'text', text: `Verse ${index + 1}. ${'Word '.repeat(18)}` }] })) }
+    };
+    const pages = paginate([{ id: 'lead', type: 'image', heightIn: 3.2, asset: { path: 'lead.png', mediaType: 'image/png' } }, scripture], defaultTemplate);
+    const fragments = pages.flatMap(page => page.blocks).filter(block => block.type === 'scriptureReading');
+    expect(pages[0].blocks.some(block => block.sourceBlockId === 'reading')).toBe(true);
+    expect(fragments.length).toBeGreaterThan(1);
+    expect(fragments[0].paginationContinuation).toBe(false);
+    expect(fragments.slice(1).every(fragment => fragment.paginationContinuation && !fragment.label?.includes('continued'))).toBe(true);
+    expect(fragments.flatMap(fragment => fragment.resolved?.content ?? []).length).toBe(32);
+  });
+
+  it('keeps scripture together when requested', () => {
+    const scripture: BulletinBlock = {
+      id: 'reading', type: 'scriptureReading', reference: 'John 1:1-6', translation: 'NIV', layout: { keepTogether: true },
+      resolved: { source: 'manual', retrievedAt: '2026-08-01T00:00:00.000Z', attribution: 'Test', content: Array.from({ length: 6 }, () => ({ type: 'paragraph', children: [{ type: 'text', text: 'A short verse of scripture.' }] })) }
+    };
+    const pages = paginate([{ id: 'lead', type: 'image', heightIn: 5.2, asset: { path: 'lead.png', mediaType: 'image/png' } }, scripture], defaultTemplate);
+    expect(pages[0].blocks.map(block => block.id)).toEqual(['lead']);
+    expect(pages[1].blocks).toHaveLength(1);
+    expect(pages[1].blocks[0].id).toBe('reading');
+  });
 });

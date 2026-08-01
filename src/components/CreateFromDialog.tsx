@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { filterBulletins, sortedBulletins, type BulletinRecord } from '../shared/bulletins';
 import type { TemplateRecord } from '../shared/templates';
+import { localIsoDate, sundayOnOrAfter } from '../shared/dates';
+
+const sundayPreferenceKey = 'bulletin-new-week-snap-to-sunday';
 
 export type CreationSource =
   | { kind: 'template'; record: TemplateRecord }
@@ -17,7 +20,9 @@ export function CreateFromDialog({ destination, templates, bulletins, initialTem
   const [sourceKind, setSourceKind] = useState<CreationSource['kind']>('template');
   const [selectedKey, setSelectedKey] = useState(initialTemplatePath ?? templates[0]?.path ?? '');
   const [query, setQuery] = useState('');
-  const [value, setValue] = useState(destination === 'bulletin' ? new Date().toISOString().slice(0, 10) : '');
+  const [snapToSunday, setSnapToSunday] = useState(() => localStorage.getItem(sundayPreferenceKey) !== 'false');
+  const today = localIsoDate();
+  const [value, setValue] = useState(destination === 'bulletin' ? (localStorage.getItem(sundayPreferenceKey) === 'false' ? today : sundayOnOrAfter(today)) : '');
   const [creating, setCreating] = useState(false);
   const shownBulletins = useMemo(() => query ? filterBulletins(bulletins, query) : sortedBulletins(bulletins), [bulletins, query]);
   const selected: CreationSource | undefined = sourceKind === 'template'
@@ -39,7 +44,8 @@ export function CreateFromDialog({ destination, templates, bulletins, initialTem
     <section className="create-from-modal" role="dialog" aria-modal="true" aria-labelledby="create-from-title">
       <header><div><div className="eyebrow">New {destination}</div><h2 id="create-from-title">{title}</h2><p>Start from any existing template or bulletin in this workspace.</p></div><button aria-label="Close" onClick={onCancel}>×</button></header>
       <div className="create-from-settings">
-        <label>{destination === 'bulletin' ? 'Service date' : 'New template name'}<input autoFocus type={destination === 'bulletin' ? 'date' : 'text'} value={value} placeholder={destination === 'template' ? 'e.g. Festival Service' : undefined} onChange={event => setValue(event.target.value)} /></label>
+        <label>{destination === 'bulletin' ? 'Service date' : 'New template name'}<input autoFocus type={destination === 'bulletin' ? 'date' : 'text'} value={value} placeholder={destination === 'template' ? 'e.g. Festival Service' : undefined} onChange={event => setValue(destination === 'bulletin' && snapToSunday ? sundayOnOrAfter(event.target.value) : event.target.value)} /></label>
+        {destination === 'bulletin' && <label className="checkbox-row"><input type="checkbox" checked={snapToSunday} onChange={event => { const checked = event.target.checked; setSnapToSunday(checked); localStorage.setItem(sundayPreferenceKey, String(checked)); if (checked) setValue(current => sundayOnOrAfter(current)); }} />Snap service dates forward to the next Sunday</label>}
         <div className="create-from-tabs" role="tablist" aria-label="Source type">
           <button role="tab" aria-selected={sourceKind === 'template'} className={sourceKind === 'template' ? 'active' : ''} onClick={() => switchKind('template')}>Bulletin Templates <span>{templates.length}</span></button>
           <button role="tab" aria-selected={sourceKind === 'bulletin'} className={sourceKind === 'bulletin' ? 'active' : ''} onClick={() => switchKind('bulletin')}>Bulletins <span>{bulletins.length}</span></button>

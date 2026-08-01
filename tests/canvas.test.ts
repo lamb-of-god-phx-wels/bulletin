@@ -11,6 +11,7 @@ import {
   normalizeCanvasScene,
   rotateCanvasLine,
   reorderCanvasElements,
+  resizeCanvasGeometry,
   snapCanvasAxis,
   snapCanvasValue,
   snapCanvasPosition,
@@ -84,6 +85,15 @@ describe('canvas cover scenes', () => {
     expect(snapCanvasPosition(2.96, 1, 7, [], true)).toBe(2.96);
     expect(snapCanvasAxis(2.96, 1, 7)).toEqual({ value: 3, guide: 3.5 });
     expect(snapCanvasAxis(2.96, 1, 7, [], true)).toEqual({ value: 2.96 });
+  });
+
+  it('resizes independently from every corner and clamps to the canvas', () => {
+    const element = { x: 1, y: 1, width: 2, height: 1 };
+    expect(resizeCanvasGeometry(element, 'nw', -.5, -.25, 7, 8.5)).toEqual({ x: .5, y: .75, width: 2.5, height: 1.25 });
+    expect(resizeCanvasGeometry(element, 'ne', .5, -.25, 7, 8.5)).toEqual({ x: 1, y: .75, width: 2.5, height: 1.25 });
+    expect(resizeCanvasGeometry(element, 'sw', -.5, .25, 7, 8.5)).toEqual({ x: .5, y: 1, width: 2.5, height: 1.25 });
+    expect(resizeCanvasGeometry(element, 'se', .5, .25, 7, 8.5)).toEqual({ x: 1, y: 1, width: 2.5, height: 1.25 });
+    expect(resizeCanvasGeometry(element, 'nw', -5, -5, 7, 8.5)).toEqual({ x: 0, y: 0, width: 3, height: 2 });
   });
 
   it('moves layer selections without changing their internal order', () => {

@@ -1,13 +1,6 @@
 import { defaultCustomBlockStyle } from '../shared/customBlocks';
 import type { BulletinBlock, CustomBlockStyle, TemplateV1 } from '../shared/types';
-
-const fontOptions = [
-  { value: 'body', label: 'Template body' },
-  { value: 'display', label: 'Template display' },
-  { value: 'Arial, sans-serif', label: 'Arial' },
-  { value: 'Georgia, serif', label: 'Georgia' },
-  { value: 'Times New Roman, serif', label: 'Times New Roman' },
-];
+import { useFontOptions } from './LibraryFonts';
 
 const lineHeightOptions = [
   { value: 1, label: 'Tight' },
@@ -90,6 +83,7 @@ export function InlineTypographyControls({ block, template, label = 'Typography'
   onVerticalAlignChange?(verticalAlign: CustomBlockStyle['verticalAlign']): void;
   onChange(presentation: CustomBlockStyle): void;
 }) {
+  const fontOptions = useFontOptions();
   const style = effectiveBlockStyle(block, template);
   const customFont = !fontOptions.some(option => option.value === style.fontFamily);
   const customLineHeight = !lineHeightOptions.some(option => option.value === style.lineHeight);

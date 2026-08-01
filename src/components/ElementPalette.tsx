@@ -61,7 +61,7 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, doc
   const isCollapsed = collapsed;
   const isDocked = docked || Boolean(portalTargetId);
   const palette = <aside className={`element-palette ${isDocked ? 'docked' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-    <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>{isDocked ? '›' : (isCollapsed ? '›' : '‹')}</button></header>
+    <header><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>›</button><div><div className="eyebrow">Drag into place</div><b>Elements</b></div></header>
     {!isCollapsed && <div className="element-palette-scroll">
       {(['content', 'layout', 'media', 'pages', 'shapes'] as const).map(category => {
         const categoryItems = items.filter(item => item.category === category);

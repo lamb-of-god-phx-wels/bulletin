@@ -246,7 +246,7 @@ export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | Template
 
 export interface AssetRef {
   path: string;
-  mediaType: 'image/png' | 'image/jpeg' | 'image/svg+xml' | 'application/pdf';
+  mediaType: 'image/png' | 'image/jpeg' | 'image/svg+xml' | 'application/pdf' | 'font/ttf' | 'font/otf' | 'font/woff' | 'font/woff2';
   page?: number;
   alt?: string;
 }
@@ -466,7 +466,7 @@ export interface BulletinApi {
   resolveWorkspaceConflict?(root: string, conflict: WorkspaceConflict, keepPath: string): Promise<void>;
   createRevision(root: string, relativePath: string, document: BulletinDocumentV1, label: string): Promise<string>;
   exportPdf(root: string, relativePath: string, document: BulletinDocumentV1): Promise<string | null>;
-  importAsset(root: string, targetFolder: string): Promise<AssetRef | null>;
+  importAsset(root: string, targetFolder: string, kind?: 'page' | 'font'): Promise<AssetRef | null>;
   readAsset(root: string, relativePath: string): Promise<string>;
   lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;
   openScripture(reference: string, translation: string): Promise<void>;

@@ -11,11 +11,13 @@ import {
   cloneCanvasSelection,
   normalizeCanvasScene,
   reorderCanvasElements,
+  resizeCanvasGeometry,
   rotateCanvasLine,
   snapCanvasAxis,
   snapCanvasValue,
   validateCanvasScene
 } from '../shared/canvas.js';
+import type { CanvasResizeCorner } from '../shared/canvas.js';
 import type {
   AssetRef,
   BulletinDocumentV1,
@@ -94,7 +96,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [, setSnapGuides] = useState<{ x?: number; y?: number }>({});
   const snapGuidesRef = useRef<{ x?: number; y?: number }>({});
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>();
-  const drag = useRef<{ x: number; y: number; scene: CanvasScene; preview: CanvasScene; ids: Set<string>; resize: boolean; moved: boolean } | undefined>(undefined);
+  const drag = useRef<{ x: number; y: number; scene: CanvasScene; preview: CanvasScene; ids: Set<string>; resize?: CanvasResizeCorner; moved: boolean } | undefined>(undefined);
   const snapGuideTimer = useRef<number | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
   const workarea = useRef<HTMLElement>(null);
@@ -271,7 +273,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     if (next.has(id)) related.forEach(item => next.delete(item)); else related.forEach(item => next.add(item));
     return next;
   });
-  const beginDrag = (event: React.PointerEvent, element: CanvasElement, resize = false) => {
+  const beginDrag = (event: React.PointerEvent, element: CanvasElement, resize?: CanvasResizeCorner) => {
     event.stopPropagation();
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
     const related = selectionFor(element.id);
@@ -320,23 +322,36 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     if (drag.current.resize) {
       const element = active[0];
       if (!element) return;
-      const right = snapCanvasAxis(element.x + element.width + dx, 0, currentSpace.width, xTargets, bypass);
-      const bottom = snapCanvasAxis(element.y + element.height + dy, 0, currentSpace.height, yTargets, bypass);
+      const corner = drag.current.resize;
+      const west = corner.endsWith('w');
+      const north = corner.startsWith('n');
+      const horizontalOrigin = west ? element.x : element.x + element.width;
+      const verticalOrigin = north ? element.y : element.y + element.height;
+      const horizontal = snapCanvasAxis(horizontalOrigin + dx, 0, currentSpace.width, xTargets, bypass);
+      const vertical = snapCanvasAxis(verticalOrigin + dy, 0, currentSpace.height, yTargets, bypass);
       const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
+      const resized = resizeCanvasGeometry(
+        element,
+        corner,
+        horizontal.value - horizontalOrigin,
+        line ? 0 : vertical.value - verticalOrigin,
+        currentSpace.width,
+        currentSpace.height,
+        1 / 16,
+        line ? 0 : 1 / 16,
+      );
       next = {
         ...drag.current.scene,
         elements: drag.current.scene.elements.map(item => item.id !== element.id ? item : line && element.rotationDeg !== undefined
-          ? { ...item, width: Math.max(1 / 16, right.value - element.x), height: 0 } as CanvasElement
+          ? { ...resized, height: 0 } as CanvasElement
           : {
-              ...item,
+              ...resized,
               ...(item.type === 'block' ? { sizing: 'fixed' as const } : {}),
-              width: Math.max(1 / 16, right.value - element.x),
-              height: Math.max(line ? 0 : 1 / 16, bottom.value - element.y)
             } as CanvasElement)
       };
       updateSnapGuides(bypass ? {} : {
-        x: right.guide ?? matchingSnapGuide(right.value, 0, horizontalLines),
-        y: line ? undefined : bottom.guide ?? matchingSnapGuide(bottom.value, 0, verticalLines)
+        x: horizontal.guide ?? matchingSnapGuide(horizontal.value, 0, horizontalLines),
+        y: line ? undefined : vertical.guide ?? matchingSnapGuide(vertical.value, 0, verticalLines)
       });
     } else {
       const bounds = canvasElementBounds(active);
@@ -695,9 +710,9 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
             const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
             const metrics = line ? canvasLineMetrics(element) : undefined;
             const textEditing = editingElementId === element.id;
-            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''} ${textEditing ? 'text-editing' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onContextMenu={event => openContextMenu(event, element)} onPointerDown={textEditing ? undefined : event => beginDrag(event, element)} onDoubleClick={event => { if (!textEditable(element)) return; event.preventDefault(); event.stopPropagation(); enterTextEditing(element.id); }}>
+            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''} ${textEditing ? 'text-editing' : ''}`} data-canvas-selection-id={element.id} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onContextMenu={event => openContextMenu(event, element)} onPointerDown={textEditing ? undefined : event => beginDrag(event, element)} onDoubleClick={event => { if (!textEditable(element)) return; event.preventDefault(); event.stopPropagation(); enterTextEditing(element.id); }}>
               {textEditing && <><i className="canvas-text-drag-rail rail-top" onPointerDown={event => beginDrag(event, element)} /><i className="canvas-text-drag-rail rail-right" onPointerDown={event => beginDrag(event, element)} /><i className="canvas-text-drag-rail rail-bottom" onPointerDown={event => beginDrag(event, element)} /><i className="canvas-text-drag-rail rail-left" onPointerDown={event => beginDrag(event, element)} /></>}
-              {selected.size === 1 && selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
+              {selected.size === 1 && selected.has(element.id) && editable(element) && (['nw', 'ne', 'sw', 'se'] as const).map(corner => <i className={`canvas-resize-handle handle-${corner}`} data-resize-corner={corner} onPointerDown={event => beginDrag(event, element, corner)} key={corner} />)}
             </div>;
           })}
         </div>

@@ -10,7 +10,7 @@ import {
 } from '../shared/songs.js';
 import type { BulletinBlock, CustomBlockStyle, LibraryManifestV1, Paragraph, SongBlock, TemplateV1 } from '../shared/types.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
-import { InlineTypographyControls } from './InlineTypographyControls.js';
+import { RichTextEditor } from './RichTextEditor.js';
 import { LibraryBrowserDialog } from './LibraryBrowserDialog.js';
 import { libraryCatalogRecords } from '../shared/libraryCatalog.js';
 
@@ -96,28 +96,11 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
     <div className="field-row">
       <label>
         Header
-        <input
-          value={block.label ?? 'Song'}
-          onChange={event => onChange({ ...block, label: event.target.value })}
-          onBlur={() => {
-            if (!block.label?.trim()) onChange({ ...block, label: 'Song' });
-          }}
-        />
+        <RichTextEditor content={block.headerContent ?? paragraphsFromPlainText(block.label ?? 'Song')} label="Song header" onChange={headerContent => onChange({ ...block, label: plainText(headerContent) || 'Song', headerContent })} />
       </label>
       <label>
         Display title
-        <input
-          value={block.title ?? selected?.title ?? ''}
-          placeholder={selected?.title ?? 'Choose a library song'}
-          onChange={event => onChange({ ...block, title: event.target.value })}
-          onBlur={() => {
-            if (!block.title?.trim() || block.title.trim() === selected?.title) {
-              const next = { ...block };
-              delete next.title;
-              onChange(next);
-            }
-          }}
-        />
+        <RichTextEditor content={block.titleContent ?? paragraphsFromPlainText(block.title ?? selected?.title ?? '')} label="Song display title" onChange={titleContent => onChange({ ...block, title: plainText(titleContent), titleContent })} onReset={(block.titleContent || block.title) ? () => { const next = { ...block }; delete next.title; delete next.titleContent; onChange(next); } : undefined} />
       </label>
     </div>
     <label>
@@ -166,12 +149,6 @@ export function SongBlockFields({ block, library, template, scope, root, onChang
           onClick={() => setActivePart(part)}
         >{songPartTabNames[part]}</button>)}
       </div>
-      <InlineTypographyControls
-        block={partBlock(activePart)}
-        template={template}
-        label={`${songPartTabNames[activePart]} typography`}
-        onChange={presentation => updatePartFormatting(activePart, presentation)}
-      />
       <button
         type="button"
         className="text-button song-more-formatting"

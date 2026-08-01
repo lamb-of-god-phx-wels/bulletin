@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignParagraphRange, formatTextRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
+import { alignParagraphRange, formatParagraphRange, formatTextRange, formatTextStyleRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
 import type { Paragraph } from '../src/shared/types';
 
 describe('rich-text segment formatting', () => {
@@ -49,6 +49,21 @@ describe('rich-text segment formatting', () => {
     ];
     expect(alignParagraphRange(content, 0, 4, 'center')).toEqual([
       { ...content[0], align: 'center' },
+      content[1],
+    ]);
+  });
+
+  it('applies font, size, capitalization, and spacing only to the selected range', () => {
+    const content: Paragraph[] = [
+      { type: 'paragraph', children: [{ type: 'text', text: 'First second' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: 'Third' }] },
+    ];
+    expect(formatTextStyleRange(content, 6, 12, { fontFamily: 'display', fontSizePt: 18, textTransform: 'uppercase' })[0].children).toEqual([
+      { type: 'text', text: 'First ' },
+      { type: 'text', text: 'second', style: { fontFamily: 'display', fontSizePt: 18, textTransform: 'uppercase' } },
+    ]);
+    expect(formatParagraphRange(content, 0, 5, { align: 'justify', lineHeight: 1.5 })).toEqual([
+      { ...content[0], align: 'justify', lineHeight: 1.5 },
       content[1],
     ]);
   });

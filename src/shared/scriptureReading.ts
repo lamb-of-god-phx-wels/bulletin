@@ -82,9 +82,9 @@ const defaultPresentation: Record<ScriptureElementRole, Partial<CustomBlockStyle
 
 export function scriptureElementBlocks(block: ScriptureBlock): RichTextBlock[] {
   const content: Record<ScriptureElementRole, Paragraph[]> = {
-    heading: text(block.label ?? ''),
-    reference: text(block.reference),
-    caption: text(block.caption ?? ''),
+    heading: block.elements?.heading?.content ?? text(block.label ?? ''),
+    reference: block.elements?.reference?.content ?? text(block.reference),
+    caption: block.elements?.caption?.content ?? text(block.caption ?? ''),
     body: block.resolved?.content ?? text('')
   };
   return scriptureElementOrder.map(scriptureRole => ({
@@ -120,7 +120,8 @@ export function updateScriptureElement(block: ScriptureBlock, element: RichTextB
     ...block.elements,
     [element.scriptureRole]: {
       presentation: element.presentation,
-      layout: element.layout
+      layout: element.layout,
+      content: element.content,
     }
   };
   const value = plainText(element.content);

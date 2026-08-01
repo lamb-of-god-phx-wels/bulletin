@@ -26,7 +26,7 @@ import { LibraryBrowserDialog } from "./components/LibraryBrowserDialog";
 import { createBulletin, defaultTemplate } from "./shared/defaults";
 import { libraryFamilies, type LibraryFamily } from "./shared/library";
 import { paginate } from "./shared/pagination";
-import { flattenBlocks } from "./shared/blocks";
+import { flattenBlocks, updateBlockTree } from "./shared/blocks";
 import { paragraphsFromPlainText } from "./shared/plainText";
 import {
   duplicateTemplate,
@@ -73,6 +73,7 @@ import {
   UndoRedoButtons,
   useUndoRedoHistory,
 } from "./components/useUndoRedo";
+import { RichTextToolbar } from "./components/RichTextEditing";
 
 type Screen =
   | "weekly"
@@ -1067,16 +1068,14 @@ function DesktopApp() {
     const editor = window.document.querySelector<HTMLElement>(
       screen === "templates" ? ".template-workbench" : ".editor-pane",
     );
-    const target = [
+    const candidates = [
       ...(editor?.querySelectorAll<HTMLElement>("[data-editor-block-id]") ??
         []),
-    ].find((element) => element.dataset.editorBlockId === blockId);
+    ];
+    const target = candidates.find((element) => element.dataset.editorBlockId === blockId)
+      ?? candidates.filter(element => blockId.startsWith(`${element.dataset.editorBlockId}-`))
+        .sort((left, right) => (right.dataset.editorBlockId?.length ?? 0) - (left.dataset.editorBlockId?.length ?? 0))[0];
     if (!target || !editor) return;
-    let ancestor: HTMLElement | null = target;
-    while (ancestor && editor.contains(ancestor)) {
-      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
-      ancestor = ancestor.parentElement;
-    }
     if (editorFocusTimer.current !== undefined)
       window.clearTimeout(editorFocusTimer.current);
     editor
@@ -1085,12 +1084,7 @@ function DesktopApp() {
     target.classList.remove("editor-block-focus");
     void target.offsetWidth;
     target.classList.add("editor-block-focus");
-    target.focus({ preventScroll: true });
-    target.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "nearest",
-    });
+    target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
     editorFocusTimer.current = window.setTimeout(() => {
       target.classList.remove("editor-block-focus");
       editorFocusTimer.current = undefined;
@@ -1696,6 +1690,7 @@ function DesktopApp() {
                       : "✓ Ready to export"}
                   </div>
                 </div>
+                <RichTextToolbar />
               </div>
               <DocumentView
                 document={document}
@@ -1706,6 +1701,7 @@ function DesktopApp() {
                 guides={showGuides}
                 zoom={previewZoom}
                 onBlockSelect={focusEditorBlock}
+                onBlockChange={workspaceWritable ? (block) => changeDocument({ ...document, blocks: updateBlockTree(document.blocks, block.id, block) }) : undefined}
               />
             </section>
           </div>
@@ -1817,6 +1813,7 @@ function DesktopApp() {
                     )
                   }
                 />
+                <RichTextToolbar />
               </div>
               <DocumentView
                 document={createBulletin(template)}
@@ -1827,6 +1824,7 @@ function DesktopApp() {
                 guides={showGuides}
                 zoom={previewZoom}
                 onBlockSelect={focusEditorBlock}
+                onBlockChange={workspaceWritable ? (block) => changeTemplate({ ...template, starterBlocks: updateBlockTree(template.starterBlocks, block.id, block) }) : undefined}
               />
             </div>
           </div>

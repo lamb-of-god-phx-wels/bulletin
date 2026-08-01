@@ -34,12 +34,9 @@ import { AnnouncementFields } from "./AnnouncementFields";
 import { CopyrightFields } from "./CopyrightFields";
 import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
-import {
-  InlineTypographyControls,
-  supportsInlineTypography,
-} from "./InlineTypographyControls";
 import type { UndoRedoCommands } from "./useUndoRedo";
 import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, updateResponsiveReaderLabels } from "../shared/responsiveReading";
+import { RichTextEditor } from "./RichTextEditor";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -259,30 +256,10 @@ export function TemplateBuilder({
                 {child.type} · Nested element
                 {child.presentation ? " · Formatted" : ""}
               </small>
-              {supportsInlineTypography(child) && (
-                <InlineTypographyControls
-                  block={child}
-                  template={template}
-                  onChange={(presentation) =>
-                    updateBlock(child.id, { presentation })
-                  }
-                />
-              )}
               {child.type === "richText" &&
                 !child.scriptureRole &&
                 editingBlockIds.has(child.id) && (
-                  <textarea
-                    className="outline-text-editor"
-                    autoFocus
-                    rows={child.role === "header" ? 2 : 3}
-                    aria-label={`Edit ${blockTitle(child)}`}
-                    value={contentText(child)}
-                    onChange={(event) =>
-                      updateBlock(child.id, {
-                        content: textContent(event.target.value),
-                      })
-                    }
-                  />
+                  <RichTextEditor className="outline-text-editor" content={child.content} label={`Edit ${blockTitle(child)}`} onChange={content => updateBlock(child.id, { content })} />
                 )}
             </div>
             <div className="reorder">
@@ -509,15 +486,6 @@ export function TemplateBuilder({
                         {block.type === "custom" ? "Church block" : block.type}
                         {block.presentation ? " · Formatted" : ""}
                       </small>
-                      {supportsInlineTypography(block) && (
-                        <InlineTypographyControls
-                          block={block}
-                          template={template}
-                          onChange={(presentation) =>
-                            updateBlock(block.id, { presentation })
-                          }
-                        />
-                      )}
                       <label className="check">
                         <input
                           type="checkbox"

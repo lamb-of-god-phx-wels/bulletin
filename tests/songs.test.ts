@@ -84,9 +84,10 @@ describe('song blocks', () => {
     expect(markup).not.toContain('Choose music image');
     expect(markup).not.toContain('Replace');
     expect(markup).toContain('aria-label="Song text part"');
-    expect(markup).toContain('Header typography');
+    expect(markup).not.toContain('Header typography');
     expect(markup).toContain('More formatting…');
-    expect(markup).toContain('aria-label="Uppercase" aria-pressed="true"');
+    expect(markup).toContain('aria-label="Song header"');
+    expect(markup).toContain('aria-label="Song display title"');
   });
 
   it('renders header, display-title, and body formatting independently', () => {

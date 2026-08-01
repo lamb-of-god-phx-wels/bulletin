@@ -64,13 +64,31 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1') {
+  await click('This week');
+  await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor[contenteditable="true"]'))`, 'editable rich text in the document preview');
+  const directEditBlockId = await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.preview-pane .rich-text-editor[contenteditable="true"]')).find(item=>item.textContent.trim().length>2);if(!editor)return false;editor.dispatchEvent(new MouseEvent('click',{bubbles:true}));editor.focus();const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let text=walker.nextNode();while(text&&!text.textContent?.trim())text=walker.nextNode();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return editor.closest('[data-block-id]')?.dataset.blockId})()`);
+  await wait(`document.querySelector('[data-editor-block-id="${directEditBlockId}"]')?.classList.contains('editor-block-focus')`, 'preview click focuses its editor element');
+  await new Promise(resolve => setTimeout(resolve, 250));
+  await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar button[aria-label="Italic"]')?.click()`);
+  await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor [data-marks*="italic"]'))`, 'global toolbar formatting in the document preview');
+  await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar label:first-child select')?.focus()`);
+  await wait(`document.activeElement===document.querySelector('.preview-pane .global-rich-text-toolbar label:first-child select')&&!document.activeElement.disabled`, 'font dropdown keeps the rich-text target active');
+  await evaluate(`(()=>{const select=document.activeElement;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Georgia, serif');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor [data-text-style*="Georgia"]'))`, 'font dropdown formats the bookmarked selection');
+  pass('edits and formats rich text directly in the document preview');
+  console.log(`\n${results.length} browser rich-text checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_BUILDER_TODOS_ONLY === '1') {
   await evaluate(`(()=>{const toggle=document.querySelector('.autosave-control input');if(toggle?.checked)toggle.click();return true})()`);
@@ -106,7 +124,9 @@ if (process.env.BULLETIN_BUILDER_TODOS_ONLY === '1') {
   await evaluate(`document.querySelector('.block-formatting-modal button[aria-label="Close block formatting"]')?.click()`);
   await click('Announcements');
   await wait(`(()=>{const editors=Array.from(document.querySelectorAll('.block-editor'));const editor=editors.reverse().find(item=>item.querySelector('.block-type')?.textContent.startsWith('announcements'));editor?.setAttribute('open','');return Boolean(editor?.querySelector('.rich-text-editor')&&Array.from(editor.querySelectorAll('button')).some(button=>button.textContent.includes('graphic')))})()`, 'rich announcement and graphic controls');
-  await evaluate(`(()=>{const editors=Array.from(document.querySelectorAll('.block-editor')),editor=editors.reverse().find(item=>item.querySelector('.block-type')?.textContent.startsWith('announcements')),rich=editor?.querySelector('.rich-text-editor'),button=editor&&Array.from(editor.querySelectorAll('.rich-text-toolbar button')).find(item=>item.getAttribute('aria-label')==='Italic');if(!rich||!button)return false;const walker=document.createTreeWalker(rich,NodeFilter.SHOW_TEXT);let text=walker.nextNode();while(text&&!text.textContent?.trim())text=walker.nextNode();if(!text||text.textContent.length<2)return false;const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);button.click();return true})()`);
+  await evaluate(`(()=>{const announcements=Array.from(document.querySelectorAll('.preview-pane .announcements')),rich=announcements.at(-1)?.querySelector('.rich-text-editor');if(!rich)return false;rich.focus();const walker=document.createTreeWalker(rich,NodeFilter.SHOW_TEXT);let text=walker.nextNode();while(text&&!text.textContent?.trim())text=walker.nextNode();if(!text||text.textContent.length<2)return false;const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return true})()`);
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar button[aria-label="Italic"]')?.click()`);
   await wait(`(()=>{const marked=document.querySelector('.rich-text-editor [data-marks*="italic"]');return marked?.textContent.length===2&&Boolean(marked.nextSibling?.textContent)})()`, 'independently formatted rich-text segment');
   await wait(`Boolean(document.querySelector('.preview-pane .announcements .mark-italic'))`, 'rich announcement formatting preview');
   await click('Save');
@@ -175,13 +195,25 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   const canvasLayerRow = await evaluate(`(()=>{const row=document.querySelector('.canvas-layers ol li'),icon=row?.querySelector('.canvas-layer-icon')?.getBoundingClientRect(),copy=row?.querySelector('.canvas-layer-copy');return {height:row?.getBoundingClientRect().height,selected:row?.classList.contains('selected'),icon:[icon?.width,icon?.height],name:copy?.querySelector('b')?.textContent,kind:copy?.querySelector('small')?.textContent,actions:row?.querySelectorAll('.canvas-layer-actions button').length,dragHandle:Boolean(row?.querySelector('.drag-handle'))}})()`);
   if (canvasLayerRow.height < 63 || !canvasLayerRow.selected || canvasLayerRow.icon?.some(value => Math.abs(value - 36) > 1) || !canvasLayerRow.name || !canvasLayerRow.kind || canvasLayerRow.actions !== 2 || !canvasLayerRow.dragHandle) throw new Error(`Canvas Layers row does not match the template outline: ${JSON.stringify(canvasLayerRow)}`);
   await choose('Sizing', 'fixed');
-  if (!await evaluate(`Boolean(document.querySelector('.canvas-properties .inline-typography'))`)) throw new Error('Canvas text is missing the bulletin quick typography controls.');
-  await evaluate(`document.querySelector('.canvas-properties button[aria-label="Align top"]')?.click()`);
-  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.top-b.top)<1})()`, 'canvas text top alignment');
-  await evaluate(`document.querySelector('.canvas-properties button[aria-label="Align middle"]')?.click()`);
-  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<1})()`, 'canvas text middle alignment');
-  await evaluate(`document.querySelector('.canvas-properties button[aria-label="Align bottom"]')?.click()`);
-  await wait(`(()=>{const box=document.querySelector('.canvas-stage .canvas-native-block'),content=box?.querySelector('.canvas-native-content > .preview-block'),a=box?.getBoundingClientRect(),b=content?.getBoundingClientRect();return a&&b&&Math.abs(a.bottom-b.bottom)<1})()`, 'canvas text bottom alignment');
+  await evaluate(`document.querySelector('.canvas-selection')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))`);
+  await wait(`Boolean(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"]'))&&!document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Bold"]')?.disabled`, 'canvas direct text editing');
+  await evaluate(`(()=>{const editor=document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"]'),text=editor&&document.createTreeWalker(editor,NodeFilter.SHOW_TEXT).nextNode();if(!text||text.textContent.length<2)return false;editor.focus();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return true})()`);
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Bold"]')?.click()`);
+  await wait(`Boolean(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-marks*="bold"]'))`, 'canvas global rich-text formatting');
+  await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar label:first-child select')?.focus()`);
+  await wait(`document.activeElement===document.querySelector('.canvas-designer .global-rich-text-toolbar label:first-child select')&&!document.activeElement.disabled`, 'canvas font dropdown keeps text selection active');
+  await evaluate(`(()=>{const select=document.activeElement;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Georgia, serif');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await wait(`document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-text-style*="Georgia"]')&&getComputedStyle(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-text-style*="Georgia"]')).fontFamily.includes('Georgia')`, 'canvas typography updates live');
+  await wait(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Align top"]')?.getAttribute('aria-pressed')==='true'`, 'canvas text top alignment');
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Align middle"]')?.click()`);
+  await wait(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Align middle"]')?.getAttribute('aria-pressed')==='true'`, 'canvas text middle alignment');
+  await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Align bottom"]')?.click()`);
+  await wait(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Align bottom"]')?.getAttribute('aria-pressed')==='true'`, 'canvas text bottom alignment');
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await wait(`!document.querySelector('.canvas-stage.is-text-editing')`, 'leave canvas text editing');
   const beforePaste = await evaluate(`document.querySelectorAll('.canvas-stage [data-canvas-element-id]').length`);
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 });
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 });
@@ -280,8 +312,8 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1') {
   await wait(`Boolean(document.querySelector('.page-template-elements .element-palette-scroll'))`, 'expanded regular page Elements');
   await evaluate(`Array.from(document.querySelectorAll('.page-template-elements .element-palette-item')).find(button=>button.textContent.includes('Heading'))?.click()`);
   await wait(`document.querySelectorAll('.page-template-flow-editor .block-editor').length===1`, 'regular page heading insertion');
-  await evaluate(`document.querySelector('.page-template-flow-editor .block-editor').open=true`);
-  await wait(`Boolean(document.querySelector('.page-template-flow-editor .inline-typography'))`, 'regular page quick typography');
+  await evaluate(`document.querySelector('.page-template-preview [data-block-id]')?.click()`);
+  await wait(`Boolean(document.querySelector('.page-template-preview [contenteditable="true"]'))&&!document.querySelector('.page-template-preview .global-rich-text-toolbar button[aria-label="Bold"]')?.disabled`, 'regular page direct text editing');
   await evaluate(`Array.from(document.querySelectorAll('.page-template-elements .element-palette-item')).find(button=>button.textContent.includes('Section heading'))?.click()`);
   await wait(`document.querySelectorAll('.page-template-flow-editor .block-editor').length===2`, 'regular page second insertion');
   const regularDrag = await evaluate(`(()=>{const blocks=Array.from(document.querySelectorAll('.page-template-flow-editor .block-editor')),source=blocks[1],target=blocks[0],handle=source.querySelector('.drag-handle'),a=handle.getBoundingClientRect(),b=target.getBoundingClientRect();return {first:blocks[0].dataset.editorBlockId,start:{x:a.left+a.width/2,y:a.top+a.height/2},end:{x:a.left+a.width/2,y:b.top+3}}})()`);
@@ -682,11 +714,24 @@ if (process.env.BULLETIN_RESPONSIVE_ONLY === '1') {
   await wait(`(()=>{const rows=document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-row');const leaderParagraphs=rows[0]?.querySelectorAll('p');return rows.length===3&&leaderParagraphs?.length===3&&leaderParagraphs[0].textContent==='FirstXYZ'&&leaderParagraphs[1].textContent==='Second line'&&leaderParagraphs[1].classList.contains('structured-line-continuation')&&leaderParagraphs[2].textContent==='Second paragraph'&&rows[1].classList.contains('response-follower')&&rows[2].classList.contains('response-all')&&rows[2].textContent.includes('Amen.')})()`, 'stable caret and responsive reading newline parsing');
   const weights = await evaluate(`(()=>{const weight=element=>Number.parseInt(getComputedStyle(element).fontWeight,10);const leader=document.querySelector('.preview-pane .response-leader');const follower=document.querySelector('.preview-pane .response-follower');return {leaderLabel:weight(leader.querySelector('.response-reader')),leaderText:weight(leader.querySelector('p')),followerLabel:weight(follower.querySelector('.response-reader')),followerText:weight(follower.querySelector('p')),synthesis:getComputedStyle(follower).fontSynthesisWeight}})()`);
   if (weights.leaderLabel >= 600 || weights.leaderText >= 600 || weights.followerLabel < 600 || weights.followerText < 600 || weights.synthesis === 'none') throw new Error(`Responsive reading weights are incorrect: ${JSON.stringify(weights)}`);
-  await evaluate(`(()=>{const shell=document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .rich-text-editor-shell');const paragraphs=shell.querySelectorAll('.responsive-reading-editor > [data-scripture-paragraph]');const selection=getSelection();const range=document.createRange();range.selectNodeContents(paragraphs[1]);selection.removeAllRanges();selection.addRange(range);shell.querySelector('button[aria-label="Align right"]').click();return paragraphs.length})()`);
+  await evaluate(`(()=>{const shell=document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .rich-text-editor-shell');const paragraphs=shell.querySelectorAll('.responsive-reading-editor > [data-scripture-paragraph]');const selection=getSelection();const range=document.createRange();range.selectNodeContents(paragraphs[1]);selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));document.querySelector('.preview-pane .global-rich-text-toolbar button[aria-label="Align right"]').click();return paragraphs.length})()`);
   await wait(`(()=>{const paragraphs=document.querySelectorAll('.preview-pane [data-block-id="${responsiveBlockId}"] .response-leader p');return paragraphs.length===3&&getComputedStyle(paragraphs[0]).textAlign!=='right'&&getComputedStyle(paragraphs[1]).textAlign==='right'&&getComputedStyle(paragraphs[2]).textAlign!=='right'})()`, 'single responsive reading line alignment');
   await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved responsive reading roles');
   const stored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(responsiveBlockId)}).entries)`);
   if (stored.length !== 3 || stored[1].role !== 'follower' || stored[2].role !== 'all' || stored[0].content.length !== 3 || stored[0].content[1].breakBefore !== 'line' || stored[0].content[1].align !== 'right') throw new Error(`Compact responsive reading was not persisted: ${JSON.stringify(stored)}`);
+  await evaluate(`document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-direct-target')?.click()`);
+  await wait(`Boolean(document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-preview-editor'))`, 'responsive reading direct preview editor');
+  await wait(`Boolean(document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-preview-editor [data-response-role="follower"]'))`, 'responsive reading live role layout');
+  const liveReadingLayout = await evaluate(`(()=>{const editor=document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-preview-editor'),follower=editor?.querySelector('[data-response-role="follower"]'),start=editor?.querySelector('[data-reader-start="true"]');return {followerWeight:Number.parseInt(getComputedStyle(follower).fontWeight,10),padding:parseFloat(getComputedStyle(start).paddingLeft),wrapper:editor?.closest('.responsive')?.className}})()`);
+  if (liveReadingLayout.followerWeight < 600 || liveReadingLayout.padding <= 0 || !liveReadingLayout.wrapper?.includes('responsive-reading-preview-editable')) throw new Error(`Responsive direct editor lost its rendered layout: ${JSON.stringify(liveReadingLayout)}`);
+  await evaluate(`(()=>{const paragraph=document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-preview-editor > [data-scripture-paragraph]'),text=paragraph.lastChild,selection=getSelection(),range=document.createRange();paragraph.closest('[contenteditable]').focus();range.setStart(text,text.textContent.length);range.collapse(true);selection.removeAllRanges();selection.addRange(range);return true})()`);
+  for (const character of ['Q', 'R', 'S']) await command('Input.insertText', { text: character });
+  await wait(`document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-preview-editor > [data-scripture-paragraph]')?.textContent.endsWith('QRS')`, 'stable caret in responsive direct preview editor');
+  await evaluate(`document.querySelector('.editor-pane [data-editor-block-id="${responsiveBlockId}"] .responsive-reading-editor')?.focus()`);
+  await wait(`!document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .responsive-reading-preview-editor')&&document.querySelector('.preview-pane [data-block-id="${responsiveBlockId}"] .response-leader p')?.textContent.endsWith('QRS')`, 'responsive direct edit returns to rendered layout');
+  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved responsive direct preview edit');
+  const directlyStored = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id===${JSON.stringify(responsiveBlockId)}).entries[0].content[0].children.map(run=>run.type==='text'?run.text:'').join(''))`);
+  if (!directlyStored.endsWith('QRS')) throw new Error(`Responsive direct preview edit was not persisted: ${JSON.stringify(directlyStored)}`);
   pass('keeps the caret stable and formats individual responsive reading paragraphs');
   console.log(`\n${results.length} browser MVP checks passed.`);
   socket.close();
@@ -716,48 +761,6 @@ if (process.env.BULLETIN_MARGIN_ONLY === '1') {
   await wait(`document.querySelector('.preview-pane .document-stack')?.style.getPropertyValue('--page-margin') === '0.3in'`, 'restored template page margin');
   pass('overrides and restores page margins for one bulletin');
   console.log(`\n${results.length} browser MVP checks passed.`);
-  socket.close();
-  process.exit(0);
-}
-
-if (process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1') {
-  await click('This week');
-  await wait(`Boolean(document.querySelector('.block-editor'))`, 'weekly editor for inline typography');
-  await evaluate(`(()=>{const block=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering');if(!block)throw new Error('Weekly text block missing');block.open=true;return true})()`);
-  await wait(`Boolean(Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('.inline-typography'))`, 'weekly inline typography');
-  await evaluate(`(()=>{const font=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('[aria-label="Typography font"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(font,'Georgia, serif');font.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
-  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('[aria-label="Typography font"]')?.value==='Georgia, serif'`, 'weekly inline font');
-  await evaluate(`(()=>{const size=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('[aria-label="Typography size"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(size,'16');size.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
-  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('[aria-label="Typography size"]')?.value==='16'`, 'weekly inline size');
-  await evaluate(`(()=>{const spacing=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('[aria-label="Typography line spacing"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(spacing,'1.5');spacing.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
-  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('[aria-label="Typography line spacing"]')?.value==='1.5'`, 'weekly inline line spacing');
-  await evaluate(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('button[aria-label="Align center"]').click()`);
-  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('button[aria-label="Align center"]')?.getAttribute('aria-pressed')==='true'`, 'weekly inline alignment');
-  await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('button[aria-label="Bold"]');if(button.getAttribute('aria-pressed')!=='true')button.click();return true})()`);
-  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('button[aria-label="Bold"]')?.getAttribute('aria-pressed')==='true'`, 'weekly inline bold');
-  await evaluate(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering').querySelector('button[aria-label="Small caps"]').click()`);
-  await wait(`Array.from(document.querySelectorAll('.block-editor')).find(element=>element.querySelector('h3')?.textContent==='The Gathering')?.querySelector('button[aria-label="Small caps"]')?.getAttribute('aria-pressed')==='true'`, 'weekly inline small caps');
-  await wait(`(()=>{const heading=Array.from(document.querySelectorAll('.preview-pane .section-heading')).find(element=>element.textContent.includes('The Gathering')),wrapper=heading?.closest('.block-presentation');return wrapper?.style.fontFamily==='Georgia, serif'&&wrapper?.style.fontSize==='16pt'&&wrapper?.style.lineHeight==='1.5'&&wrapper?.style.textAlign==='center'&&wrapper?.style.fontWeight==='bold'&&wrapper?.style.fontVariant==='small-caps'})()`, 'weekly inline typography preview');
-  await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'weekly inline typography autosave');
-  const weeklyTypography = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins[0].document.blocks.find(block=>block.id==='gathering').presentation)`);
-  if (weeklyTypography?.fontFamily !== 'Georgia, serif' || weeklyTypography?.fontSizePt !== 16 || weeklyTypography?.lineHeight !== 1.5 || weeklyTypography?.fontWeight !== 'bold' || weeklyTypography?.textTransform !== 'small-caps') throw new Error(`Weekly inline typography was not persisted: ${JSON.stringify(weeklyTypography)}`);
-  await click('Templates');
-  await wait(`Boolean(Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='The Gathering')?.querySelector('.inline-typography'))`, 'template inline typography');
-  await evaluate(`(()=>{const row=Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='The Gathering'),size=row.querySelector('[aria-label="Typography size"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(size,'15');size.dispatchEvent(new Event('input',{bubbles:true}));row.querySelector('button[aria-label="Uppercase"]').click();return true})()`);
-  await wait(`(()=>{const heading=Array.from(document.querySelectorAll('.builder-preview .section-heading')).find(element=>element.textContent.includes('The Gathering')),wrapper=heading?.closest('.block-presentation');return wrapper?.style.fontSize==='15pt'&&wrapper?.style.textTransform==='uppercase'})()`, 'template inline typography preview');
-  await evaluate(`(()=>{const row=Array.from(document.querySelectorAll('.outline > li')).find(element=>element.querySelector('.outline-main b')?.textContent==='Opening Hymn');if(!row)throw new Error('Template song row missing');const title=Array.from(row.querySelectorAll('.song-part-tabs button')).find(button=>button.textContent==='Display title');title.click();return true})()`);
-  await wait(`Boolean(document.querySelector('[aria-label="Display title typography"]'))`, 'song part typography selector');
-  await evaluate(`document.querySelector('[aria-label="Display title typography"] button[aria-label="Italic"]').click()`);
-  await wait(`(()=>{const title=document.querySelector('.builder-preview .song-title'),wrapper=title?.closest('.song-title');return title?.style.fontStyle==='italic'})()`, 'independent song title typography');
-  await evaluate(`Array.from(document.querySelectorAll('.song-part-tabs button')).find(button=>button.textContent==='Header').click()`);
-  await wait(`Boolean(document.querySelector('[aria-label="Header typography"]'))`, 'song header typography selector');
-  await evaluate(`document.querySelector('[aria-label="Header typography"] button[aria-label="Small caps"]').click()`);
-  await wait(`(()=>{const header=document.querySelector('.builder-preview .song-header');return header?.style.fontVariant==='small-caps'&&header?.style.textTransform==='none'})()`, 'song header small caps');
-  await evaluate(`document.querySelector('[aria-label="Header typography"] button[aria-label="Regular capitalization"]').click()`);
-  await wait(`(()=>{const header=document.querySelector('.builder-preview .song-header');return !header?.style.fontVariant&&header?.style.textTransform==='none'&&getComputedStyle(header).textTransform==='none'})()`, 'song header regular capitalization');
-  pass('edits weekly, template, and song-part typography in the main editing space');
-  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\\n')}`);
-  console.log(`\n${results.length} inline typography checks passed.`);
   socket.close();
   process.exit(0);
 }

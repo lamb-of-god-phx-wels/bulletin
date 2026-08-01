@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { Inline, Marks, Paragraph, TextRun } from '../shared/types';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import type { CustomBlockStyle, Inline, InlineTextStyle, Marks, Paragraph, TextRun } from '../shared/types';
 import { renderStructuredContent, scriptureContentFromEditor } from './ScriptureEditor';
+import { useRichTextEditing, type RichTextAdapter, type RichTextToolbarState } from './RichTextEditing';
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const pastedHtml = (value: string) => value.replace(/\r\n?/g, '\n').split(/\n\s*\n/).map(paragraph => `<div>${escape(paragraph).replace(/\n/g, '<br>') || '<br data-placeholder>'}</div>`).join('');
@@ -14,9 +15,13 @@ function sameMarks(left?: Marks, right?: Marks) {
   return JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
 }
 
+function sameStyle(left?: InlineTextStyle, right?: InlineTextStyle) {
+  return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {});
+}
+
 function appendRun(runs: Inline[], run: Inline) {
   const previous = runs.at(-1);
-  if (run.type === 'text' && previous?.type === 'text' && sameMarks(previous.marks, run.marks)) {
+  if (run.type === 'text' && previous?.type === 'text' && sameMarks(previous.marks, run.marks) && sameStyle(previous.style, run.style)) {
     previous.text += run.text;
   } else {
     runs.push(run);
@@ -44,6 +49,43 @@ export function selectedTextMarks(content: Paragraph[], start: number, end: numb
   return (['bold', 'italic', 'smallCaps'] as EditableMark[]).filter(mark =>
     runs.every(run => run.marks?.includes(mark)),
   );
+}
+
+function selectedTextStyle(content: Paragraph[], start: number, end: number): InlineTextStyle {
+  const runs = selectedRuns(content, start, end);
+  if (!runs.length) return {};
+  const common = <K extends keyof InlineTextStyle>(key: K) => {
+    const value = runs[0].style?.[key];
+    return runs.every(run => run.style?.[key] === value) ? value : undefined;
+  };
+  return { fontFamily: common('fontFamily'), fontSizePt: common('fontSizePt'), textTransform: common('textTransform') };
+}
+
+export function formatTextStyleRange(content: Paragraph[], start: number, end: number, changes: InlineTextStyle): Paragraph[] {
+  if (start === end) return content;
+  let cursor = 0;
+  return content.map(paragraph => {
+    const children: Inline[] = [];
+    for (const run of paragraph.children) {
+      if (run.type !== 'text') { appendRun(children, run); continue; }
+      const runStart = cursor;
+      const runEnd = cursor + run.text.length;
+      const selectionStart = Math.max(runStart, start);
+      const selectionEnd = Math.min(runEnd, end);
+      if (selectionStart >= selectionEnd) appendRun(children, run);
+      else {
+        const before = selectionStart - runStart;
+        const after = selectionEnd - runStart;
+        if (before) appendRun(children, { ...run, text: run.text.slice(0, before) });
+        const style = { ...(run.style ?? {}), ...changes };
+        Object.keys(style).forEach(key => style[key as keyof InlineTextStyle] === undefined && delete style[key as keyof InlineTextStyle]);
+        appendRun(children, { ...run, text: run.text.slice(before, after), ...(Object.keys(style).length ? { style } : { style: undefined }) });
+        if (after < run.text.length) appendRun(children, { ...run, text: run.text.slice(after) });
+      }
+      cursor = runEnd;
+    }
+    return { ...paragraph, children };
+  });
 }
 
 export function formatTextRange(
@@ -103,6 +145,17 @@ export function alignParagraphRange(content: Paragraph[], start: number, end: nu
   });
 }
 
+export function formatParagraphRange(content: Paragraph[], start: number, end: number, changes: Pick<Paragraph, 'align' | 'lineHeight'>): Paragraph[] {
+  let cursor = 0;
+  return content.map(paragraph => {
+    const length = paragraph.children.reduce((total, run) => total + (run.type === 'text' ? run.text.length : 1), 0);
+    const paragraphEnd = cursor + length;
+    const selected = start === end ? start >= cursor && start <= paragraphEnd : start <= paragraphEnd && end >= cursor;
+    cursor = paragraphEnd;
+    return selected ? { ...paragraph, ...changes } : paragraph;
+  });
+}
+
 export function structuredTextForClipboard(content: Paragraph[]) {
   return content.map((paragraph, index) => {
     const text = paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'symbol' ? '✠' : '\n').join('');
@@ -122,6 +175,28 @@ function selectionOffsets(editor: HTMLElement): SelectionOffsets | undefined {
     return measure.toString().length;
   };
   return { start: offsetTo(range.startContainer, range.startOffset), end: offsetTo(range.endContainer, range.endOffset) };
+}
+
+function selectedParagraphIndexes(editor: HTMLElement): { start: number; end: number } | undefined {
+  const selection = editor.ownerDocument.getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return;
+  const paragraphs = Array.from(editor.querySelectorAll<HTMLElement>(':scope > [data-scripture-paragraph]'));
+  const containingParagraph = (node: Node, offset: number) => {
+    if (node === editor) {
+      const child = editor.children[Math.min(offset, Math.max(0, editor.children.length - 1))];
+      return child instanceof HTMLElement ? child : undefined;
+    }
+    const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
+    return element?.closest<HTMLElement>('[data-scripture-paragraph]');
+  };
+  const start = containingParagraph(range.startContainer, range.startOffset);
+  const end = containingParagraph(range.endContainer, range.endOffset);
+  const startIndex = start ? paragraphs.indexOf(start) : -1;
+  const endIndex = end ? paragraphs.indexOf(end) : -1;
+  if (startIndex < 0 || endIndex < 0) return;
+  return { start: Math.min(startIndex, endIndex), end: Math.max(startIndex, endIndex) };
 }
 
 function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
@@ -153,78 +228,188 @@ function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
   selection?.addRange(range);
 }
 
-export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph' }: { content: Paragraph[]; label: string; onChange(content: Paragraph[]): void; className?: string; enterMode?: 'paragraph' | 'responsiveLines' }) {
+export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, onReset, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, commitDelayMs }: {
+  content: Paragraph[];
+  label: string;
+  onChange(content: Paragraph[]): void;
+  className?: string;
+  enterMode?: 'paragraph' | 'responsiveLines';
+  variant?: 'field' | 'preview' | 'canvas';
+  readOnly?: boolean;
+  onReset?(): void;
+  verticalAlign?: CustomBlockStyle['verticalAlign'];
+  onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void;
+  onEditingFocus?(): void;
+  onEditingBlur?(): void;
+  onRender?(editor: HTMLElement): void;
+  commitDelayMs?: number;
+}) {
   const editorRef = useRef<HTMLDivElement>(null);
   const signatureRef = useRef('');
   const consecutiveEnterRef = useRef(false);
-  const [activeMarks, setActiveMarks] = useState<EditableMark[]>([]);
+  const toolbarStateRef = useRef<RichTextToolbarState>({ marks: [] });
+  const pendingRef = useRef<{ marks: EditableMark[]; style: InlineTextStyle }>({ marks: [], style: {} });
+  const adapterRef = useRef<RichTextAdapter | undefined>(undefined);
+  const savedSelectionRef = useRef<SelectionOffsets | undefined>(undefined);
+  const savedParagraphSelectionRef = useRef<{ start: number; end: number } | undefined>(undefined);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const onRenderRef = useRef(onRender);
+  onRenderRef.current = onRender;
+  const commitTimerRef = useRef<number | undefined>(undefined);
+  const pendingCommitRef = useRef<Paragraph[] | undefined>(undefined);
+  const editing = useRichTextEditing();
+  const delay = commitDelayMs ?? (variant === 'preview' ? 500 : 0);
+  const commitChange = (next: Paragraph[]) => {
+    pendingCommitRef.current = next;
+    if (!delay) {
+      pendingCommitRef.current = undefined;
+      onChangeRef.current(next);
+      return;
+    }
+    if (commitTimerRef.current !== undefined) window.clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = window.setTimeout(() => {
+      commitTimerRef.current = undefined;
+      const pending = pendingCommitRef.current;
+      pendingCommitRef.current = undefined;
+      if (pending) onChangeRef.current(pending);
+    }, delay);
+  };
+  const flushCommit = () => {
+    if (commitTimerRef.current !== undefined) window.clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = undefined;
+    const pending = pendingCommitRef.current;
+    pendingCommitRef.current = undefined;
+    if (pending) onChangeRef.current(pending);
+  };
+  useEffect(() => () => flushCommit(), []);
   const signature = JSON.stringify(content);
+  const renderEditorContent = (editor: HTMLElement, next: Paragraph[]) => {
+    renderStructuredContent(editor, next);
+    onRenderRef.current?.(editor);
+  };
   useLayoutEffect(() => {
     if (!editorRef.current || signatureRef.current === signature) return;
-    renderStructuredContent(editorRef.current, content);
+    renderEditorContent(editorRef.current, content);
     signatureRef.current = signature;
   }, [content, signature]);
   const emit = () => {
     if (!editorRef.current) return;
     const next = scriptureContentFromEditor(editorRef.current);
     signatureRef.current = JSON.stringify(next);
-    onChange(next);
+    commitChange(next);
+    onRenderRef.current?.(editorRef.current);
   };
-  const updateToolbar = () => {
+  const preserveSelection = () => {
     const editor = editorRef.current;
     if (!editor) return;
     const offsets = selectionOffsets(editor);
-    if (!offsets) return;
+    if (offsets) savedSelectionRef.current = offsets;
+    const paragraphs = selectedParagraphIndexes(editor);
+    if (paragraphs) savedParagraphSelectionRef.current = paragraphs;
+  };
+  const commandSelection = () => {
+    preserveSelection();
+    return savedSelectionRef.current;
+  };
+  const stateForSelection = (): RichTextToolbarState => {
+    const editor = editorRef.current;
+    const offsets = editor ? selectionOffsets(editor) ?? savedSelectionRef.current : undefined;
+    if (!editor || !offsets) return toolbarStateRef.current;
     const current = scriptureContentFromEditor(editor);
-    setActiveMarks(selectedTextMarks(current, offsets.start, offsets.end));
+    const marks = offsets.start === offsets.end ? pendingRef.current.marks : selectedTextMarks(current, offsets.start, offsets.end);
+    const style = offsets.start === offsets.end ? pendingRef.current.style : selectedTextStyle(current, offsets.start, offsets.end);
+    let cursor = 0;
+    const paragraph = current.find(item => {
+      const length = item.children.reduce((total, run) => total + (run.type === 'text' ? run.text.length : 1), 0);
+      const found = offsets.start >= cursor && offsets.start <= cursor + length;
+      cursor += length;
+      return found;
+    });
+    return { marks, ...style, align: paragraph?.align, lineHeight: paragraph?.lineHeight, verticalAlign, canReset: Boolean(onReset) };
+  };
+  const updateToolbar = () => {
+    preserveSelection();
+    const state = stateForSelection();
+    toolbarStateRef.current = state;
+    if (adapterRef.current) editing.refresh(adapterRef.current);
   };
   const applyFormatting = (mark?: EditableMark) => {
     const editor = editorRef.current;
     if (!editor) return;
-    const offsets = selectionOffsets(editor);
-    if (!offsets || offsets.start === offsets.end) return;
+    const offsets = commandSelection();
+    if (!offsets) return;
+    if (offsets.start === offsets.end) {
+      if (!mark) pendingRef.current = { marks: [], style: {} };
+      else pendingRef.current = { ...pendingRef.current, marks: pendingRef.current.marks.includes(mark) ? pendingRef.current.marks.filter(value => value !== mark) : [...pendingRef.current.marks, mark] };
+      updateToolbar();
+      return;
+    }
     const next = formatTextRange(scriptureContentFromEditor(editor), offsets.start, offsets.end, mark);
-    renderStructuredContent(editor, next);
+    renderEditorContent(editor, next);
     restoreSelection(editor, offsets);
     signatureRef.current = JSON.stringify(next);
-    onChange(next);
-    setActiveMarks(selectedTextMarks(next, offsets.start, offsets.end));
+    commitChange(next);
     editor.focus();
   };
-  const applyAlignment = (align: ParagraphAlignment) => {
+  const applyInlineStyle = (changes: InlineTextStyle) => {
     const editor = editorRef.current;
     if (!editor) return;
-    const selection = editor.ownerDocument.getSelection();
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
-    if (!range || !editor.contains(range.commonAncestorContainer)) return;
-    const paragraphs = Array.from(editor.querySelectorAll<HTMLElement>(':scope > [data-scripture-paragraph]'));
-    const selected = range.collapsed
-      ? paragraphs.filter(paragraph => paragraph.contains(range.startContainer) || paragraph === range.startContainer)
-      : paragraphs.filter(paragraph => range.intersectsNode(paragraph));
-    for (const paragraph of selected) {
-      paragraph.dataset.align = align;
-      paragraph.style.textAlign = align;
+    const offsets = commandSelection();
+    if (!offsets) return;
+    if (offsets.start === offsets.end) {
+      pendingRef.current = { ...pendingRef.current, style: { ...pendingRef.current.style, ...changes } };
+      updateToolbar();
+      return;
     }
-    emit();
-    editor.focus();
+    const next = formatTextStyleRange(scriptureContentFromEditor(editor), offsets.start, offsets.end, changes);
+    renderEditorContent(editor, next);
+    restoreSelection(editor, offsets);
+    signatureRef.current = JSON.stringify(next);
+    commitChange(next);
+    updateToolbar();
   };
-  const insertCross = () => {
+  const applyParagraphChanges = (changes: Pick<Paragraph, 'align' | 'lineHeight'>) => {
     const editor = editorRef.current;
-    const selection = editor?.ownerDocument.getSelection();
-    if (!editor || !selection?.rangeCount) return;
-    const range = selection.getRangeAt(0);
-    if (!editor.contains(range.commonAncestorContainer)) return;
-    const symbol = editor.ownerDocument.createElement('span');
-    symbol.dataset.symbol = 'cross';
-    symbol.textContent = '✠';
-    range.deleteContents();
-    range.insertNode(symbol);
-    range.setStartAfter(symbol);
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    emit();
-    editor.focus();
+    if (!editor) return;
+    const offsets = commandSelection();
+    if (!offsets) return;
+    const current = scriptureContentFromEditor(editor);
+    const indexes = selectedParagraphIndexes(editor) ?? savedParagraphSelectionRef.current;
+    const next = indexes
+      ? current.map((paragraph, index) => index >= indexes.start && index <= indexes.end ? { ...paragraph, ...changes } : paragraph)
+      : formatParagraphRange(current, offsets.start, offsets.end, changes);
+    renderEditorContent(editor, next);
+    restoreSelection(editor, offsets);
+    signatureRef.current = JSON.stringify(next);
+    commitChange(next);
+    updateToolbar();
+  };
+  const clearFormatting = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const offsets = commandSelection();
+    if (!offsets) return;
+    if (offsets.start === offsets.end) {
+      pendingRef.current = { marks: [], style: {} };
+      updateToolbar();
+      return;
+    }
+    const withoutMarks = formatTextRange(scriptureContentFromEditor(editor), offsets.start, offsets.end);
+    const next = formatTextStyleRange(withoutMarks, offsets.start, offsets.end, { fontFamily: undefined, fontSizePt: undefined, textTransform: undefined });
+    renderEditorContent(editor, next);
+    restoreSelection(editor, offsets);
+    signatureRef.current = JSON.stringify(next);
+    commitChange(next);
+    updateToolbar();
+  };
+  const finishEditing = () => {
+    const editor = editorRef.current;
+    const focused = editor?.ownerDocument.activeElement;
+    if (!editor || focused === editor || (focused instanceof Element && (editor.contains(focused) || focused.closest('.global-rich-text-toolbar')))) return;
+    flushCommit();
+    onEditingBlur?.();
+    if (adapterRef.current) editing.deactivate(adapterRef.current);
   };
   const safeRichHtml = (html: string, plain: string) => {
     if (!editorRef.current || !html) return pastedHtml(plain);
@@ -234,25 +419,53 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     renderStructuredContent(destination, scriptureContentFromEditor(source));
     return destination.innerHTML;
   };
-  const toolbarButton = (mark: EditableMark, text: string, title: string, className?: string) =>
-    <button type="button" className={`${className ?? ''} ${activeMarks.includes(mark) ? 'active' : ''}`.trim()} aria-label={title} aria-pressed={activeMarks.includes(mark)} title={`${title} selected text`} onMouseDown={event => event.preventDefault()} onClick={() => applyFormatting(mark)}>{text}</button>;
-  return <div className="rich-text-editor-shell">
-    <div className="rich-text-toolbar" role="toolbar" aria-label={`${label} formatting`}>
-      {toolbarButton('bold', 'B', 'Bold', 'typography-bold')}
-      {toolbarButton('italic', 'I', 'Italic', 'typography-italic')}
-      {toolbarButton('smallCaps', 'Aᴀ', 'Small caps')}
-      <button type="button" aria-label="Clear formatting" title="Clear formatting from selected text" onMouseDown={event => event.preventDefault()} onClick={() => applyFormatting()}>Clear</button>
-      <span className="rich-text-toolbar-group" aria-label="Paragraph alignment">
-        <button type="button" aria-label="Align left" title="Align paragraph left" onMouseDown={event => event.preventDefault()} onClick={() => applyAlignment('left')}>≡</button>
-        <button type="button" aria-label="Align center" title="Center paragraph" onMouseDown={event => event.preventDefault()} onClick={() => applyAlignment('center')}>≣</button>
-        <button type="button" aria-label="Align right" title="Align paragraph right" onMouseDown={event => event.preventDefault()} onClick={() => applyAlignment('right')}>≡</button>
-      </span>
-      <button type="button" aria-label="Insert cross" title="Insert cross" onMouseDown={event => event.preventDefault()} onClick={insertCross}>✠</button>
-    </div>
-    <div ref={editorRef} className={`rich-text-editor ${className ?? ''}`.trim()} contentEditable role="textbox" aria-label={label} aria-multiline="true" spellCheck suppressContentEditableWarning onInput={event => {
+  const adapter = adapterRef.current ?? ({ id: `rich-text-${Math.random().toString(36).slice(2)}` } as RichTextAdapter);
+  Object.assign(adapter, {
+    state: stateForSelection,
+    mark: applyFormatting,
+    inlineStyle: applyInlineStyle,
+    paragraph: applyParagraphChanges,
+    clear: clearFormatting,
+    verticalAlign: onVerticalAlignChange,
+    reset: onReset,
+    preserveSelection,
+    finish: finishEditing,
+    focus: () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      editor.focus();
+      if (savedSelectionRef.current) restoreSelection(editor, savedSelectionRef.current);
+    },
+  });
+  adapterRef.current = adapter;
+  return <div className={`rich-text-editor-shell rich-text-${variant}`} onClick={variant === 'field' ? undefined : event => event.stopPropagation()}>
+    <div ref={editorRef} className={`rich-text-editor ${className ?? ''}`.trim()} contentEditable={!readOnly} role="textbox" aria-label={label} aria-multiline="true" spellCheck suppressContentEditableWarning onBeforeInput={event => {
+      if (readOnly || event.nativeEvent.inputType !== 'insertText' || !event.nativeEvent.data) return;
+      const pending = pendingRef.current;
+      if (!pending.marks.length && !Object.keys(pending.style).length) return;
+      const editor = editorRef.current;
+      const selection = editor?.ownerDocument.getSelection();
+      if (!editor || !selection?.rangeCount || !editor.contains(selection.getRangeAt(0).commonAncestorContainer)) return;
+      event.preventDefault();
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const span = editor.ownerDocument.createElement('span');
+      if (pending.marks.length) span.dataset.marks = pending.marks.join(',');
+      if (Object.keys(pending.style).length) span.dataset.textStyle = JSON.stringify(pending.style);
+      span.textContent = event.nativeEvent.data;
+      range.insertNode(span);
+      range.setStartAfter(span); range.collapse(true);
+      selection.removeAllRanges(); selection.addRange(range);
+      emit(); updateToolbar();
+    }} onInput={event => {
       if (!['insertLineBreak', 'insertParagraph'].includes(event.nativeEvent.inputType)) consecutiveEnterRef.current = false;
       emit(); updateToolbar();
     }} onMouseUp={() => { consecutiveEnterRef.current = false; updateToolbar(); }} onKeyDown={event => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && ['b', 'i'].includes(event.key.toLowerCase())) {
+        event.preventDefault();
+        applyFormatting(event.key.toLowerCase() === 'b' ? 'bold' : 'italic');
+        return;
+      }
       if (enterMode !== 'responsiveLines') return;
       if (event.key !== 'Enter') {
         consecutiveEnterRef.current = false;
@@ -291,7 +504,14 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
       selection.addRange(nextRange);
       consecutiveEnterRef.current = true;
       emit();
-    }} onKeyUp={updateToolbar} onFocus={updateToolbar} onCopy={event => {
+    }} onKeyUp={updateToolbar} onFocus={() => { editing.activate(adapter); updateToolbar(); onEditingFocus?.(); }} onBlur={() => {
+      preserveSelection();
+      window.setTimeout(() => {
+        const focused = editorRef.current?.ownerDocument.activeElement;
+        if (focused instanceof Element && focused.closest('.global-rich-text-toolbar')) return;
+        finishEditing();
+      });
+    }} onCopy={event => {
       if (enterMode !== 'responsiveLines') return;
       const editor = editorRef.current;
       const selection = editor?.ownerDocument.getSelection();

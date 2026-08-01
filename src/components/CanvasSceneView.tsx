@@ -3,12 +3,12 @@ import { boundRichTextParagraphs, canvasLineMetrics, canvasSpace, canvasTextPara
 import type { BulletinDocumentV1, CanvasElement, CanvasScene, Paragraph } from '../shared/types.js';
 
 function InlineParagraph({ paragraph }: { paragraph: Paragraph }) {
-  return <p style={{ textAlign: paragraph.align }}>{paragraph.children.map((run, index) =>
+  return <p style={{ textAlign: paragraph.align, lineHeight: paragraph.lineHeight }}>{paragraph.children.map((run, index) =>
     run.type === 'lineBreak'
       ? <br key={index} />
       : run.type === 'symbol'
         ? <span key={index}>✠</span>
-        : <span className={run.marks?.map(mark => `mark-${mark}`).join(' ')} key={index}>{run.text}</span>
+        : <span className={run.marks?.map(mark => `mark-${mark}`).join(' ')} style={{ fontFamily: run.style?.fontFamily, fontSize: run.style?.fontSizePt ? `${run.style.fontSizePt}pt` : undefined, textTransform: run.style?.textTransform === 'uppercase' ? 'uppercase' : undefined, fontVariant: run.style?.textTransform === 'small-caps' ? 'small-caps' : undefined }} key={index}>{run.text}</span>
   )}</p>;
 }
 
@@ -60,7 +60,7 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
   element: CanvasElement;
   document: BulletinDocumentV1;
   assets: Record<string, string>;
-  renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block']) => ReactNode;
+  renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block'], element: Extract<CanvasElement, { type: 'block' }>) => ReactNode;
 }) {
   if (element.type === 'shape') {
     if (element.shape === 'line') return <CanvasLineView element={element as typeof element & { shape: 'line' }} />;
@@ -94,7 +94,7 @@ function CanvasElementView({ element, document, assets, renderNativeBlock }: {
           height: element.sizing === 'fixed' ? '100%' : 'auto',
           flexDirection: 'column',
           justifyContent: vertical
-        }}>{renderNativeBlock?.(native) ?? fallback}</div>}</div>;
+        }}>{renderNativeBlock?.(native, element) ?? fallback}</div>}</div>;
   }
   if (element.type === 'rectangle') return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
     ...geometry(element),
@@ -134,7 +134,7 @@ export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7
   marginIn: number;
   widthIn?: number;
   heightIn?: number;
-  renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block']) => ReactNode;
+  renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block'], element: Extract<CanvasElement, { type: 'block' }>) => ReactNode;
 }) {
   const space = canvasSpace(scene, marginIn, widthIn, heightIn);
   const background = scene.background;

@@ -18,9 +18,9 @@ import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
 import { songHeader } from '../shared/songs';
 import { ImageAssetDialog } from './ImageAssetDialog';
-import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
 import { isRedoShortcut, isUndoShortcut, UndoRedoButtons, useUndoRedoHistory, type UndoRedoCommands } from './useUndoRedo';
+import { RichTextToolbar } from './RichTextEditing';
 
 const title = (block: BulletinBlock) => block.type === 'custom'
   ? block.name
@@ -194,8 +194,9 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
         <button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button>
         <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitPreview} />
       </div>
+      <RichTextToolbar />
     </div>
-    <DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage />
+    <DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage onBlockChange={updateBlock} />
   </main>;
   return <div className={`page-template-designer page-template-${layout}`} role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
     <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
@@ -220,7 +221,6 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
               </div>
             </summary>
             <div className="collapsible-editor-fields">
-              {supportsInlineTypography(block) && <InlineTypographyControls block={block} template={previewTemplate} onChange={presentation => updateBlock({ ...block, presentation } as BulletinBlock)} />}
               <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} />
             </div>
           </details></SortableItem>)}

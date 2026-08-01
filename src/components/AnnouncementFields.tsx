@@ -20,7 +20,7 @@ export function AnnouncementFields({ block, library, root, targetFolder, onLibra
   });
   return <div className="announcement-fields">
     {block.items.map((item, index) => <section className="announcement-editor" key={item.id}>
-      <div className="announcement-editor-heading"><label>Title<input value={item.title} onChange={event => updateItem(index, { title: event.target.value })} /></label><button className="danger-text" aria-label={`Remove ${item.title || 'announcement'}`} onClick={() => onChange({ ...block, items: block.items.filter((_, itemIndex) => itemIndex !== index) })}>×</button></div>
+      <div className="announcement-editor-heading"><label>Title<RichTextEditor content={item.titleContent ?? paragraphsFromPlainText(item.title)} label={`${item.title || `Announcement ${index + 1}`} title`} onChange={titleContent => updateItem(index, { title: titleContent.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : '').join('')).join('\n\n'), titleContent })} /></label><button className="danger-text" aria-label={`Remove ${item.title || 'announcement'}`} onClick={() => onChange({ ...block, items: block.items.filter((_, itemIndex) => itemIndex !== index) })}>×</button></div>
       <label>Details</label>
       <RichTextEditor content={item.content} label={`${item.title || `Announcement ${index + 1}`} details`} onChange={content => updateItem(index, { content })} />
       <div className="field-row announcement-graphic-controls">

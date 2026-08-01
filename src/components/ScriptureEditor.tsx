@@ -1,14 +1,18 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { scriptureParagraphsFromText } from '../shared/scriptureText';
-import type { Inline, Marks, Paragraph } from '../shared/types';
+import type { Inline, InlineTextStyle, Marks, Paragraph } from '../shared/types';
 
 function sameMarks(left?: Marks, right?: Marks) {
   return JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
 }
 
+function sameStyle(left?: InlineTextStyle, right?: InlineTextStyle) {
+  return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {});
+}
+
 function appendRun(runs: Inline[], run: Inline) {
   const previous = runs.at(-1);
-  if (run.type === 'text' && previous?.type === 'text' && sameMarks(previous.marks, run.marks)) {
+  if (run.type === 'text' && previous?.type === 'text' && sameMarks(previous.marks, run.marks) && sameStyle(previous.style, run.style)) {
     previous.text += run.text;
   } else {
     runs.push(run);
@@ -24,6 +28,10 @@ export function renderStructuredContent(container: HTMLElement, content: Paragra
     if (paragraph.align) {
       line.dataset.align = paragraph.align;
       line.style.textAlign = paragraph.align;
+    }
+    if (paragraph.lineHeight) {
+      line.dataset.lineHeight = String(paragraph.lineHeight);
+      line.style.lineHeight = String(paragraph.lineHeight);
     }
     if (paragraph.breakBefore) line.dataset.breakBefore = paragraph.breakBefore;
     if (!paragraph.children.length || (paragraph.children.length === 1 && paragraph.children[0].type === 'text' && !paragraph.children[0].text)) {
@@ -50,9 +58,16 @@ export function renderStructuredContent(container: HTMLElement, content: Paragra
           line.append(verse);
         } else {
           const text = owner.createTextNode(run.text);
-          if (run.marks?.length) {
+          if (run.marks?.length || run.style) {
             const marked = owner.createElement('span');
-            marked.dataset.marks = run.marks.join(',');
+            if (run.marks?.length) marked.dataset.marks = run.marks.join(',');
+            if (run.style) {
+              marked.dataset.textStyle = JSON.stringify(run.style);
+              if (run.style.fontFamily) marked.style.fontFamily = run.style.fontFamily;
+              if (run.style.fontSizePt) marked.style.fontSize = `${run.style.fontSizePt}pt`;
+              if (run.style.textTransform === 'uppercase') marked.style.textTransform = 'uppercase';
+              if (run.style.textTransform === 'small-caps') marked.style.fontVariant = 'small-caps';
+            }
             marked.append(text);
             line.append(marked);
           } else {
@@ -65,12 +80,12 @@ export function renderStructuredContent(container: HTMLElement, content: Paragra
   }
 }
 
-function parseInline(node: Node, runs: Inline[], inheritedMarks?: Marks) {
+function parseInline(node: Node, runs: Inline[], inheritedMarks?: Marks, inheritedStyle?: InlineTextStyle) {
   if (node.nodeType === Node.TEXT_NODE) {
     const parts = (node.textContent ?? '').replace(/\u200b/g, '').split('\n');
     parts.forEach((part, index) => {
       if (index) appendRun(runs, { type: 'lineBreak' });
-      if (part) appendRun(runs, { type: 'text', text: part, ...(inheritedMarks?.length ? { marks: inheritedMarks } : {}) });
+      if (part) appendRun(runs, { type: 'text', text: part, ...(inheritedMarks?.length ? { marks: inheritedMarks } : {}), ...(inheritedStyle && Object.keys(inheritedStyle).length ? { style: inheritedStyle } : {}) });
     });
     return;
   }
@@ -96,9 +111,14 @@ function parseInline(node: Node, runs: Inline[], inheritedMarks?: Marks) {
   ];
   const mergedMarks = [...new Set([...(inheritedMarks ?? []), ...(ownMarks ?? []), ...semanticMarks])] as Marks;
   const marks = mergedMarks.length ? mergedMarks : undefined;
+  let ownStyle: InlineTextStyle | undefined;
+  if (node.dataset.textStyle) {
+    try { ownStyle = JSON.parse(node.dataset.textStyle) as InlineTextStyle; } catch { ownStyle = undefined; }
+  }
+  const style = { ...(inheritedStyle ?? {}), ...(ownStyle ?? {}) };
   const isNestedBlock = node.tagName === 'DIV' || node.tagName === 'P';
   if (isNestedBlock && runs.length && runs.at(-1)?.type !== 'lineBreak') appendRun(runs, { type: 'lineBreak' });
-  node.childNodes.forEach(child => parseInline(child, runs, marks));
+  node.childNodes.forEach(child => parseInline(child, runs, marks, Object.keys(style).length ? style : undefined));
 }
 
 export function scriptureContentFromEditor(container: HTMLElement): Paragraph[] {
@@ -115,7 +135,8 @@ export function scriptureContentFromEditor(container: HTMLElement): Paragraph[] 
       const children: Inline[] = [];
       node.childNodes.forEach(child => parseInline(child, children));
       const align = node.dataset.align || node.style.textAlign;
-      paragraphs.push({ type: 'paragraph', ...(align === 'left' || align === 'center' || align === 'right' ? { align } : {}), ...(node.dataset.breakBefore === 'line' ? { breakBefore: 'line' as const } : {}), children: children.length ? children : [{ type: 'text', text: '' }] });
+      const lineHeight = Number(node.dataset.lineHeight || node.style.lineHeight);
+      paragraphs.push({ type: 'paragraph', ...(align === 'left' || align === 'center' || align === 'right' || align === 'justify' ? { align } : {}), ...(Number.isFinite(lineHeight) && lineHeight > 0 ? { lineHeight } : {}), ...(node.dataset.breakBefore === 'line' ? { breakBefore: 'line' as const } : {}), children: children.length ? children : [{ type: 'text', text: '' }] });
     } else {
       parseInline(node, looseRuns);
     }

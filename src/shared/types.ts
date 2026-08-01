@@ -1,13 +1,19 @@
 export type Marks = Array<'bold' | 'italic' | 'smallCaps' | 'superscript'>;
 
-export interface TextRun { type: 'text'; text: string; marks?: Marks }
+export interface InlineTextStyle {
+  fontFamily?: string;
+  fontSizePt?: number;
+  textTransform?: 'none' | 'uppercase' | 'small-caps';
+}
+export interface TextRun { type: 'text'; text: string; marks?: Marks; style?: InlineTextStyle }
 export interface SymbolRun { type: 'symbol'; name: 'cross' }
 export interface LineBreakRun { type: 'lineBreak' }
 export type Inline = TextRun | SymbolRun | LineBreakRun;
 
 export interface Paragraph {
   type: 'paragraph';
-  align?: 'left' | 'center' | 'right';
+  align?: 'left' | 'center' | 'right' | 'justify';
+  lineHeight?: number;
   breakBefore?: 'line';
   children: Inline[];
 }
@@ -114,7 +120,7 @@ export interface CanvasBlock extends BlockBase {
   widthMode?: 'contentBox' | 'fullPage';
 }
 export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
-export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string }
+export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string; content?: Paragraph[] }
 export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
 export type ScriptureElementRole = 'heading' | 'reference' | 'caption' | 'body';
 export interface RichTextBlock extends BlockBase {
@@ -126,7 +132,7 @@ export interface RichTextBlock extends BlockBase {
   bindingOverride?: Paragraph[];
   dateFormat?: 'long' | 'medium' | 'short' | 'iso';
 }
-export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string }
+export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string; content?: Paragraph[] }
 export type ResponsiveReadingRole = 'leader' | 'follower' | 'all';
 export interface ResponsiveReadingSettings {
   labels: Record<ResponsiveReadingRole, string>;
@@ -149,7 +155,7 @@ export interface ScriptureBlock extends BlockBase {
   caption?: string;
   headingReferenceLayout?: 'inline' | 'stacked';
   headingReferenceGapIn?: number;
-  elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints }>>;
+  elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints; content?: Paragraph[] }>>;
   resolved?: { content: Paragraph[]; source: 'bible-gateway-web' | 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
 }
 export interface SongBlock extends BlockBase {
@@ -157,6 +163,8 @@ export interface SongBlock extends BlockBase {
   libraryItemId: string;
   libraryItemVersion?: number;
   title?: string;
+  headerContent?: Paragraph[];
+  titleContent?: Paragraph[];
   songType: 'hymn' | 'psalm' | 'song';
   selection: { mode: 'all' } | { mode: 'verses'; verses: number[] };
   renderMode: 'lyrics' | 'asset';
@@ -166,10 +174,10 @@ export interface SongBlock extends BlockBase {
   contentOverride?: Paragraph[];
   elements?: Partial<Record<'header' | 'title' | 'body', { presentation?: Partial<CustomBlockStyle> }>>;
 }
-export interface LibraryTextBlock extends BlockBase { type: 'libraryText'; libraryItemId: string; libraryItemVersion?: number; title?: string; contentOverride?: Paragraph[] }
+export interface LibraryTextBlock extends BlockBase { type: 'libraryText'; libraryItemId: string; libraryItemVersion?: number; title?: string; titleContent?: Paragraph[]; contentOverride?: Paragraph[] }
 export interface AnnouncementsBlock extends BlockBase {
   type: 'announcements';
-  items: Array<{ id: string; title: string; content: Paragraph[]; asset?: AssetRef; assetSide?: 'left' | 'right' }>;
+  items: Array<{ id: string; title: string; titleContent?: Paragraph[]; content: Paragraph[]; asset?: AssetRef; assetSide?: 'left' | 'right' }>;
 }
 export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: Paragraph[]; suppressGeneratedNotices?: boolean }
 export interface ImageBlock extends BlockBase { type: 'image'; asset: AssetRef; fit?: 'contain' | 'cover' | 'fill'; heightIn?: number; alt?: string }

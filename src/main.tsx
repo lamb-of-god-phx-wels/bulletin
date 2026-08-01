@@ -4,6 +4,7 @@ import App from './App';
 import './styles.css';
 import { installBrowserApi } from './browserApi';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { RichTextEditingProvider } from './components/RichTextEditing';
 
 await installBrowserApi();
-createRoot(document.getElementById('root')!).render(<StrictMode><AppErrorBoundary><App /></AppErrorBoundary></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><AppErrorBoundary><RichTextEditingProvider><App /></RichTextEditingProvider></AppErrorBoundary></StrictMode>);

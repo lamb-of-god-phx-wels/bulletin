@@ -39,9 +39,10 @@ import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } fro
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
 import { ImageAssetDialog } from './ImageAssetDialog.js';
 import { SortableHandle, SortableItem } from './SortableList.js';
-import { InlineTypographyControls, supportsInlineTypography } from './InlineTypographyControls.js';
+import { supportsInlineTypography } from './InlineTypographyControls.js';
 import { isRedoShortcut, isUndoShortcut, type UndoRedoCommands } from './useUndoRedo.js';
 import { effectiveResponsiveReadingSettings } from '../shared/responsiveReading.js';
+import { RichTextToolbar } from './RichTextEditing.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -86,13 +87,14 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const initial = normalizeCanvasScene(block.scene);
   const [scene, setScene] = useState<CanvasScene>(() => clone(initial));
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [editingElementId, setEditingElementId] = useState<string>();
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
   const [formattingElementId, setFormattingElementId] = useState<string>();
   const [, setSnapGuides] = useState<{ x?: number; y?: number }>({});
   const snapGuidesRef = useRef<{ x?: number; y?: number }>({});
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>();
-  const drag = useRef<{ x: number; y: number; scene: CanvasScene; preview: CanvasScene; ids: Set<string>; resize: boolean } | undefined>(undefined);
+  const drag = useRef<{ x: number; y: number; scene: CanvasScene; preview: CanvasScene; ids: Set<string>; resize: boolean; moved: boolean } | undefined>(undefined);
   const snapGuideTimer = useRef<number | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
   const workarea = useRef<HTMLElement>(null);
@@ -101,6 +103,15 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [zoom, setZoom] = useState(hasInitialZoom ? initialZoom : .72);
   const zoomMode = useRef<'page' | 'width' | 'manual'>(hasInitialZoom ? 'manual' : 'page');
   const [showRulers, setShowRulers] = useState(() => localStorage.getItem('bulletin-show-rulers') !== 'false');
+  const enterTextEditing = (elementId: string) => {
+    setSelected(new Set([elementId]));
+    setEditingElementId(elementId);
+    window.requestAnimationFrame(() => {
+      const element = Array.from(stage.current?.querySelectorAll<HTMLElement>('[data-canvas-element-id]') ?? [])
+        .find(candidate => candidate.dataset.canvasElementId === elementId);
+      element?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+    });
+  };
   const [showGuides, setShowGuides] = useState(() => localStorage.getItem('bulletin-show-guides') === 'true');
   const [showBounds, setShowBounds] = useState(() => localStorage.getItem('bulletin-canvas-show-bounds') === 'true');
   const [snapEnabled, setSnapEnabled] = useState(() => localStorage.getItem('bulletin-canvas-snap') !== 'false');
@@ -247,6 +258,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const updateElements = (updater: (element: CanvasElement) => CanvasElement, ids = selected) =>
     publish({ ...scene, elements: scene.elements.map(element => ids.has(element.id) ? updater(element) : element) });
   const editable = (_element: CanvasElement) => true;
+  const textEditable = (element: CanvasElement) => element.type === 'block' && !['image', 'fullPageAsset', 'spacer'].includes(element.block.type);
 
   const selectionFor = (id: string) => {
     const element = elements.get(id);
@@ -278,7 +290,8 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     if (resize) dragScene.elements = dragScene.elements.map(item => ids.has(item.id) && item.type === 'block' && item.sizing === 'autoHeight'
       ? { ...item, height: measuredHeights[item.id] ?? item.height, sizing: 'fixed' }
       : item);
-    drag.current = { x: event.clientX, y: event.clientY, scene: dragScene, preview: dragScene, ids, resize };
+    setEditingElementId(undefined);
+    drag.current = { x: event.clientX, y: event.clientY, scene: dragScene, preview: dragScene, ids, resize, moved: false };
     setContextMenu(undefined);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -287,6 +300,8 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     const pixelsPerInch = stage.current.getBoundingClientRect().width / canvasWidth;
     const dx = (event.clientX - drag.current.x) / pixelsPerInch;
     const dy = (event.clientY - drag.current.y) / pixelsPerInch;
+    if (!drag.current.moved && Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) < 4) return;
+    drag.current.moved = true;
     const active = drag.current.scene.elements.filter(element => drag.current!.ids.has(element.id));
     const others = drag.current.scene.elements.filter(element => !drag.current!.ids.has(element.id));
     const currentSpace = canvasSpace(drag.current.scene, 0, canvasWidth, block.heightIn);
@@ -347,12 +362,14 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     if (!drag.current) return;
     const previous = drag.current.scene;
     const next = drag.current.preview;
+    const moved = drag.current.moved;
     drag.current = undefined;
     snapGuideTimer.current = window.setTimeout(() => {
       updateSnapGuides({});
       snapGuideTimer.current = undefined;
     }, 180);
-    publish(next, previous);
+    if (moved) publish(next, previous);
+    else setScene(previous);
   };
 
   const addClonedElements = (source: CanvasElement[]) => {
@@ -398,6 +415,11 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       if (event.key === 'Escape' && contextMenu) {
         event.preventDefault();
         setContextMenu(undefined);
+        return;
+      }
+      if (event.key === 'Escape' && editingElementId) {
+        event.preventDefault();
+        setEditingElementId(undefined);
         return;
       }
       if (isUndoShortcut(event)) {
@@ -645,6 +667,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitCanvas} />
       </div>
       <button className="primary" onClick={onClose}>Done</button>
+      <RichTextToolbar className="canvas-rich-text-toolbar" />
     </header>
     <aside className="canvas-elements-sidebar">
       <ElementPalette items={paletteItems} storageKey="bulletin-elements-canvas" docked onUse={item => void placePaletteItem(item)} />
@@ -662,8 +685,8 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     <main className="canvas-workarea" ref={workarea} onWheel={handleWheel}>
       <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
-      <CanvasDropTarget stage={stage}><div className="canvas-stage" style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) setSelected(new Set()); }}>
-        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} marginIn={marginIn} />} />
+      <CanvasDropTarget stage={stage}><div className={`canvas-stage ${editingElementId ? 'is-text-editing' : ''}`} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) { setSelected(new Set()); setEditingElementId(undefined); } }}>
+        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
         {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
         {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
         {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}
@@ -671,7 +694,9 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
           {scene.elements.map(element => {
             const line = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');
             const metrics = line ? canvasLineMetrics(element) : undefined;
-            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onContextMenu={event => openContextMenu(event, element)} onPointerDown={event => beginDrag(event, element)}>
+            const textEditing = editingElementId === element.id;
+            return <div className={`canvas-selection ${selected.has(element.id) ? 'selected' : ''} ${element.locked ? 'locked' : ''} ${textEditing ? 'text-editing' : ''}`} key={element.id} style={{ left: `${element.x}in`, top: `${element.y}in`, width: `${metrics?.length ?? element.width}in`, height: `${line ? .04 : Math.max(measuredHeights[element.id] ?? element.height, .04)}in`, transform: metrics ? `rotate(${metrics.rotationDeg}deg)` : undefined, transformOrigin: metrics ? '0 50%' : undefined }} onContextMenu={event => openContextMenu(event, element)} onPointerDown={textEditing ? undefined : event => beginDrag(event, element)} onDoubleClick={event => { if (!textEditable(element)) return; event.preventDefault(); event.stopPropagation(); enterTextEditing(element.id); }}>
+              {textEditing && <><i className="canvas-text-drag-rail rail-top" onPointerDown={event => beginDrag(event, element)} /><i className="canvas-text-drag-rail rail-right" onPointerDown={event => beginDrag(event, element)} /><i className="canvas-text-drag-rail rail-bottom" onPointerDown={event => beginDrag(event, element)} /><i className="canvas-text-drag-rail rail-left" onPointerDown={event => beginDrag(event, element)} /></>}
               {selected.size === 1 && selected.has(element.id) && editable(element) && <i className="canvas-resize-handle" onPointerDown={event => beginDrag(event, element, true)} />}
             </div>;
           })}
@@ -693,16 +718,6 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
-          {nativePrimary && selected.size === 1 && supportsInlineTypography(nativePrimary) && <InlineTypographyControls
-            block={nativePrimary}
-            template={template}
-            verticalAlign={primary.verticalAlign ?? 'top'}
-            onVerticalAlignChange={verticalAlign => updatePrimary({
-              verticalAlign,
-              block: { ...nativePrimary, presentation: { ...nativePrimary.presentation, verticalAlign } },
-            } as Partial<CanvasElement>)}
-            onChange={presentation => updatePrimary({ block: { ...nativePrimary, presentation } } as Partial<CanvasElement>)}
-          />}
           {nativePrimary && <NativeBlockFields block={nativePrimary} library={library} template={template} responsiveReadingSettings={effectiveResponsiveReadingSettings(template, document)} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
             {!supportsInlineTypography(nativePrimary) && <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>}

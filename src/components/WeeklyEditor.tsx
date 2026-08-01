@@ -15,10 +15,6 @@ import { AnnouncementFields } from "./AnnouncementFields";
 import { CopyrightFields } from "./CopyrightFields";
 import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
-import {
-  InlineTypographyControls,
-  supportsInlineTypography,
-} from "./InlineTypographyControls";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
@@ -51,6 +47,7 @@ import type {
   TemplateV1,
 } from "../shared/types";
 import type { UndoRedoCommands } from "./useUndoRedo";
+import { RichTextEditor } from "./RichTextEditor";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -258,15 +255,6 @@ export function WeeklyEditor({
             </div>
           </summary>
           <div className="collapsible-editor-fields">
-            {supportsInlineTypography(child) && (
-              <InlineTypographyControls
-                block={child}
-                template={template}
-                onChange={(presentation) =>
-                  updateBlock(child.id, { ...child, presentation })
-                }
-              />
-            )}
             {isScripture ? (
               <p className="helper">
                 Edit this element’s content above. Use Format for its width,
@@ -279,15 +267,7 @@ export function WeeklyEditor({
                   child.type === "sermonTitle") && (
                   <label>
                     Heading
-                    <input
-                      value={child.text}
-                      onChange={(event) =>
-                        updateBlock(child.id, {
-                          ...child,
-                          text: event.target.value,
-                        })
-                      }
-                    />
+                    <RichTextEditor content={child.content ?? paragraphs(child.text)} label="Heading text" onChange={content => updateBlock(child.id, { ...child, text: paragraphText(content), content })} />
                   </label>
                 )}
                 {child.type === "richText" && (
@@ -297,16 +277,7 @@ export function WeeklyEditor({
                       : child.role === "body"
                         ? "Paragraph text"
                         : "Text"}
-                    <textarea
-                      rows={child.role === "header" ? 2 : 4}
-                      value={paragraphText(child.content)}
-                      onChange={(event) =>
-                        updateBlock(child.id, {
-                          ...child,
-                          content: paragraphs(event.target.value),
-                        })
-                      }
-                    />
+                    <RichTextEditor content={child.content} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, { ...child, content })} />
                   </label>
                 )}
                 {childBlocks(child) && nestedEditors(child)}
@@ -729,15 +700,6 @@ export function WeeklyEditor({
                 </div>
               </summary>
               <div className="collapsible-editor-fields">
-                {supportsInlineTypography(block) && (
-                  <InlineTypographyControls
-                    block={block}
-                    template={template}
-                    onChange={(presentation) =>
-                      updateBlock(block.id, { ...block, presentation })
-                    }
-                  />
-                )}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <div className="missing-template-content">
                     <b>Template content needs attention</b>
@@ -753,31 +715,11 @@ export function WeeklyEditor({
                   block.type === "sectionHeading") && (
                   <label>
                     Text
-                    <input
-                      value={block.text}
-                      onChange={(e) =>
-                        updateBlock(block.id, {
-                          ...block,
-                          text: e.target.value,
-                        })
-                      }
-                    />
+                    <RichTextEditor content={block.content ?? paragraphs(block.text)} label="Text" onChange={content => updateBlock(block.id, { ...block, text: paragraphText(content), content })} />
                   </label>
                 )}
                 {block.type === "richText" && (
-                  <label>
-                    Text
-                    <textarea
-                      rows={6}
-                      value={paragraphText(block.content)}
-                      onChange={(event) =>
-                        updateBlock(block.id, {
-                          ...block,
-                          content: paragraphs(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
+                  <label>Text<RichTextEditor content={block.content} label="Text" onChange={content => updateBlock(block.id, { ...block, content })} /></label>
                 )}
                 {block.type === "paragraph" && nestedEditors(block)}
                 {block.type === "responsiveReading" && (

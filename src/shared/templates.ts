@@ -1,4 +1,5 @@
 import type { BulletinBlock, BulletinDocumentV1, TemplateV1, WorkspaceSummary } from './types.js';
+import { effectiveCustomPropertyValue } from './customProperties.js';
 
 export type TemplateRecord = WorkspaceSummary['templates'][number];
 
@@ -57,6 +58,8 @@ function reusableBlock(source: BulletinBlock): BulletinBlock {
   const block = structuredClone(source);
   if (block.type === 'churchInfo' || block.type === 'group') block.children = block.children?.map(reusableBlock);
   if (block.type === 'paragraph') block.children = block.children.map(child => reusableBlock(child) as typeof child);
+  if (block.type === 'templatePage') block.blocks = block.blocks.map(reusableBlock);
+  if (block.type === 'canvas') block.scene.elements = block.scene.elements.map(element => element.type === 'block' ? { ...element, block: reusableBlock(element.block) } : element);
   return block;
 }
 
@@ -69,6 +72,7 @@ export function templateFromBulletin(source: BulletinDocumentV1, foundation: Tem
       ...(source.layout?.marginIn !== undefined ? { marginIn: source.layout.marginIn } : {})
     },
     responsiveReading: source.responsiveReading ?? foundation.responsiveReading,
+    customProperties: (source.customProperties ?? foundation.customProperties)?.map(property => ({ ...property, defaultValue: effectiveCustomPropertyValue(property.id, foundation, source) ?? property.defaultValue })),
     starterBlocks: source.blocks.map(reusableBlock)
   };
 }

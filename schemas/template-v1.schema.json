@@ -8,7 +8,7 @@
     "schemaVersion": { "const": 1 }, "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "name": { "type": "string" },
     "status": { "enum": ["draft", "published"] },
     "page": { "type": "object", "required": ["widthIn", "heightIn", "pageMultiple"], "properties": { "widthIn": { "const": 7 }, "heightIn": { "const": 8.5 }, "pageMultiple": { "const": 4 } }, "additionalProperties": false },
-    "theme": { "type": "object" }, "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
+    "theme": { "type": "object" }, "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" }, "customProperties": { "type": "array", "items": { "$ref": "#/$defs/customProperty" } }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
   },
   "$defs": {
     "responsiveReadingSettings": {
@@ -39,18 +39,49 @@
         "layoutText": { "type": "string", "minLength": 1 },
         "bindings": { "type": "array", "items": { "$ref": "#/$defs/customBinding" } },
         "values": { "type": "object", "additionalProperties": { "type": "string" } },
-        "scene": { "$ref": "#/$defs/canvasScene" }
+        "scene": { "$ref": "#/$defs/canvasScene" },
+        "condition": { "$ref": "#/$defs/condition" }
       },
-      "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }
+      ],
       "additionalProperties": true
     },
+    "customProperty": {
+      "type": "object",
+      "required": ["id", "name", "valueType", "defaultValue"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "valueType": { "enum": ["string", "number", "boolean"] },
+        "defaultValue": {}
+      },
+      "allOf": [
+        { "if": { "properties": { "valueType": { "const": "string" } } }, "then": { "properties": { "defaultValue": { "type": "string" } } } },
+        { "if": { "properties": { "valueType": { "const": "number" } } }, "then": { "properties": { "defaultValue": { "type": "number" } } } },
+        { "if": { "properties": { "valueType": { "const": "boolean" } } }, "then": { "properties": { "defaultValue": { "type": "boolean" } } } }
+      ],
+      "additionalProperties": false
+    },
+    "customPropertyBinding": {
+      "type": "object",
+      "required": ["kind", "propertyId", "propertyName", "valueType"],
+      "properties": {
+        "kind": { "const": "customProperty" },
+        "propertyId": { "type": "string", "minLength": 1 },
+        "propertyName": { "type": "string", "minLength": 1 },
+        "valueType": { "enum": ["string", "number", "boolean"] }
+      },
+      "additionalProperties": false
+    },
+    "condition": { "type": "object", "required": ["property", "equals"], "properties": { "property": { "$ref": "#/$defs/customPropertyBinding" }, "equals": { "type": "boolean" } }, "additionalProperties": false },
     "customBinding": {
       "type": "object",
       "required": ["key", "label", "source"],
       "properties": {
         "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
         "label": { "type": "string", "minLength": 1 },
-        "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.churchEvent", "info.series", "church.name"] },
+        "source": { "oneOf": [{ "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.churchEvent", "info.series", "church.name"] }, { "$ref": "#/$defs/customPropertyBinding" }] },
         "defaultValue": { "type": "string" },
         "multiline": { "type": "boolean" }
       },
@@ -62,7 +93,7 @@
       "properties": {
         "coordinateSpace": { "enum": ["fullPage", "contentBox"] },
         "background": { "type": "object" },
-        "elements": { "type": "array", "items": { "type": "object", "required": ["id", "type", "x", "y", "width", "height"], "properties": { "block": { "$ref": "#/$defs/block" }, "shape": { "enum": ["rectangle", "line"] } }, "additionalProperties": true } }
+        "elements": { "type": "array", "items": { "type": "object", "required": ["id", "type", "x", "y", "width", "height"], "properties": { "block": { "$ref": "#/$defs/block" }, "shape": { "enum": ["rectangle", "line"] }, "condition": { "$ref": "#/$defs/condition" } }, "additionalProperties": true } }
       },
       "additionalProperties": true
     }

@@ -24,7 +24,6 @@ import type {
   CanvasBlock,
   CanvasElement,
   CanvasScene,
-  CanvasTextBinding,
   LibraryManifestV1,
   Paragraph,
   TemplateV1
@@ -45,6 +44,8 @@ import { supportsInlineTypography } from './InlineTypographyControls.js';
 import { isRedoShortcut, isUndoShortcut, type UndoRedoCommands } from './useUndoRedo.js';
 import { effectiveResponsiveReadingSettings } from '../shared/responsiveReading.js';
 import { RichTextToolbar } from './RichTextEditing.js';
+import { CustomPropertyBindingSelect } from './CustomProperties.js';
+import { ConditionModal } from './ConditionModal.js';
 
 const text = (value: string): Paragraph[] => value.split(/\n\s*\n/).map(item => ({
   type: 'paragraph',
@@ -94,6 +95,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const [resolvedAssets, setResolvedAssets] = useState<Record<string, string>>(assets);
   const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
   const [formattingElementId, setFormattingElementId] = useState<string>();
+  const [conditionElementId, setConditionElementId] = useState<string>();
   const [, setSnapGuides] = useState<{ x?: number; y?: number }>({});
   const snapGuidesRef = useRef<{ x?: number; y?: number }>({});
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>();
@@ -678,7 +680,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     <header className="canvas-designer-toolbar">
       <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
       <div className="canvas-tools">
-        <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={!selected.size} onClick={copySelection}>Copy</button><button disabled={!clipboardAvailable} onClick={() => pasteSelection()}>Paste</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size || ![...selected].some(id => elements.get(id)?.groupId)} onClick={ungroup}>Ungroup</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
+        <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={!selected.size} onClick={copySelection}>Copy</button><button disabled={!clipboardAvailable} onClick={() => pasteSelection()}>Paste</button><button className={`condition-toggle ${primary?.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(primary?.condition)} disabled={selected.size !== 1} onClick={() => primary && setConditionElementId(primary.id)}>Condition</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size || ![...selected].some(id => elements.get(id)?.groupId)} onClick={ungroup}>Ungroup</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
         <button disabled={!history.canUndo} onClick={history.undo}>Undo</button><button disabled={!history.canRedo} onClick={history.redo}>Redo</button>
       </div>
       <div className="canvas-view-tools">
@@ -708,7 +710,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
       <CanvasDropTarget stage={stage}><div className={`canvas-stage ${editingElementId ? 'is-text-editing' : ''}`} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) { setSelected(new Set()); setEditingElementId(undefined); } }}>
-        <CanvasSceneView scene={scene} document={document} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} editingElementId={editingElementId} editingMinimumHeightIn={editingMinimumHeightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
+        <CanvasSceneView scene={scene} document={document} template={template} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} editingElementId={editingElementId} editingMinimumHeightIn={editingMinimumHeightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} template={template} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
         {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
         {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
         {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}
@@ -756,8 +758,8 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
           <label>Line style<select value={linePrimary.dash ?? 'solid'} onChange={event => updatePrimary({ dash: event.target.value as 'solid' | 'dashed' | 'dotted' } as Partial<CanvasElement>)}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
         </>}
         {primary.type === 'text' && <>
-          <label>Text binding<select disabled={!editable(primary)} value={primary.source.binding ?? ''} onChange={event => updatePrimary({ source: { ...primary.source, binding: event.target.value as CanvasTextBinding || undefined } } as Partial<CanvasElement>)}><option value="">Literal text</option><option value="info.title">Sermon title</option><option value="info.date">Service date</option><option value="info.churchEvent">Church event</option>{primary.source.binding === 'info.churchWeek' && <option value="info.churchWeek">Church event (legacy)</option>}<option value="info.series">Series</option><option value="church.name">Church name</option></select></label>
-          <label>{primary.source.binding ? 'Weekly override' : 'Text'}<textarea rows={5} disabled={!editable(primary)} value={plainText(primary.source.binding ? primary.source.override : primary.source.literal)} placeholder={primary.source.binding ? plainText(canvasTextParagraphs(primary, document)) : ''} onChange={event => updatePrimary({ source: { ...primary.source, [primary.source.binding ? 'override' : 'literal']: text(event.target.value) } } as Partial<CanvasElement>)} /></label>
+          <label>Text binding<CustomPropertyBindingSelect value={primary.source.binding} template={template} onChange={binding => updatePrimary({ source: { ...primary.source, binding } } as Partial<CanvasElement>)} /></label>
+          <label>{primary.source.binding ? 'Weekly override' : 'Text'}<textarea rows={5} disabled={!editable(primary)} value={plainText(primary.source.binding ? primary.source.override : primary.source.literal)} placeholder={primary.source.binding ? plainText(canvasTextParagraphs(primary, document, template)) : ''} onChange={event => updatePrimary({ source: { ...primary.source, [primary.source.binding ? 'override' : 'literal']: text(event.target.value) } } as Partial<CanvasElement>)} /></label>
           {primary.source.binding && primary.source.override && <button className="text-button" onClick={() => { const { override: _override, ...source } = primary.source; updatePrimary({ source } as Partial<CanvasElement>); }}>Reset to bound value</button>}
           {primary.source.binding === 'info.date' && <label>Date format<select value={primary.source.dateFormat ?? 'long'} onChange={event => updatePrimary({ source: { ...primary.source, dateFormat: event.target.value as 'long' | 'medium' | 'short' | 'iso' } } as Partial<CanvasElement>)}><option value="long">July 27, 2026</option><option value="medium">Jul 27, 2026</option><option value="short">7/27/26</option><option value="iso">2026-07-27</option></select></label>}
           <div className="canvas-geometry-grid"><label>Size (pt)<input type="number" min="5" value={primary.fontSizePt ?? 12} onChange={event => updatePrimary({ fontSizePt: event.currentTarget.valueAsNumber } as Partial<CanvasElement>)} /></label><label>Overflow<select value={primary.overflow ?? 'fixed'} onChange={event => updatePrimary({ overflow: event.target.value as 'autoHeight' | 'shrinkToFit' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="shrinkToFit">Shrink to fit</option><option value="fixed">Fixed / clip</option></select></label></div>
@@ -814,6 +816,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         setFormattingElementId(undefined);
       }}
     /></div>;
+  })()}
+  {conditionElementId && (() => {
+    const element = scene.elements.find(item => item.id === conditionElementId);
+    return element ? <ConditionModal value={element.condition} template={template} onClose={() => setConditionElementId(undefined)} onSave={condition => { publish({ ...scene, elements: scene.elements.map(item => item.id === element.id ? { ...item, condition } : item) }); setConditionElementId(undefined); }} /> : null;
   })()}
   <DragOverlay>{paletteOverlay && <div className="palette-drag-overlay">{paletteOverlay}</div>}</DragOverlay>
   </DndContext>;

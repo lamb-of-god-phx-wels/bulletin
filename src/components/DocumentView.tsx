@@ -1,6 +1,7 @@
 import { cloneElement, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
+import { conditionVisible } from '../shared/customProperties';
 import { childBlocks, findBlock, flattenBlocks } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
@@ -202,7 +203,7 @@ export function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
   event.currentTarget.parentElement?.classList.remove('tracking-cursor');
 }
 
-function BlockView({ block, library, assets, document, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
+function BlockView({ block, library, assets, document, template, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
     case 'titlePage': case 'canvasCover': return <div className="missing">This document contains an unsupported legacy cover. Insert a reusable page template instead.</div>;
@@ -212,35 +213,35 @@ function BlockView({ block, library, assets, document, marginIn, onBlockChange }
       return <div className={`canvas-block ${fullPage ? 'canvas-block-full-page' : ''}`} style={{
         height: `${block.heightIn}in`,
         ...(fullPage ? { width: '7in', marginLeft: `${-marginIn}in` } : {})
-      }}><CanvasSceneView scene={block.scene} document={document} assets={assets} marginIn={0} widthIn={widthIn} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={assets} document={document} marginIn={marginIn} />} /></div>;
+      }}><CanvasSceneView scene={block.scene} document={document} template={template} assets={assets} marginIn={0} widthIn={widthIn} heightIn={block.heightIn} renderNativeBlock={native => <NativeBlockPreview block={native} library={library} assets={assets} document={document} template={template} marginIn={marginIn} />} /></div>;
     }
     case 'templatePage': return <section className="template-page-instance" data-template-page-id={`${block.source.id}@${block.source.version}`}>{block.blocks.map(child =>
-      <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />
+      <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />
     )}</section>;
-    case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</div>;
+    case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</div>;
     case 'group': {
       const mode = block.layoutMode ?? 'stack';
       return <section className={`block-group layout-${mode}`} style={{
         '--layout-gap': `${mode === 'table' ? 0 : block.gapIn ?? 0}in`,
         '--layout-columns': Math.max(1, Math.min(12, block.columns ?? (mode === 'stack' ? 1 : 2)))
-      } as React.CSSProperties}>{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
+      } as React.CSSProperties}>{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
     }
     case 'sermonTitle': return <h1 className="sermon-title"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Sermon title" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h1>;
     case 'sectionHeading': return <h2 className="section-heading"><span aria-hidden="true">✠ </span><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Section heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /><span aria-hidden="true"> ✠</span></h2>;
     case 'heading': return <h3 className="block-heading"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h3>;
-    case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
-    case 'richText': { const content = boundRichTextParagraphs(block, document); return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><EditableParagraphs content={content} label={block.scriptureRole ?? block.role ?? 'Text'} onChange={onBlockChange ? next => onBlockChange(block.binding ? { ...block, bindingOverride: next } : { ...block, content: next }) : undefined} onReset={block.bindingOverride && onBlockChange ? () => { const { bindingOverride: _override, ...next } = block; onBlockChange(next); } : undefined} /></div>; }
-    case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document)} /></section>;
-    case 'responsiveReading': return <div className="responsive">{block.heading && <RenderedBlock block={block.heading as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} />}<ResponsiveReadingPreview block={block} settings={document.responsiveReading ?? defaultResponsiveReadingSettings} onChange={onBlockChange} /></div>;
+    case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
+    case 'richText': { const content = boundRichTextParagraphs(block, document, template); return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><EditableParagraphs content={content} label={block.scriptureRole ?? block.role ?? 'Text'} onChange={onBlockChange ? next => onBlockChange(block.binding ? { ...block, bindingOverride: next } : { ...block, content: next }) : undefined} onReset={block.bindingOverride && onBlockChange ? () => { const { bindingOverride: _override, ...next } = block; onBlockChange(next); } : undefined} /></div>; }
+    case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document, template)} /></section>;
+    case 'responsiveReading': return <div className="responsive">{block.heading && conditionVisible(block.heading, template, document) && <RenderedBlock block={block.heading as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />}<ResponsiveReadingPreview block={block} settings={document.responsiveReading ?? defaultResponsiveReadingSettings} onChange={onBlockChange} /></div>;
     case 'scriptureReading': {
       const elements = scriptureElementBlocks(block);
-      const visible = elements.filter(element => block.paginationContinuation
+      const visible = elements.filter(element => conditionVisible(element, template, document) && (block.paginationContinuation
         ? element.scriptureRole === 'body'
-        : element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
+        : element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element)));
       const renderElement = (element: typeof elements[number]) =>
         element.scriptureRole === 'body' && !block.resolved
           ? <div className="missing preview-block" data-block-id={element.id} key={element.id}>Passage text has not been resolved. Add it before export.</div>
-          : <RenderedBlock block={element as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} key={element.id} />;
+          : <RenderedBlock block={element as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={element.id} />;
       const heading = visible.find(element => element.scriptureRole === 'heading');
       const reference = visible.find(element => element.scriptureRole === 'reference');
       const inlineHeading = (block.headingReferenceLayout ?? 'inline') === 'inline' && heading && reference;
@@ -281,16 +282,16 @@ function BlockView({ block, library, assets, document, marginIn, onBlockChange }
   }
 }
 
-function RenderedBlock({ block, library, assets, document, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
+function RenderedBlock({ block, library, assets, document, template, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
   const style = presentationStyle(block);
   const editorBlockId = block.sourceBlockId ?? block.id;
-  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} /></div>;
-  const view = BlockView({ block, library, assets, document, marginIn, onBlockChange }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
+  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} /></div>;
+  const view = BlockView({ block, library, assets, document, template, marginIn, onBlockChange }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
   return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId });
 }
 
-export function NativeBlockPreview({ block, library, assets, document, marginIn, onBlockChange, verticalAlign, onVerticalAlignChange }: { block: BulletinDocumentV1['blocks'][number]; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; marginIn: number; onBlockChange?(block: BulletinBlock): void; verticalAlign?: CustomBlockStyle['verticalAlign']; onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void }) {
-  return <CanvasTextBoxContext.Provider value={{ verticalAlign, onVerticalAlignChange }}><RenderedBlock block={block as PaginatedBlock} library={library} assets={assets} document={document} marginIn={marginIn} onBlockChange={onBlockChange} /></CanvasTextBoxContext.Provider>;
+export function NativeBlockPreview({ block, library, assets, document, template, marginIn, onBlockChange, verticalAlign, onVerticalAlignChange }: { block: BulletinDocumentV1['blocks'][number]; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void; verticalAlign?: CustomBlockStyle['verticalAlign']; onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void }) {
+  return <CanvasTextBoxContext.Provider value={{ verticalAlign, onVerticalAlignChange }}><RenderedBlock block={block as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} /></CanvasTextBoxContext.Provider>;
 }
 
 export function DocumentView({ document: bulletin, template, library, root, print = false, rulers = true, guides = false, zoom = .72, singlePage = false, bookletMode, onBlockSelect, onBlockChange, onReady }: {
@@ -337,7 +338,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     if (!onReady || !fontsReady || Object.keys(assets).length < expected) return;
     void window.document.fonts.ready.then(() => new Promise<void>(resolve => setTimeout(resolve, 500))).then(onReady);
   }, [assets, refs, fontsReady, onReady]);
-  const allPages = paginate(bulletin.blocks, effectiveTemplate, library);
+  const allPages = paginate(bulletin.blocks, effectiveTemplate, library, renderDocument);
   const pages = singlePage
     ? allPages.length ? allPages.slice(0, 1) : [{ number: 1, kind: 'content' as const, blocks: [] }]
     : allPages;
@@ -359,7 +360,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   };
   const renderPage = (page: typeof pages[number], key: React.Key) => <div className={`page-frame ${rulers && !print ? 'with-rulers' : ''}`} key={key} style={page.marginIn !== undefined ? { '--page-margin': `${page.marginIn}in` } as React.CSSProperties : undefined}>{rulers && !print && <><PageRulers /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}<article className={`document-page page-kind-${page.kind}`} onPointerMove={rulers && !print ? trackPointer : undefined} onPointerLeave={rulers && !print ? stopTrackingPointer : undefined}>
       {guides && !print && <div className="page-guides" aria-hidden="true" />}
-      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={renderDocument} marginIn={page.marginIn ?? effectiveTemplate.theme.marginIn} onBlockChange={!print && onBlockChange ? changed => {
+      <div className="page-content">{page.blocks.map(block => <RenderedBlock key={block.id} block={block} library={library} assets={assets} document={renderDocument} template={effectiveTemplate} marginIn={page.marginIn ?? effectiveTemplate.theme.marginIn} onBlockChange={!print && onBlockChange ? changed => {
         if (!block.sourceBlockId) { onBlockChange(changed); return; }
         const source = findBlock(bulletin.blocks, block.sourceBlockId);
         if (source) onBlockChange(mergePaginatedEdit(source, block, changed, library));

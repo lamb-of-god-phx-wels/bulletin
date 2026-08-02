@@ -38,6 +38,10 @@ import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFiel
 import type { UndoRedoCommands } from "./useUndoRedo";
 import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, updateResponsiveReaderLabels } from "../shared/responsiveReading";
 import { RichTextEditor } from "./RichTextEditor";
+import { TemplatePropertiesPanel } from "./CustomProperties";
+import { CustomPropertyBindingSelect } from "./CustomProperties";
+import { customPropertyIssues } from "../shared/customProperties";
+import { ConditionModal } from "./ConditionModal";
 
 const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
   block.content
@@ -105,6 +109,7 @@ export function TemplateBuilder({
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [templatePageBlockId, setTemplatePageBlockId] = useState<string>();
   const [imageIndex, setImageIndex] = useState<number>();
+  const [conditionBlockId, setConditionBlockId] = useState<string>();
   const toggleEditor = (id: string) =>
     setEditingBlockIds((current) => {
       const next = new Set(current);
@@ -178,7 +183,9 @@ export function TemplateBuilder({
       });
   };
   const blockOptions = (block: BulletinBlock) =>
-    block.type === "scriptureReading" ? (
+    block.type === "richText" ? (
+      <div className="outline-options"><label className="outline-option">Binding<CustomPropertyBindingSelect value={block.binding} template={template} onChange={binding => updateBlock(block.id, { binding, bindingOverride: undefined })} /></label></div>
+    ) : block.type === "scriptureReading" ? (
       <div className="outline-options">
         <label className="outline-option">
           Heading and reference
@@ -265,6 +272,7 @@ export function TemplateBuilder({
                 )}
             </div>
             <div className="reorder">
+              <button className={`format-block-button condition-toggle ${child.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(child.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(child.id)}>Condition</button>
               {child.type === "richText" && !child.scriptureRole && (
                 <button
                   className="edit-content-button"
@@ -291,6 +299,7 @@ export function TemplateBuilder({
     const customIssues = template.starterBlocks.flatMap((block) =>
       block.type === "custom" ? customBlockIssues(block) : [],
     );
+    customIssues.push(...customPropertyIssues(template).map(issue => issue.message));
     if (publish && customIssues.length) {
       setSaveStatus(
         `Fix ${customIssues.length} custom block ${customIssues.length === 1 ? "issue" : "issues"} before publishing`,
@@ -416,6 +425,7 @@ export function TemplateBuilder({
           </div>
         </section>
         <ElementSidebarPortal><>
+        <TemplatePropertiesPanel template={template} onChange={onChange} />
         <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
           <summary><div><div className="eyebrow">Document</div><b>Responsive readings</b></div></summary>
           <div className="collapsible-editor-fields">
@@ -506,6 +516,7 @@ export function TemplateBuilder({
                       {blockOptions(block)}
                     </div>
                     <div className="reorder">
+                      <button className={`format-block-button condition-toggle ${block.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(block.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(block.id)}>Condition</button>
                       {block.type === "canvas" ? (
                         <button
                           className="format-block-button"
@@ -533,7 +544,7 @@ export function TemplateBuilder({
                               if (source)
                                 updateBlock(
                                   block.id,
-                                  instantiatePageTemplate(source, block.id),
+                                  instantiatePageTemplate(source, block.id, template),
                                 );
                             }}
                           >
@@ -561,7 +572,7 @@ export function TemplateBuilder({
                               )
                                 updateBlock(
                                   block.id,
-                                  instantiatePageTemplate(latest, block.id),
+                                  instantiatePageTemplate(latest, block.id, template),
                                 );
                             }}
                           >
@@ -621,7 +632,7 @@ export function TemplateBuilder({
           library={library}
           root={root}
           onClose={() => setPageInsertionIndex(undefined)}
-          onSelect={page => { addBlock(instantiatePageTemplate(page), pageInsertionIndex); setPageInsertionIndex(undefined); }}
+          onSelect={page => { addBlock(instantiatePageTemplate(page, randomId(), template), pageInsertionIndex); setPageInsertionIndex(undefined); }}
           onCreate={setCreatingPage}
         />
       )}
@@ -641,7 +652,7 @@ export function TemplateBuilder({
             await window.bulletin.savePageTemplate(root, saved);
             setCreatingPage(saved);
             if (publish && pageInsertionIndex !== undefined) {
-              addBlock(instantiatePageTemplate(saved), pageInsertionIndex);
+              addBlock(instantiatePageTemplate(saved, randomId(), template), pageInsertionIndex);
               setCreatingPage(undefined);
               setPageInsertionIndex(undefined);
             }
@@ -658,7 +669,7 @@ export function TemplateBuilder({
           root={root}
           onClose={() => setBlockLibraryOpen(false)}
           onUsePageTemplate={(page) =>
-            addBlock(instantiatePageTemplate(page))
+            addBlock(instantiatePageTemplate(page, randomId(), template))
           }
           onUsePrepackaged={(definition) =>
             addBlock(instantiateComponentDefinition(definition))
@@ -697,6 +708,10 @@ export function TemplateBuilder({
             />
           ) : null;
         })()}
+      {conditionBlockId && (() => {
+        const block = findBlock(template.starterBlocks, conditionBlockId);
+        return block ? <ConditionModal value={block.condition} template={template} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock(block.id, { condition }); setConditionBlockId(undefined); }} /> : null;
+      })()}
       {canvasBlockId &&
         (() => {
           const block = findBlock(template.starterBlocks, canvasBlockId);

@@ -1,9 +1,10 @@
-import type { BulletinBlock, CustomBlockStyle, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
+import type { BulletinBlock, BulletinDocumentV1, CustomBlockStyle, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
 import { childBlocks } from './blocks.js';
 import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureReading.js';
 import { pageTemplateMargin } from './pageTemplates.js';
 import { songHeader } from './songs.js';
 import { effectiveResponsiveReadingSettings, responsiveEntryReader } from './responsiveReading.js';
+import { conditionVisible, resolveConditionalBlocks } from './customProperties.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[]; marginIn?: number }
@@ -46,7 +47,7 @@ function basePoints(block: PaginatedBlock, template: TemplateV1): number {
   }
 }
 
-export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1, library?: LibraryManifestV1): number {
+export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1, library?: LibraryManifestV1, document?: BulletinDocumentV1): number {
   const presentation = block.type === 'custom' ? { ...block.style, ...block.presentation } : block.presentation;
   const formatPoints = (points: number, style: Partial<CustomBlockStyle> | undefined, singleBorder = false) => {
     if (!style) return points;
@@ -60,7 +61,7 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   };
   const formatted = (points: number) => formatPoints(points, presentation, block.type === 'copyright');
   if (block.type === 'group') {
-    const childPoints = block.children.map(child => estimateBlockPoints(child, template, library));
+    const childPoints = block.children.filter(child => conditionVisible(child, template, document)).map(child => estimateBlockPoints(child, template, library, document));
     const columns = Math.max(1, Math.min(12, block.columns ?? 2));
     if ((block.layoutMode ?? 'stack') === 'stack') return formatted(childPoints.reduce((total, points) => total + points, 0) + Math.max(0, childPoints.length - 1) * (block.gapIn ?? 0) * 72);
     const rows = Array.from({ length: Math.ceil(childPoints.length / columns) }, (_, row) => Math.max(0, ...childPoints.slice(row * columns, (row + 1) * columns)));
@@ -68,17 +69,17 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   }
   if (block.type === 'canvas') return formatted(block.heightIn * 72);
   if (block.type === 'image') return formatted((block.heightIn ?? 2.5) * 72);
-  if (block.type === 'paragraph') return formatted(childBlocks(block)!.reduce((total, child) => total + estimateBlockPoints(child, template, library), 0));
+  if (block.type === 'paragraph') return formatted(childBlocks(block)!.filter(child => conditionVisible(child, template, document)).reduce((total, child) => total + estimateBlockPoints(child, template, library, document), 0));
   if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
   if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
-  if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + (block.heading ? estimateBlockPoints(block.heading, template, library) : 0) + 8);
+  if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + (block.heading && conditionVisible(block.heading, template, document) ? estimateBlockPoints(block.heading, template, library, document) : 0) + 8);
   if (block.type === 'scriptureReading') {
     const elements = scriptureElementBlocks(block)
-      .filter(element => block.paginationContinuation
+      .filter(element => conditionVisible(element, template, document) && (block.paginationContinuation
         ? element.scriptureRole === 'body'
-        : element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element));
-    return formatted(elements.reduce((total, element) => total + estimateBlockPoints(element, template, library), 0) + (block.paginationContinuation ? 0 : 10));
+        : element.scriptureRole === 'reference' || element.scriptureRole === 'body' || scriptureElementHasContent(element)));
+    return formatted(elements.reduce((total, element) => total + estimateBlockPoints(element, template, library, document), 0) + (block.paginationContinuation ? 0 : 10));
   }
   if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template) + (item.asset ? 54 : 0), 0));
   const content = contentFor(block, library);
@@ -147,11 +148,11 @@ function contentFragment(block: PaginatedBlock, content: Paragraph[], index: num
   return block;
 }
 
-function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?: LibraryManifestV1): PaginatedBlock[] {
+function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?: LibraryManifestV1, document?: BulletinDocumentV1): PaginatedBlock[] {
   const usable = usablePoints(template);
   return blocks.flatMap(original => {
     const block = original as PaginatedBlock;
-    if (estimateBlockPoints(block, template, library) <= usable) return [block];
+    if (estimateBlockPoints(block, template, library, document) <= usable) return [block];
     const content = contentFor(block, library);
     if (content?.length && (block.type === 'richText' || block.type === 'song' || block.type === 'libraryText')) {
       return groupParagraphs(content, Math.max(72, usable - basePoints(block, template)), template).map((group, index) => contentFragment(block, group, index));
@@ -192,13 +193,14 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
   });
 }
 
-export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?: LibraryManifestV1): PageModel[] {
+export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?: LibraryManifestV1, document?: BulletinDocumentV1): PageModel[] {
   const usable = usablePoints(template);
   const scriptureUsable = physicalContentPoints(template);
   const pages: PageModel[] = [];
   let current: PaginatedBlock[] = []; let used = 0;
   const flush = () => { if (current.length) pages.push({ number: pages.length + 1, kind: 'content', blocks: current }); current = []; used = 0; };
-  for (const block of splitLongBlocks(blocks, template, library)) {
+  const renderBlocks = resolveConditionalBlocks(blocks, template, document);
+  for (const block of splitLongBlocks(renderBlocks, template, library, document)) {
     if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') {
       flush(); pages.push({
         number: pages.length + 1,
@@ -210,7 +212,7 @@ export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?
     if (block.type === 'scriptureReading' && block.resolved?.content.length && !block.layout?.keepTogether) {
       if (block.layout?.pageBreakBefore) flush();
       const empty = { ...block, resolved: { ...block.resolved, content: [] } };
-      const chrome = estimateBlockPoints(empty, template, library);
+      const chrome = estimateBlockPoints(empty, template, library, document);
       const minimumBody = 2 * (template.theme.bodySizePt * template.theme.lineHeight + 8.64);
       if (current.length && scriptureUsable - used < chrome + minimumBody) flush();
       const firstCapacity = Math.max(minimumBody, scriptureUsable - used - chrome);
@@ -222,13 +224,13 @@ export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?
         if (index) flush();
         const fragment = groups.length === 1 ? block : contentFragment(block, content, index);
         if (index) fragment.layout = { ...fragment.layout, pageBreakBefore: false };
-        const height = estimateBlockPoints(fragment, template, library);
+        const height = estimateBlockPoints(fragment, template, library, document);
         current.push(fragment); used += Math.min(height, scriptureUsable);
         if (index < groups.length - 1) flush();
       });
       continue;
     }
-    const height = estimateBlockPoints(block, template, library);
+    const height = estimateBlockPoints(block, template, library, document);
     if (block.layout?.pageBreakBefore || (current.length && used + height > usable)) flush();
     current.push(block); used += Math.min(height, usable);
   }

@@ -104,7 +104,8 @@ export function scriptureElementBlocks(block: ScriptureBlock): RichTextBlock[] {
         ...block.elements?.[scriptureRole]?.presentation?.marginIn
       }
     },
-    layout: block.elements?.[scriptureRole]?.layout
+    layout: block.elements?.[scriptureRole]?.layout,
+    condition: block.elements?.[scriptureRole]?.condition
   }));
 }
 
@@ -122,6 +123,7 @@ export function updateScriptureElement(block: ScriptureBlock, element: RichTextB
       presentation: element.presentation,
       layout: element.layout,
       content: element.content,
+      condition: element.condition,
     }
   };
   const value = plainText(element.content);

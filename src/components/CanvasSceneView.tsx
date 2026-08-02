@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { boundRichTextParagraphs, canvasLineMetrics, canvasSpace, canvasTextParagraphs } from '../shared/canvas.js';
-import type { BulletinDocumentV1, CanvasElement, CanvasScene, Paragraph } from '../shared/types.js';
+import type { BulletinDocumentV1, CanvasElement, CanvasScene, Paragraph, TemplateV1 } from '../shared/types.js';
+import { conditionVisible } from '../shared/customProperties.js';
 
 function InlineParagraph({ paragraph }: { paragraph: Paragraph }) {
   return <p style={{ textAlign: paragraph.align, lineHeight: paragraph.lineHeight }}>{paragraph.children.map((run, index) =>
@@ -21,10 +22,10 @@ function geometry(element: CanvasElement): CSSProperties {
   };
 }
 
-function textFontSize(element: Extract<CanvasElement, { type: 'text' }>, document: BulletinDocumentV1) {
+function textFontSize(element: Extract<CanvasElement, { type: 'text' }>, document: BulletinDocumentV1, template?: TemplateV1) {
   const requested = element.fontSizePt ?? 12;
   if (element.overflow !== 'shrinkToFit') return requested;
-  const characters = canvasTextParagraphs(element, document)
+  const characters = canvasTextParagraphs(element, document, template)
     .flatMap(item => item.children)
     .reduce((total, run) => total + (run.type === 'text' ? run.text.length : 1), 0);
   const approximateCapacity = Math.max(1, element.width * element.height * 115 / Math.max(1, requested / 12));
@@ -56,13 +57,15 @@ function CanvasLineView({ element }: {
   </svg>;
 }
 
-function CanvasElementView({ element, document, assets, renderNativeBlock, editingMinimumHeightIn }: {
+function CanvasElementView({ element, document, template, assets, renderNativeBlock, editingMinimumHeightIn }: {
   element: CanvasElement;
   document: BulletinDocumentV1;
+  template?: TemplateV1;
   assets: Record<string, string>;
   renderNativeBlock?: (block: Extract<CanvasElement, { type: 'block' }>['block'], element: Extract<CanvasElement, { type: 'block' }>) => ReactNode;
   editingMinimumHeightIn?: number;
 }) {
+  if (!conditionVisible(element, template, document)) return null;
   if (element.type === 'shape') {
     if (element.shape === 'line') return <CanvasLineView element={element as typeof element & { shape: 'line' }} />;
     return <div className="canvas-element canvas-rectangle" data-canvas-element-id={element.id} style={{
@@ -72,10 +75,11 @@ function CanvasElementView({ element, document, assets, renderNativeBlock, editi
   }
   if (element.type === 'block') {
     const native = element.block;
+    if (!conditionVisible(native, template, document)) return null;
     const fallback = native.type === 'image'
       ? assets[native.asset.path] ? <img src={assets[native.asset.path]} alt={native.alt ?? native.asset.alt ?? ''} style={{ width: '100%', height: '100%', objectFit: native.fit ?? 'contain' }} /> : <span className="canvas-missing-asset">Missing image</span>
       : native.type === 'richText'
-        ? boundRichTextParagraphs(native, document).map((item, index) => <InlineParagraph paragraph={item} key={index} />)
+        ? boundRichTextParagraphs(native, document, template).map((item, index) => <InlineParagraph paragraph={item} key={index} />)
         : 'text' in native ? native.text : native.label ?? (native.type === 'custom' ? native.name : native.type);
     const verticalAlign = native.presentation?.verticalAlign ?? element.verticalAlign;
     const vertical = verticalAlign === 'middle'
@@ -119,7 +123,7 @@ function CanvasElementView({ element, document, assets, renderNativeBlock, editi
     ...geometry(element),
     padding: `${padding.top ?? 0}in ${padding.right ?? 0}in ${padding.bottom ?? 0}in ${padding.left ?? 0}in`,
     fontFamily: element.fontFamily === 'body' ? 'var(--body-font)' : element.fontFamily === 'display' ? 'var(--display-font)' : element.fontFamily,
-    fontSize: `${textFontSize(element, document)}pt`,
+    fontSize: `${textFontSize(element, document, template)}pt`,
     lineHeight: element.lineHeight ?? 1.15,
     fontWeight: element.fontWeight,
     fontStyle: element.fontStyle,
@@ -130,13 +134,14 @@ function CanvasElementView({ element, document, assets, renderNativeBlock, editi
     overflow: element.overflow === 'fixed' ? 'hidden' : undefined
   } satisfies CSSProperties;
   return <div className="canvas-element canvas-text" data-canvas-element-id={element.id} style={style}>
-    {canvasTextParagraphs(element, document).map((item, index) => <InlineParagraph paragraph={item} key={index} />)}
+    {canvasTextParagraphs(element, document, template).map((item, index) => <InlineParagraph paragraph={item} key={index} />)}
   </div>;
 }
 
-export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7, heightIn = 8.5, renderNativeBlock, editingElementId, editingMinimumHeightIn }: {
+export function CanvasSceneView({ scene, document, template, assets, marginIn, widthIn = 7, heightIn = 8.5, renderNativeBlock, editingElementId, editingMinimumHeightIn }: {
   scene: CanvasScene;
   document: BulletinDocumentV1;
+  template?: TemplateV1;
   assets: Record<string, string>;
   marginIn: number;
   widthIn?: number;
@@ -163,7 +168,7 @@ export function CanvasSceneView({ scene, document, assets, marginIn, widthIn = 7
       ? assets[background.asset.path] && <embed className="canvas-pdf-background" src={`${assets[background.asset.path]}#page=${background.asset.page ?? 1}&toolbar=0&navpanes=0`} type="application/pdf" />
       : assets[background.asset.path] && <img className="canvas-background-image" src={assets[background.asset.path]} alt={background.asset.alt ?? ''} style={{ objectFit: background.fit ?? 'cover' }} />)}
     <div className="canvas-elements">
-      {scene.elements.map(element => <CanvasElementView element={element} document={document} assets={assets} renderNativeBlock={renderNativeBlock} editingMinimumHeightIn={element.id === editingElementId ? editingMinimumHeightIn : undefined} key={element.id} />)}
+      {scene.elements.map(element => <CanvasElementView element={element} document={document} template={template} assets={assets} renderNativeBlock={renderNativeBlock} editingMinimumHeightIn={element.id === editingElementId ? editingMinimumHeightIn : undefined} key={element.id} />)}
     </div>
   </div>;
 }

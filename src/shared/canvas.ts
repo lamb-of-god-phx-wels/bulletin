@@ -8,9 +8,11 @@ import type {
   CanvasScene,
   CanvasTextBinding,
   Paragraph,
+  TemplateV1,
   ValidationIssue
 } from './types.js';
 import { flattenBlocks } from './blocks.js';
+import { textBindingValue } from './customProperties.js';
 
 export const CANVAS_PAGE = Object.freeze({ width: 7, height: 8.5 });
 export const CANVAS_GRID_IN = 1 / 16;
@@ -379,32 +381,21 @@ export function rotateCanvasLine<T extends CanvasGeometry & { rotationDeg?: numb
   return { ...element, width: canvasLineMetrics(element).length, height: 0, rotationDeg: normalized };
 }
 
-export function canvasBindingText(binding: CanvasTextBinding, document: BulletinDocumentV1, dateFormat: 'long' | 'medium' | 'short' | 'iso' = 'long'): string {
-  if (binding === 'church.name') return document.church.name;
-  if (binding === 'info.title') return document.info.title;
-  if (binding === 'info.series') return document.info.series ?? '';
-  if (binding === 'info.churchWeek' || binding === 'info.churchEvent') return document.info.churchWeek;
-  if (dateFormat === 'iso') return document.info.date;
-  const date = new Date(`${document.info.date}T12:00:00Z`);
-  const options: Intl.DateTimeFormatOptions = dateFormat === 'short'
-    ? { month: 'numeric', day: 'numeric', year: '2-digit', timeZone: 'UTC' }
-    : dateFormat === 'medium'
-      ? { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }
-      : { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' };
-  return new Intl.DateTimeFormat('en-US', options).format(date);
+export function canvasBindingText(binding: CanvasTextBinding, document: BulletinDocumentV1, dateFormat: 'long' | 'medium' | 'short' | 'iso' = 'long', template?: TemplateV1): string {
+  return textBindingValue(binding, document, template, dateFormat);
 }
 
-export function boundRichTextParagraphs(block: Extract<import('./types.js').BulletinBlock, { type: 'richText' }>, document: BulletinDocumentV1): Paragraph[] {
+export function boundRichTextParagraphs(block: Extract<import('./types.js').BulletinBlock, { type: 'richText' }>, document: BulletinDocumentV1, template?: TemplateV1): Paragraph[] {
   if (block.bindingOverride) return block.bindingOverride;
   if (!block.binding) return block.content;
-  const value = canvasBindingText(block.binding, document, block.dateFormat);
+  const value = canvasBindingText(block.binding, document, block.dateFormat, template);
   return value ? paragraph(value) : block.content;
 }
 
-export function canvasTextParagraphs(element: Extract<CanvasElement, { type: 'text' }>, document: BulletinDocumentV1): Paragraph[] {
+export function canvasTextParagraphs(element: Extract<CanvasElement, { type: 'text' }>, document: BulletinDocumentV1, template?: TemplateV1): Paragraph[] {
   if (element.source.override) return element.source.override;
   if (element.source.binding) {
-    const value = canvasBindingText(element.source.binding, document, element.source.dateFormat);
+    const value = canvasBindingText(element.source.binding, document, element.source.dateFormat, template);
     if (value) return paragraph(value);
   }
   return element.source.literal ?? paragraph('');
@@ -481,7 +472,7 @@ export function validateCanvasScene(scene: CanvasScene, marginIn = .4, basePath 
     if (element.type === 'block' && !canvasNativeBlockAllowed(element.block)) {
       issues.push({ path: `${path}/block/type`, message: `The ${element.block.type} block cannot be nested inside a canvas.`, severity: 'error' });
     }
-    if (element.type === 'text' && element.source.binding && !['info.title', 'info.date', 'info.churchWeek', 'info.churchEvent', 'info.series', 'church.name'].includes(element.source.binding)) {
+    if (element.type === 'text' && element.source.binding && typeof element.source.binding === 'string' && !['info.title', 'info.date', 'info.churchWeek', 'info.churchEvent', 'info.series', 'church.name'].includes(element.source.binding)) {
       issues.push({ path: `${path}/source/binding`, message: `Unsupported canvas binding: ${element.source.binding}`, severity: 'error' });
     }
     const isLine = element.type === 'line' || (element.type === 'shape' && element.shape === 'line');

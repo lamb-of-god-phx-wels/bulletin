@@ -26,6 +26,25 @@ export interface LayoutHints {
   cropAnchor?: 'center' | 'top' | 'bottom' | 'left' | 'right';
 }
 
+export type CustomPropertyValue = string | number | boolean;
+export type CustomPropertyType = 'string' | 'number' | 'boolean';
+export interface CustomPropertyDefinition {
+  id: string;
+  name: string;
+  valueType: CustomPropertyType;
+  defaultValue: CustomPropertyValue;
+}
+export interface CustomPropertyBinding {
+  kind: 'customProperty';
+  propertyId: string;
+  propertyName: string;
+  valueType: CustomPropertyType;
+}
+export interface ElementCondition {
+  property: CustomPropertyBinding;
+  equals: boolean;
+}
+
 interface BlockBase {
   id: string;
   label?: string;
@@ -33,11 +52,13 @@ interface BlockBase {
   weeklyEditable?: boolean;
   layout?: LayoutHints;
   presentation?: Partial<CustomBlockStyle>;
+  condition?: ElementCondition;
 }
 
 export interface UnsupportedLegacyCoverBlock extends BlockBase { type: 'titlePage' | 'canvasCover' }
 export type CanvasCoordinateSpace = 'fullPage' | 'contentBox';
-export type CanvasTextBinding = 'info.title' | 'info.date' | 'info.churchWeek' | 'info.churchEvent' | 'info.series' | 'church.name';
+export type BuiltInTextBinding = 'info.title' | 'info.date' | 'info.churchWeek' | 'info.churchEvent' | 'info.series' | 'church.name';
+export type CanvasTextBinding = BuiltInTextBinding | CustomPropertyBinding;
 export interface CanvasGeometry { x: number; y: number; width: number; height: number }
 export interface CanvasTextSource {
   literal?: Paragraph[];
@@ -50,6 +71,7 @@ interface CanvasElementBase extends CanvasGeometry {
   name?: string;
   locked?: boolean;
   groupId?: string;
+  condition?: ElementCondition;
 }
 export interface CanvasTextElement extends CanvasElementBase {
   type: 'text';
@@ -155,7 +177,7 @@ export interface ScriptureBlock extends BlockBase {
   caption?: string;
   headingReferenceLayout?: 'inline' | 'stacked';
   headingReferenceGapIn?: number;
-  elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints; content?: Paragraph[] }>>;
+  elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints; content?: Paragraph[]; condition?: ElementCondition }>>;
   resolved?: { content: Paragraph[]; source: 'bible-gateway-web' | 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
 }
 export interface SongBlock extends BlockBase {
@@ -203,7 +225,7 @@ export interface TemplatePageBlock extends BlockBase {
   blocks: BulletinBlock[];
 }
 
-export type CustomBindingSource = 'weekly' | 'info.title' | 'info.date' | 'info.churchWeek' | 'info.churchEvent' | 'info.series' | 'church.name';
+export type CustomBindingSource = 'weekly' | BuiltInTextBinding | CustomPropertyBinding;
 export interface CustomBlockBinding {
   key: string;
   label: string;
@@ -260,6 +282,8 @@ export interface BulletinDocumentV1 {
   info: { title: string; series?: string; date: string; churchWeek: string; churchEventId?: string };
   layout?: { marginIn?: number };
   responsiveReading?: ResponsiveReadingSettings;
+  customProperties?: CustomPropertyDefinition[];
+  customPropertyOverrides?: Record<string, CustomPropertyValue>;
   blocks: BulletinBlock[];
   sourceNotes?: string;
   updatedAt: string;
@@ -284,6 +308,7 @@ export interface TemplateV1 {
   page: { widthIn: 7; heightIn: 8.5; pageMultiple: 4 };
   theme: ThemeV1;
   responsiveReading?: ResponsiveReadingSettings;
+  customProperties?: CustomPropertyDefinition[];
   starterBlocks: BulletinBlock[];
   filler: { kind: 'blank' | 'asset'; asset?: AssetRef };
   updatedAt: string;

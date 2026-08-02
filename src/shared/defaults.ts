@@ -61,6 +61,7 @@ export function createBulletin(template: TemplateV1, date = new Date().toISOStri
     template: { id: template.id, version: template.version },
     church: { name: 'Lamb of God Lutheran Church' },
     info: { title: 'Sermon title', date, churchWeek: 'Sunday' },
+    customProperties: template.customProperties ? structuredClone(template.customProperties) : undefined,
     blocks: structuredClone(template.starterBlocks),
     updatedAt: now()
   };

@@ -4,6 +4,7 @@ import { validateCanvasScene } from './canvas.js';
 import { pageTemplateIssues, pageTemplateMargin } from './pageTemplates.js';
 import { estimateBlockPoints } from './pagination.js';
 import { songLibraryItem, songPresentations } from './songs.js';
+import { customPropertyIssues } from './customProperties.js';
 
 export function validateBulletin(value: unknown, library?: LibraryManifestV1, template?: TemplateV1): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -13,6 +14,7 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
   if (!doc.id) issues.push({ path: '/id', message: 'A stable bulletin ID is required.' });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(doc.info?.date ?? '')) issues.push({ path: '/info/date', message: 'Use an ISO date (YYYY-MM-DD).' });
   if (!Array.isArray(doc.blocks)) issues.push({ path: '/blocks', message: 'Blocks must be an array.' });
+  if (template && Array.isArray(doc.blocks)) issues.push(...customPropertyIssues({ ...template, starterBlocks: doc.blocks }, doc as BulletinDocumentV1));
   const ids = new Set<string>();
   doc.blocks?.forEach((block, index) => {
     const hasInlineLibraryContent = (block.type === 'song' && Boolean(block.contentOverride?.length || block.asset)) || (block.type === 'libraryText' && Boolean(block.contentOverride?.length));
@@ -56,7 +58,7 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
       });
       if (template) {
         const effectiveTemplate = { ...template, theme: { ...template.theme, marginIn: margin } };
-        const used = block.blocks.reduce((total, child) => total + estimateBlockPoints(child, effectiveTemplate, library), 0);
+        const used = block.blocks.reduce((total, child) => total + estimateBlockPoints(child, effectiveTemplate, library, doc as BulletinDocumentV1), 0);
         const capacity = (template.page.heightIn - margin * 2) * 72;
         if (used > capacity + .5) issues.push({
           path: `/blocks/${index}`,

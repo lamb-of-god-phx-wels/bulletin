@@ -1,6 +1,7 @@
-import type { BulletinBlock, PageMarginSetting, PageTemplateV1, TemplatePageBlock, WorkspaceSummary } from './types.js';
+import type { BulletinBlock, CustomPropertyBinding, PageMarginSetting, PageTemplateV1, TemplatePageBlock, TemplateV1, WorkspaceSummary } from './types.js';
 import { flattenBlocks } from './blocks.js';
 import { randomId } from './id.js';
+import { isCustomPropertyBinding } from './customProperties.js';
 
 export type PageTemplateRecord = WorkspaceSummary['pageTemplates'][number];
 
@@ -72,7 +73,32 @@ export function duplicatePageTemplate(source: PageTemplateV1, name: string, reco
   };
 }
 
-export function instantiatePageTemplate(source: PageTemplateV1, id: string = randomId()): TemplatePageBlock {
+function propertyForBinding(binding: CustomPropertyBinding, template?: TemplateV1) {
+  if (!template) return binding;
+  const exact = template.customProperties?.find(property => property.id === binding.propertyId && property.valueType === binding.valueType);
+  const matches = template.customProperties?.filter(property => property.valueType === binding.valueType && property.name.trim().toLocaleLowerCase() === binding.propertyName.trim().toLocaleLowerCase()) ?? [];
+  const property = exact ?? (matches.length === 1 ? matches[0] : undefined);
+  return property ? { kind: 'customProperty' as const, propertyId: property.id, propertyName: property.name, valueType: property.valueType } : binding;
+}
+
+function remapProperties(block: BulletinBlock, template?: TemplateV1): BulletinBlock {
+  const next = structuredClone(block);
+  if (next.condition) next.condition.property = propertyForBinding(next.condition.property, template);
+  if (next.type === 'richText' && isCustomPropertyBinding(next.binding)) next.binding = propertyForBinding(next.binding, template);
+  if (next.type === 'custom') next.bindings = next.bindings.map(binding => isCustomPropertyBinding(binding.source) ? { ...binding, source: propertyForBinding(binding.source, template) } : binding);
+  if (next.type === 'group' || next.type === 'churchInfo') next.children = next.children?.map(child => remapProperties(child, template)) ?? [];
+  if (next.type === 'paragraph') next.children = next.children.map(child => remapProperties(child, template) as typeof child);
+  if (next.type === 'scriptureReading' && next.elements) next.elements = Object.fromEntries(Object.entries(next.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: propertyForBinding(settings.condition.property, template) } } : settings]));
+  if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapProperties(child, template));
+  if (next.type === 'canvas') next.scene.elements = next.scene.elements.map(element => {
+    const mapped = structuredClone(element);
+    if (mapped.condition) mapped.condition.property = propertyForBinding(mapped.condition.property, template);
+    return mapped.type === 'block' ? { ...mapped, block: remapProperties(mapped.block, template) } : mapped;
+  });
+  return next;
+}
+
+export function instantiatePageTemplate(source: PageTemplateV1, id: string = randomId(), template?: TemplateV1): TemplatePageBlock {
   return {
     id,
     type: 'templatePage',
@@ -81,7 +107,7 @@ export function instantiatePageTemplate(source: PageTemplateV1, id: string = ran
     sourceDigest: pageTemplateDigest(source),
     pageLayout: pageTemplateLayout(source),
     margin: structuredClone(source.margin),
-    blocks: structuredClone(source.blocks)
+    blocks: source.blocks.map(block => remapProperties(block, template))
   };
 }
 
@@ -98,6 +124,8 @@ function remapBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
   const next = { ...structuredClone(block), id: freshId(block.id, used) } as BulletinBlock;
   if (next.type === 'group' || next.type === 'churchInfo') next.children = next.children?.map(child => remapBlock(child, used));
   if (next.type === 'paragraph') next.children = next.children.map(child => remapBlock(child, used) as typeof child);
+  if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapBlock(child, used));
+  if (next.type === 'canvas') next.scene.elements = next.scene.elements.map(element => element.type === 'block' ? { ...element, block: remapBlock(element.block, used) } : element);
   return next;
 }
 

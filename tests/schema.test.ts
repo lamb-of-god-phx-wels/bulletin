@@ -9,6 +9,9 @@ import example from '../example_bulletin.json';
 import { defaultPageTemplate, defaultTemplate } from '../src/shared/defaults';
 import { prepackagedComponentDefinitions } from '../src/componentDefinitions';
 import { welsCalendarPreset } from '../src/shared/churchCalendar';
+import { createBulletin } from '../src/shared/defaults';
+import { customPropertyBinding } from '../src/shared/customProperties';
+import type { CustomPropertyDefinition } from '../src/shared/types';
 
 describe('public JSON contracts', () => {
   const ajv = new Ajv2020({ allErrors: true }); addFormats(ajv);
@@ -26,5 +29,13 @@ describe('public JSON contracts', () => {
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], calendarEvents: [{ id: 'easter', name: 'Easter', enabled: true, priority: 100, rules: [{ kind: 'easter' }] }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], calendarEvents: welsCalendarPreset() })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], componentDefinitions: [prepackagedComponentDefinitions[0]] })).toBe(true);
+  });
+  it('validates custom properties, overrides, bindings, and conditional blocks', () => {
+    const property: CustomPropertyDefinition = { id: 'show-communion', name: 'Show Communion', valueType: 'boolean', defaultValue: true };
+    const template = { ...structuredClone(defaultTemplate), customProperties: [property], starterBlocks: [{ id: 'communion', type: 'heading' as const, text: 'Communion', condition: { property: customPropertyBinding(property), equals: true } }] };
+    const bulletin = createBulletin(template);
+    bulletin.customPropertyOverrides = { [property.id]: false };
+    expect(ajv.compile(templateSchema)(template)).toBe(true);
+    expect(ajv.compile(bulletinSchema)(bulletin)).toBe(true);
   });
 });

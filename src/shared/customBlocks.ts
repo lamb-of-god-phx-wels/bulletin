@@ -1,4 +1,5 @@
-import type { BulletinDocumentV1, CustomBlock, CustomBlockBinding, CustomBlockStyle, Paragraph } from './types.js';
+import type { BulletinDocumentV1, CustomBlock, CustomBlockBinding, CustomBlockStyle, Paragraph, TemplateV1 } from './types.js';
+import { isCustomPropertyBinding, textBindingValue } from './customProperties.js';
 
 export const defaultCustomBlockStyle: CustomBlockStyle = {
   widthPercent: 100,
@@ -39,8 +40,9 @@ export function customBlockIssues(block: Pick<CustomBlock, 'name' | 'layoutText'
   return issues;
 }
 
-export function resolveCustomBinding(binding: CustomBlockBinding, block: CustomBlock, document: BulletinDocumentV1): string {
+export function resolveCustomBinding(binding: CustomBlockBinding, block: CustomBlock, document: BulletinDocumentV1, template?: TemplateV1): string {
   if (binding.source === 'weekly') return block.values?.[binding.key] ?? binding.defaultValue ?? '';
+  if (isCustomPropertyBinding(binding.source)) return textBindingValue(binding.source, document, template) || binding.defaultValue || '';
   if (binding.source === 'church.name') return document.church.name;
   if (binding.source === 'info.churchWeek' || binding.source === 'info.churchEvent') return document.info.churchWeek || binding.defaultValue || '';
   if (binding.source === 'info.date') {
@@ -51,16 +53,16 @@ export function resolveCustomBinding(binding: CustomBlockBinding, block: CustomB
   return value ?? binding.defaultValue ?? '';
 }
 
-export function renderCustomBlockText(block: CustomBlock, document: BulletinDocumentV1): string {
+export function renderCustomBlockText(block: CustomBlock, document: BulletinDocumentV1, template?: TemplateV1): string {
   const bindings = new Map(block.bindings.map(binding => [binding.key, binding]));
   return block.layoutText.replace(/{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}/g, (placeholder, key: string) => {
     const binding = bindings.get(key);
-    return binding ? resolveCustomBinding(binding, block, document) : placeholder;
+    return binding ? resolveCustomBinding(binding, block, document, template) : placeholder;
   });
 }
 
-export function customBlockParagraphs(block: CustomBlock, document: BulletinDocumentV1): Paragraph[] {
-  const rendered = renderCustomBlockText(block, document);
+export function customBlockParagraphs(block: CustomBlock, document: BulletinDocumentV1, template?: TemplateV1): Paragraph[] {
+  const rendered = renderCustomBlockText(block, document, template);
   return rendered.split(/\n\s*\n/).filter(value => value.length > 0).map(value => ({
     type: 'paragraph',
     children: [{ type: 'text', text: value.replace(/\n/g, ' ') }]

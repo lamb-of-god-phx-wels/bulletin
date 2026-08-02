@@ -16,6 +16,8 @@ import { ElementPalette, type ElementPaletteItem } from './ElementPalette';
 import { flowElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog';
 import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
+import { customPropertyIssues } from '../shared/customProperties';
+import { ConditionModal } from './ConditionModal';
 import { songHeader } from '../shared/songs';
 import { ImageAssetDialog } from './ImageAssetDialog';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
@@ -49,6 +51,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const [formatId, setFormatId] = useState<string>();
   const [status, setStatus] = useState('');
   const [imageIndex, setImageIndex] = useState<number>();
+  const [conditionBlockId, setConditionBlockId] = useState<string>();
   const preview = useRef<HTMLElement>(null);
   const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
   const [zoom, setZoom] = useState(Number.isFinite(initialZoom) && initialZoom >= .1 && initialZoom <= 2 ? initialZoom : .72);
@@ -59,9 +62,9 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const marginIn = value.margin.mode === 'fixed' ? value.margin.marginIn : value.margin.referenceMarginIn;
   const layout = pageTemplateLayout(value);
   const previewTemplate = useMemo<TemplateV1>(() => ({ ...template, theme: { ...template.theme, marginIn }, starterBlocks: value.blocks }), [template, value.blocks, marginIn]);
-  const used = value.blocks.reduce((total, block) => total + estimateBlockPoints(block, previewTemplate, library), 0);
+  const used = value.blocks.reduce((total, block) => total + estimateBlockPoints(block, previewTemplate, library, document), 0);
   const capacity = (8.5 - marginIn * 2) * 72;
-  const issues = [...pageTemplateIssues(value), ...(used > capacity ? [`Page content exceeds the available height by ${((used - capacity) / 72).toFixed(2)} inches.`] : [])];
+  const issues = [...pageTemplateIssues(value), ...customPropertyIssues(previewTemplate, document).map(issue => issue.message), ...(used > capacity ? [`Page content exceeds the available height by ${((used - capacity) / 72).toFixed(2)} inches.`] : [])];
   const change = (changes: Partial<PageTemplateV1>) => {
     if (!history) localHistory.record(value);
     onChange({ ...value, ...changes, status: 'draft', updatedAt: new Date().toISOString() });
@@ -215,7 +218,8 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
             <summary>
               <div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><h3>{title(block)}</h3></div>
               <div className="reorder" onClick={event => event.preventDefault()}>
-                <button className="format-block-button" title="Format block" onClick={() => setFormatId(block.id)}>Format</button>
+                <button className={`format-block-button condition-toggle ${block.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(block.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(block.id)}>Condition</button>
+                <button className="format-block-button format-action" title="Format block" onClick={() => setFormatId(block.id)}>Format</button>
                 <button className="danger-text" title={`Remove ${title(block)}`} aria-label={`Remove ${title(block)}`} onClick={() => change({ blocks: value.blocks.filter(item => item.id !== block.id) })}>×</button>
                 <SortableHandle label={`Drag ${title(block)} to reorder`} />
               </div>
@@ -245,6 +249,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       </aside>
       {previewPane}
     </>}
+    {conditionBlockId && (() => { const block = value.blocks.find(item => item.id === conditionBlockId); return block ? <ConditionModal value={block.condition} template={template} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock({ ...block, condition } as BulletinBlock); setConditionBlockId(undefined); }} /> : null; })()}
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={template} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
     {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} history={activeHistory} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}

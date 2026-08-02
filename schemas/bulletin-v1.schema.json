@@ -13,6 +13,8 @@
     "info": { "type": "object", "required": ["title", "date", "churchWeek"], "properties": { "title": { "type": "string" }, "series": { "type": "string" }, "date": { "type": "string", "format": "date" }, "churchWeek": { "type": "string" }, "churchEventId": { "type": "string" } }, "additionalProperties": false },
     "layout": { "type": "object", "properties": { "marginIn": { "type": "number", "minimum": 0, "maximum": 1.25 } }, "additionalProperties": false },
     "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" },
+    "customProperties": { "type": "array", "items": { "$ref": "#/$defs/customProperty" } },
+    "customPropertyOverrides": { "type": "object", "additionalProperties": { "anyOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] } },
     "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
     "sourceNotes": { "type": "string" },
     "updatedAt": { "type": "string", "format": "date-time" }
@@ -66,16 +68,48 @@
         "layoutMode": { "enum": ["stack", "grid", "table"] },
         "columns": { "type": "integer", "minimum": 1, "maximum": 12 },
         "gapIn": { "type": "number", "minimum": 0, "maximum": 2 },
-        "scene": { "$ref": "#/$defs/canvasScene" }
+        "scene": { "$ref": "#/$defs/canvasScene" },
+        "condition": { "$ref": "#/$defs/condition" }
       },
-      "allOf": [{ "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }],
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "custom" } }, "required": ["type"] }, "then": { "required": ["name", "layoutText", "bindings"] } }
+      ],
       "additionalProperties": true
+    },
+    "customPropertyBinding": {
+      "type": "object",
+      "required": ["kind", "propertyId", "propertyName", "valueType"],
+      "properties": {
+        "kind": { "const": "customProperty" },
+        "propertyId": { "type": "string", "minLength": 1 },
+        "propertyName": { "type": "string", "minLength": 1 },
+        "valueType": { "enum": ["string", "number", "boolean"] }
+      },
+      "additionalProperties": false
+    },
+    "condition": { "type": "object", "required": ["property", "equals"], "properties": { "property": { "$ref": "#/$defs/customPropertyBinding" }, "equals": { "type": "boolean" } }, "additionalProperties": false },
+    "customProperty": {
+      "type": "object",
+      "required": ["id", "name", "valueType", "defaultValue"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "valueType": { "enum": ["string", "number", "boolean"] },
+        "defaultValue": {}
+      },
+      "allOf": [
+        { "if": { "properties": { "valueType": { "const": "string" } } }, "then": { "properties": { "defaultValue": { "type": "string" } } } },
+        { "if": { "properties": { "valueType": { "const": "number" } } }, "then": { "properties": { "defaultValue": { "type": "number" } } } },
+        { "if": { "properties": { "valueType": { "const": "boolean" } } }, "then": { "properties": { "defaultValue": { "type": "boolean" } } } }
+      ],
+      "additionalProperties": false
     },
     "elementFormatting": {
       "type": "object",
       "properties": {
         "layout": { "type": "object" },
-        "presentation": { "type": "object" }
+        "presentation": { "type": "object" },
+        "condition": { "$ref": "#/$defs/condition" }
       },
       "additionalProperties": false
     },
@@ -85,7 +119,7 @@
       "properties": {
         "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
         "label": { "type": "string", "minLength": 1 },
-        "source": { "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.churchEvent", "info.series", "church.name"] },
+        "source": { "oneOf": [{ "enum": ["weekly", "info.title", "info.date", "info.churchWeek", "info.churchEvent", "info.series", "church.name"] }, { "$ref": "#/$defs/customPropertyBinding" }] },
         "defaultValue": { "type": "string" },
         "multiline": { "type": "boolean" }
       },
@@ -107,6 +141,7 @@
               "type": { "enum": ["block", "shape", "text", "image", "rectangle", "line"] },
               "block": { "$ref": "#/$defs/block" },
               "shape": { "enum": ["rectangle", "line"] },
+              "condition": { "$ref": "#/$defs/condition" },
               "x": { "type": "number" },
               "y": { "type": "number" },
               "width": { "type": "number", "exclusiveMinimum": 0 },

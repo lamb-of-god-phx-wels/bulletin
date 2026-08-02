@@ -48,6 +48,9 @@ import type {
 } from "../shared/types";
 import type { UndoRedoCommands } from "./useUndoRedo";
 import { RichTextEditor } from "./RichTextEditor";
+import { WeeklyPropertiesPanel } from "./CustomProperties";
+import { CustomPropertyBindingSelect } from "./CustomProperties";
+import { ConditionModal } from "./ConditionModal";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -85,6 +88,7 @@ export function WeeklyEditor({
   onError(message: string): void;
   onOpenChurchCalendar?(): void;
 }) {
+  const bulletinTemplate: TemplateV1 = { ...template, customProperties: document.customProperties ?? template.customProperties };
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [templatePageBlockId, setTemplatePageBlockId] = useState<string>();
@@ -93,6 +97,7 @@ export function WeeklyEditor({
   const [creatingPage, setCreatingPage] = useState<PageTemplateV1>();
   const [imageIndex, setImageIndex] = useState<number>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
+  const [conditionBlockId, setConditionBlockId] = useState<string>();
   const [lookupStatus, setLookupStatus] = useState<
     Record<string, { state: "loading" | "success" | "error"; text: string }>
   >({});
@@ -229,8 +234,9 @@ export function WeeklyEditor({
               className="reorder"
               onClick={(event) => event.preventDefault()}
             >
+              <button className={`format-block-button condition-toggle ${child.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(child.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(child.id)}>Condition</button>
               <button
-                className="format-block-button"
+                className="format-block-button format-action"
                 onClick={() => setFormattingBlockId(child.id)}
               >
                 Format
@@ -585,6 +591,7 @@ export function WeeklyEditor({
         </label>
       </section>
       <ElementSidebarPortal><>
+      <WeeklyPropertiesPanel document={document} template={template} onChange={onChange} />
       <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
         <summary><div><div className="eyebrow">Document</div><b>Responsive readings</b></div></summary>
         <div className="collapsible-editor-fields">
@@ -676,8 +683,9 @@ export function WeeklyEditor({
                   className="reorder"
                   onClick={(event) => event.preventDefault()}
                 >
+                  <button className={`format-block-button condition-toggle ${block.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(block.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(block.id)}>Condition</button>
                   <button
-                    className="format-block-button"
+                    className="format-block-button format-action"
                     title="Format block"
                     onClick={() => setFormattingBlockId(block.id)}
                   >
@@ -721,7 +729,7 @@ export function WeeklyEditor({
                   </label>
                 )}
                 {block.type === "richText" && (
-                  <label>Text<RichTextEditor content={block.content} label="Text" onChange={content => updateBlock(block.id, { ...block, content })} /></label>
+                  <><label>Binding<CustomPropertyBindingSelect value={block.binding} template={bulletinTemplate} onChange={binding => updateBlock(block.id, { ...block, binding, bindingOverride: undefined })} /></label><label>{block.binding ? 'Override' : 'Text'}<RichTextEditor content={block.binding ? block.bindingOverride ?? [] : block.content} label="Text" onChange={content => updateBlock(block.id, block.binding ? { ...block, bindingOverride: content } : { ...block, content })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => updateBlock(block.id, { ...block, bindingOverride: undefined })}>Reset to bound value</button>}</>
                 )}
                 {block.type === "paragraph" && nestedEditors(block)}
                 {block.type === "responsiveReading" && (
@@ -892,7 +900,7 @@ export function WeeklyEditor({
                 {block.type === "song" && <SongBlockFields
                   block={block}
                   library={library}
-                  template={template}
+                  template={bulletinTemplate}
                   scope="weekly"
                   root={root}
                   onChange={next => updateBlock(block.id, next)}
@@ -1059,7 +1067,7 @@ export function WeeklyEditor({
                           if (source)
                             updateBlock(
                               block.id,
-                              instantiatePageTemplate(source, block.id),
+                              instantiatePageTemplate(source, block.id, bulletinTemplate),
                             );
                         }}
                       >
@@ -1087,7 +1095,7 @@ export function WeeklyEditor({
                           )
                             updateBlock(
                               block.id,
-                              instantiatePageTemplate(latest, block.id),
+                              instantiatePageTemplate(latest, block.id, bulletinTemplate),
                             );
                         }}
                       >
@@ -1202,7 +1210,7 @@ export function WeeklyEditor({
           root={root}
           onClose={() => setPageInsertionIndex(undefined)}
           onSelect={(page) => {
-            onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(page), pageInsertionIndex) });
+            onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(page, randomId(), bulletinTemplate), pageInsertionIndex) });
             setPageInsertionIndex(undefined);
           }}
           onCreate={(page) => setCreatingPage(page)}
@@ -1211,7 +1219,7 @@ export function WeeklyEditor({
       {creatingPage && (
         <PageTemplateEditor
           value={creatingPage}
-          template={template}
+          template={bulletinTemplate}
           document={document}
           library={library}
           root={root}
@@ -1225,7 +1233,7 @@ export function WeeklyEditor({
             await window.bulletin.savePageTemplate(root, saved);
             setCreatingPage(saved);
             if (publish && pageInsertionIndex !== undefined) {
-              onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(saved), pageInsertionIndex) });
+              onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, instantiatePageTemplate(saved, randomId(), bulletinTemplate), pageInsertionIndex) });
               setCreatingPage(undefined);
               setPageInsertionIndex(undefined);
             }
@@ -1237,12 +1245,12 @@ export function WeeklyEditor({
         <BlockLibraryModal
           workspaceDefinitions={library?.componentDefinitions ?? []}
           pageTemplates={pageTemplates}
-          template={template}
+          template={bulletinTemplate}
           library={library}
           root={root}
           onClose={() => setBlockLibraryIndex(undefined)}
           onUsePageTemplate={(page) => {
-            const block = instantiatePageTemplate(page);
+            const block = instantiatePageTemplate(page, randomId(), bulletinTemplate);
             onChange({
               ...document,
               blocks: insertWeeklyBlock(
@@ -1286,13 +1294,17 @@ export function WeeklyEditor({
           }
         />
       )}
+      {conditionBlockId && (() => {
+        const block = findBlock(document.blocks, conditionBlockId);
+        return block ? <ConditionModal value={block.condition} template={bulletinTemplate} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock(block.id, { ...block, condition }); setConditionBlockId(undefined); }} /> : null;
+      })()}
       {formattingBlockId &&
         (() => {
           const block = findBlock(document.blocks, formattingBlockId);
           return block ? (
             <BlockFormattingModal
               block={block}
-              template={template}
+              template={bulletinTemplate}
               document={document}
               library={library}
               scope="weekly"
@@ -1311,7 +1323,7 @@ export function WeeklyEditor({
             <CanvasDesigner
               block={block}
               document={document}
-              template={template}
+              template={bulletinTemplate}
               scope="weekly"
               marginIn={document.layout?.marginIn ?? template.theme.marginIn}
               assets={{}}
@@ -1348,7 +1360,7 @@ export function WeeklyEditor({
           return (
             <PageTemplateEditor
               value={page}
-              template={template}
+              template={bulletinTemplate}
               document={document}
               library={library}
               root={root}

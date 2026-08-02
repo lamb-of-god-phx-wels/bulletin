@@ -1,12 +1,12 @@
 import type { BulletinBlock, CustomPropertyBinding, PageMarginSetting, PageTemplateV1, TemplatePageBlock, TemplateV1, WorkspaceSummary } from './types.js';
 import { flattenBlocks } from './blocks.js';
 import { randomId } from './id.js';
-import { isCustomPropertyBinding } from './customProperties.js';
+import { effectiveCustomPropertyDefinitions, isCustomPropertyBinding } from './customProperties.js';
 
 export type PageTemplateRecord = WorkspaceSummary['pageTemplates'][number];
 
-export const pageTemplateDigest = (page: Pick<PageTemplateV1, 'layout' | 'margin' | 'blocks'>) => {
-  const input = JSON.stringify({ layout: pageTemplateLayout(page), margin: page.margin, blocks: page.blocks });
+export const pageTemplateDigest = (page: Pick<PageTemplateV1, 'layout' | 'margin' | 'customProperties' | 'blocks'>) => {
+  const input = JSON.stringify({ layout: pageTemplateLayout(page), margin: page.margin, customProperties: page.customProperties, blocks: page.blocks });
   let hash = 2166136261;
   for (let index = 0; index < input.length; index++) {
     hash ^= input.charCodeAt(index);
@@ -57,6 +57,7 @@ export function createPageTemplate(
     status: 'draft',
     layout,
     margin: structuredClone(margin),
+    customProperties: [],
     blocks: structuredClone(blocks),
     updatedAt: new Date().toISOString()
   };
@@ -75,8 +76,9 @@ export function duplicatePageTemplate(source: PageTemplateV1, name: string, reco
 
 function propertyForBinding(binding: CustomPropertyBinding, template?: TemplateV1) {
   if (!template) return binding;
-  const exact = template.customProperties?.find(property => property.id === binding.propertyId && property.valueType === binding.valueType);
-  const matches = template.customProperties?.filter(property => property.valueType === binding.valueType && property.name.trim().toLocaleLowerCase() === binding.propertyName.trim().toLocaleLowerCase()) ?? [];
+  const properties = effectiveCustomPropertyDefinitions(template);
+  const exact = properties.find(property => property.id === binding.propertyId && property.valueType === binding.valueType);
+  const matches = properties.filter(property => property.valueType === binding.valueType && property.name.trim().toLocaleLowerCase() === binding.propertyName.trim().toLocaleLowerCase());
   const property = exact ?? (matches.length === 1 ? matches[0] : undefined);
   return property ? { kind: 'customProperty' as const, propertyId: property.id, propertyName: property.name, valueType: property.valueType } : binding;
 }
@@ -107,6 +109,10 @@ export function instantiatePageTemplate(source: PageTemplateV1, id: string = ran
     sourceDigest: pageTemplateDigest(source),
     pageLayout: pageTemplateLayout(source),
     margin: structuredClone(source.margin),
+    customProperties: source.customProperties?.map(property => {
+      const binding = propertyForBinding({ kind: 'customProperty', propertyId: property.id, propertyName: property.name, valueType: property.valueType }, template);
+      return binding.propertyId === property.id ? structuredClone(property) : effectiveCustomPropertyDefinitions(template).find(candidate => candidate.id === binding.propertyId) ?? structuredClone(property);
+    }),
     blocks: source.blocks.map(block => remapProperties(block, template))
   };
 }

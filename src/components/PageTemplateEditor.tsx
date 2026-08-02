@@ -23,6 +23,7 @@ import { ImageAssetDialog } from './ImageAssetDialog';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
 import { isRedoShortcut, isUndoShortcut, UndoRedoButtons, useUndoRedoHistory, type UndoRedoCommands } from './useUndoRedo';
 import { RichTextToolbar } from './RichTextEditing';
+import { PageTemplatePropertiesPanel } from './CustomProperties';
 
 const title = (block: BulletinBlock) => block.type === 'custom'
   ? block.name
@@ -61,10 +62,11 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const localHistory = useUndoRedoHistory<PageTemplateV1>();
   const marginIn = value.margin.mode === 'fixed' ? value.margin.marginIn : value.margin.referenceMarginIn;
   const layout = pageTemplateLayout(value);
-  const previewTemplate = useMemo<TemplateV1>(() => ({ ...template, theme: { ...template.theme, marginIn }, starterBlocks: value.blocks }), [template, value.blocks, marginIn]);
+  const previewTemplate = useMemo<TemplateV1>(() => ({ ...template, theme: { ...template.theme, marginIn }, customProperties: value.customProperties ?? [], starterBlocks: value.blocks }), [template, value.blocks, value.customProperties, marginIn]);
+  const previewDocument = useMemo<BulletinDocumentV1>(() => ({ ...document, customProperties: value.customProperties ?? [], customPropertyOverrides: undefined, blocks: value.blocks, layout: { ...document.layout, marginIn } }), [document, value.blocks, value.customProperties, marginIn]);
   const used = value.blocks.reduce((total, block) => total + estimateBlockPoints(block, previewTemplate, library, document), 0);
   const capacity = (8.5 - marginIn * 2) * 72;
-  const issues = [...pageTemplateIssues(value), ...customPropertyIssues(previewTemplate, document).map(issue => issue.message), ...(used > capacity ? [`Page content exceeds the available height by ${((used - capacity) / 72).toFixed(2)} inches.`] : [])];
+  const issues = [...pageTemplateIssues(value), ...customPropertyIssues(previewTemplate).map(issue => issue.message), ...(layout === 'regular' && used > capacity ? [`Page content exceeds the available height by ${((used - capacity) / 72).toFixed(2)} inches.`] : [])];
   const change = (changes: Partial<PageTemplateV1>) => {
     if (!history) localHistory.record(value);
     onChange({ ...value, ...changes, status: 'draft', updatedAt: new Date().toISOString() });
@@ -199,12 +201,12 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       </div>
       <RichTextToolbar />
     </div>
-    <DocumentView document={{ ...document, blocks: value.blocks, layout: { ...document.layout, marginIn } }} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage onBlockChange={updateBlock} />
+    <DocumentView document={previewDocument} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage onBlockChange={updateBlock} />
   </main>;
   return <div className={`page-template-designer page-template-${layout}`} role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
     <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
     {layout === 'regular' ? <>
-      <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
+      <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /><div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
       <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
         <div className="editor-section-title"><div><div className="eyebrow">Page content</div><h2>Elements</h2><small>{value.blocks.length} block{value.blocks.length === 1 ? '' : 's'}</small></div></div>
         <SortableList
@@ -235,6 +237,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     </> : <>
       <aside className="page-template-controls">
         {pageSetup}
+        <PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} />
         <p className="helper">This page is a single positioned canvas. Use Design to edit its contents.</p>
       <SortableList
         items={value.blocks}
@@ -249,9 +252,9 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
       </aside>
       {previewPane}
     </>}
-    {conditionBlockId && (() => { const block = value.blocks.find(item => item.id === conditionBlockId); return block ? <ConditionModal value={block.condition} template={template} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock({ ...block, condition } as BulletinBlock); setConditionBlockId(undefined); }} /> : null; })()}
-    {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={template} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
-    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={document} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} history={activeHistory} onClose={() => setCanvasId(undefined)} /> : null; })()}
+    {conditionBlockId && (() => { const block = value.blocks.find(item => item.id === conditionBlockId); return block ? <ConditionModal value={block.condition} template={previewTemplate} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock({ ...block, condition } as BulletinBlock); setConditionBlockId(undefined); }} /> : null; })()}
+    {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={previewTemplate} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
+    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={previewDocument} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} history={activeHistory} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
     {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
   </div>;

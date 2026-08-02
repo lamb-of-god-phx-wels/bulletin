@@ -48,8 +48,7 @@ import type {
 } from "../shared/types";
 import type { UndoRedoCommands } from "./useUndoRedo";
 import { RichTextEditor } from "./RichTextEditor";
-import { WeeklyPropertiesPanel } from "./CustomProperties";
-import { CustomPropertyBindingSelect } from "./CustomProperties";
+import { CustomPropertyBindingSelect, ThisSundayProperties, WeeklyPropertiesPanel } from "./CustomProperties";
 import { ConditionModal } from "./ConditionModal";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
@@ -589,6 +588,7 @@ export function WeeklyEditor({
             onChange={(e) => updateChurchName(e.target.value)}
           />
         </label>
+        <ThisSundayProperties document={document} template={template} onChange={onChange} />
       </section>
       <ElementSidebarPortal><>
       <WeeklyPropertiesPanel document={document} template={template} onChange={onChange} />

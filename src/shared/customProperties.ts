@@ -13,6 +13,8 @@ import type {
 } from './types.js';
 import { childBlocks } from './blocks.js';
 
+const propertyTypeName = (valueType: CustomPropertyType) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : 'Number';
+
 export function isCustomPropertyBinding(value: unknown): value is CustomPropertyBinding {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
     && (value as CustomPropertyBinding).kind === 'customProperty'
@@ -30,16 +32,27 @@ export function defaultValueForCustomProperty(type: CustomPropertyType): CustomP
 }
 
 export function effectiveCustomPropertyDefinitions(
-  template?: Pick<TemplateV1, 'customProperties'>,
-  document?: Pick<BulletinDocumentV1, 'customProperties'>,
+  template?: Pick<TemplateV1, 'customProperties'> & Partial<Pick<TemplateV1, 'starterBlocks'>>,
+  document?: Pick<BulletinDocumentV1, 'customProperties'> & Partial<Pick<BulletinDocumentV1, 'blocks'>>,
 ): CustomPropertyDefinition[] {
-  return document?.customProperties ?? template?.customProperties ?? [];
+  const result = [...(document?.customProperties ?? template?.customProperties ?? [])];
+  const seen = new Set(result.map(property => property.id));
+  const visit = (blocks: BulletinBlock[]) => blocks.forEach(block => {
+    if (block.type === 'templatePage') {
+      for (const property of block.customProperties ?? []) {
+        if (!seen.has(property.id)) { result.push(property); seen.add(property.id); }
+      }
+    }
+    childBlocks(block)?.forEach(child => visit([child]));
+  });
+  visit(document?.blocks ?? template?.starterBlocks ?? []);
+  return result;
 }
 
 export function effectiveCustomPropertyValue(
   propertyId: string,
-  template?: Pick<TemplateV1, 'customProperties'>,
-  document?: Pick<BulletinDocumentV1, 'customProperties' | 'customPropertyOverrides'>,
+  template?: Pick<TemplateV1, 'customProperties'> & Partial<Pick<TemplateV1, 'starterBlocks'>>,
+  document?: Pick<BulletinDocumentV1, 'customProperties' | 'customPropertyOverrides'> & Partial<Pick<BulletinDocumentV1, 'blocks'>>,
 ): CustomPropertyValue | undefined {
   if (document?.customPropertyOverrides && Object.prototype.hasOwnProperty.call(document.customPropertyOverrides, propertyId)) {
     return document.customPropertyOverrides[propertyId];
@@ -147,13 +160,13 @@ export function customPropertyIssues(template: Pick<TemplateV1, 'customPropertie
     else if (names.has(name)) issues.push({ path: `${path}/name`, message: `Custom property names must be unique: ${property.name}` });
     if (!['string', 'number', 'boolean'].includes(property.valueType)) issues.push({ path: `${path}/valueType`, message: `Unsupported custom property type: ${String(property.valueType)}` });
     const validType = typeof property.defaultValue === property.valueType && (property.valueType !== 'number' || Number.isFinite(property.defaultValue));
-    if (!validType) issues.push({ path: `${path}/defaultValue`, message: `Default value must be a valid ${property.valueType}.` });
+    if (!validType) issues.push({ path: `${path}/defaultValue`, message: `Default value must be valid for a ${propertyTypeName(property.valueType)} property.` });
     ids.add(property.id); names.add(name);
   }
   for (const [id, value] of Object.entries(document?.customPropertyOverrides ?? {})) {
     const definition = properties.find(property => property.id === id);
     if (!definition) issues.push({ path: `/customPropertyOverrides/${id}`, message: `Override references missing custom property “${id}”.` });
-    else if (typeof value !== definition.valueType || (typeof value === 'number' && !Number.isFinite(value))) issues.push({ path: `/customPropertyOverrides/${id}`, message: `Override for “${definition.name}” must be a valid ${definition.valueType}.` });
+    else if (typeof value !== definition.valueType || (typeof value === 'number' && !Number.isFinite(value))) issues.push({ path: `/customPropertyOverrides/${id}`, message: `Override for “${definition.name}” must be valid for a ${propertyTypeName(definition.valueType)} property.` });
   }
   const inspect = (block: BulletinBlock, path: string) => {
     const bindings: CustomPropertyBinding[] = [];
@@ -170,8 +183,8 @@ export function customPropertyIssues(template: Pick<TemplateV1, 'customPropertie
     for (const binding of bindings) {
       const definition = properties.find(property => property.id === binding.propertyId);
       if (!definition) issues.push({ path, message: `Binding references missing custom property “${binding.propertyName}”.` });
-      else if (definition.valueType !== binding.valueType) issues.push({ path, message: `Binding for “${definition.name}” expects ${binding.valueType}, not ${definition.valueType}.` });
-      if (block.condition?.property?.propertyId === binding.propertyId && definition?.valueType !== 'boolean') issues.push({ path, message: 'Conditions require a Boolean custom property.' });
+      else if (definition.valueType !== binding.valueType) issues.push({ path, message: `Binding for “${definition.name}” expects ${propertyTypeName(binding.valueType)}, not ${propertyTypeName(definition.valueType)}.` });
+      if (block.condition?.property?.propertyId === binding.propertyId && definition?.valueType !== 'boolean') issues.push({ path, message: 'Conditions require a Toggle property.' });
     }
     if (block.type === 'canvas') block.scene.elements.forEach((element, index) => {
       const canvasBindings: CustomPropertyBinding[] = [];
@@ -184,7 +197,7 @@ export function customPropertyIssues(template: Pick<TemplateV1, 'customPropertie
       for (const binding of canvasBindings) {
         const definition = properties.find(property => property.id === binding.propertyId);
         if (!definition) issues.push({ path, message: `Binding references missing custom property “${binding.propertyName}”.` });
-        else if (definition.valueType !== 'boolean') issues.push({ path, message: 'Conditions require a Boolean custom property.' });
+        else if (definition.valueType !== 'boolean') issues.push({ path, message: 'Conditions require a Toggle property.' });
       }
       if (element.type === 'block') inspect(element.block, `${path}/scene/elements/${index}/block`);
     });

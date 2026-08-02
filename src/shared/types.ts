@@ -33,6 +33,7 @@ export interface CustomPropertyDefinition {
   name: string;
   valueType: CustomPropertyType;
   defaultValue: CustomPropertyValue;
+  includeInThisSunday?: boolean;
 }
 export interface CustomPropertyBinding {
   kind: 'customProperty';
@@ -222,6 +223,7 @@ export interface TemplatePageBlock extends BlockBase {
   name: string;
   pageLayout?: 'canvas' | 'regular';
   margin: PageMarginSetting;
+  customProperties?: CustomPropertyDefinition[];
   blocks: BulletinBlock[];
 }
 
@@ -322,6 +324,7 @@ export interface PageTemplateV1 {
   status: 'draft' | 'published';
   layout?: 'canvas' | 'regular';
   margin: PageMarginSetting;
+  customProperties?: CustomPropertyDefinition[];
   blocks: BulletinBlock[];
   updatedAt: string;
 }

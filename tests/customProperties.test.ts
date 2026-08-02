@@ -1,4 +1,7 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { PageTemplatePropertiesPanel, TemplatePropertiesPanel, ThisSundayProperties, WeeklyPropertiesPanel } from '../src/components/CustomProperties';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 import { boundRichTextParagraphs } from '../src/shared/canvas';
 import { customPropertyBinding, customPropertyIssues, effectiveCustomPropertyValue, resolveConditionalBlocks, synchronizeCustomPropertyBindings, textBindingValue } from '../src/shared/customProperties';
@@ -14,6 +17,47 @@ const attendance: CustomPropertyDefinition = { id: 'attendance', name: 'Attendan
 const template = (): TemplateV1 => ({ ...structuredClone(defaultTemplate), customProperties: [enabled, serviceTime, attendance], starterBlocks: [] });
 
 describe('custom properties and conditional blocks', () => {
+  it('renders immutable property types in compact rows with one creation menu trigger', () => {
+    const host = template();
+    const markup = renderToStaticMarkup(createElement(TemplatePropertiesPanel, { template: host, onChange: () => undefined }));
+    expect(markup).toContain('custom-property-definition-line');
+    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).not.toContain('<select');
+    expect(markup.match(/＋ Property/g)).toHaveLength(1);
+  });
+
+  it('only shows the compact bulletin reset action for overridden values', () => {
+    const host = template();
+    const document = createBulletin(host);
+    const inherited = renderToStaticMarkup(createElement(WeeklyPropertiesPanel, { document, template: host, onChange: () => undefined }));
+    document.customPropertyOverrides = { [serviceTime.id]: '10:30 AM' };
+    const overridden = renderToStaticMarkup(createElement(WeeklyPropertiesPanel, { document, template: host, onChange: () => undefined }));
+    expect(inherited).not.toContain('>Reset</button>');
+    expect(overridden).toContain('>Reset</button>');
+  });
+
+  it('provides the same compact property editor for reusable pages', () => {
+    const page: PageTemplateV1 = {
+      schemaVersion: 1, id: 'page', version: 1, name: 'Page', status: 'draft', layout: 'regular',
+      margin: { mode: 'inherit', referenceMarginIn: .4 }, customProperties: [enabled], blocks: [], updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const markup = renderToStaticMarkup(createElement(PageTemplatePropertiesPanel, { pageTemplate: page, onChange: () => undefined }));
+    expect(markup).toContain('Page template');
+    expect(markup).toContain('Show Communion');
+    expect(markup).toContain('role="switch"');
+    expect(markup).toContain('Include in <i>This Sunday</i>');
+  });
+
+  it('shows opted-in property values directly in This Sunday', () => {
+    const sundayTime = { ...serviceTime, includeInThisSunday: true };
+    const host = { ...template(), customProperties: [enabled, sundayTime, attendance] };
+    const document = createBulletin(host);
+    const markup = renderToStaticMarkup(createElement(ThisSundayProperties, { document, template: host, onChange: () => undefined }));
+    expect(markup).toContain('Service Time');
+    expect(markup).toContain('9:00 AM');
+    expect(markup).not.toContain('Attendance');
+  });
+
   it('resolves typed template defaults and bulletin overrides deterministically', () => {
     const host = template();
     const document = createBulletin(host);
@@ -74,13 +118,25 @@ describe('custom properties and conditional blocks', () => {
     expect(block.type === 'richText' ? block.binding : undefined).toMatchObject({ propertyId: serviceTime.id, propertyName: serviceTime.name });
   });
 
+  it('carries page-owned property defaults into an inserted page', () => {
+    const page: PageTemplateV1 = {
+      schemaVersion: 1, id: 'welcome-page', version: 1, name: 'Welcome', status: 'published', layout: 'regular',
+      margin: { mode: 'inherit', referenceMarginIn: .4 }, customProperties: [serviceTime], updatedAt: '2026-08-01T00:00:00.000Z',
+      blocks: [{ id: 'time', type: 'richText', content: [], binding: customPropertyBinding(serviceTime) }],
+    };
+    const host: TemplateV1 = { ...structuredClone(defaultTemplate), customProperties: [], starterBlocks: [instantiatePageTemplate(page, 'page')] };
+    const document = createBulletin(host);
+    expect(effectiveCustomPropertyValue(serviceTime.id, host, document)).toBe('9:00 AM');
+    expect(textBindingValue(customPropertyBinding(serviceTime), document, host)).toBe('9:00 AM');
+  });
+
   it('validates definitions, references, and condition types', () => {
     const host = template();
     host.customProperties!.push({ ...serviceTime, id: 'duplicate-name' });
     host.starterBlocks = [{ id: 'conditional-heading', type: 'heading', text: 'Conditional heading', condition: { property: customPropertyBinding(serviceTime), equals: true } }];
     const messages = customPropertyIssues(host).map(issue => issue.message);
     expect(messages).toContain('Custom property names must be unique: Service Time');
-    expect(messages).toContain('Conditions require a Boolean custom property.');
+    expect(messages).toContain('Conditions require a Toggle property.');
   });
 
   it('reports malformed conditional JSON without throwing', () => {

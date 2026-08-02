@@ -11,6 +11,7 @@
     "name": { "type": "string", "minLength": 1 },
     "status": { "enum": ["draft", "published"] },
     "layout": { "enum": ["canvas", "regular"] },
+    "customProperties": { "type": "array", "items": { "$ref": "#/$defs/customProperty" } },
     "margin": {
       "oneOf": [
         { "type": "object", "required": ["mode", "referenceMarginIn"], "properties": { "mode": { "const": "inherit" }, "referenceMarginIn": { "type": "number", "minimum": 0, "maximum": 1.25 } }, "additionalProperties": false },
@@ -19,6 +20,25 @@
     },
     "blocks": { "type": "array", "items": { "type": "object", "required": ["id", "type"], "properties": { "id": { "type": "string", "minLength": 1 }, "type": { "not": { "enum": ["titlePage", "canvasCover", "templatePage"] } } }, "additionalProperties": true } },
     "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "customProperty": {
+      "type": "object",
+      "required": ["id", "name", "valueType", "defaultValue"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "valueType": { "enum": ["string", "number", "boolean"] },
+        "defaultValue": {},
+        "includeInThisSunday": { "type": "boolean" }
+      },
+      "allOf": [
+        { "if": { "properties": { "valueType": { "const": "string" } } }, "then": { "properties": { "defaultValue": { "type": "string" } } } },
+        { "if": { "properties": { "valueType": { "const": "number" } } }, "then": { "properties": { "defaultValue": { "type": "number" } } } },
+        { "if": { "properties": { "valueType": { "const": "boolean" } } }, "then": { "properties": { "defaultValue": { "type": "boolean" } } } }
+      ],
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

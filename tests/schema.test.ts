@@ -31,7 +31,7 @@ describe('public JSON contracts', () => {
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], componentDefinitions: [prepackagedComponentDefinitions[0]] })).toBe(true);
   });
   it('validates custom properties, overrides, bindings, and conditional blocks', () => {
-    const property: CustomPropertyDefinition = { id: 'show-communion', name: 'Show Communion', valueType: 'boolean', defaultValue: true };
+    const property: CustomPropertyDefinition = { id: 'show-communion', name: 'Show Communion', valueType: 'boolean', defaultValue: true, includeInThisSunday: true };
     const template = { ...structuredClone(defaultTemplate), customProperties: [property], starterBlocks: [{ id: 'communion', type: 'heading' as const, text: 'Communion', condition: { property: customPropertyBinding(property), equals: true } }] };
     const bulletin = createBulletin(template);
     bulletin.customPropertyOverrides = { [property.id]: false };

@@ -25,6 +25,7 @@ describe('single-page templates', () => {
     expect(pageTemplateLayout(regular)).toBe('regular');
     expect(pageTemplateIssues({ ...canvas, blocks: [] })).toContain('Canvas page templates must contain exactly one canvas.');
     expect(pageTemplateIssues({ ...regular, blocks: [createCanvasBlock('canvas')] })).toContain('Regular page templates cannot contain canvas blocks.');
+    expect(canvas.customProperties).toEqual([]);
   });
 
   it('creates deterministic pinned snapshots that survive source edits', () => {

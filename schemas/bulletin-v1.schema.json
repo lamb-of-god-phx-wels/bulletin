@@ -95,7 +95,8 @@
         "id": { "type": "string", "minLength": 1 },
         "name": { "type": "string", "minLength": 1 },
         "valueType": { "enum": ["string", "number", "boolean"] },
-        "defaultValue": {}
+        "defaultValue": {},
+        "includeInThisSunday": { "type": "boolean" }
       },
       "allOf": [
         { "if": { "properties": { "valueType": { "const": "string" } } }, "then": { "properties": { "defaultValue": { "type": "string" } } } },

@@ -1,13 +1,11 @@
 import { useEffect, useState, type SetStateAction } from 'react';
-import { childBlocks } from '../shared/blocks';
-import { scriptureElementNames } from '../shared/scriptureReading';
-import { songHeader } from '../shared/songs';
 import type { BulletinBlock, BulletinDocumentV1, CustomBlockStyle, LayoutHints, LibraryManifestV1, TemplateV1 } from '../shared/types';
 import { createBulletin } from '../shared/defaults';
 import { effectiveBlockStyle } from './InlineTypographyControls';
 import { NativeBlockPreview } from './DocumentView';
 import { isRedoShortcut, isUndoShortcut, UndoRedoButtons, useUndoRedoHistory } from './useUndoRedo';
 import { useFontOptions } from './LibraryFonts';
+import { blockDisplayName } from '../shared/blockNames';
 
 function NumberField({ label, value, min, max, step = .05, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange(value: number): void }) {
   return <label>{label}<input type="number" value={value} min={min} max={max} step={step} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) onChange(event.currentTarget.valueAsNumber); }} /></label>;
@@ -15,16 +13,6 @@ function NumberField({ label, value, min, max, step = .05, onChange }: { label: 
 
 function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: string }>; onChange(value: T): void; label: string }) {
   return <fieldset className="segmented-field"><legend>{label}</legend><div>{options.map(option => <button type="button" className={value === option.value ? 'active' : ''} aria-pressed={value === option.value} key={option.value} onClick={() => onChange(option.value)}>{option.label}</button>)}</div></fieldset>;
-}
-
-function displayName(block: BulletinBlock) {
-  const headerBlock = block.type === 'paragraph'
-    ? childBlocks(block)?.find(child => child.type === 'richText' && child.role === 'header')
-    : undefined;
-  const paragraphHeader = headerBlock?.type === 'richText'
-    ? headerBlock.content.flatMap(paragraph => paragraph.children).map(child => child.type === 'text' ? child.text : child.type === 'lineBreak' ? '\n' : '✠').join('')
-    : undefined;
-  return block.type === 'custom' ? block.name : block.type === 'song' ? songHeader(block) : block.type === 'paragraph' ? paragraphHeader || 'Paragraph' : block.type === 'richText' && block.scriptureRole ? scriptureElementNames[block.scriptureRole] : block.type === 'richText' && block.role ? (block.role === 'header' ? 'Header text' : 'Paragraph text') : block.label ?? ('text' in block ? block.text : block.type);
 }
 
 export function BlockFormattingModal({ block, template, document, library, assets = {}, scope, name, hidePageFlow = false, onClose, onSave }: { block: BulletinBlock; template: TemplateV1; document?: BulletinDocumentV1; library?: LibraryManifestV1; assets?: Record<string, string>; scope: 'template' | 'weekly'; name?: string; hidePageFlow?: boolean; onClose(): void; onSave(presentation: Partial<CustomBlockStyle> | undefined, layout: LayoutHints | undefined): void }) {
@@ -65,7 +53,7 @@ export function BlockFormattingModal({ block, template, document, library, asset
   }, [styleValue, layout]);
   const padding = (side: keyof CustomBlockStyle['paddingIn'], value: number) => style({ paddingIn: { ...styleValue.paddingIn, [side]: value } });
   const margin = (side: keyof CustomBlockStyle['marginIn'], value: number) => style({ marginIn: { ...styleValue.marginIn, [side]: value } });
-  const effectiveName = name ?? displayName(block);
+  const effectiveName = name ?? blockDisplayName(block);
   const previewDocument = document ?? createBulletin(template);
   const previewBlock = { ...block, presentation: styleValue, layout } as BulletinBlock;
   return <div className="modal-backdrop block-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="block-formatting-modal" role="dialog" aria-modal="true" aria-labelledby="format-block-title">

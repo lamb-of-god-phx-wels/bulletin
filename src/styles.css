@@ -296,6 +296,9 @@ input:focus, textarea:focus, select:focus { border-color: #a55b3d; box-shadow: 0
 .collapsible-editor > summary > div:first-of-type { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
 .collapsible-editor > summary h3 { margin: 0; font: 18px Georgia, serif; }
 .collapsible-editor > summary b, .collapsible-editor > summary h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editable-element-name { min-width: 0; cursor: text; }
+.editable-element-name.editing { overflow: visible !important; }
+.editable-element-name input { width: min(360px, 100%); height: 29px; padding: 2px 7px; font: inherit; font-weight: inherit; }
 .collapsible-editor > summary:hover { background: #faf8f3; }
 .collapsible-editor[open] > summary { border-bottom: 1px solid #e7e3da; }
 .collapsible-editor-fields { padding: 16px 18px 18px; }

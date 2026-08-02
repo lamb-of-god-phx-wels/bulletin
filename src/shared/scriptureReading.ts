@@ -91,6 +91,7 @@ export function scriptureElementBlocks(block: ScriptureBlock): RichTextBlock[] {
     id: `${block.id}-${scriptureRole}`,
     type: 'richText',
     scriptureRole,
+    displayName: block.elements?.[scriptureRole]?.displayName,
     content: content[scriptureRole],
     presentation: {
       ...defaultPresentation[scriptureRole],
@@ -120,6 +121,7 @@ export function updateScriptureElement(block: ScriptureBlock, element: RichTextB
   const settings = {
     ...block.elements,
     [element.scriptureRole]: {
+      displayName: element.displayName,
       presentation: element.presentation,
       layout: element.layout,
       content: element.content,

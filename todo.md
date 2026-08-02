@@ -3,8 +3,6 @@
 ## General
 * Extra "OneLicense.net copyright notice automatically at end
 * Elements dropdown is not clickable to toggle like the others.
-* Paragraph elements should use the heading text as the element name
-
 
 ## Template/bulletin builder
 
@@ -30,4 +28,3 @@
 ## Layout elements
 
 Layout elements should accept any element as their sub-elements, not just paragraphs
-

@@ -4,7 +4,6 @@ import { BlockFormattingModal } from "./BlockFormattingModal";
 import { customBlockIssues } from "../shared/customBlocks";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "../shared/blocks";
-import { scriptureElementNames } from "../shared/scriptureReading";
 import type { DeclarativeComponentDefinition } from "../component-engine/types";
 import type {
   BulletinBlock,
@@ -28,7 +27,6 @@ import { SongBlockFields } from "./SongBlockFields";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { useFontOptions } from "./LibraryFonts";
 import { randomId } from "../shared/id";
-import { songHeader } from "../shared/songs";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
 import { AnnouncementFields } from "./AnnouncementFields";
@@ -42,21 +40,9 @@ import { TemplatePropertiesPanel } from "./CustomProperties";
 import { CustomPropertyBindingSelect } from "./CustomProperties";
 import { customPropertyIssues } from "../shared/customProperties";
 import { ConditionModal } from "./ConditionModal";
+import { blockDisplayName } from "../shared/blockNames";
+import { EditableElementName } from "./EditableElementName";
 
-const contentText = (block: Extract<BulletinBlock, { type: "richText" }>) =>
-  block.content
-    .map((paragraph) =>
-      paragraph.children
-        .map((child) =>
-          child.type === "text"
-            ? child.text
-            : child.type === "lineBreak"
-              ? "\n"
-              : "✠",
-        )
-        .join(""),
-    )
-    .join("\n\n");
 const textContent = (value: string) =>
   value
     .split(/\n\s*\n/)
@@ -119,34 +105,7 @@ export function TemplateBuilder({
     });
   const updateTemplate = (changes: Partial<TemplateV1>) =>
     onChange({ ...template, ...changes, status: "draft" });
-  const blockTitle = (block: BulletinBlock) =>
-    block.type === "templatePage"
-      ? block.name
-      : block.type === "custom"
-        ? block.name
-        : block.type === "canvas"
-          ? "Canvas"
-          : block.type === "song"
-            ? songHeader(block)
-          : block.type === "paragraph"
-            ? contentText(
-                (childBlocks(block)?.find(
-                  (child) =>
-                    child.type === "richText" && child.role === "header",
-                ) as
-                  Extract<BulletinBlock, { type: "richText" }> | undefined) ?? {
-                  id: "",
-                  type: "richText",
-                  content: [],
-                },
-              ) || "Paragraph"
-            : block.type === "richText" && block.scriptureRole
-              ? scriptureElementNames[block.scriptureRole]
-              : block.type === "richText" && block.role
-                ? block.role === "header"
-                  ? "Header text"
-                  : "Paragraph text"
-                : (block.label ?? ("text" in block ? block.text : block.type));
+  const blockTitle = blockDisplayName;
   const updateTheme = (
     key: keyof TemplateV1["theme"],
     value: string | number,
@@ -260,7 +219,7 @@ export function TemplateBuilder({
             key={child.id}
           >
             <div className="outline-main">
-              <b>{blockTitle(child)}</b>
+              <EditableElementName as="b" value={blockTitle(child)} onRename={displayName => updateBlock(child.id, { displayName })} />
               <small>
                 {child.type} · Nested element
                 {child.presentation ? " · Formatted" : ""}
@@ -496,7 +455,7 @@ export function TemplateBuilder({
                     tabIndex={-1}
                   >
                     <div className="outline-main">
-                      <b>{blockTitle(block)}</b>
+                      <EditableElementName as="b" value={blockTitle(block)} onRename={displayName => updateBlock(block.id, { displayName })} />
                       <small>
                         {block.type === "custom" ? "Church block" : block.type}
                         {block.presentation ? " · Formatted" : ""}

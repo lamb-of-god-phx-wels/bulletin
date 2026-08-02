@@ -48,6 +48,7 @@ export interface ElementCondition {
 
 interface BlockBase {
   id: string;
+  displayName?: string;
   label?: string;
   role?: 'header' | 'body';
   weeklyEditable?: boolean;
@@ -178,7 +179,7 @@ export interface ScriptureBlock extends BlockBase {
   caption?: string;
   headingReferenceLayout?: 'inline' | 'stacked';
   headingReferenceGapIn?: number;
-  elements?: Partial<Record<ScriptureElementRole, { presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints; content?: Paragraph[]; condition?: ElementCondition }>>;
+  elements?: Partial<Record<ScriptureElementRole, { displayName?: string; presentation?: Partial<CustomBlockStyle>; layout?: LayoutHints; content?: Paragraph[]; condition?: ElementCondition }>>;
   resolved?: { content: Paragraph[]; source: 'bible-gateway-web' | 'bible-gateway' | 'manual'; retrievedAt: string; attribution: string };
 }
 export interface SongBlock extends BlockBase {

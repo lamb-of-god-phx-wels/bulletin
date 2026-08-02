@@ -34,7 +34,7 @@ import { ElementPalette, type ElementPaletteItem } from './ElementPalette.js';
 import { canvasElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog.js';
 import { instantiateComponentDefinition } from '../componentDefinitions.js';
 import { NativeBlockFields } from './NativeBlockFields.js';
-import { songHeader } from '../shared/songs.js';
+import { blockDisplayName } from '../shared/blockNames.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
 import { NativeBlockPreview, PageRulers, stopTrackingPointer, trackPointer } from './DocumentView.js';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls.js';
@@ -657,10 +657,19 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   };
   const space = canvasSpace(scene, 0, canvasWidth, block.heightIn);
 
-  const elementName = (element: CanvasElement) =>
-    element.type === 'block' && element.block.type === 'song'
-      ? songHeader(element.block)
-      : element.name ?? element.id;
+  const elementName = (element: CanvasElement) => {
+    if (element.name?.trim()) return element.name.trim();
+    if (element.type === 'block') return blockDisplayName(element.block);
+    if (element.type === 'text') {
+      const binding = element.source.binding;
+      if (binding && typeof binding === 'object') return binding.propertyName;
+      if (binding) return ({ 'info.title': 'Sermon title', 'info.date': 'Service date', 'info.churchWeek': 'Church event', 'info.churchEvent': 'Church event', 'info.series': 'Series', 'church.name': 'Church name' } as Record<string, string>)[binding] ?? 'Bound text';
+      return plainText(element.source.literal).replace(/\s+/g, ' ').trim() || 'Text';
+    }
+    if (element.type === 'image') return element.asset.alt?.trim() || 'Image';
+    if (element.type === 'shape') return element.shape === 'line' ? 'Line' : 'Rectangle';
+    return element.type[0].toUpperCase() + element.type.slice(1);
+  };
   const elementIcon = (element: CanvasElement) =>
     element.type === 'block'
       ? element.block.type === 'image' ? '▧' : '◇'
@@ -699,7 +708,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     <aside className="canvas-layers">
       <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>
       <SortableContext items={frontToBack.map(element => `canvas-layer:${element.id}`)} strategy={verticalListSortingStrategy}><ol>{frontToBack.map(element => <SortableItem id={`canvas-layer:${element.id}`} key={element.id}><li className={selected.has(element.id) ? 'selected' : ''} onContextMenu={event => openContextMenu(event, element)}>
-        <button className="canvas-layer-select" type="button" onClick={event => select(element.id, event.shiftKey || event.ctrlKey || event.metaKey)}>
+        <button className="canvas-layer-select" type="button" title="Double-click to rename" onClick={event => select(element.id, event.shiftKey || event.ctrlKey || event.metaKey)} onDoubleClick={event => { event.preventDefault(); const name = window.prompt('Element name', elementName(element)); if (name !== null) publish({ ...scene, elements: scene.elements.map(item => item.id === element.id ? { ...item, name: name.trim() || undefined } : item) }); }}>
           <span className="canvas-layer-icon">{elementIcon(element)}</span>
           <span className="canvas-layer-copy"><b>{elementName(element)}</b><small>{elementKind(element)}{element.groupId ? ' · Grouped' : ''}{element.locked ? ' · Locked' : ''}</small></span>
         </button>

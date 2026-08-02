@@ -23,11 +23,9 @@ import {
   effectiveResponsiveReadingSettings,
   updateResponsiveReaderLabels,
 } from "../shared/responsiveReading";
-import { scriptureElementNames } from "../shared/scriptureReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
-import { songHeader } from "../shared/songs";
 import {
   churchEventDisplayName,
   churchEventsForDate,
@@ -50,6 +48,8 @@ import type { UndoRedoCommands } from "./useUndoRedo";
 import { RichTextEditor } from "./RichTextEditor";
 import { CustomPropertyBindingSelect, ThisSundayProperties, WeeklyPropertiesPanel } from "./CustomProperties";
 import { ConditionModal } from "./ConditionModal";
+import { blockDisplayName } from "../shared/blockNames";
+import { EditableElementName } from "./EditableElementName";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -168,38 +168,7 @@ export function WeeklyEditor({
       ...document,
       blocks: updateBlockTree(document.blocks, id, next),
     });
-  const paragraphHeader = (block: BulletinBlock) => {
-    const header =
-      block.type === "paragraph"
-        ? childBlocks(block)?.find(
-            (child) => child.type === "richText" && child.role === "header",
-          )
-        : undefined;
-    return header?.type === "richText" ? paragraphText(header.content) : "";
-  };
-  const blockName = (block: BulletinBlock) =>
-    block.type === "templatePage"
-      ? block.name
-      : block.type === "custom"
-        ? block.name
-        : block.type === "canvas"
-          ? "Canvas"
-          : block.type === "song"
-            ? songHeader(block)
-          : block.type === "paragraph"
-            ? paragraphHeader(block) || "Paragraph"
-            : block.type === "richText" && block.scriptureRole
-              ? scriptureElementNames[block.scriptureRole]
-              : block.type === "richText" && block.role
-                ? block.role === "header"
-                  ? "Header text"
-                  : "Paragraph text"
-                : (block.label ??
-                  ("text" in block
-                    ? block.text
-                    : block.type === "announcements"
-                      ? "Announcements"
-                      : block.type));
+  const blockName = blockDisplayName;
   const updateChildren = (parent: BulletinBlock, children: BulletinBlock[]) => {
     if (parent.type === "churchInfo" || parent.type === "group")
       updateBlock(parent.id, { ...parent, children });
@@ -227,7 +196,7 @@ export function WeeklyEditor({
                 {child.type}
                 {child.presentation ? " · formatted" : ""}
               </span>
-              <b>{blockName(child)}</b>
+              <EditableElementName as="b" value={blockName(child)} onRename={displayName => updateBlock(child.id, { ...child, displayName })} />
             </div>
             <div
               className="reorder"
@@ -677,7 +646,7 @@ export function WeeklyEditor({
                     {block.type}
                     {block.presentation ? " · formatted" : ""}
                   </span>
-                  <h3>{blockName(block)}</h3>
+                  <EditableElementName as="h3" value={blockName(block)} onRename={displayName => updateBlock(block.id, { ...block, displayName })} />
                 </div>
                 <div
                   className="reorder"

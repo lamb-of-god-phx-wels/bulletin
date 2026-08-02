@@ -12,6 +12,7 @@ import type {
   ValidationIssue,
 } from './types.js';
 import { childBlocks } from './blocks.js';
+import { blockDisplayName } from './blockNames.js';
 
 const propertyTypeName = (valueType: CustomPropertyType) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : 'Number';
 
@@ -116,7 +117,7 @@ export function customPropertyUsages(blocks: BulletinBlock[], propertyId: string
         return (native.type === 'richText' && isCustomPropertyBinding(native.binding) && native.binding.propertyId === propertyId)
           || customPropertyUsages([native], propertyId).length > 0;
       })())));
-    if (used) result.push({ blockId: block.id, label: block.label ?? ('name' in block ? String(block.name) : block.type) });
+    if (used) result.push({ blockId: block.id, label: blockDisplayName(block) });
     childBlocks(block)?.forEach(visit);
   };
   blocks.forEach(visit);

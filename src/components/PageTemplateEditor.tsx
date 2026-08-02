@@ -18,20 +18,15 @@ import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
 import { customPropertyIssues } from '../shared/customProperties';
 import { ConditionModal } from './ConditionModal';
-import { songHeader } from '../shared/songs';
 import { ImageAssetDialog } from './ImageAssetDialog';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
 import { isRedoShortcut, isUndoShortcut, UndoRedoButtons, useUndoRedoHistory, type UndoRedoCommands } from './useUndoRedo';
 import { RichTextToolbar } from './RichTextEditing';
 import { PageTemplatePropertiesPanel } from './CustomProperties';
+import { blockDisplayName } from '../shared/blockNames';
+import { EditableElementName } from './EditableElementName';
 
-const title = (block: BulletinBlock) => block.type === 'custom'
-  ? block.name
-  : block.type === 'canvas'
-    ? 'Canvas'
-    : block.type === 'song'
-      ? songHeader(block)
-      : block.label ?? ('text' in block ? block.text : block.type);
+const title = blockDisplayName;
 
 export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onLibraryChange, onError, onChange, history, onSave, onClose }: {
   value: PageTemplateV1;
@@ -218,7 +213,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
         >
           {value.blocks.map(block => <SortableItem id={block.id} key={block.id}><details className="editor-card block-editor collapsible-editor" data-editor-block-id={block.id} tabIndex={-1}>
             <summary>
-              <div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><h3>{title(block)}</h3></div>
+              <div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><EditableElementName as="h3" value={title(block)} onRename={displayName => updateBlock({ ...block, displayName } as BulletinBlock)} /></div>
               <div className="reorder" onClick={event => event.preventDefault()}>
                 <button className={`format-block-button condition-toggle ${block.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(block.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(block.id)}>Condition</button>
                 <button className="format-block-button format-action" title="Format block" onClick={() => setFormatId(block.id)}>Format</button>
@@ -244,7 +239,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
         onChange={blocks => change({ blocks })}
         onInsert={undefined}
       ><ol className="outline">{value.blocks.map(block => <SortableItem id={block.id} key={block.id}><li>
-        <div className="outline-main"><b>{title(block)}</b><small>{block.type}</small>
+        <div className="outline-main"><EditableElementName as="b" value={title(block)} onRename={displayName => updateBlock({ ...block, displayName } as BulletinBlock)} /><small>{block.type}</small>
           {block.type === 'canvas' && <small>7 × 8.5 in · full page</small>}
         </div><div className="reorder"><button className="format-block-button" onClick={() => setCanvasId(block.id)}>Design</button></div>
       </li></SortableItem>)}</ol></SortableList>

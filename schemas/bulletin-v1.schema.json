@@ -108,6 +108,7 @@
     "elementFormatting": {
       "type": "object",
       "properties": {
+        "displayName": { "type": "string" },
         "layout": { "type": "object" },
         "presentation": { "type": "object" },
         "condition": { "$ref": "#/$defs/condition" }

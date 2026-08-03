@@ -53,12 +53,12 @@ function ImageThumbnail({ root, record }: { root: string; record: LibraryCatalog
   </span>;
 }
 
-function Tree({ library, parentId, current, onOpen }: { library: LibraryManifestV1; parentId?: string; current?: string; onOpen(id?: string): void }) {
+function Tree({ library, parentId, current, onOpen, onContextMenu }: { library: LibraryManifestV1; parentId?: string; current?: string; onOpen(id?: string): void; onContextMenu?(id: string, event: MouseEvent): void }) {
   const children = (library.folders ?? []).filter(folder => folder.parentId === parentId).sort((a, b) => a.name.localeCompare(b.name));
   if (!children.length) return null;
   return <ul>{children.map(folder => <li key={folder.id}>
-    <button className={current === folder.id ? 'active' : ''} onClick={() => onOpen(folder.id)}><span>▸</span>{folder.name}</button>
-    <Tree library={library} parentId={folder.id} current={current} onOpen={onOpen} />
+    <button className={current === folder.id ? 'active' : ''} onClick={() => onOpen(folder.id)} onContextMenu={event => onContextMenu?.(folder.id, event)}><span>▸</span>{folder.name}</button>
+    <Tree library={library} parentId={folder.id} current={current} onOpen={onOpen} onContextMenu={onContextMenu} />
   </li>)}</ul>;
 }
 
@@ -116,6 +116,8 @@ export function LibraryBrowserDialog({
   const [newFolderName, setNewFolderName] = useState('');
   const [folderError, setFolderError] = useState('');
   const [namingKey, setNamingKey] = useState<string>();
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; keys: string[]; background?: boolean }>();
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const folders = library.folders ?? [];
   const types = Object.keys(libraryRecordTypeLabel) as LibraryRecordType[];
   const availableTypes = types.filter(type => !fixedTypes || fixedTypes.has(type));
@@ -240,6 +242,18 @@ export function LibraryBrowserDialog({
     }
     setNamingKey(key); setFolderError(''); setCreatingFolder(true);
   };
+  const openContextMenu = (key: string | undefined, event: MouseEvent) => {
+    event.preventDefault(); event.stopPropagation();
+    if (!manage && !key) return;
+    const keys = key ? (selected.has(key) ? [...selected] : [key]) : [];
+    if (key && !selected.has(key)) { setSelected(new Set([key])); setAnchor(key); }
+    setContextMenu({ x: Math.min(event.clientX, window.innerWidth - 224), y: Math.min(event.clientY, window.innerHeight - 300), keys, background: !key });
+  };
+  const closeContextMenu = () => setContextMenu(undefined);
+  const contextAction = (action: () => void | Promise<void>) => {
+    closeContextMenu();
+    void action();
+  };
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
@@ -249,6 +263,22 @@ export function LibraryBrowserDialog({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [selected, cut, folderId, browseMode, library, records]);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (event: PointerEvent) => { if (!contextMenuRef.current?.contains(event.target as Node)) closeContextMenu(); };
+    const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeContextMenu(); };
+    const dismissOnViewportChange = () => closeContextMenu();
+    window.addEventListener('pointerdown', dismiss);
+    window.addEventListener('keydown', keydown);
+    window.addEventListener('resize', dismissOnViewportChange);
+    window.addEventListener('scroll', dismissOnViewportChange, true);
+    return () => {
+      window.removeEventListener('pointerdown', dismiss);
+      window.removeEventListener('keydown', keydown);
+      window.removeEventListener('resize', dismissOnViewportChange);
+      window.removeEventListener('scroll', dismissOnViewportChange, true);
+    };
+  }, [contextMenu]);
   const path = folderId && folderId !== builtinsFolder ? imageFolderAncestors(library, folderId) : [];
   const selectedRecord = selected.size === 1 ? records.find(record => record.key === [...selected][0]) : undefined;
   const content = <section className={`library-browser ${embedded ? 'embedded' : ''} ${browseMode === 'all' ? 'all-mode' : ''}`} role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true}>
@@ -258,13 +288,13 @@ export function LibraryBrowserDialog({
       {actions}<span /><div className="library-browse-mode" role="radiogroup" aria-label="Library organization"><button role="radio" aria-checked={browseMode === 'folders'} className={browseMode === 'folders' ? 'active' : ''} onClick={() => { setBrowseMode('folders'); localStorage.setItem(browseModeKey(root), 'folders'); setSelected(new Set()); }}>Folder view</button><button role="radio" aria-checked={browseMode === 'all'} className={browseMode === 'all' ? 'active' : ''} onClick={() => { setBrowseMode('all'); localStorage.setItem(browseModeKey(root), 'all'); setSelected(new Set()); }}>All</button></div><button className={view === 'thumbnails' ? 'active' : ''} aria-label="Thumbnail view" onClick={() => { setView('thumbnails'); localStorage.setItem(viewKey(root), 'thumbnails'); }}>▦</button><button className={view === 'list' ? 'active' : ''} aria-label="List view" onClick={() => { setView('list'); localStorage.setItem(viewKey(root), 'list'); }}>☷</button>
     </div>
     <div className="library-browser-body">
-      <aside onDragOver={event => { if (manage) event.preventDefault(); }} onDrop={event => dropInto(undefined, event)}><button className={!folderId ? 'active' : ''} onClick={() => openFolder(undefined)}>▾ Library</button><Tree library={library} current={folderId} onOpen={openFolder} /><button className={folderId === builtinsFolder ? 'active builtin' : 'builtin'} onClick={() => openFolder(builtinsFolder)}>◇ Built-ins</button></aside>
+      <aside onDragOver={event => { if (manage) event.preventDefault(); }} onDrop={event => dropInto(undefined, event)}><button className={!folderId ? 'active' : ''} onClick={() => openFolder(undefined)}>▾ Library</button><Tree library={library} current={folderId} onOpen={openFolder} onContextMenu={(id, event) => openContextMenu(`folder:${id}`, event)} /><button className={folderId === builtinsFolder ? 'active builtin' : 'builtin'} onClick={() => openFolder(builtinsFolder)}>◇ Built-ins</button></aside>
       <main onDragOver={event => { if (manage && folderId !== builtinsFolder) event.preventDefault(); }} onDrop={event => dropInto(folderId === builtinsFolder ? undefined : folderId, event)}>
         <div className="library-browser-path"><div className="library-history-controls"><button disabled={browseMode === 'all' || !backLocations.length} aria-label="Back" title="Back" onClick={goBack}>←</button><button disabled={browseMode === 'all' || !forwardLocations.length} aria-label="Forward" title="Forward" onClick={goForward}>→</button><button disabled={browseMode === 'all' || !folderId} aria-label="Up one folder" title="Up one folder" onClick={goUp}>↑</button></div>{browseMode === 'all' ? <b>All library items</b> : <><button onClick={() => openFolder(undefined)}>Library</button>{folderId === builtinsFolder ? <span>› Built-ins</span> : path.map(folder => <span key={folder.id}>› <button onClick={() => openFolder(folder.id)}>{folder.name}</button></span>)}</>}<input type="search" placeholder={browseMode === 'all' ? 'Search all library items' : 'Search this folder tree'} value={search} onChange={event => setSearch(event.target.value)} /></div>
         {!fixedTypes?.size || fixedTypes.size > 1 ? <div className="library-type-filters"><button className={activeFilter === 'all' ? 'active' : ''} onClick={() => { setFilter('all'); localStorage.removeItem(filterKey(root)); }}>All</button>{types.filter(type => !fixedTypes || fixedTypes.has(type)).map(type => <button className={activeFilter === type ? 'active' : ''} onClick={() => { setFilter(type); localStorage.setItem(filterKey(root), type); }} key={type}>{libraryRecordTypeLabel[type]}</button>)}</div> : <div className="library-type-filters locked"><b>{libraryRecordTypeLabel[[...fixedTypes][0]]}</b></div>}
-        <div className={`library-record-entries ${view}`}>
-          {visibleFolders.map(folder => { const key = `folder:${folder.id}`; return <button draggable={manage} onDragStart={event => beginDrag(key, event)} onDragOver={event => { if (manage) { event.preventDefault(); event.stopPropagation(); } }} onDrop={event => { event.stopPropagation(); dropInto(folder.id, event); }} className={`${selected.has(key) ? 'selected' : ''} ${cut.has(key) ? 'cut' : ''}`} key={key} onClick={event => choose(key, event)} onDoubleClick={() => openFolder(folder.id)}><span className="library-record-icon folder">📁</span><b>{folder.name}</b><small>Folder</small></button>; })}
-          {visibleRecords.map(record => <button draggable={browseMode === 'folders' && manage && !record.builtin} onDragStart={event => beginDrag(record.key, event)} className={`${selected.has(record.key) ? 'selected' : ''} ${cut.has(record.key) ? 'cut' : ''}`} key={record.key} onClick={event => choose(record.key, event)} onDoubleClick={() => manage ? onOpen?.(record) : onSelect?.(record)}>{record.type === 'image' ? <ImageThumbnail root={root} record={record} /> : <span className="library-record-icon">{libraryRecordIcon[record.type]}</span>}<b>{record.title}</b><small>{libraryRecordTypeLabel[record.type]}{record.version ? ` · v${record.version}` : ''}{record.versionCount > 1 ? ` · ${record.versionCount} versions` : ''}{(browseMode === 'all' || searching) ? ` · ${record.builtin ? 'Built-ins' : record.folderId ? imageFolderAncestors(library, record.folderId).map(item => item.name).join(' / ') : 'Library'}` : ''}</small></button>)}
+        <div className={`library-record-entries ${view}`} onContextMenu={event => openContextMenu(undefined, event)}>
+          {visibleFolders.map(folder => { const key = `folder:${folder.id}`; return <button draggable={manage} onDragStart={event => beginDrag(key, event)} onDragOver={event => { if (manage) { event.preventDefault(); event.stopPropagation(); } }} onDrop={event => { event.stopPropagation(); dropInto(folder.id, event); }} className={`${selected.has(key) ? 'selected' : ''} ${cut.has(key) ? 'cut' : ''}`} key={key} onClick={event => choose(key, event)} onContextMenu={event => openContextMenu(key, event)} onDoubleClick={() => openFolder(folder.id)}><span className="library-record-icon folder">📁</span><b>{folder.name}</b><small>Folder</small></button>; })}
+          {visibleRecords.map(record => <button draggable={browseMode === 'folders' && manage && !record.builtin} onDragStart={event => beginDrag(record.key, event)} className={`${selected.has(record.key) ? 'selected' : ''} ${cut.has(record.key) ? 'cut' : ''}`} key={record.key} onClick={event => choose(record.key, event)} onContextMenu={event => openContextMenu(record.key, event)} onDoubleClick={() => manage ? onOpen?.(record) : onSelect?.(record)}>{record.type === 'image' ? <ImageThumbnail root={root} record={record} /> : <span className="library-record-icon">{libraryRecordIcon[record.type]}</span>}<b>{record.title}</b><small>{libraryRecordTypeLabel[record.type]}{record.version ? ` · v${record.version}` : ''}{record.versionCount > 1 ? ` · ${record.versionCount} versions` : ''}{(browseMode === 'all' || searching) ? ` · ${record.builtin ? 'Built-ins' : record.folderId ? imageFolderAncestors(library, record.folderId).map(item => item.name).join(' / ') : 'Library'}` : ''}</small></button>)}
           {!visibleFolders.length && !visibleRecords.length && <p className="image-library-empty">No matching reusable records here.</p>}
         </div>
       </main>
@@ -272,6 +302,24 @@ export function LibraryBrowserDialog({
     <footer><span>{cut.size ? `${cut.size} cut · open a folder and press Ctrl+V` : selected.size ? `${selected.size} selected` : `${visibleRecords.length} record${visibleRecords.length === 1 ? '' : 's'}`}</span><div>{onClose && <button className="secondary" onClick={onClose}>Cancel</button>}{manage && onOpen && <button className="primary" disabled={!selectedRecord} onClick={() => selectedRecord && onOpen(selectedRecord)}>Open</button>}{!manage && <button className="primary" disabled={!selectedRecord} onClick={() => selectedRecord && onSelect?.(selectedRecord)}>Choose</button>}</div></footer>
     {creatingFolder && <div className="library-folder-dialog" role="dialog" aria-modal="true" aria-labelledby="new-library-folder-title"><form onSubmit={event => { event.preventDefault(); void createFolder(); }}><h3 id="new-library-folder-title">{namingKey ? 'Rename item' : 'New folder'}</h3><label>{namingKey ? 'Name' : 'Folder name'}<input autoFocus value={newFolderName} onChange={event => { setNewFolderName(event.target.value); setFolderError(''); }} /></label>{folderError && <p className="field-error" role="alert">{folderError}</p>}<div><button type="button" className="secondary" onClick={() => setCreatingFolder(false)}>Cancel</button><button type="submit" className="primary">{namingKey ? 'Rename' : 'Create folder'}</button></div></form></div>}
     {choosingCreateType && <div className="library-folder-dialog" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setChoosingCreateType(false); }}><section className="library-create-type-dialog" role="dialog" aria-modal="true" aria-labelledby="library-create-type-title"><header><div><div className="eyebrow">New library item</div><h3 id="library-create-type-title">What would you like to create?</h3></div><button aria-label="Close" onClick={() => setChoosingCreateType(false)}>×</button></header><div className="library-create-type-options">{availableTypes.map(type => <button key={type} onClick={() => { setChoosingCreateType(false); onCreate?.(type, creationFolderId); }}><span>{libraryRecordIcon[type]}</span><b>{libraryRecordTypeLabel[type]}</b><small>{createTypeDescription[type]}</small></button>)}</div><footer><button className="secondary" onClick={() => setChoosingCreateType(false)}>Cancel</button></footer></section></div>}
+    {contextMenu && (() => {
+      const contextKeys = new Set(contextMenu.keys);
+      const singleKey = contextMenu.keys.length === 1 ? contextMenu.keys[0] : undefined;
+      const folder = singleKey?.startsWith('folder:') ? folders.find(item => item.id === singleKey.slice(7)) : undefined;
+      const record = singleKey && !folder ? records.find(item => item.key === singleKey) : undefined;
+      const hasBuiltin = contextMenu.keys.some(key => records.find(item => item.key === key)?.builtin);
+      const canModifySelection = manage && contextMenu.keys.length > 0 && !hasBuiltin;
+      const canPaste = manage && cut.size > 0 && browseMode === 'folders' && folderId !== builtinsFolder;
+      return <div ref={contextMenuRef} className="library-context-menu" role="menu" aria-label="Library actions" style={{ left: Math.max(8, contextMenu.x), top: Math.max(8, contextMenu.y) }}>
+        {singleKey && <button role="menuitem" onClick={() => contextAction(() => folder ? openFolder(folder.id) : record && (manage ? onOpen?.(record) : onSelect?.(record)))}>{folder ? 'Open folder' : manage ? 'Open' : 'Choose'}</button>}
+        {contextMenu.background && manage && <><button role="menuitem" disabled={!onCreate || !availableTypes.length || folderId === builtinsFolder} onClick={() => contextAction(beginCreate)}>New item…</button><button role="menuitem" disabled={folderId === builtinsFolder} onClick={() => contextAction(() => { setNamingKey(undefined); setNewFolderName(''); setFolderError(''); setCreatingFolder(true); })}>New folder</button></>}
+        {manage && (contextMenu.background || canModifySelection) && <div className="library-context-separator" role="separator" />}
+        {canModifySelection && <button role="menuitem" onClick={() => contextAction(() => setCut(contextKeys))}>Cut <kbd>Ctrl+X</kbd></button>}
+        {contextMenu.background && <button role="menuitem" disabled={!canPaste} onClick={() => contextAction(() => moveKeys(cut, folderId))}>Paste <kbd>Ctrl+V</kbd></button>}
+        {canModifySelection && contextMenu.keys.length === 1 && <button role="menuitem" onClick={() => contextAction(rename)}>Rename</button>}
+        {canModifySelection && onDelete && <><div className="library-context-separator" role="separator" /><button role="menuitem" className="danger" onClick={() => contextAction(() => onDelete(records.filter(item => contextKeys.has(item.key)), contextMenu.keys.filter(key => key.startsWith('folder:')).map(key => key.slice(7))))}>Delete</button></>}
+      </div>;
+    })()}
   </section>;
   return embedded ? content : <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.(); }}>{content}</div>;
 }

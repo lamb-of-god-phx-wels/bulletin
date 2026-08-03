@@ -1,7 +1,6 @@
 # TODO
 
 ## General
-* Context menu for file explorer
 * Extra "OneLicense.net copyright notice automatically at end
 
 * Recreate bulletin using UI only.

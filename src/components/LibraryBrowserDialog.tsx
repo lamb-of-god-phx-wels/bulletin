@@ -99,6 +99,8 @@ export function LibraryBrowserDialog({
   };
   const fixedTypes = allowedTypes?.length ? new Set(allowedTypes) : undefined;
   const [folderId, setFolderId] = useState<string | undefined>(validStoredFolder);
+  const [backLocations, setBackLocations] = useState<Array<string | undefined>>([]);
+  const [forwardLocations, setForwardLocations] = useState<Array<string | undefined>>([]);
   const [view, setView] = useState<'thumbnails' | 'list'>(() => localStorage.getItem(viewKey(root)) === 'list' ? 'list' : 'thumbnails');
   const [browseMode, setBrowseMode] = useState<'folders' | 'all'>(() => localStorage.getItem(browseModeKey(root)) === 'all' ? 'all' : 'folders');
   const [filter, setFilter] = useState<LibraryRecordType | 'all'>(() => {
@@ -137,9 +139,33 @@ export function LibraryBrowserDialog({
   });
   const keys = [...visibleFolders.map(folder => `folder:${folder.id}`), ...visibleRecords.map(record => record.key)];
 
-  const openFolder = (next?: string) => {
+  const applyFolder = (next?: string) => {
     setFolderId(next); setSelected(new Set()); setAnchor(undefined);
     if (next) localStorage.setItem(locationKey(root), next); else localStorage.removeItem(locationKey(root));
+  };
+  const openFolder = (next?: string) => {
+    if (next === folderId) return;
+    setBackLocations(current => [...current, folderId]);
+    setForwardLocations([]);
+    applyFolder(next);
+  };
+  const goBack = () => {
+    if (!backLocations.length || browseMode === 'all') return;
+    const previous = backLocations.at(-1);
+    setBackLocations(current => current.slice(0, -1));
+    setForwardLocations(current => [...current, folderId]);
+    applyFolder(previous);
+  };
+  const goForward = () => {
+    if (!forwardLocations.length || browseMode === 'all') return;
+    const next = forwardLocations.at(-1);
+    setForwardLocations(current => current.slice(0, -1));
+    setBackLocations(current => [...current, folderId]);
+    applyFolder(next);
+  };
+  const goUp = () => {
+    if (!folderId || browseMode === 'all') return;
+    openFolder(folderId === builtinsFolder ? undefined : folders.find(folder => folder.id === folderId)?.parentId);
   };
   const choose = (key: string, event: MouseEvent) => {
     if (!manage) { setSelected(new Set([key])); return; }
@@ -234,7 +260,7 @@ export function LibraryBrowserDialog({
     <div className="library-browser-body">
       <aside onDragOver={event => { if (manage) event.preventDefault(); }} onDrop={event => dropInto(undefined, event)}><button className={!folderId ? 'active' : ''} onClick={() => openFolder(undefined)}>▾ Library</button><Tree library={library} current={folderId} onOpen={openFolder} /><button className={folderId === builtinsFolder ? 'active builtin' : 'builtin'} onClick={() => openFolder(builtinsFolder)}>◇ Built-ins</button></aside>
       <main onDragOver={event => { if (manage && folderId !== builtinsFolder) event.preventDefault(); }} onDrop={event => dropInto(folderId === builtinsFolder ? undefined : folderId, event)}>
-        <div className="library-browser-path">{browseMode === 'all' ? <b>All library items</b> : <><button onClick={() => openFolder(undefined)}>Library</button>{folderId === builtinsFolder ? <span>› Built-ins</span> : path.map(folder => <span key={folder.id}>› <button onClick={() => openFolder(folder.id)}>{folder.name}</button></span>)}</>}<input type="search" placeholder={browseMode === 'all' ? 'Search all library items' : 'Search this folder tree'} value={search} onChange={event => setSearch(event.target.value)} /></div>
+        <div className="library-browser-path"><div className="library-history-controls"><button disabled={browseMode === 'all' || !backLocations.length} aria-label="Back" title="Back" onClick={goBack}>←</button><button disabled={browseMode === 'all' || !forwardLocations.length} aria-label="Forward" title="Forward" onClick={goForward}>→</button><button disabled={browseMode === 'all' || !folderId} aria-label="Up one folder" title="Up one folder" onClick={goUp}>↑</button></div>{browseMode === 'all' ? <b>All library items</b> : <><button onClick={() => openFolder(undefined)}>Library</button>{folderId === builtinsFolder ? <span>› Built-ins</span> : path.map(folder => <span key={folder.id}>› <button onClick={() => openFolder(folder.id)}>{folder.name}</button></span>)}</>}<input type="search" placeholder={browseMode === 'all' ? 'Search all library items' : 'Search this folder tree'} value={search} onChange={event => setSearch(event.target.value)} /></div>
         {!fixedTypes?.size || fixedTypes.size > 1 ? <div className="library-type-filters"><button className={activeFilter === 'all' ? 'active' : ''} onClick={() => { setFilter('all'); localStorage.removeItem(filterKey(root)); }}>All</button>{types.filter(type => !fixedTypes || fixedTypes.has(type)).map(type => <button className={activeFilter === type ? 'active' : ''} onClick={() => { setFilter(type); localStorage.setItem(filterKey(root), type); }} key={type}>{libraryRecordTypeLabel[type]}</button>)}</div> : <div className="library-type-filters locked"><b>{libraryRecordTypeLabel[[...fixedTypes][0]]}</b></div>}
         <div className={`library-record-entries ${view}`}>
           {visibleFolders.map(folder => { const key = `folder:${folder.id}`; return <button draggable={manage} onDragStart={event => beginDrag(key, event)} onDragOver={event => { if (manage) { event.preventDefault(); event.stopPropagation(); } }} onDrop={event => { event.stopPropagation(); dropInto(folder.id, event); }} className={`${selected.has(key) ? 'selected' : ''} ${cut.has(key) ? 'cut' : ''}`} key={key} onClick={event => choose(key, event)} onDoubleClick={() => openFolder(folder.id)}><span className="library-record-icon folder">📁</span><b>{folder.name}</b><small>Folder</small></button>; })}

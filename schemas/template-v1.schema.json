@@ -33,7 +33,7 @@
       "required": ["id", "type"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["canvas", "templatePage", "templateInstance", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "copyright", "image", "fullPageAsset", "spacer", "group", "custom"] },
+        "type": { "enum": ["canvas", "templatePage", "templateInstance", "churchInfo", "heading", "sectionHeading", "paragraph", "richText", "sermonTitle", "responsiveReading", "scriptureReading", "song", "libraryText", "announcements", "list", "copyright", "image", "fullPageAsset", "spacer", "group", "custom"] },
         "presentation": { "type": "object" },
         "name": { "type": "string", "minLength": 1 },
         "layoutText": { "type": "string", "minLength": 1 },

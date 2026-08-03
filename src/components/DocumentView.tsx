@@ -106,7 +106,16 @@ function replaceSlice<T>(source: T[], previous: T[], next: T[]) {
 }
 
 function mergePaginatedEdit(source: BulletinBlock, fragment: PaginatedBlock, changed: BulletinBlock, library?: LibraryManifestV1): BulletinBlock {
-  if (source.type === 'richText' && fragment.type === 'richText' && changed.type === 'richText') return { ...source, content: replaceSlice(source.content, fragment.content, changed.content) };
+  if (source.type === 'richText' && fragment.type === 'richText' && changed.type === 'richText') {
+    if (!source.binding) return { ...source, content: replaceSlice(source.content, fragment.content, changed.content) };
+    const binding = source.binding;
+    const original = source.bindingOverride ?? (typeof binding === 'object' && binding.kind === 'libraryItem'
+      ? library?.items.filter(item => item.id === binding.itemId && (!binding.version || item.version === binding.version)).sort((left, right) => right.version - left.version)[0]?.content
+      : undefined) ?? source.content;
+    const previous = fragment.bindingOverride ?? fragment.content;
+    const next = changed.bindingOverride ?? previous;
+    return { ...source, ...changed, id: source.id, bindingOverride: replaceSlice(original, previous, next) };
+  }
   if (source.type === 'song' && fragment.type === 'song' && changed.type === 'song') {
     const original = source.contentOverride ?? library?.items.filter(item => item.id === source.libraryItemId && (!source.libraryItemVersion || item.version === source.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.content ?? [];
     const previous = fragment.pageContent ?? fragment.contentOverride ?? [];
@@ -122,6 +131,7 @@ function mergePaginatedEdit(source: BulletinBlock, fragment: PaginatedBlock, cha
   if (source.type === 'scriptureReading' && fragment.type === 'scriptureReading' && changed.type === 'scriptureReading' && source.resolved && fragment.resolved && changed.resolved) return { ...source, ...changed, id: source.id, resolved: { ...source.resolved, content: replaceSlice(source.resolved.content, fragment.resolved.content, changed.resolved.content) } };
   if (source.type === 'responsiveReading' && fragment.type === 'responsiveReading' && changed.type === 'responsiveReading') return { ...source, ...changed, id: source.id, entries: replaceSlice(source.entries, fragment.entries, changed.entries) };
   if (source.type === 'announcements' && fragment.type === 'announcements' && changed.type === 'announcements') return { ...source, ...changed, id: source.id, items: replaceSlice(source.items, fragment.items, changed.items) };
+  if (source.type === 'list' && fragment.type === 'list' && changed.type === 'list') return { ...source, ...changed, id: source.id, items: replaceSlice(source.items, fragment.items, changed.items) };
   return { ...changed, id: source.id } as BulletinBlock;
 }
 
@@ -233,7 +243,7 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
     case 'sectionHeading': return <h2 className="section-heading"><span aria-hidden="true">✠ </span><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Section heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /><span aria-hidden="true"> ✠</span></h2>;
     case 'heading': return <h3 className="block-heading"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h3>;
     case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
-    case 'richText': { const content = boundRichTextParagraphs(block, document, template); return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><EditableParagraphs content={content} label={block.scriptureRole ?? block.role ?? 'Text'} onChange={onBlockChange ? next => onBlockChange(block.binding ? { ...block, bindingOverride: next } : { ...block, content: next }) : undefined} onReset={block.bindingOverride && onBlockChange ? () => { const { bindingOverride: _override, ...next } = block; onBlockChange(next); } : undefined} /></div>; }
+    case 'richText': { const content = boundRichTextParagraphs(block, document, template, library); return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><EditableParagraphs content={content} label={block.scriptureRole ?? block.role ?? 'Text'} onChange={onBlockChange ? next => onBlockChange(block.binding ? { ...block, bindingOverride: next } : { ...block, content: next }) : undefined} onReset={block.bindingOverride && onBlockChange ? () => { const { bindingOverride: _override, ...next } = block; onBlockChange(next); } : undefined} /></div>; }
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document, template)} /></section>;
     case 'responsiveReading': return <div className="responsive">{block.heading && conditionVisible(block.heading, template, document) && <RenderedBlock block={block.heading as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />}<ResponsiveReadingPreview block={block} settings={document.responsiveReading ?? defaultResponsiveReadingSettings} onChange={onBlockChange} /></div>;
     case 'scriptureReading': {
@@ -274,6 +284,10 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
     }
     case 'libraryText': { const content = block.pageContent ?? block.contentOverride ?? item?.content; return <section><h3 className="block-heading"><EditableParagraphs content={block.titleContent ?? textParagraphs(block.label ?? block.title ?? item?.title ?? '')} label="Reusable text title" onChange={onBlockChange ? next => onBlockChange({ ...block, title: plainText(next), titleContent: next }) : undefined} onReset={(block.titleContent || block.title) && item && onBlockChange ? () => { const { title: _title, titleContent: _content, ...next } = block; onBlockChange(next); } : undefined} /></h3>{content ? <EditableParagraphs content={content} label="Reusable text" onChange={onBlockChange ? next => onBlockChange({ ...block, contentOverride: next }) : undefined} onReset={block.contentOverride && onBlockChange ? () => { const { contentOverride: _override, ...next } = block; onBlockChange(next); } : undefined} /> : <p className="missing">Library text “{block.libraryItemId}” is unavailable.</p>}</section>; }
     case 'announcements': return <section className="announcements"><h2>Announcements</h2>{block.items.map((item, itemIndex) => <article className={item.asset ? `announcement-with-asset asset-${item.assetSide ?? 'right'}` : undefined} key={item.id}>{item.asset && <FlowAsset asset={item.asset} source={assets[item.asset.path]} />}<div><h3><EditableParagraphs content={item.titleContent ?? textParagraphs(item.title)} label="Announcement title" onChange={onBlockChange ? next => onBlockChange({ ...block, items: block.items.map((candidate, index) => index === itemIndex ? { ...candidate, title: plainText(next), titleContent: next } : candidate) }) : undefined} /></h3><EditableParagraphs content={item.content} label="Announcement details" onChange={onBlockChange ? next => onBlockChange({ ...block, items: block.items.map((candidate, index) => index === itemIndex ? { ...candidate, content: next } : candidate) }) : undefined} /></div></article>)}</section>;
+    case 'list': {
+      const items = block.items.map((item, itemIndex) => <li className={item.asset ? `announcement-with-asset asset-${item.assetSide ?? 'right'}` : undefined} key={item.id}>{item.asset && <FlowAsset asset={item.asset} source={assets[item.asset.path]} />}<div>{(item.title || item.titleContent?.length) && <h3><EditableParagraphs content={item.titleContent ?? textParagraphs(item.title ?? '')} label="List item heading" onChange={onBlockChange ? next => onBlockChange({ ...block, items: block.items.map((candidate, index) => index === itemIndex ? { ...candidate, title: plainText(next), titleContent: next } : candidate) }) : undefined} /></h3>}<EditableParagraphs content={item.content} label="List item" onChange={onBlockChange ? next => onBlockChange({ ...block, items: block.items.map((candidate, index) => index === itemIndex ? { ...candidate, content: next } : candidate) }) : undefined} /></div></li>);
+      return <section className={`list-block list-${block.style ?? 'plain'}`}>{block.style === 'numbered' ? <ol>{items}</ol> : <ul>{items}</ul>}</section>;
+    }
     case 'copyright': {
       const notices = block.suppressGeneratedNotices ? [] : document.blocks.flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : []).filter(Boolean);
       const scripture = block.suppressGeneratedNotices ? [] : document.blocks.flatMap(candidate => candidate.type === 'scriptureReading' && candidate.resolved ? [candidate.resolved.attribution] : []);
@@ -327,6 +341,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     }
     if (block.type === 'churchInfo' && block.heroAsset) result.push(block.heroAsset);
     if (block.type === 'announcements') result.push(...block.items.flatMap(item => item.asset ? [item.asset] : []));
+    if (block.type === 'list') result.push(...block.items.flatMap(item => item.asset ? [item.asset] : []));
     if ('libraryItemId' in block) result.push(...(library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
     return result;
   }).map(ref => [ref.path, ref])).values()], [bulletin.blocks, library]);

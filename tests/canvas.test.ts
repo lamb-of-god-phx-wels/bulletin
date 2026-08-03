@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   canvasBindingText,
+  boundRichTextParagraphs,
   canvasElementBounds,
   cloneCanvasSelection,
   convertCanvasCoordinateSpace,
@@ -58,6 +59,13 @@ describe('canvas cover scenes', () => {
     expect(canvasBindingText('info.churchWeek', document)).toBe('Ninth Sunday after Pentecost');
     expect(canvasBindingText('info.date', document, 'long')).toBe('July 27, 2026');
     expect(canvasBindingText('info.date', document, 'iso')).toBe('2026-07-27');
+  });
+
+  it('resolves reusable library text through native rich-text bindings', () => {
+    const document = createBulletin(defaultTemplate, '2026-07-27');
+    const content = [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: 'Bound prayer' }] }];
+    const block = { id: 'body', type: 'richText' as const, content: [], binding: { kind: 'libraryItem' as const, itemId: 'prayer', version: 2 } };
+    expect(boundRichTextParagraphs(block, document, defaultTemplate, { schemaVersion: 1, name: 'Library', items: [{ id: 'prayer', version: 2, kind: 'liturgy', title: 'Prayer', content }] })).toEqual(content);
   });
 
   it('converts coordinate spaces without changing physical positions', () => {

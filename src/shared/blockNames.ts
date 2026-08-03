@@ -38,6 +38,7 @@ export function blockDisplayName(block: BulletinBlock): string {
   if (block.type === 'canvas') return concise(block.label || '', 'Canvas');
   if (block.type === 'churchInfo') return concise(block.label || '', 'Church information');
   if (block.type === 'announcements') return concise(block.label || '', 'Announcements');
+  if (block.type === 'list') return concise(block.label || '', 'List');
   if (block.type === 'copyright') return concise(block.label || '', 'Copyright');
   if (block.type === 'spacer') return `${block.size[0].toUpperCase()}${block.size.slice(1)} spacer`;
   return concise(block.label || '', block.type.replace(/([a-z])([A-Z])/g, '$1 $2'));

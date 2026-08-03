@@ -25,9 +25,7 @@ const paletteOrder = [
   'bulletin:sectionHeading',
   'bulletin:text',
   'bulletin:responsiveReading',
-  'bulletin:libraryText',
-  'bulletin:announcements',
-  'bulletin:churchInformation',
+  'bulletin:list',
   'bulletin:spacer',
   'bulletin:copyright'
 ];
@@ -231,6 +229,20 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
             id: typeof announcement.id === 'string' ? announcement.id : `${id}-item-${index}`,
             title: typeof announcement.heading === 'string' ? announcement.heading : '',
             content: paragraphs(announcement.body)
+          };
+        }) : []
+      };
+    case 'bulletin:list':
+      return {
+        ...base,
+        type: 'list',
+        style: sample.style === 'bulleted' || sample.style === 'numbered' ? sample.style : 'plain',
+        items: Array.isArray(sample.items) ? sample.items.map((item, index) => {
+          const value = item as Record<string, JsonValue>;
+          return {
+            id: typeof value.id === 'string' ? value.id : `${id}-item-${index}`,
+            title: typeof value.heading === 'string' ? value.heading : undefined,
+            content: paragraphs(value.body)
           };
         }) : []
       };

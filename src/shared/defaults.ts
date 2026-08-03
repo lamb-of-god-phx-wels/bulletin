@@ -1,5 +1,4 @@
 import type { BulletinDocumentV1, PageTemplateV1, TemplateV1 } from './types.js';
-import { defaultChurchInfoChildren } from './blocks.js';
 import { createCanvasBlock, defaultCanvasScene } from './canvas.js';
 import { instantiatePageTemplate } from './pageTemplates.js';
 import { defaultResponsiveReadingSettings } from './responsiveReading.js';
@@ -37,7 +36,6 @@ export const defaultTemplate: TemplateV1 = {
   responsiveReading: structuredClone(defaultResponsiveReadingSettings),
   starterBlocks: [
     instantiatePageTemplate(defaultPageTemplate, 'cover'),
-    { id: 'church-info', type: 'churchInfo', children: defaultChurchInfoChildren() },
     { id: 'sermon-title', type: 'sermonTitle', text: 'Sermon title', weeklyEditable: true },
     { id: 'gathering', type: 'sectionHeading', text: 'The Gathering' },
     { id: 'opening-hymn', type: 'song', songType: 'hymn', libraryItemId: '', selection: { mode: 'all' }, renderMode: 'lyrics', label: 'Opening Hymn', weeklyEditable: true },
@@ -46,7 +44,7 @@ export const defaultTemplate: TemplateV1 = {
     { id: 'gospel', type: 'scriptureReading', reference: '', translation: 'NIV', label: 'Gospel', weeklyEditable: true },
     { id: 'sermon', type: 'scriptureReading', reference: '', translation: 'NIV', label: 'Sermon', weeklyEditable: true },
     { id: 'prayers', type: 'sectionHeading', text: 'The Prayers' },
-    { id: 'announcements', type: 'announcements', items: [], weeklyEditable: true },
+    { id: 'announcements', type: 'list', displayName: 'Announcements', style: 'plain', items: [], weeklyEditable: true },
     { id: 'copyright', type: 'copyright' }
   ],
   filler: { kind: 'blank' },

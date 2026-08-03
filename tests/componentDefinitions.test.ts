@@ -11,7 +11,7 @@ import { flattenBlocks } from '../src/shared/blocks';
 describe('component definitions', () => {
   it('loads the complete omakase palette from schema-version-2 JSON', () => {
     expect(prepackagedComponentDiagnostics).toEqual([]);
-    expect(prepackagedComponentDefinitions).toHaveLength(12);
+    expect(prepackagedComponentDefinitions).toHaveLength(10);
     expect(prepackagedComponentDefinitions.map(definition => definition.type)).toEqual([
       'bulletin:scriptureReading',
       'bulletin:song',
@@ -20,13 +20,18 @@ describe('component definitions', () => {
       'bulletin:sectionHeading',
       'bulletin:text',
       'bulletin:responsiveReading',
-      'bulletin:libraryText',
-      'bulletin:announcements',
-      'bulletin:churchInformation',
+      'bulletin:list',
       'bulletin:spacer',
       'bulletin:copyright'
     ]);
     expect(prepackagedComponentDefinitions.every(definition => definition.schemaVersion === 2)).toBe(true);
+  });
+
+  it('uses native paragraphs and lists instead of specialized reusable-text, announcement, and church-page entries', () => {
+    const types = prepackagedComponentDefinitions.map(definition => definition.type);
+    expect(types).not.toEqual(expect.arrayContaining(['bulletin:libraryText', 'bulletin:announcements', 'bulletin:churchInformation']));
+    const list = prepackagedComponentDefinitions.find(definition => definition.type === 'bulletin:list')!;
+    expect(instantiateComponentDefinition(list)).toMatchObject({ type: 'list', style: 'plain', items: [{ title: 'New item' }] });
   });
 
   it('describes songs as composed layout rather than a block prototype', () => {

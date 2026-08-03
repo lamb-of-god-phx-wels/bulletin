@@ -9,6 +9,7 @@ import type {
   CanvasTextBinding,
   Paragraph,
   TemplateV1,
+  LibraryManifestV1,
   ValidationIssue
 } from './types.js';
 import { flattenBlocks } from './blocks.js';
@@ -385,10 +386,14 @@ export function canvasBindingText(binding: CanvasTextBinding, document: Bulletin
   return textBindingValue(binding, document, template, dateFormat);
 }
 
-export function boundRichTextParagraphs(block: Extract<import('./types.js').BulletinBlock, { type: 'richText' }>, document: BulletinDocumentV1, template?: TemplateV1): Paragraph[] {
+export function boundRichTextParagraphs(block: Extract<import('./types.js').BulletinBlock, { type: 'richText' }>, document: BulletinDocumentV1, template?: TemplateV1, library?: LibraryManifestV1): Paragraph[] {
   if (block.bindingOverride) return block.bindingOverride;
   if (!block.binding) return block.content;
-  const value = canvasBindingText(block.binding, document, block.dateFormat, template);
+  const binding = block.binding;
+  if (typeof binding === 'object' && binding.kind === 'libraryItem') {
+    return library?.items.filter(item => item.id === binding.itemId && (!binding.version || item.version === binding.version)).sort((left, right) => right.version - left.version)[0]?.content ?? block.content;
+  }
+  const value = canvasBindingText(binding, document, block.dateFormat, template);
   return value ? paragraph(value) : block.content;
 }
 
@@ -411,6 +416,7 @@ export function canvasAssetRefs(scene: CanvasScene): AssetRef[] {
       if ('asset' in block && block.asset) return [block.asset];
       if (block.type === 'churchInfo' && block.heroAsset) return [block.heroAsset];
       if (block.type === 'announcements') return block.items.flatMap(item => item.asset ? [item.asset] : []);
+      if (block.type === 'list') return block.items.flatMap(item => item.asset ? [item.asset] : []);
       return [];
     })
   ];

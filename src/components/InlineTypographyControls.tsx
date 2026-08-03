@@ -48,6 +48,7 @@ export function supportsInlineTypography(block: BulletinBlock): boolean {
     'responsiveReading',
     'libraryText',
     'announcements',
+    'list',
     'copyright',
     'custom',
   ].includes(block.type);

@@ -30,6 +30,7 @@ import { randomId } from "../shared/id";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
 import { AnnouncementFields } from "./AnnouncementFields";
+import { ListFields } from "./ListFields";
 import { CopyrightFields } from "./CopyrightFields";
 import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
@@ -37,13 +38,14 @@ import type { UndoRedoCommands } from "./useUndoRedo";
 import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, updateResponsiveReaderLabels } from "../shared/responsiveReading";
 import { RichTextEditor } from "./RichTextEditor";
 import { TemplatePropertiesPanel } from "./CustomProperties";
-import { CustomPropertyBindingSelect } from "./CustomProperties";
 import { customPropertyIssues } from "../shared/customProperties";
 import { ConditionModal } from "./ConditionModal";
 import { blockDisplayName } from "../shared/blockNames";
 import { EditableElementName } from "./EditableElementName";
 import { TemplateElementDialog } from "./TemplateElementDialog";
 import { explodeTemplateInstance, instantiateTemplate, templateVersions } from "../shared/templates";
+import { RichTextBindingControl } from "./RichTextBindingControl";
+import { boundRichTextParagraphs } from "../shared/canvas";
 
 const textContent = (value: string) =>
   value
@@ -149,7 +151,7 @@ export function TemplateBuilder({
   };
   const blockOptions = (block: BulletinBlock) =>
     block.type === "richText" ? (
-      <div className="outline-options"><label className="outline-option">Binding<CustomPropertyBindingSelect value={block.binding} template={template} onChange={binding => updateBlock(block.id, { binding, bindingOverride: undefined })} /></label></div>
+      <div className="outline-options"><RichTextBindingControl value={block.binding} template={template} library={library} root={root} onChange={binding => updateBlock(block.id, { binding, bindingOverride: undefined })} /></div>
     ) : block.type === "scriptureReading" ? (
       <div className="outline-options">
         <label className="outline-option">
@@ -206,6 +208,8 @@ export function TemplateBuilder({
       />
     ) : block.type === "announcements" ? (
       <AnnouncementFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}/announcements`} onLibraryChange={onLibraryChange} onError={message => setSaveStatus(message)} onChange={next => updateBlock(block.id, next)} />
+    ) : block.type === "list" ? (
+      <ListFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}/lists`} onLibraryChange={onLibraryChange} onError={message => setSaveStatus(message)} onChange={next => updateBlock(block.id, next)} />
     ) : block.type === "copyright" ? (
       <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
     ) : block.type === "responsiveReading" ? (
@@ -234,7 +238,7 @@ export function TemplateBuilder({
               {child.type === "richText" &&
                 !child.scriptureRole &&
                 editingBlockIds.has(child.id) && (
-                  <RichTextEditor className="outline-text-editor" content={child.content} label={`Edit ${blockTitle(child)}`} onChange={content => updateBlock(child.id, { content })} />
+                  <RichTextEditor className="outline-text-editor" content={boundRichTextParagraphs(child, createBulletin(template), template, library)} label={`Edit ${blockTitle(child)}`} onChange={content => updateBlock(child.id, child.binding ? { bindingOverride: content } : { content })} />
                 )}
               {blockOptions(child)}
             </div>

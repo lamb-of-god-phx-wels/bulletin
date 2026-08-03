@@ -12,6 +12,7 @@ import { LibraryTextFields } from "./LibraryTextFields";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
 import { AnnouncementFields } from "./AnnouncementFields";
+import { ListFields } from "./ListFields";
 import { CopyrightFields } from "./CopyrightFields";
 import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
@@ -46,12 +47,14 @@ import type {
 } from "../shared/types";
 import type { UndoRedoCommands } from "./useUndoRedo";
 import { RichTextEditor } from "./RichTextEditor";
-import { CustomPropertyBindingSelect, ThisSundayProperties, WeeklyPropertiesPanel } from "./CustomProperties";
+import { ThisSundayProperties, WeeklyPropertiesPanel } from "./CustomProperties";
 import { ConditionModal } from "./ConditionModal";
 import { blockDisplayName } from "../shared/blockNames";
 import { EditableElementName } from "./EditableElementName";
 import { TemplateElementDialog } from "./TemplateElementDialog";
 import { explodeTemplateInstance, instantiateTemplate, templateVersions } from "../shared/templates";
+import { RichTextBindingControl } from "./RichTextBindingControl";
+import { boundRichTextParagraphs } from "../shared/canvas";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -252,14 +255,14 @@ export function WeeklyEditor({
                   </label>
                 )}
                 {child.type === "richText" && (
-                  <label>
+                  <><RichTextBindingControl value={child.binding} template={bulletinTemplate} library={library} root={root} onChange={binding => updateBlock(child.id, { ...child, binding, bindingOverride: undefined })} /><label>
                     {child.role === "header"
                       ? "Header text"
                       : child.role === "body"
                         ? "Paragraph text"
                         : "Text"}
-                    <RichTextEditor content={child.content} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, { ...child, content })} />
-                  </label>
+                    <RichTextEditor content={boundRichTextParagraphs(child, document, bulletinTemplate, library)} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, child.binding ? { ...child, bindingOverride: content } : { ...child, content })} />
+                  </label>{child.bindingOverride && <button className="text-button" onClick={() => updateBlock(child.id, { ...child, bindingOverride: undefined })}>Reset to bound value</button>}</>
                 )}
                 {childBlocks(child) && nestedEditors(child)}
               </>
@@ -717,7 +720,7 @@ export function WeeklyEditor({
                   </label>
                 )}
                 {block.type === "richText" && (
-                  <><label>Binding<CustomPropertyBindingSelect value={block.binding} template={bulletinTemplate} onChange={binding => updateBlock(block.id, { ...block, binding, bindingOverride: undefined })} /></label><label>{block.binding ? 'Override' : 'Text'}<RichTextEditor content={block.binding ? block.bindingOverride ?? [] : block.content} label="Text" onChange={content => updateBlock(block.id, block.binding ? { ...block, bindingOverride: content } : { ...block, content })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => updateBlock(block.id, { ...block, bindingOverride: undefined })}>Reset to bound value</button>}</>
+                  <><RichTextBindingControl value={block.binding} template={bulletinTemplate} library={library} root={root} onChange={binding => updateBlock(block.id, { ...block, binding, bindingOverride: undefined })} /><label>{block.binding ? 'Override' : 'Text'}<RichTextEditor content={boundRichTextParagraphs(block, document, bulletinTemplate, library)} label="Text" onChange={content => updateBlock(block.id, block.binding ? { ...block, bindingOverride: content } : { ...block, content })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => updateBlock(block.id, { ...block, bindingOverride: undefined })}>Reset to bound value</button>}</>
                 )}
                 {block.type === "paragraph" && nestedEditors(block)}
                 {block.type === "templateInstance" && nestedEditors(block)}
@@ -936,6 +939,9 @@ export function WeeklyEditor({
                   })()}
                 {block.type === "announcements" && (
                   <AnnouncementFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets/announcements`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
+                )}
+                {block.type === "list" && (
+                  <ListFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets/lists`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {block.type === "custom" && (
                   <div className="custom-weekly-fields">

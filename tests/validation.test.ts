@@ -30,6 +30,20 @@ describe('bulletin validation', () => {
     expect(validateBulletin(document, { schemaVersion: 1, name: 'Empty', items: [] }).some(issue => issue.path === `/blocks/${document.blocks.length - 1}/libraryItemId`)).toBe(false);
   });
 
+  it('reports a missing reusable-text binding on a paragraph', () => {
+    const document = createBulletin(defaultTemplate);
+    document.blocks.push({
+      id: 'bound-paragraph',
+      type: 'richText',
+      content: [],
+      binding: { kind: 'libraryItem', itemId: 'missing-prayer' }
+    });
+    expect(validateBulletin(document, { schemaVersion: 1, name: 'Empty', items: [] })).toContainEqual({
+      path: '/blocks/bound-paragraph/binding',
+      message: 'The paragraph references missing reusable text “missing-prayer”. Choose a replacement or remove the binding.'
+    });
+  });
+
   it('reports invalid custom-block definitions', () => {
     const document = createBulletin(defaultTemplate);
     document.blocks.push({ id: 'custom-welcome', type: 'custom', name: 'Welcome', layoutText: '{{serviceTime}} {{missing}}', bindings: [

@@ -15,13 +15,13 @@ Every block has a stable `id` and discriminating `type`. Supported types are:
 
 | Type | Purpose |
 | --- | --- |
-| `templatePage`, `churchInfo` | Full-page reusable or identity content |
+| `templatePage` | Full-page reusable content |
 | `canvas` | An explicitly sized inch-based positioned region |
 | `heading`, `sectionHeading`, `sermonTitle` | Document hierarchy |
 | `paragraph`, `richText`, `responsiveReading` | Optional-header paragraphs, free text, and minister/congregation responses |
 | `scriptureReading` | Reference, translation, caption, and a reproducible resolved snapshot |
-| `song`, `libraryText` | Version-resolved approved library content |
-| `announcements`, `copyright` | Back matter and generated notices |
+| `song` | Version-resolved approved music content |
+| `list`, `copyright` | Generalized rich lists and generated notices |
 | `image` | A flow-sized image with contain, cover, or fill fitting |
 | `fullPageAsset` | Inserted image or original PDF page |
 | `spacer` | Small, bounded semantic spacing |
@@ -36,9 +36,11 @@ An inserted `templatePage` pins a page-template ID and version and embeds a comp
 
 Canvas scenes position native bulletin blocks and rectangle/line shapes using inch geometry. Native blocks retain the same bindings, content fields, assets, and presentation model they use in normal flow. Legacy canvas text and image objects are normalized to native `richText` and `image` blocks while preserving IDs, geometry, and z-order.
 
-Native `richText`, including rich text positioned on a canvas, may bind to bulletin fields. Bound text supports deterministic date formats and a local override that can be reset to the host value.
+Native `richText`, including paragraph text and rich text positioned on a canvas, may bind to bulletin fields or versioned reusable text in the library. Bound text supports deterministic date formats and a local override that can be reset to the source value.
 
-Container blocks use a recursive `children` array. For example, `churchInfo` contains `paragraph` containers, and each paragraph contains an optional header `richText` child plus a body `richText` child. The container keeps them together semantically while each text child retains its own margins, padding, typography, ID, and presentation override. Setting the header’s bottom margin and body’s top margin to zero produces no forced gap.
+Container blocks use a recursive `children` array. Each `paragraph` contains an optional header `richText` child plus a body `richText` child. The container keeps them together semantically while each text child retains its own bindings, margins, padding, typography, ID, and presentation override. Setting the header’s bottom margin and body’s top margin to zero produces no forced gap.
+
+Historical `churchInfo`, `libraryText`, and `announcements` blocks remain readable and editable for compatibility, but new documents compose the same results from native paragraphs, lists, images, and reusable page templates.
 
 A reusable custom-block definition is stored in the workspace library. It has a human-readable `name`, a `layoutText` string, named `bindings`, and presentation settings for width, placement, padding, spacing, alignment, typography, fill, and border. Placeholders use double braces, such as `{{serviceTime}}`. A binding can expose a new weekly input or read `info.title`, `info.date`, `info.churchWeek`, `info.series`, or `church.name`.
 

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 2,
+  "kind": "component",
+  "type": "bulletin:list",
+  "version": 1,
+  "name": "List",
+  "description": "A flexible plain, bulleted, or numbered list with rich text and optional graphics.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["items"],
+    "properties": {
+      "style": { "enum": ["plain", "bulleted", "numbered"] },
+      "items": { "type": "array", "items": { "type": "object" } }
+    },
+    "additionalProperties": false
+  },
+  "template": {
+    "type": "core:repeat",
+    "id": "items",
+    "inputs": { "items": { "$bind": "inputs.items", "required": true } },
+    "metadata": { "as": "item", "key": "id" },
+    "children": [{
+      "type": "core:stack",
+      "inputs": {},
+      "children": [
+        { "type": "core:text", "inputs": { "text": { "$bind": "locals.item.heading" } } },
+        { "type": "core:structuredText", "inputs": { "content": { "$bind": "locals.item.body", "required": true } } }
+      ]
+    }]
+  },
+  "defaultStyles": {
+    "root": { "widthPercent": 100, "fontFamily": "body", "fontSizePt": 10, "lineHeight": 1.28, "color": "#25302d" }
+  },
+  "editor": {
+    "icon": "☷",
+    "fields": [
+      { "input": "style", "label": "List style", "control": "select" },
+      { "input": "items", "label": "Items", "control": "collection" }
+    ]
+  },
+  "sampleInputs": {
+    "style": "plain",
+    "items": [{
+      "id": "item-1",
+      "heading": "New item",
+      "body": { "blocks": [{ "type": "paragraph", "inlines": [{ "type": "text", "value": "Add details here." }] }] }
+    }]
+  }
+}

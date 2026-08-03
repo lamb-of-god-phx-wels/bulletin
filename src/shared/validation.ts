@@ -75,10 +75,18 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
   });
   if (doc.blocks) {
     const nestedIds = new Set(doc.blocks.map(block => block.id));
-    for (const block of flattenBlocks(doc.blocks).filter(block => !doc.blocks!.includes(block))) {
+    const allBlocks = flattenBlocks(doc.blocks);
+    for (const block of allBlocks.filter(block => !doc.blocks!.includes(block))) {
       if (!block.id) issues.push({ path: '/blocks', message: 'Every nested block needs an ID.' });
       else if (nestedIds.has(block.id)) issues.push({ path: '/blocks', message: `Duplicate block ID: ${block.id}` });
       nestedIds.add(block.id);
+    }
+    for (const block of allBlocks) {
+      if (block.type !== 'richText' || !block.binding || typeof block.binding !== 'object' || block.binding.kind !== 'libraryItem' || block.bindingOverride?.length) continue;
+      const binding = block.binding;
+      if (library && !library.items.some(item => item.kind === 'liturgy' && item.id === binding.itemId && (!binding.version || item.version === binding.version))) {
+        issues.push({ path: `/blocks/${block.id}/binding`, message: `The paragraph references missing reusable text “${binding.itemId}”. Choose a replacement or remove the binding.` });
+      }
     }
   }
   return issues;

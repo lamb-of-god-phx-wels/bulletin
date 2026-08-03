@@ -52,4 +52,17 @@ describe('builder feature blocks', () => {
     expect(announcementMarkup).toContain('announcement-with-asset asset-left');
     expect(copyrightMarkup).toContain('mark-italic');
   });
+
+  it('renders generalized plain, bulleted, and numbered lists with rich content and graphics', () => {
+    const document = createBulletin(defaultTemplate);
+    const list: BulletinBlock = {
+      id: 'list', type: 'list', style: 'bulleted',
+      items: [{ id: 'one', title: 'First', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Details', marks: ['italic'] }] }], asset: { path: 'item.png', mediaType: 'image/png' } }]
+    };
+    const markup = renderToStaticMarkup(createElement(NativeBlockPreview, { block: list, document, library: undefined, assets: { 'item.png': 'data:image/png;base64,AA==' }, marginIn: .4 }));
+    expect(markup).toContain('list-block list-bulleted');
+    expect(markup).not.toContain('<h2');
+    expect(markup).toContain('mark-italic');
+    expect(markup).toContain('<img');
+  });
 });

@@ -16,7 +16,14 @@ const itemFor = (block: PaginatedBlock, library?: LibraryManifestV1) => 'library
 
 function contentFor(block: PaginatedBlock, library?: LibraryManifestV1): Paragraph[] | undefined {
   if (block.pageContent) return block.pageContent;
-  if (block.type === 'richText') return block.content;
+  if (block.type === 'richText') {
+    if (block.bindingOverride) return block.bindingOverride;
+    const binding = block.binding;
+    if (binding && typeof binding === 'object' && binding.kind === 'libraryItem') {
+      return library?.items.filter(item => item.id === binding.itemId && (!binding.version || item.version === binding.version)).sort((left, right) => right.version - left.version)[0]?.content ?? block.content;
+    }
+    return block.content;
+  }
   if (block.type === 'scriptureReading') return block.resolved?.content;
   if (block.type === 'song' && block.renderMode === 'lyrics') return block.contentOverride ?? itemFor(block, library)?.content;
   if (block.type === 'libraryText') return block.contentOverride ?? itemFor(block, library)?.content;
@@ -42,6 +49,7 @@ function basePoints(block: PaginatedBlock, template: TemplateV1): number {
     case 'song': case 'libraryText': return 30;
     case 'custom': return (block.showName ?? true) ? 30 : 0;
     case 'announcements': return 38;
+    case 'list': return 0;
     case 'copyright': return 34;
     default: return 0;
   }
@@ -82,6 +90,7 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
     return formatted(elements.reduce((total, element) => total + estimateBlockPoints(element, template, library, document), 0) + (block.paginationContinuation ? 0 : 10));
   }
   if (block.type === 'announcements') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.content, template) + (item.asset ? 54 : 0), 0));
+  if (block.type === 'list') return formatted(basePoints(block, template) + block.items.reduce((total, item) => total + 18 + contentPoints(item.titleContent, template) + contentPoints(item.content, template) + (item.asset ? 54 : 0), 0));
   const content = contentFor(block, library);
   if (block.type === 'song') {
     const heading = block.showHeading === false
@@ -141,7 +150,7 @@ function groupParagraphs(content: Paragraph[], capacity: number, template: Templ
 
 function contentFragment(block: PaginatedBlock, content: Paragraph[], index: number): PaginatedBlock {
   const common = { id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } };
-  if (block.type === 'richText') return { ...block, ...common, content };
+  if (block.type === 'richText') return block.binding ? { ...block, ...common, bindingOverride: content } : { ...block, ...common, content };
   if (block.type === 'scriptureReading') return { ...block, ...common, caption: index ? undefined : block.caption, resolved: { ...block.resolved!, content } };
   if (block.type === 'song') return { ...block, ...common, label: index ? `${songHeader(block)} (continued)` : block.label, pageContent: content };
   if (block.type === 'libraryText') return { ...block, ...common, title: index ? `${block.title ?? 'Reusable text'} (continued)` : block.title, pageContent: content };
@@ -183,6 +192,21 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
       const groups: typeof block.items[] = []; let group: typeof block.items = []; let used = 0;
       for (const item of items) {
         const height = 18 + contentPoints(item.content, template);
+        if (group.length && used + height > capacity) { groups.push(group); group = []; used = 0; }
+        group.push(item); used += height;
+      }
+      if (group.length) groups.push(group);
+      return groups.map((items, index) => ({ ...block, id: `${block.id}-part-${index + 1}`, sourceBlockId: block.sourceBlockId ?? block.id, items, paginationContinuation: index > 0, layout: { ...block.layout, pageBreakBefore: index ? true : block.layout?.pageBreakBefore } }));
+    }
+    if (block.type === 'list' && block.items.length) {
+      const capacity = usable - basePoints(block, template);
+      const items = block.items.flatMap(item => {
+        const chunks = groupParagraphs(item.content, Math.max(72, capacity - 18), template);
+        return (chunks.length ? chunks : [item.content]).map((content, index) => ({ ...item, id: index ? `${item.id}-part-${index + 1}` : item.id, title: index && item.title ? `${item.title} (continued)` : item.title, titleContent: index ? undefined : item.titleContent, content }));
+      });
+      const groups: typeof block.items[] = []; let group: typeof block.items = []; let used = 0;
+      for (const item of items) {
+        const height = 18 + contentPoints(item.titleContent, template) + contentPoints(item.content, template);
         if (group.length && used + height > capacity) { groups.push(group); group = []; used = 0; }
         group.push(item); used += height;
       }

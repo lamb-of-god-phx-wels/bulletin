@@ -50,6 +50,29 @@ describe('pagination', () => {
     expect(fragments.every(fragment => fragment.items.length === 1)).toBe(true);
   });
 
+  it('splits a long generalized list without dropping its items', () => {
+    const block: BulletinBlock = {
+      id: 'list', type: 'list', style: 'numbered',
+      items: Array.from({ length: 24 }, (_, index) => ({
+        id: `item-${index + 1}`,
+        title: `Item ${index + 1}`,
+        content: [{ type: 'paragraph', children: [{ type: 'text', text: `Details ${index + 1} ${'more information '.repeat(24)}` }] }]
+      }))
+    };
+    const fragments = paginate([block], defaultTemplate).flatMap(page => page.blocks).filter(item => item.type === 'list');
+    expect(fragments.length).toBeGreaterThan(1);
+    expect(fragments.flatMap(fragment => fragment.items).map(item => item.id)).toEqual(block.items.map(item => item.id));
+  });
+
+  it('paginates reusable text through a paragraph binding', () => {
+    const content = Array.from({ length: 45 }, (_, index) => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text: `Prayer ${index + 1} ${'response '.repeat(40)}` }] }));
+    const library: LibraryManifestV1 = { schemaVersion: 1, name: 'Test', items: [{ id: 'prayer', version: 1, kind: 'liturgy', title: 'Prayer', content }] };
+    const block: BulletinBlock = { id: 'prayer', type: 'richText', content: [], binding: { kind: 'libraryItem', itemId: 'prayer', version: 1 } };
+    const fragments = paginate([block], defaultTemplate, library).flatMap(page => page.blocks).filter(item => item.type === 'richText');
+    expect(fragments.length).toBeGreaterThan(1);
+    expect(fragments.flatMap(fragment => fragment.bindingOverride ?? []).length).toBe(content.length);
+  });
+
   it('accounts for per-block width, type size, and box spacing', () => {
     const plain: BulletinBlock = { id: 'song', type: 'song', songType: 'song', libraryItemId: 'missing', selection: { mode: 'all' }, renderMode: 'lyrics' };
     const formatted: BulletinBlock = { ...plain, presentation: {

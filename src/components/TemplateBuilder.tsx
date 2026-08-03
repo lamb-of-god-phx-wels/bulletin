@@ -450,7 +450,6 @@ export function TemplateBuilder({
             dockedPalette
             palette={<ElementPalette
               items={flowElementPaletteItems(workspaceDefinitions)}
-              storageKey="bulletin-elements-template"
               portalTargetId="app-element-palette-slot"
               onUse={item => void usePaletteItem(item, template.starterBlocks.length)}
               actions={<button className="text-button" onClick={() => setBlockLibraryOpen(true)}>Manage components…</button>}

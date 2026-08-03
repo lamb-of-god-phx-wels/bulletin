@@ -1,8 +1,11 @@
 # TODO
 
 ## General
+* Context menu for file explorer
 * Extra "OneLicense.net copyright notice automatically at end
-* Elements dropdown is not clickable to toggle like the others.
+
+* Recreate bulletin using UI only.
+
 
 ## Template/bulletin builder
 

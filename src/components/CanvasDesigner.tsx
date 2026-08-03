@@ -703,7 +703,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       <RichTextToolbar className="canvas-rich-text-toolbar" />
     </header>
     <aside className="canvas-elements-sidebar">
-      <ElementPalette items={paletteItems} storageKey="bulletin-elements-canvas" docked onUse={item => void placePaletteItem(item)} />
+      <ElementPalette items={paletteItems} docked onUse={item => void placePaletteItem(item)} />
     </aside>
     <aside className="canvas-layers">
       <div className="canvas-layer-heading"><div className="eyebrow">Layers</div><small>{scene.elements.length}</small></div>

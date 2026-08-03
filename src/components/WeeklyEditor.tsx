@@ -5,7 +5,7 @@ import { ScriptureEditor } from "./ScriptureEditor";
 import { CanvasDesigner } from "./CanvasDesigner";
 import { PageTemplateEditor } from "./PageTemplateEditor";
 import { SortableHandle, SortableItem, SortableList } from "./SortableList";
-import { ElementPalette, ElementSidebarPortal, type ElementPaletteItem } from "./ElementPalette";
+import { ElementPalette, type ElementPaletteItem } from "./ElementPalette";
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
 import { LibraryTextFields } from "./LibraryTextFields";
@@ -105,6 +105,7 @@ export function WeeklyEditor({
   const [imageIndex, setImageIndex] = useState<number>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
   const [conditionBlockId, setConditionBlockId] = useState<string>();
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [lookupStatus, setLookupStatus] = useState<
     Record<string, { state: "loading" | "success" | "error"; text: string }>
   >({});
@@ -117,6 +118,12 @@ export function WeeklyEditor({
     const first = churchEventsForDate(document.info.date, library?.calendarEvents ?? [])[0];
     if (first) onChange({ ...document, info: { ...document.info, churchWeek: churchEventDisplayName(first, document.info.date, library?.calendarEvents ?? []), churchEventId: first.id } });
   }, [document.id, document.info.date, document.info.churchWeek, library?.calendarEvents]);
+  useEffect(() => {
+    if (!propertiesOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPropertiesOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [propertiesOpen]);
   const liturgyFamilies = libraryFamilies(
     library?.items.filter((item) => item.kind === "liturgy") ?? [],
   );
@@ -527,7 +534,7 @@ export function WeeklyEditor({
   return (
     <div className="editor-scroll">
       <section className="editor-card essentials">
-        <div className="eyebrow">This Sunday</div>
+        <div className="essentials-heading"><div className="eyebrow">This Week</div><button type="button" className="secondary properties-menu-button" onClick={() => setPropertiesOpen(true)}><span aria-hidden="true">⚙</span> Properties</button></div>
         <label>
           Service date
           <input
@@ -570,57 +577,29 @@ export function WeeklyEditor({
         </label>
         <ThisSundayProperties document={document} template={template} onChange={onChange} />
       </section>
-      <ElementSidebarPortal><>
-      <WeeklyPropertiesPanel document={document} template={template} onChange={onChange} />
-      <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
-        <summary><div><div className="eyebrow">Document</div><b>Responsive readings</b></div></summary>
-        <div className="collapsible-editor-fields">
-          <ResponsiveReadingSettingsFields value={responsiveReadingSettings} onChange={updateResponsiveReadingSettings} />
-          <button type="button" className="text-button" disabled={!document.responsiveReading} onClick={resetResponsiveReadingSettings}>Reset to template defaults</button>
-        </div>
-      </details>
-      <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup">
-        <summary>
-          <div>
-            <div className="eyebrow">Document</div>
-            <b>Page setup</b>
+      {propertiesOpen && <div className="modal-backdrop bulletin-properties-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPropertiesOpen(false); }}>
+        <section className="bulletin-properties-modal" role="dialog" aria-modal="true" aria-labelledby="bulletin-properties-title">
+          <header><div><div className="eyebrow">Bulletin settings</div><h2 id="bulletin-properties-title">Properties</h2></div><button aria-label="Close properties" onClick={() => setPropertiesOpen(false)}>×</button></header>
+          <div className="bulletin-properties-sections">
+            <section className="editor-card properties-section">
+              <header className="properties-section-heading"><div className="eyebrow">Document</div><h3>Page setup</h3></header>
+              <div className="properties-section-body">
+                <p className="helper">Physical page: 7 × 8.5 inches. The PDF print dialog should use no additional margins.</p>
+                <div className="page-margin-control"><label>Page margin (inches)<input type="number" min="0" max="1.25" step="0.05" value={document.layout?.marginIn ?? template.theme.marginIn} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) updatePageMargin(event.currentTarget.valueAsNumber); }} /><small className="field-help">Applies to this bulletin only. Template default: {template.theme.marginIn} in.</small></label><button type="button" className="text-button" disabled={document.layout?.marginIn === undefined} onClick={resetPageMargin}>Use template margin</button></div>
+              </div>
+            </section>
+            <section className="editor-card properties-section">
+              <header className="properties-section-heading"><div className="eyebrow">Document</div><h3>Responsive readings</h3></header>
+              <div className="properties-section-body">
+                <ResponsiveReadingSettingsFields value={responsiveReadingSettings} onChange={updateResponsiveReadingSettings} />
+                <button type="button" className="text-button" disabled={!document.responsiveReading} onClick={resetResponsiveReadingSettings}>Reset to template defaults</button>
+              </div>
+            </section>
+            <WeeklyPropertiesPanel document={document} template={template} onChange={onChange} />
           </div>
-        </summary>
-        <div className="collapsible-editor-fields">
-          <p className="helper">
-            Physical page: 7 × 8.5 inches. The PDF print dialog should use no
-            additional margins.
-          </p>
-          <div className="page-margin-control">
-            <label>
-              Page margin (inches)
-              <input
-                type="number"
-                min="0"
-                max="1.25"
-                step="0.05"
-                value={document.layout?.marginIn ?? template.theme.marginIn}
-                onChange={(event) => {
-                  if (Number.isFinite(event.currentTarget.valueAsNumber))
-                    updatePageMargin(event.currentTarget.valueAsNumber);
-                }}
-              />
-              <small className="field-help">
-                Applies to this bulletin only. Template default:{" "}
-                {template.theme.marginIn} in.
-              </small>
-            </label>
-            <button
-              type="button"
-              className="text-button"
-              disabled={document.layout?.marginIn === undefined}
-              onClick={resetPageMargin}
-            >
-              Use template margin
-            </button>
-          </div>
-        </div>
-      </details></></ElementSidebarPortal>
+          <footer><button type="button" className="primary" onClick={() => setPropertiesOpen(false)}>Done</button></footer>
+        </section>
+      </div>}
       <div className="editor-section-title">
         <div>
           <div className="eyebrow">Order of worship</div>
@@ -638,7 +617,6 @@ export function WeeklyEditor({
         dockedPalette
         palette={<ElementPalette
           items={flowElementPaletteItems(library?.componentDefinitions ?? [])}
-          storageKey="bulletin-elements-weekly"
           portalTargetId="app-element-palette-slot"
           onUse={item => usePaletteItem(item, document.blocks.length)}
           actions={<button className="text-button" onClick={() => setBlockLibraryIndex(document.blocks.length)}>Manage components…</button>}

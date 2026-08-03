@@ -181,7 +181,6 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   </details>;
   const palette = <ElementPalette
     items={flowElementPaletteItems(definitions, false)}
-    storageKey="bulletin-elements-page-template"
     portalTargetId="page-template-element-palette-slot"
     onUse={item => void usePaletteItem(item, value.blocks.length)}
     actions={<button className="text-button" onClick={() => setLibraryOpen(true)}>Manage components…</button>}

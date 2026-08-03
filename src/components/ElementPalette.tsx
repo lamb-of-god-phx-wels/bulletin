@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { useEffect, useLayoutEffect, useReducer, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ElementPaletteItem {
@@ -32,9 +32,8 @@ function PaletteItem({ item, onUse }: { item: ElementPaletteItem; onUse(item: El
   ><span>{item.icon ?? '◇'}</span><b>{item.label}</b></button>;
 }
 
-export function ElementPalette({ items, storageKey, actions, portalTargetId, docked = false, onUse }: {
+export function ElementPalette({ items, actions, portalTargetId, docked = false, onUse }: {
   items: ElementPaletteItem[];
-  storageKey: string;
   actions?: ReactNode;
   portalTargetId?: string;
   docked?: boolean;
@@ -46,29 +45,16 @@ export function ElementPalette({ items, storageKey, actions, portalTargetId, doc
   useLayoutEffect(() => {
     setPortalTarget(portalTargetId ? document.getElementById(portalTargetId) : null);
   }, [portalTargetId]);
-  const collapsed = localStorage.getItem(storageKey) === 'collapsed';
-  const setCollapsed = (value: boolean) => {
-    localStorage.setItem(storageKey, value ? 'collapsed' : 'expanded');
-    window.dispatchEvent(new CustomEvent('element-palette:toggle'));
-  };
-  // The event forces this tiny uncontrolled preference component to refresh.
-  const [, force] = useReducer(value => value + 1, 0);
-  useEffect(() => {
-    const refresh = () => force();
-    window.addEventListener('element-palette:toggle', refresh);
-    return () => window.removeEventListener('element-palette:toggle', refresh);
-  }, []);
-  const isCollapsed = collapsed;
   const isDocked = docked || Boolean(portalTargetId);
-  const palette = <aside className={`element-palette ${isDocked ? 'docked' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-    <header><button title={isCollapsed ? 'Expand elements' : 'Collapse elements'} aria-label={isCollapsed ? 'Expand elements' : 'Collapse elements'} onClick={() => setCollapsed(!isCollapsed)}>›</button><div><div className="eyebrow">Drag into place</div><b>Elements</b></div></header>
-    {!isCollapsed && <div className="element-palette-scroll">
+  const palette = <aside className={`element-palette ${isDocked ? 'docked' : ''}`}>
+    <header><div><div className="eyebrow">Drag into place</div><b>Elements</b></div></header>
+    <div className="element-palette-scroll">
       {(['content', 'layout', 'media', 'pages', 'shapes'] as const).map(category => {
         const categoryItems = items.filter(item => item.category === category);
         return categoryItems.length ? <section key={category}><small>{category}</small>{categoryItems.map(item => <PaletteItem item={item} onUse={onUse} key={item.id} />)}</section> : null;
       })}
       {actions && <div className="element-palette-actions">{actions}</div>}
-    </div>}
+    </div>
   </aside>;
   return portalTarget ? createPortal(palette, portalTarget) : palette;
 }

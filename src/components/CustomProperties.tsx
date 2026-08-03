@@ -64,7 +64,7 @@ export function TemplatePropertiesPanel({ template, onChange }: { template: Temp
   const [focusPropertyId, setFocusPropertyId] = useState<string>();
   const update = (id: string, changes: Partial<CustomPropertyDefinition>) => onChange({ ...template, status: 'draft', customProperties: properties.map(property => property.id === id ? { ...property, ...changes } : property) });
   return <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup custom-properties-panel">
-    <summary><div><div className="eyebrow">Template</div><b>Properties</b></div></summary>
+    <summary><div><div className="eyebrow">Template</div><b>Custom properties</b></div></summary>
     <div className="collapsible-editor-fields custom-properties-list">
       {properties.map(property => {
         const usages = customPropertyUsages(template.starterBlocks, property.id);
@@ -84,7 +84,7 @@ export function PageTemplatePropertiesPanel({ pageTemplate, onChange }: { pageTe
   const [focusPropertyId, setFocusPropertyId] = useState<string>();
   const update = (id: string, changes: Partial<CustomPropertyDefinition>) => onChange({ ...pageTemplate, status: 'draft', customProperties: properties.map(property => property.id === id ? { ...property, ...changes } : property) });
   return <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup custom-properties-panel">
-    <summary><div><div className="eyebrow">Page template</div><b>Properties</b></div></summary>
+    <summary><div><div className="eyebrow">Page template</div><b>Custom properties</b></div></summary>
     <div className="collapsible-editor-fields custom-properties-list">
       {properties.map(property => {
         const usages = customPropertyUsages(pageTemplate.blocks, property.id);
@@ -118,8 +118,8 @@ export function WeeklyPropertiesPanel({ document, template, onChange }: { docume
     delete overrides[propertyId];
     onChange({ ...document, customPropertyOverrides: Object.keys(overrides).length ? overrides : undefined });
   };
-  return <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup custom-properties-panel">
-    <summary><div><div className="eyebrow">Bulletin</div><b>Properties</b></div></summary>
+  return <details className="editor-card collapsible-editor custom-properties-panel">
+    <summary><div><div className="eyebrow">Bulletin</div><b>Custom properties</b></div></summary>
     <div className="collapsible-editor-fields custom-properties-list">{properties.map(property => {
       const usages = customPropertyUsages(document.blocks, property.id);
       const overridden = Object.prototype.hasOwnProperty.call(document.customPropertyOverrides ?? {}, property.id);

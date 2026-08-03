@@ -218,6 +218,9 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
     case 'templatePage': return <section className="template-page-instance" data-template-page-id={`${block.source.id}@${block.source.version}`}>{block.blocks.map(child =>
       <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />
     )}</section>;
+    case 'templateInstance': return <section className="template-instance" data-template-id={`${block.source.id}@${block.source.version}`}>{block.blocks.map(child =>
+      <RenderedBlock key={child.id} block={child} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />
+    )}</section>;
     case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</div>;
     case 'group': {
       const mode = block.layoutMode ?? 'stack';

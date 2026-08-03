@@ -181,21 +181,26 @@ describe('shared workspace', () => {
     const initial = await openWorkspace(root);
     const page = { ...defaultPageTemplate, id: 'festival-page', name: 'Festival page', version: 1, status: 'published' as const };
     await savePageTemplate(root, page);
+    const reusableTemplate = { ...defaultTemplate, id: 'festival-template', name: 'Festival template', version: 1, status: 'published' as const };
+    await saveTemplate(root, reusableTemplate);
     const library = {
       ...initial.library!,
       items: [...initial.library!.items, { id: 'festival-song', version: 1, kind: 'song' as const, title: 'Festival Song' }],
       folders: [{ id: 'festival', name: 'Festival' }, { id: 'easter', name: 'Easter', parentId: 'festival' }],
       catalog: [
         { targetKind: 'library-item' as const, targetId: 'festival-song', folderId: 'easter' },
-        { targetKind: 'page-template' as const, targetId: 'festival-page', folderId: 'easter' }
+        { targetKind: 'page-template' as const, targetId: 'festival-page', folderId: 'easter' },
+        { targetKind: 'template' as const, targetId: 'festival-template', folderId: 'easter' }
       ]
     };
     await saveLibrary(root, library, initial.library);
     const active = await trashLibraryRecords(root, { folderIds: ['festival'], records: [] }, library);
     expect(active.library.items.some(item => item.id === 'festival-song')).toBe(false);
     expect(active.pageTemplateIds).toEqual(['festival-page']);
+    expect(active.templateIds).toEqual(['festival-template']);
     const trashed = await openWorkspace(root);
     expect(trashed.pageTemplates.some(record => record.pageTemplate.id === 'festival-page')).toBe(false);
+    expect(trashed.templates.some(record => record.template.id === 'festival-template')).toBe(false);
     const bundle = trashed.sync?.archivedRecords.filter(record => record.kind === 'library-folder');
     expect(bundle).toHaveLength(1);
     expect(bundle?.[0].label).toBe('Festival');
@@ -204,6 +209,7 @@ describe('shared workspace', () => {
     expect(restored.library?.items.some(item => item.id === 'festival-song')).toBe(true);
     expect(restored.library?.folders?.map(folder => folder.id)).toEqual(expect.arrayContaining(['festival', 'easter']));
     expect(restored.pageTemplates.some(record => record.pageTemplate.id === 'festival-page')).toBe(true);
+    expect(restored.templates.some(record => record.template.id === 'festival-template')).toBe(true);
   });
 
   it('rejects stale edits to the same calendar event', async () => {

@@ -1,5 +1,8 @@
-import type { BulletinBlock, BulletinDocumentV1, TemplateV1, WorkspaceSummary } from './types.js';
-import { effectiveCustomPropertyValue } from './customProperties.js';
+import type { BulletinBlock, BulletinDocumentV1, CustomPropertyBinding, TemplateInstanceBlock, TemplateV1, WorkspaceSummary } from './types.js';
+import { effectiveCustomPropertyDefinitions, effectiveCustomPropertyValue, isCustomPropertyBinding } from './customProperties.js';
+import { flattenBlocks } from './blocks.js';
+import { randomId } from './id.js';
+import { propertyForBinding, remapBlock, remapProperties } from './pageTemplates.js';
 
 export type TemplateRecord = WorkspaceSummary['templates'][number];
 
@@ -43,6 +46,60 @@ export function uniqueTemplateId(name: string, records: TemplateRecord[]) {
   return id;
 }
 
+export const templateDigest = (template: Pick<TemplateV1, 'customProperties' | 'starterBlocks'>) => {
+  const input = JSON.stringify({ customProperties: template.customProperties, starterBlocks: template.starterBlocks });
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index++) { hash ^= input.charCodeAt(index); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
+export function instantiateTemplate(source: TemplateV1, id = randomId(), host?: TemplateV1, hostBlocks: BulletinBlock[] = []): TemplateInstanceBlock {
+  const used = new Set(flattenBlocks(hostBlocks).map(block => block.id));
+  used.add(id);
+  const hostProperties = effectiveCustomPropertyDefinitions(host);
+  const propertyIds = new Set(hostProperties.map(property => property.id));
+  const propertyNames = new Set(hostProperties.map(property => property.name.trim().toLocaleLowerCase()));
+  const bindings = new Map<string, CustomPropertyBinding>();
+  const properties = source.customProperties?.map(property => {
+    const requested = { kind: 'customProperty', propertyId: property.id, propertyName: property.name, valueType: property.valueType } satisfies CustomPropertyBinding;
+    const matched = propertyForBinding(requested, host);
+    const hostProperty = hostProperties.find(candidate => candidate.id === matched.propertyId && candidate.valueType === matched.valueType);
+    if (hostProperty) {
+      const binding = { kind: 'customProperty', propertyId: hostProperty.id, propertyName: hostProperty.name, valueType: hostProperty.valueType } satisfies CustomPropertyBinding;
+      bindings.set(property.id, binding);
+      return structuredClone(hostProperty);
+    }
+    let propertyId = property.id;
+    for (let suffix = 2; propertyIds.has(propertyId); suffix++) propertyId = `${property.id}-${suffix}`;
+    propertyIds.add(propertyId);
+    let name = property.name;
+    for (let suffix = 2; propertyNames.has(name.trim().toLocaleLowerCase()); suffix++) name = `${property.name} ${suffix}`;
+    propertyNames.add(name.trim().toLocaleLowerCase());
+    const copied = { ...structuredClone(property), id: propertyId, name };
+    bindings.set(property.id, { kind: 'customProperty', propertyId, propertyName: name, valueType: property.valueType });
+    return copied;
+  });
+  const mapBindings = (value: unknown): unknown => {
+    if (isCustomPropertyBinding(value)) return bindings.get(value.propertyId) ?? value;
+    if (Array.isArray(value)) return value.map(mapBindings);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, mapBindings(nested)]));
+    return value;
+  };
+  return {
+    id, type: 'templateInstance', name: source.name,
+    source: { id: source.id, version: source.version }, sourceDigest: templateDigest(source),
+    customProperties: properties,
+    blocks: source.starterBlocks.map(block => remapBlock(mapBindings(remapProperties(block, host)) as BulletinBlock, used))
+  };
+}
+
+export function explodeTemplateInstance(host: BulletinBlock[], instanceId: string): BulletinBlock[] {
+  const used = new Set(flattenBlocks(host.filter(block => block.id !== instanceId)).map(block => block.id));
+  return host.flatMap(block => block.id === instanceId && block.type === 'templateInstance'
+    ? block.blocks.map(child => remapBlock(child, used))
+    : [block]);
+}
+
 export function duplicateTemplate(source: TemplateV1, name: string, records: TemplateRecord[]): TemplateV1 {
   return {
     ...structuredClone(source),
@@ -59,6 +116,7 @@ function reusableBlock(source: BulletinBlock): BulletinBlock {
   if (block.type === 'churchInfo' || block.type === 'group') block.children = block.children?.map(reusableBlock);
   if (block.type === 'paragraph') block.children = block.children.map(child => reusableBlock(child) as typeof child);
   if (block.type === 'templatePage') block.blocks = block.blocks.map(reusableBlock);
+  if (block.type === 'templateInstance') block.blocks = block.blocks.map(reusableBlock);
   if (block.type === 'canvas') block.scene.elements = block.scene.elements.map(element => element.type === 'block' ? { ...element, block: reusableBlock(element.block) } : element);
   return block;
 }

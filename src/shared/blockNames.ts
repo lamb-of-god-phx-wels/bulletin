@@ -22,7 +22,7 @@ export function blockDisplayName(block: BulletinBlock): string {
     const heading = childBlocks(block)?.find(child => child.type === 'richText' && child.role === 'header');
     return concise(heading?.type === 'richText' ? text(heading.content) : '', 'Paragraph');
   }
-  if (block.type === 'custom' || block.type === 'templatePage') return concise(block.name, block.type === 'custom' ? 'Custom element' : 'Template page');
+  if (block.type === 'custom' || block.type === 'templatePage' || block.type === 'templateInstance') return concise(block.name, block.type === 'custom' ? 'Custom element' : block.type === 'templatePage' ? 'Template page' : 'Template');
   if (block.type === 'song') return concise(songHeader(block), 'Song');
   if (block.type === 'scriptureReading') return concise(block.label || block.reference, 'Scripture reading');
   if (block.type === 'responsiveReading') return concise(block.label || text(block.heading?.content) || block.heading?.text || '', 'Responsive reading');

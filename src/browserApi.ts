@@ -247,12 +247,14 @@ export async function installBrowserApi() {
         catalog: (previous.catalog ?? []).filter(entry => !keys.has(`${entry.targetKind}:${entry.targetId}`))
       });
       const pageTemplateIds = selection.records.filter(record => record.targetKind === 'page-template').map(record => record.targetId);
+      const templateIds = selection.records.filter(record => record.targetKind === 'template').map(record => record.targetId);
       await putRecord(workspaceStore, root, {
         ...current,
         library,
-        pageTemplates: current.pageTemplates.filter(record => !pageTemplateIds.includes(record.pageTemplate.id))
+        pageTemplates: current.pageTemplates.filter(record => !pageTemplateIds.includes(record.pageTemplate.id)),
+        templates: current.templates.filter(record => !templateIds.includes(record.template.id))
       });
-      return { library, pageTemplateIds };
+      return { library, pageTemplateIds, templateIds };
     },
     createRevision: async (root, bulletinPath, document, label) => {
       const current = await summary(root);

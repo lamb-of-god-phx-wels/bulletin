@@ -131,7 +131,7 @@ export function defaultCanvasScene(): CanvasScene {
 }
 
 export function canvasNativeBlockAllowed(block: import('./types.js').BulletinBlock) {
-  return !['canvas', 'templatePage', 'fullPageAsset', 'titlePage', 'canvasCover'].includes(block.type);
+  return !['canvas', 'templatePage', 'templateInstance', 'fullPageAsset', 'titlePage', 'canvasCover'].includes(block.type);
 }
 
 export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
@@ -423,6 +423,7 @@ export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock
   return blocks.map(block => {
     if (block.type === 'canvas') return { ...block, scene: normalizeCanvasScene(block.scene) };
     if (block.type === 'templatePage') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
+    if (block.type === 'templateInstance') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'group') return { ...block, children: normalizeCanvasBlocks(block.children) };
     if (block.type === 'churchInfo') return { ...block, children: block.children ? normalizeCanvasBlocks(block.children) : block.children };
     if (block.type === 'paragraph') return { ...block, children: normalizeCanvasBlocks(block.children) as typeof block.children };

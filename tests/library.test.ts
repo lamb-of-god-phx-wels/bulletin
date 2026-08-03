@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { libraryFamilies, normalizeLibrary } from '../src/shared/library';
 import { libraryCatalogRecords } from '../src/shared/libraryCatalog';
 import type { LibraryManifestV1 } from '../src/shared/types';
+import { defaultTemplate } from '../src/shared/defaults';
 
 describe('library normalization', () => {
   it('removes the retired block-descriptor catalog from stored libraries', () => {
@@ -87,5 +88,18 @@ describe('library normalization', () => {
     };
     expect(libraryCatalogRecords(library).map(record => record.targetId)).toEqual(['anthem']);
     expect(normalizeLibrary(library).catalog).toBeUndefined();
+  });
+
+  it('shows published bulletin templates as folder-organizable library records', () => {
+    const library: LibraryManifestV1 = {
+      schemaVersion: 1, name: 'Library', items: [],
+      folders: [{ id: 'services', name: 'Services' }],
+      catalog: [{ targetKind: 'template', targetId: 'festival', folderId: 'services', displayName: 'Festival service' }]
+    };
+    const records = libraryCatalogRecords(library, [], [], [
+      { ...defaultTemplate, id: 'festival', name: 'Festival', version: 1, status: 'published' },
+      { ...defaultTemplate, id: 'festival', name: 'Festival', version: 2, status: 'published' }
+    ]);
+    expect(records).toEqual([expect.objectContaining({ targetKind: 'template', targetId: 'festival', title: 'Festival service', folderId: 'services', versionCount: 2 })]);
   });
 });

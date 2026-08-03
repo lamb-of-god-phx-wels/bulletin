@@ -6,6 +6,7 @@ export type ElementPalettePayload =
   | { kind: 'component'; definition: DeclarativeComponentDefinition }
   | { kind: 'image' }
   | { kind: 'page' }
+  | { kind: 'template' }
   | { kind: 'fullPageAsset' }
   | { kind: 'container'; layoutMode: 'stack' | 'grid' | 'table' }
   | { kind: 'shape'; shape: 'rectangle' | 'line' };
@@ -31,6 +32,7 @@ export function flowElementPaletteItems(workspaceDefinitions: DeclarativeCompone
     ] : []),
     { id: 'native:image', label: 'Image', description: 'An image that flows with document content.', icon: '▧', category: 'media', payload: { kind: 'image' } },
     ...(includePages ? [
+      { id: 'native:template', label: 'Bulletin template', description: 'Insert a published template as one reusable element.', icon: '▥', category: 'pages' as const, payload: { kind: 'template' as const } },
       { id: 'native:page', label: 'Page', description: 'Insert or create a reusable page.', icon: '▣', category: 'pages' as const, payload: { kind: 'page' as const } },
       { id: 'native:full-page-asset', label: 'Full-page image / PDF', description: 'Insert a one-off full-page asset.', icon: '▤', category: 'pages' as const, payload: { kind: 'fullPageAsset' as const } }
     ] : [])

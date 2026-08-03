@@ -5,6 +5,7 @@ import { pageTemplateIssues, pageTemplateMargin } from './pageTemplates.js';
 import { estimateBlockPoints } from './pagination.js';
 import { songLibraryItem, songPresentations } from './songs.js';
 import { customPropertyIssues } from './customProperties.js';
+import { flattenBlocks } from './blocks.js';
 
 export function validateBulletin(value: unknown, library?: LibraryManifestV1, template?: TemplateV1): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -66,7 +67,19 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
         });
       }
     }
+    if (block.type === 'templateInstance') {
+      if (!block.source?.id || !Number.isInteger(block.source.version) || block.source.version < 1)
+        issues.push({ path: `/blocks/${index}/source`, message: 'Choose a valid published template version.' });
+    }
     if (block.type === 'custom') customBlockIssues(block).forEach(message => issues.push({ path: `/blocks/${index}`, message }));
   });
+  if (doc.blocks) {
+    const nestedIds = new Set(doc.blocks.map(block => block.id));
+    for (const block of flattenBlocks(doc.blocks).filter(block => !doc.blocks!.includes(block))) {
+      if (!block.id) issues.push({ path: '/blocks', message: 'Every nested block needs an ID.' });
+      else if (nestedIds.has(block.id)) issues.push({ path: '/blocks', message: `Duplicate block ID: ${block.id}` });
+      nestedIds.add(block.id);
+    }
+  }
   return issues;
 }

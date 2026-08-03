@@ -18,7 +18,7 @@
         { "type": "object", "required": ["mode", "marginIn"], "properties": { "mode": { "const": "fixed" }, "marginIn": { "type": "number", "minimum": 0, "maximum": 1.25 } }, "additionalProperties": false }
       ]
     },
-    "blocks": { "type": "array", "items": { "type": "object", "required": ["id", "type"], "properties": { "id": { "type": "string", "minLength": 1 }, "type": { "not": { "enum": ["titlePage", "canvasCover", "templatePage"] } } }, "additionalProperties": true } },
+    "blocks": { "type": "array", "items": { "type": "object", "required": ["id", "type"], "properties": { "id": { "type": "string", "minLength": 1 }, "type": { "not": { "enum": ["titlePage", "canvasCover", "templatePage", "templateInstance"] } } }, "additionalProperties": true } },
     "updatedAt": { "type": "string", "format": "date-time" }
   },
   "$defs": {

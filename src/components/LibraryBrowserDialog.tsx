@@ -15,6 +15,16 @@ const locationKey = (root: string) => `bulletin-library-folder:${root}`;
 const viewKey = (root: string) => `bulletin-library-view:${root}`;
 const browseModeKey = (root: string) => `bulletin-library-browse-mode:${root}`;
 const filterKey = (root: string) => `bulletin-library-filter:${root}`;
+const createTypeDescription: Record<LibraryRecordType, string> = {
+  song: 'Lyrics, music, and presentation assets.',
+  liturgy: 'Reusable service and worship text.',
+  image: 'Artwork and photographs for bulletins.',
+  font: 'A font available throughout the workspace.',
+  'church-info': 'Reusable church contact information.',
+  component: 'A reusable native content element.',
+  'page-template': 'A reusable single-page design.',
+  template: 'A reusable multi-page bulletin layout.'
+};
 
 function ImageThumbnail({ root, record }: { root: string; record: LibraryCatalogRecord }) {
   const host = useRef<HTMLSpanElement>(null);
@@ -100,11 +110,19 @@ export function LibraryBrowserDialog({
   const [cut, setCut] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState<string>();
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [choosingCreateType, setChoosingCreateType] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderError, setFolderError] = useState('');
   const [namingKey, setNamingKey] = useState<string>();
   const folders = library.folders ?? [];
   const types = Object.keys(libraryRecordTypeLabel) as LibraryRecordType[];
+  const availableTypes = types.filter(type => !fixedTypes || fixedTypes.has(type));
+  const creationFolderId = browseMode === 'folders' && folderId !== builtinsFolder ? folderId : undefined;
+  const beginCreate = () => {
+    if (!onCreate || !availableTypes.length) return;
+    if (availableTypes.length === 1) onCreate(availableTypes[0], creationFolderId);
+    else setChoosingCreateType(true);
+  };
   const activeFilter = fixedTypes?.size === 1 ? [...fixedTypes][0] : filter;
   const descendantIds = folderId && folderId !== builtinsFolder ? imageFolderDescendantIds(library, folderId) : new Set<string>();
   const searching = Boolean(search.trim());
@@ -210,7 +228,7 @@ export function LibraryBrowserDialog({
   const content = <section className={`library-browser ${embedded ? 'embedded' : ''} ${browseMode === 'all' ? 'all-mode' : ''}`} role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true}>
     <header><div><div className="eyebrow">{manage ? 'Synchronized reusable records' : 'Choose reusable content'}</div><h2>{title}</h2></div>{onClose && <button aria-label="Close library" onClick={onClose}>×</button>}</header>
     <div className="library-browser-toolbar">
-      {manage && <><button className="secondary" onClick={() => { setNamingKey(undefined); setNewFolderName(''); setFolderError(''); setCreatingFolder(true); }}>＋ Folder</button><label>New<select value="" onChange={event => { const type = event.target.value as LibraryRecordType; if (type) onCreate?.(type, browseMode === 'folders' ? folderId : undefined); }}><option value="">Choose type…</option>{types.map(type => <option value={type} key={type}>{libraryRecordTypeLabel[type]}</option>)}</select></label><button className="secondary" disabled={selected.size !== 1 || selectedRecord?.builtin} onClick={rename}>Rename</button><label>Move to<select value="" disabled={!selected.size} onChange={event => { if (event.target.value) void moveKeys(selected, event.target.value === '__root__' ? undefined : event.target.value); }}><option value="">Choose…</option><option value="__root__">Library root</option>{folders.map(folder => <option value={folder.id} key={folder.id}>{' '.repeat(imageFolderAncestors(library, folder.id).length * 2)}{folder.name}</option>)}</select></label><button className="danger-text" disabled={!selected.size || [...selected].some(key => records.find(record => record.key === key)?.builtin)} onClick={() => void onDelete?.(records.filter(record => selected.has(record.key)), [...selected].filter(key => key.startsWith('folder:')).map(key => key.slice(7)))}>Delete</button></>}
+      {manage && <><button className="secondary" onClick={() => { setNamingKey(undefined); setNewFolderName(''); setFolderError(''); setCreatingFolder(true); }}>＋ Folder</button><button className="primary" disabled={!onCreate || !availableTypes.length || folderId === builtinsFolder} onClick={beginCreate}>＋ New</button><button className="secondary" disabled={selected.size !== 1 || selectedRecord?.builtin} onClick={rename}>Rename</button><label>Move to<select value="" disabled={!selected.size} onChange={event => { if (event.target.value) void moveKeys(selected, event.target.value === '__root__' ? undefined : event.target.value); }}><option value="">Choose…</option><option value="__root__">Library root</option>{folders.map(folder => <option value={folder.id} key={folder.id}>{' '.repeat(imageFolderAncestors(library, folder.id).length * 2)}{folder.name}</option>)}</select></label><button className="danger-text" disabled={!selected.size || [...selected].some(key => records.find(record => record.key === key)?.builtin)} onClick={() => void onDelete?.(records.filter(record => selected.has(record.key)), [...selected].filter(key => key.startsWith('folder:')).map(key => key.slice(7)))}>Delete</button></>}
       {actions}<span /><div className="library-browse-mode" role="radiogroup" aria-label="Library organization"><button role="radio" aria-checked={browseMode === 'folders'} className={browseMode === 'folders' ? 'active' : ''} onClick={() => { setBrowseMode('folders'); localStorage.setItem(browseModeKey(root), 'folders'); setSelected(new Set()); }}>Folder view</button><button role="radio" aria-checked={browseMode === 'all'} className={browseMode === 'all' ? 'active' : ''} onClick={() => { setBrowseMode('all'); localStorage.setItem(browseModeKey(root), 'all'); setSelected(new Set()); }}>All</button></div><button className={view === 'thumbnails' ? 'active' : ''} aria-label="Thumbnail view" onClick={() => { setView('thumbnails'); localStorage.setItem(viewKey(root), 'thumbnails'); }}>▦</button><button className={view === 'list' ? 'active' : ''} aria-label="List view" onClick={() => { setView('list'); localStorage.setItem(viewKey(root), 'list'); }}>☷</button>
     </div>
     <div className="library-browser-body">
@@ -225,8 +243,9 @@ export function LibraryBrowserDialog({
         </div>
       </main>
     </div>
-    <footer><span>{cut.size ? `${cut.size} cut · open a folder and press Ctrl+V` : selected.size ? `${selected.size} selected` : `${visibleRecords.length} record${visibleRecords.length === 1 ? '' : 's'}`}</span><div>{onClose && <button className="secondary" onClick={onClose}>Cancel</button>}{!manage && <button className="primary" disabled={!selectedRecord} onClick={() => selectedRecord && onSelect?.(selectedRecord)}>Choose</button>}</div></footer>
+    <footer><span>{cut.size ? `${cut.size} cut · open a folder and press Ctrl+V` : selected.size ? `${selected.size} selected` : `${visibleRecords.length} record${visibleRecords.length === 1 ? '' : 's'}`}</span><div>{onClose && <button className="secondary" onClick={onClose}>Cancel</button>}{manage && onOpen && <button className="primary" disabled={!selectedRecord} onClick={() => selectedRecord && onOpen(selectedRecord)}>Open</button>}{!manage && <button className="primary" disabled={!selectedRecord} onClick={() => selectedRecord && onSelect?.(selectedRecord)}>Choose</button>}</div></footer>
     {creatingFolder && <div className="library-folder-dialog" role="dialog" aria-modal="true" aria-labelledby="new-library-folder-title"><form onSubmit={event => { event.preventDefault(); void createFolder(); }}><h3 id="new-library-folder-title">{namingKey ? 'Rename item' : 'New folder'}</h3><label>{namingKey ? 'Name' : 'Folder name'}<input autoFocus value={newFolderName} onChange={event => { setNewFolderName(event.target.value); setFolderError(''); }} /></label>{folderError && <p className="field-error" role="alert">{folderError}</p>}<div><button type="button" className="secondary" onClick={() => setCreatingFolder(false)}>Cancel</button><button type="submit" className="primary">{namingKey ? 'Rename' : 'Create folder'}</button></div></form></div>}
+    {choosingCreateType && <div className="library-folder-dialog" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setChoosingCreateType(false); }}><section className="library-create-type-dialog" role="dialog" aria-modal="true" aria-labelledby="library-create-type-title"><header><div><div className="eyebrow">New library item</div><h3 id="library-create-type-title">What would you like to create?</h3></div><button aria-label="Close" onClick={() => setChoosingCreateType(false)}>×</button></header><div className="library-create-type-options">{availableTypes.map(type => <button key={type} onClick={() => { setChoosingCreateType(false); onCreate?.(type, creationFolderId); }}><span>{libraryRecordIcon[type]}</span><b>{libraryRecordTypeLabel[type]}</b><small>{createTypeDescription[type]}</small></button>)}</div><footer><button className="secondary" onClick={() => setChoosingCreateType(false)}>Cancel</button></footer></section></div>}
   </section>;
   return embedded ? content : <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.(); }}>{content}</div>;
 }

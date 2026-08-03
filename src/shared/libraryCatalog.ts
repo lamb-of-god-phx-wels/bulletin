@@ -5,10 +5,11 @@ import type {
   LibraryCatalogTargetKind,
   LibraryKind,
   LibraryManifestV1,
-  PageTemplateV1
+  PageTemplateV1,
+  TemplateV1
 } from './types.js';
 
-export type LibraryRecordType = LibraryKind | 'component' | 'page-template';
+export type LibraryRecordType = LibraryKind | 'component' | 'page-template' | 'template';
 
 export interface LibraryCatalogRecord {
   key: string;
@@ -43,7 +44,8 @@ export function setCatalogEntry(library: LibraryManifestV1, entry: LibraryCatalo
 export function libraryCatalogRecords(
   library: LibraryManifestV1 | undefined,
   pages: PageTemplateV1[] = [],
-  builtins: DeclarativeComponentDefinition[] = []
+  builtins: DeclarativeComponentDefinition[] = [],
+  templates: TemplateV1[] = []
 ): LibraryCatalogRecord[] {
   const records: LibraryCatalogRecord[] = [];
   for (const family of libraryFamilies(library?.items ?? [])) {
@@ -84,6 +86,17 @@ export function libraryCatalogRecords(
       versionCount: versions.length, version: versions[0].version, folderId: catalog?.folderId, value: versions
     });
   }
+  const templateFamilies = new Map<string, TemplateV1[]>();
+  for (const template of templates) templateFamilies.set(template.id, [...(templateFamilies.get(template.id) ?? []), template]);
+  for (const [id, versions] of templateFamilies) {
+    versions.sort((a, b) => b.version - a.version || (a.status === 'published' ? -1 : 1));
+    const catalog = catalogEntry(library, 'template', id);
+    records.push({
+      key: libraryCatalogKey('template', id), targetKind: 'template', targetId: id, type: 'template',
+      title: catalog?.displayName?.trim() || versions[0].name, sourceTitle: versions[0].name,
+      versionCount: versions.length, version: versions[0].version, folderId: catalog?.folderId, value: versions
+    });
+  }
   const workspaceTypes = new Set(componentFamilies.keys());
   for (const definition of builtins.filter(item => !workspaceTypes.has(item.type))) {
     records.push({
@@ -102,10 +115,11 @@ export const libraryRecordTypeLabel: Record<LibraryRecordType, string> = {
   font: 'Fonts',
   'church-info': 'Church information',
   component: 'Components',
-  'page-template': 'Pages'
+  'page-template': 'Pages',
+  template: 'Templates'
 };
 
 export const libraryRecordIcon: Record<LibraryRecordType, string> = {
   song: '♫', liturgy: '¶', image: '▧', font: 'A', 'church-info': '⌂',
-  component: '◇', 'page-template': '▣'
+  component: '◇', 'page-template': '▣', template: '☷'
 };

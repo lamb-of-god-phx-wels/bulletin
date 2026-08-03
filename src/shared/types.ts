@@ -227,6 +227,14 @@ export interface TemplatePageBlock extends BlockBase {
   customProperties?: CustomPropertyDefinition[];
   blocks: BulletinBlock[];
 }
+export interface TemplateInstanceBlock extends BlockBase {
+  type: 'templateInstance';
+  source: { id: string; version: number };
+  sourceDigest: string;
+  name: string;
+  customProperties?: CustomPropertyDefinition[];
+  blocks: BulletinBlock[];
+}
 
 export type CustomBindingSource = 'weekly' | BuiltInTextBinding | CustomPropertyBinding;
 export interface CustomBlockBinding {
@@ -265,7 +273,7 @@ export interface CustomBlock extends BlockBase {
   style?: CustomBlockStyle;
 }
 
-export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
+export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | TemplateInstanceBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | CopyrightBlock | ImageBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 
@@ -346,7 +354,7 @@ export interface LibraryFolder {
   name: string;
   parentId?: string;
 }
-export type LibraryCatalogTargetKind = 'library-item' | 'component' | 'page-template' | 'calendar-event';
+export type LibraryCatalogTargetKind = 'library-item' | 'component' | 'page-template' | 'template' | 'calendar-event';
 export interface LibraryCatalogEntry {
   targetKind: LibraryCatalogTargetKind;
   targetId: string;
@@ -481,7 +489,7 @@ export interface BulletinApi {
   deletePageTemplate(root: string, relativePath: string): Promise<void>;
   saveLibrary(root: string, library: LibraryManifestV1, previous?: LibraryManifestV1, force?: boolean): Promise<void>;
   trashLibraryImages?(root: string, folderIds: string[], imageIds: string[], previous: LibraryManifestV1): Promise<LibraryManifestV1>;
-  trashLibraryRecords?(root: string, selection: LibraryTrashSelection, previous: LibraryManifestV1): Promise<{ library: LibraryManifestV1; pageTemplateIds: string[] }>;
+  trashLibraryRecords?(root: string, selection: LibraryTrashSelection, previous: LibraryManifestV1): Promise<{ library: LibraryManifestV1; pageTemplateIds: string[]; templateIds: string[] }>;
   onWorkspaceChanged?(listener: (change: WorkspaceChange) => void): () => void;
   getUpdateStatus?(): Promise<AppUpdateStatus>;
   checkForUpdates?(): Promise<AppUpdateStatus>;

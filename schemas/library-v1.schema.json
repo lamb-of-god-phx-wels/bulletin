@@ -17,7 +17,7 @@
         "type": "object",
         "required": ["targetKind", "targetId"],
         "properties": {
-          "targetKind": { "enum": ["library-item", "component", "page-template", "calendar-event"] },
+          "targetKind": { "enum": ["library-item", "component", "page-template", "template", "calendar-event"] },
           "targetId": { "type": "string", "minLength": 1 },
           "folderId": { "type": "string", "minLength": 1 },
           "displayName": { "type": "string", "minLength": 1 }

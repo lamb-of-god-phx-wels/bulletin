@@ -199,7 +199,8 @@ export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?
   const pages: PageModel[] = [];
   let current: PaginatedBlock[] = []; let used = 0;
   const flush = () => { if (current.length) pages.push({ number: pages.length + 1, kind: 'content', blocks: current }); current = []; used = 0; };
-  const renderBlocks = resolveConditionalBlocks(blocks, template, document);
+  const flattenInstances = (items: BulletinBlock[]): BulletinBlock[] => items.flatMap(block => block.type === 'templateInstance' ? flattenInstances(block.blocks) : [block]);
+  const renderBlocks = flattenInstances(resolveConditionalBlocks(blocks, template, document));
   for (const block of splitLongBlocks(renderBlocks, template, library, document)) {
     if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') {
       flush(); pages.push({

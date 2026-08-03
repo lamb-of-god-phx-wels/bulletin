@@ -74,7 +74,7 @@ export function duplicatePageTemplate(source: PageTemplateV1, name: string, reco
   };
 }
 
-function propertyForBinding(binding: CustomPropertyBinding, template?: TemplateV1) {
+export function propertyForBinding(binding: CustomPropertyBinding, template?: TemplateV1) {
   if (!template) return binding;
   const properties = effectiveCustomPropertyDefinitions(template);
   const exact = properties.find(property => property.id === binding.propertyId && property.valueType === binding.valueType);
@@ -83,7 +83,7 @@ function propertyForBinding(binding: CustomPropertyBinding, template?: TemplateV
   return property ? { kind: 'customProperty' as const, propertyId: property.id, propertyName: property.name, valueType: property.valueType } : binding;
 }
 
-function remapProperties(block: BulletinBlock, template?: TemplateV1): BulletinBlock {
+export function remapProperties(block: BulletinBlock, template?: TemplateV1): BulletinBlock {
   const next = structuredClone(block);
   if (next.condition) next.condition.property = propertyForBinding(next.condition.property, template);
   if (next.type === 'richText' && isCustomPropertyBinding(next.binding)) next.binding = propertyForBinding(next.binding, template);
@@ -92,6 +92,7 @@ function remapProperties(block: BulletinBlock, template?: TemplateV1): BulletinB
   if (next.type === 'paragraph') next.children = next.children.map(child => remapProperties(child, template) as typeof child);
   if (next.type === 'scriptureReading' && next.elements) next.elements = Object.fromEntries(Object.entries(next.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: propertyForBinding(settings.condition.property, template) } } : settings]));
   if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapProperties(child, template));
+  if (next.type === 'templateInstance') next.blocks = next.blocks.map(child => remapProperties(child, template));
   if (next.type === 'canvas') next.scene.elements = next.scene.elements.map(element => {
     const mapped = structuredClone(element);
     if (mapped.condition) mapped.condition.property = propertyForBinding(mapped.condition.property, template);
@@ -126,11 +127,12 @@ function freshId(id: string, used: Set<string>) {
   return next;
 }
 
-function remapBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
+export function remapBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
   const next = { ...structuredClone(block), id: freshId(block.id, used) } as BulletinBlock;
   if (next.type === 'group' || next.type === 'churchInfo') next.children = next.children?.map(child => remapBlock(child, used));
   if (next.type === 'paragraph') next.children = next.children.map(child => remapBlock(child, used) as typeof child);
   if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapBlock(child, used));
+  if (next.type === 'templateInstance') next.blocks = next.blocks.map(child => remapBlock(child, used));
   if (next.type === 'canvas') next.scene.elements = next.scene.elements.map(element => element.type === 'block' ? { ...element, block: remapBlock(element.block, used) } : element);
   return next;
 }
@@ -160,6 +162,7 @@ export function pageTemplateIssues(page: Pick<PageTemplateV1, 'blocks' | 'margin
     issues.push('Regular page templates cannot contain canvas blocks.');
   }
   if (page.blocks.some(block => block.type === 'templatePage')) issues.push('Page templates cannot contain another template page.');
+  if (page.blocks.some(block => block.type === 'templateInstance')) issues.push('Page templates cannot contain a bulletin template.');
   if (page.blocks.some(block => block.type === 'titlePage' || block.type === 'canvasCover')) issues.push('Legacy cover blocks are not supported.');
   const margin = page.margin.mode === 'fixed' ? page.margin.marginIn : page.margin.referenceMarginIn;
   if (!Number.isFinite(margin) || margin < 0 || margin >= 3.5) issues.push('Choose a valid page margin.');

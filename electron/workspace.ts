@@ -76,6 +76,7 @@ interface LibraryTrashBundle {
   calendarEvents: ChurchCalendarEvent[];
   components: DeclarativeComponentDefinition[];
   pages: Array<{ path: string; value: PageTemplateV1 }>;
+  templates: Array<{ path: string; value: TemplateV1 }>;
 }
 
 function normalizeWorkspacePath(relative: string) {
@@ -638,7 +639,8 @@ export async function restoreArchived(root: string, record: ArchivedWorkspaceRec
           || bundle.catalog.some(entry => library.catalog?.some(item => imageCatalogKey(item) === imageCatalogKey(entry)))
           || bundle.components.some(item => componentKeys.has(componentKey(item)))
           || bundle.calendarEvents.some(item => eventIds.has(item.id))
-          || bundle.pages.some(page => current.pageTemplates.some(item => item.path === page.path))) {
+          || bundle.pages.some(page => current.pageTemplates.some(item => item.path === page.path))
+          || (bundle.templates ?? []).some(template => current.templates.some(item => item.path === template.path))) {
           throw new Error('Conflict: a reusable record with the same stable ID already exists. Move or rename that copy before restoring.');
         }
         const libraryTargets = [
@@ -648,7 +650,9 @@ export async function restoreArchived(root: string, record: ArchivedWorkspaceRec
           ...bundle.calendarEvents.map(event => ({ kind: 'calendar-event' as const, id: event.id, path: workspaceRelative(root, recordPath(root, 'calendar-event', event)) })),
           ...bundle.components.map(component => ({ kind: 'component' as const, id: componentKey(component), path: workspaceRelative(root, recordPath(root, 'component', component)) }))
         ];
-        for (const target of [...libraryTargets, ...bundle.pages.map(page => ({ kind: 'page-template' as const, id: page.path, path: page.path }))]) {
+        for (const target of [...libraryTargets,
+          ...bundle.pages.map(page => ({ kind: 'page-template' as const, id: page.path, path: page.path })),
+          ...(bundle.templates ?? []).map(template => ({ kind: 'template' as const, id: template.path, path: template.path }))]) {
           try { await unlink(tombstoneFile(root, target.kind, target.path, target.id)); }
           catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
         }
@@ -661,6 +665,7 @@ export async function restoreArchived(root: string, record: ArchivedWorkspaceRec
           componentDefinitions: [...(library.componentDefinitions ?? []), ...bundle.components]
         }), library);
         for (const page of bundle.pages) await atomicJson(inside(root, page.path), page.value);
+        for (const template of bundle.templates ?? []) await atomicJson(inside(root, template.path), template.value);
         await unlink(source);
         return;
       }
@@ -768,6 +773,9 @@ export async function trashLibraryRecords(root: string, selection: LibraryTrashS
   const pageRecords = (await rawRecords<PageTemplateV1>(
     root, 'page-templates', 'page-template', file => !file.includes(`${path.sep}revisions${path.sep}`), value => `${value.id}:${value.version}:${value.status}`
   )).values.filter(record => selected('page-template', record.value.id));
+  const templateRecords = (await rawRecords<TemplateV1>(
+    root, 'templates', 'template', file => !file.includes(`${path.sep}revisions${path.sep}`), value => `${value.id}:${value.version}:${value.status}`
+  )).values.filter(record => selected('template', record.value.id));
   const bundle: LibraryTrashBundle = {
     format: 'bulletin-library-trash-v1',
     label: selection.folderIds.length
@@ -782,7 +790,8 @@ export async function trashLibraryRecords(root: string, selection: LibraryTrashS
     catalog: (before.catalog ?? []).filter(entry => folderSet.has(entry.folderId ?? '') || selected(entry.targetKind, entry.targetId)),
     calendarEvents: (before.calendarEvents ?? []).filter(event => selected('calendar-event', event.id)),
     components: (before.componentDefinitions ?? []).filter(component => selected('component', component.type)),
-    pages: pageRecords.map(record => ({ path: record.path, value: record.value }))
+    pages: pageRecords.map(record => ({ path: record.path, value: record.value })),
+    templates: templateRecords.map(record => ({ path: record.path, value: record.value }))
   };
   const bundleId = randomUUID();
   const originalPath = `library/trash/${bundleId}.json`;
@@ -795,7 +804,8 @@ export async function trashLibraryRecords(root: string, selection: LibraryTrashS
     ...bundle.catalog.map(entry => ({ kind: 'image-catalog' as const, id: imageCatalogKey(entry), file: recordPath(root, 'image-catalog', entry) })),
     ...bundle.calendarEvents.map(event => ({ kind: 'calendar-event' as const, id: event.id, file: recordPath(root, 'calendar-event', event) })),
     ...bundle.components.map(component => ({ kind: 'component' as const, id: componentKey(component), file: recordPath(root, 'component', component) })),
-    ...bundle.pages.map(page => ({ kind: 'page-template' as const, id: page.path, file: inside(root, page.path) }))
+    ...bundle.pages.map(page => ({ kind: 'page-template' as const, id: page.path, file: inside(root, page.path) })),
+    ...bundle.templates.map(template => ({ kind: 'template' as const, id: template.path, file: inside(root, template.path) }))
   ];
   for (const target of targets) {
     const relative = workspaceRelative(root, target.file);
@@ -815,7 +825,8 @@ export async function trashLibraryRecords(root: string, selection: LibraryTrashS
   });
   return {
     library,
-    pageTemplateIds: [...new Set(bundle.pages.map(page => page.value.id))]
+    pageTemplateIds: [...new Set(bundle.pages.map(page => page.value.id))],
+    templateIds: [...new Set(bundle.templates.map(template => template.value.id))]
   };
 }
 

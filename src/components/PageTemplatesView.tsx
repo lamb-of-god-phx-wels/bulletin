@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DeclarativeComponentDefinition } from '../component-engine/types';
 import { createPageTemplate, duplicatePageTemplate, nextPageTemplateVersion, pageTemplateChoices, pageTemplateLayout, pageTemplateVersions, type PageTemplateRecord } from '../shared/pageTemplates';
 import { createCanvasBlock } from '../shared/canvas';
@@ -6,8 +6,10 @@ import { randomId } from '../shared/id';
 import type { BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { PageTemplateEditor } from './PageTemplateEditor';
 
-export function PageTemplatesView({ records, template, document, library, root, definitions, onSave, onArchive, onLibraryChange, onError }: {
+export function PageTemplatesView({ records, requestedId, createRequest, template, document, library, root, definitions, onSave, onArchive, onLibraryChange, onError, onReturnToLibrary, onCreateRequestHandled }: {
   records: PageTemplateRecord[];
+  requestedId?: string;
+  createRequest?: number;
   template: TemplateV1;
   document?: BulletinDocumentV1;
   library?: LibraryManifestV1;
@@ -17,6 +19,8 @@ export function PageTemplatesView({ records, template, document, library, root, 
   onArchive(record: PageTemplateRecord): Promise<void>;
   onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
+  onReturnToLibrary(): void;
+  onCreateRequestHandled(): void;
 }) {
   const choices = useMemo(() => pageTemplateChoices(records), [records]);
   const [selectedId, setSelectedId] = useState(choices[0]?.pageTemplate.id);
@@ -24,14 +28,22 @@ export function PageTemplatesView({ records, template, document, library, root, 
   const [draft, setDraft] = useState<PageTemplateV1>();
   const [creatingName, setCreatingName] = useState<string>();
   const edit = (page: PageTemplateV1) => setDraft({ ...structuredClone(page), layout: pageTemplateLayout(page) });
+  useEffect(() => {
+    if (!requestedId) return;
+    const requested = pageTemplateVersions(records, requestedId)[0];
+    if (requested) { setSelectedId(requestedId); edit(requested.pageTemplate); }
+  }, [requestedId]);
+  useEffect(() => {
+    if (createRequest) { setCreatingName(''); onCreateRequestHandled(); }
+  }, [createRequest]);
   const createBlank = () => {
-    const name = window.prompt('Page template name', 'New page');
-    if (name?.trim()) setCreatingName(name.trim());
+    setCreatingName('');
   };
   const createWithLayout = (layout: 'canvas' | 'regular') => {
-    if (!creatingName) return;
+    const name = creatingName?.trim();
+    if (!name) return;
     edit(createPageTemplate(
-      creatingName,
+      name,
       records,
       layout === 'canvas' ? [createCanvasBlock(`canvas-${randomId()}`)] : [],
       layout === 'canvas' ? { mode: 'fixed', marginIn: 0 } : { mode: 'inherit', referenceMarginIn: .4 },
@@ -63,17 +75,18 @@ export function PageTemplatesView({ records, template, document, library, root, 
       <div><b>{record.pageTemplate.name}</b><small>{pageTemplateLayout(record.pageTemplate) === 'canvas' ? 'Canvas' : 'Regular layout'} · Latest v{record.pageTemplate.version} · {record.pageTemplate.status} · {record.pageTemplate.margin.mode === 'inherit' ? 'inherits margins' : `${record.pageTemplate.margin.marginIn} in margins`}</small></div>
       <div className="builder-actions"><button className="secondary" onClick={event => { event.stopPropagation(); edit(record.pageTemplate); }}>Edit</button><button className="danger-text" onClick={event => { event.stopPropagation(); void onArchive(record).catch(error => onError(error instanceof Error ? error.message : String(error))); }}>Delete</button></div>
     </article>)}</section>}
-    {draft && <PageTemplateEditor value={draft} template={template} document={document} library={library} root={root} definitions={definitions} onLibraryChange={onLibraryChange} onError={onError} onChange={setDraft} onSave={save} onClose={() => setDraft(undefined)} />}
-    {creatingName && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setCreatingName(undefined); }}>
+    {draft && <PageTemplateEditor value={draft} template={template} document={document} library={library} root={root} definitions={definitions} onLibraryChange={onLibraryChange} onError={onError} onChange={setDraft} onSave={save} onClose={() => { setDraft(undefined); onReturnToLibrary(); }} />}
+    {creatingName !== undefined && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setCreatingName(undefined); onReturnToLibrary(); } }}>
       <section className="page-layout-choice" role="dialog" aria-modal="true" aria-labelledby="page-layout-choice-title">
         <div className="eyebrow">New page template</div>
-        <h2 id="page-layout-choice-title">Choose how to build {creatingName}</h2>
+        <h2 id="page-layout-choice-title">Create a page template</h2>
         <p>The page type stays fixed so canvas objects and flowing document blocks are not accidentally mixed.</p>
+        <label>Page template name<input autoFocus value={creatingName} placeholder="e.g. Festival cover" onChange={event => setCreatingName(event.target.value)} /></label>
         <div className="page-layout-options">
-          <button onClick={() => createWithLayout('canvas')}><span>▧</span><b>Canvas</b><small>Position text, images, shapes, and lines anywhere on a full 7 × 8.5-inch page.</small></button>
-          <button onClick={() => createWithLayout('regular')}><span>☷</span><b>Regular layout</b><small>Build a page from document blocks that flow within the selected page margins.</small></button>
+          <button disabled={!creatingName.trim()} onClick={() => createWithLayout('canvas')}><span>▧</span><b>Canvas</b><small>Position text, images, shapes, and lines anywhere on a full 7 × 8.5-inch page.</small></button>
+          <button disabled={!creatingName.trim()} onClick={() => createWithLayout('regular')}><span>☷</span><b>Regular layout</b><small>Build a page from document blocks that flow within the selected page margins.</small></button>
         </div>
-        <div className="builder-actions"><button className="secondary" onClick={() => setCreatingName(undefined)}>Cancel</button></div>
+        <div className="builder-actions"><button className="secondary" onClick={() => { setCreatingName(undefined); onReturnToLibrary(); }}>Cancel</button></div>
       </section>
     </div>}
   </div>;

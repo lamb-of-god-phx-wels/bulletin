@@ -42,6 +42,8 @@ import { customPropertyIssues } from "../shared/customProperties";
 import { ConditionModal } from "./ConditionModal";
 import { blockDisplayName } from "../shared/blockNames";
 import { EditableElementName } from "./EditableElementName";
+import { TemplateElementDialog } from "./TemplateElementDialog";
+import { explodeTemplateInstance, instantiateTemplate, templateVersions } from "../shared/templates";
 
 const textContent = (value: string) =>
   value
@@ -53,6 +55,7 @@ const textContent = (value: string) =>
 
 export function TemplateBuilder({
   template,
+  templates,
   pageTemplates,
   workspaceDefinitions,
   library,
@@ -68,6 +71,7 @@ export function TemplateBuilder({
   canDeleteTemplate,
 }: {
   template: TemplateV1;
+  templates: TemplateV1[];
   pageTemplates: PageTemplateV1[];
   workspaceDefinitions: DeclarativeComponentDefinition[];
   library?: LibraryManifestV1;
@@ -87,6 +91,7 @@ export function TemplateBuilder({
   const [saving, setSaving] = useState(false);
   const [blockLibraryOpen, setBlockLibraryOpen] = useState(false);
   const [pageInsertionIndex, setPageInsertionIndex] = useState<number>();
+  const [templateInsertionIndex, setTemplateInsertionIndex] = useState<number>();
   const [creatingPage, setCreatingPage] = useState<PageTemplateV1>();
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
   const [editingBlockIds, setEditingBlockIds] = useState<Set<string>>(
@@ -124,6 +129,7 @@ export function TemplateBuilder({
     if (payload.kind === "component") addBlock(instantiateComponentDefinition(payload.definition), index);
     else if (payload.kind === "container") addBlock(createLayoutContainer(payload.layoutMode, `container-${randomId()}`), index);
     else if (payload.kind === "page") setPageInsertionIndex(index);
+    else if (payload.kind === "template") setTemplateInsertionIndex(index);
     else if (payload.kind === "image") setImageIndex(index);
     else if (payload.kind === "fullPageAsset" && root && window.bulletin) {
       const asset = await window.bulletin.importAsset(root, `assets/templates/${template.id}`);
@@ -209,6 +215,7 @@ export function TemplateBuilder({
     ) : null;
   const nestedOutline = (parent: BulletinBlock): React.ReactNode =>
     parent.type !== "templatePage" &&
+    (parent.type !== "templateInstance" || editingBlockIds.has(parent.id)) &&
     childBlocks(parent) && (
       <ol className="nested-outline">
         {childBlocks(parent)!.map((child) => (
@@ -229,6 +236,7 @@ export function TemplateBuilder({
                 editingBlockIds.has(child.id) && (
                   <RichTextEditor className="outline-text-editor" content={child.content} label={`Edit ${blockTitle(child)}`} onChange={content => updateBlock(child.id, { content })} />
                 )}
+              {blockOptions(child)}
             </div>
             <div className="reorder">
               <button className={`format-block-button condition-toggle ${child.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(child.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(child.id)}>Condition</button>
@@ -551,6 +559,22 @@ export function TemplateBuilder({
                             Explode
                           </button>
                         </>
+                      ) : block.type === "templateInstance" ? (
+                        <>
+                          <button className="format-block-button" onClick={() => toggleEditor(block.id)}>
+                            {editingBlockIds.has(block.id) ? "Done" : "Edit contents"}
+                          </button>
+                          <button className="format-block-button" onClick={() => {
+                            const source = templates.find(item => item.id === block.source.id && item.version === block.source.version && item.status === "published");
+                            if (source) updateBlock(block.id, { ...instantiateTemplate(source, block.id, template, template.starterBlocks.filter(item => item.id !== block.id)), condition: block.condition, displayName: block.displayName });
+                          }}>Reset</button>
+                          <button className="format-block-button" onClick={() => {
+                            const latest = templateVersions(templates.map(item => ({ path: "", template: item })), block.source.id).find(item => item.template.status === "published")?.template;
+                            if (latest && latest.version !== block.source.version && window.confirm(`Replace local changes with ${latest.name} v${latest.version}?`))
+                              updateBlock(block.id, { ...instantiateTemplate(latest, block.id, template, template.starterBlocks.filter(item => item.id !== block.id)), condition: block.condition, displayName: block.displayName });
+                          }}>Upgrade</button>
+                          <button className="format-block-button" onClick={() => updateTemplate({ starterBlocks: explodeTemplateInstance(template.starterBlocks, block.id) })}>Explode</button>
+                        </>
                       ) : (
                         <button
                           className="format-block-button"
@@ -593,6 +617,19 @@ export function TemplateBuilder({
           onClose={() => setPageInsertionIndex(undefined)}
           onSelect={page => { addBlock(instantiatePageTemplate(page, randomId(), template), pageInsertionIndex); setPageInsertionIndex(undefined); }}
           onCreate={setCreatingPage}
+        />
+      )}
+      {templateInsertionIndex !== undefined && (
+        <TemplateElementDialog
+          templates={templates}
+          library={library}
+          root={root}
+          excludeTemplateId={template.id}
+          onClose={() => setTemplateInsertionIndex(undefined)}
+          onSelect={source => {
+            addBlock(instantiateTemplate(source, randomId(), template, template.starterBlocks), templateInsertionIndex);
+            setTemplateInsertionIndex(undefined);
+          }}
         />
       )}
       {creatingPage && (

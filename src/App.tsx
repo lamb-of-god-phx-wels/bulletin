@@ -259,6 +259,11 @@ function DesktopApp() {
   const [createDestination, setCreateDestination] = useState<
     "bulletin" | "template"
   >();
+  const [pendingTemplateFolderId, setPendingTemplateFolderId] = useState<string>();
+  const [pendingPageTemplateFolderId, setPendingPageTemplateFolderId] = useState<string>();
+  const [selectedPageTemplateId, setSelectedPageTemplateId] = useState<string>();
+  const [pageTemplateCreateRequest, setPageTemplateCreateRequest] = useState(0);
+  const [libraryFilter, setLibraryFilter] = useState<LibraryRecordType>();
   const [syncCenter, setSyncCenter] = useState(false);
   const [bulletinConflict, setBulletinConflict] =
     useState<BulletinConflictState>();
@@ -904,10 +909,12 @@ function DesktopApp() {
       throw error;
     }
   }
-  async function createNewTemplate(source: CreationSource, name: string) {
+  async function createNewTemplate(source: CreationSource, name: string, folderId?: string) {
     if (!workspace || !window.bulletin) return;
     const next =
-      source.kind === "template"
+      source.kind === "blank"
+        ? duplicateTemplate({ ...defaultTemplate, starterBlocks: [], customProperties: undefined }, name, workspace.templates)
+        : source.kind === "template"
         ? duplicateTemplate(source.record.template, name, workspace.templates)
         : templateFromBulletin(
             source.record.document,
@@ -923,11 +930,21 @@ function DesktopApp() {
           );
     try {
       const path = await window.bulletin.saveTemplate(workspace.root, next);
+      const currentLibrary = workspace.library ?? { schemaVersion: 1 as const, name: "Shared Library", items: [] };
+      const nextLibrary = folderId
+        ? setCatalogEntry(currentLibrary, {
+            targetKind: "template",
+            targetId: next.id,
+            folderId,
+          })
+        : currentLibrary;
+      if (folderId) await window.bulletin.saveLibrary(workspace.root, nextLibrary, workspace.library);
       setWorkspace((current) =>
         current
           ? {
               ...current,
               templates: [...current.templates, { path, template: next }],
+              library: nextLibrary,
             }
           : current,
       );
@@ -1241,23 +1258,32 @@ function DesktopApp() {
     {
       label: "Bulletin Templates",
       icon: "◇",
-      active: screen === "templates",
+      active: screen === "templates" || (screen === "library" && libraryFilter === "template"),
       leavesBulletin: true,
-      action: () => setScreen("templates"),
+      action: () => {
+        setLibraryFilter("template");
+        setScreen("library");
+      },
     },
     {
       label: "Page Templates",
       icon: "▣",
-      active: screen === "page-templates",
+      active: screen === "page-templates" || (screen === "library" && libraryFilter === "page-template"),
       leavesBulletin: true,
-      action: () => setScreen("page-templates"),
+      action: () => {
+        setLibraryFilter("page-template");
+        setScreen("library");
+      },
     },
     {
       label: "Library",
       icon: "▤",
-      active: screen === "library",
+      active: screen === "library" && !libraryFilter,
       leavesBulletin: true,
-      action: () => setScreen("library"),
+      action: () => {
+        setLibraryFilter(undefined);
+        setScreen("library");
+      },
     },
     {
       label: "Church Calendar",
@@ -1449,6 +1475,8 @@ function DesktopApp() {
                 ? (document?.info.title ?? "No bulletin selected")
                 : screen === "templates"
                   ? template.name
+                  : screen === "library" && libraryFilter
+                    ? libraryFilter === "template" ? "Bulletin Templates" : libraryFilter === "page-template" ? "Page Templates" : workspace.library?.name
                   : screen === "page-templates"
                     ? "Page Templates"
                     : screen === "archive"
@@ -1629,6 +1657,7 @@ function DesktopApp() {
               <WeeklyEditor
                 document={document}
                 template={template}
+                templates={workspace.templates.map(record => record.template)}
                 pageTemplates={workspace.pageTemplates.map(
                   (record) => record.pageTemplate,
                 )}
@@ -1739,10 +1768,14 @@ function DesktopApp() {
                   );
                   if (record) selectTemplate(record);
                 }}
-                onCreate={() => setCreateDestination("template")}
+                onCreate={() => {
+                  setPendingTemplateFolderId(undefined);
+                  setCreateDestination("template");
+                }}
               />
               <TemplateBuilder
                 template={template}
+                templates={workspace.templates.map(record => record.template)}
                 pageTemplates={workspace.pageTemplates.map(
                   (record) => record.pageTemplate,
                 )}
@@ -1833,14 +1866,34 @@ function DesktopApp() {
         {screen === "library" && (
           <LibraryView
             workspace={workspace}
+            allowedTypes={libraryFilter ? [libraryFilter] : undefined}
+            title={libraryFilter === "template" ? "Bulletin Templates" : libraryFilter === "page-template" ? "Page Templates" : undefined}
             onDirtyChange={(value) =>
               updateEditingState({ auxiliaryDirty: value })
             }
             onError={reportStatus}
             onOpenExternal={(record, create) => {
               if (record.type === "page-template") {
+                if (create) {
+                  setPendingPageTemplateFolderId(record.folderId);
+                  setSelectedPageTemplateId(undefined);
+                  setPageTemplateCreateRequest(current => current + 1);
+                } else {
+                  setPendingPageTemplateFolderId(undefined);
+                  setSelectedPageTemplateId(record.targetId);
+                }
                 setScreen("page-templates");
-                reportStatus(create ? "Use New page template to choose a layout" : `Opened ${record.title || "Page Templates"}`);
+                reportStatus(create ? "Choose a page layout" : `Opened ${record.title || "Page Template"}`);
+              } else if (record.type === "template") {
+                if (create) {
+                  setPendingTemplateFolderId(record.folderId);
+                  setCreateDestination("template");
+                  return;
+                }
+                const selected = templateChoices(workspace.templates).find(item => item.template.id === record.targetId);
+                if (selected) selectTemplate(selected);
+                setScreen("templates");
+                reportStatus(`Opened ${record.title || "Bulletin Template"}`);
               } else {
                 setScreen("templates");
                 reportStatus(create ? "Open Manage components to add a component" : `Open Manage components to edit ${record.title}`);
@@ -1851,6 +1904,13 @@ function DesktopApp() {
               const targets = workspace.pageTemplates.filter(record => ids.includes(record.pageTemplate.id));
               if (!alreadyDeleted) for (const target of targets) await window.bulletin.deletePageTemplate(workspace.root, target.path);
               setWorkspace(current => current ? { ...current, pageTemplates: current.pageTemplates.filter(record => !ids.includes(record.pageTemplate.id)) } : current);
+            }}
+            onDeleteTemplates={async (ids, alreadyDeleted) => {
+              if (!window.bulletin) return;
+              const remaining = workspace.templates.filter(record => !ids.includes(record.template.id));
+              if (!templateChoices(remaining).length) throw new Error("A workspace must keep at least one bulletin template.");
+              if (!alreadyDeleted) for (const target of workspace.templates.filter(record => ids.includes(record.template.id))) await window.bulletin.deleteTemplate(workspace.root, target.path);
+              selectAfterTemplateDeletion(remaining);
             }}
             onSave={async (library, alreadySaved) => {
               if (!window.bulletin) return;
@@ -1870,12 +1930,19 @@ function DesktopApp() {
         {screen === "page-templates" && (
           <PageTemplatesView
             records={workspace.pageTemplates}
+            requestedId={selectedPageTemplateId}
+            createRequest={pageTemplateCreateRequest}
+            onCreateRequestHandled={() => setPageTemplateCreateRequest(0)}
             template={template}
             document={document}
             library={workspace.library}
             root={workspace.root}
             definitions={workspace.library?.componentDefinitions ?? []}
             onError={reportStatus}
+            onReturnToLibrary={() => {
+              setLibraryFilter("page-template");
+              setScreen("library");
+            }}
             onLibraryChange={async (library, alreadySaved) => {
               if (!window.bulletin) return;
               if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
@@ -1891,10 +1958,17 @@ function DesktopApp() {
                 expectedUpdatedAt,
               );
               const record = { path, pageTemplate };
+              const isNewFamily = !workspace.pageTemplates.some(item => item.pageTemplate.id === pageTemplate.id);
+              const currentLibrary = workspace.library ?? { schemaVersion: 1 as const, name: "Shared Library", items: [] };
+              const nextLibrary = isNewFamily && pendingPageTemplateFolderId
+                ? setCatalogEntry(currentLibrary, { targetKind: "page-template", targetId: pageTemplate.id, folderId: pendingPageTemplateFolderId })
+                : currentLibrary;
+              if (nextLibrary !== currentLibrary) await window.bulletin.saveLibrary(workspace.root, nextLibrary, workspace.library);
               setWorkspace((current) =>
                 current
                   ? {
                       ...current,
+                      library: nextLibrary,
                       pageTemplates: current.pageTemplates.some(
                         (item) => item.path === path,
                       )
@@ -1905,6 +1979,7 @@ function DesktopApp() {
                     }
                   : current,
               );
+              if (isNewFamily) setPendingPageTemplateFolderId(undefined);
               reportStatus(
                 `${pageTemplate.status === "published" ? "Published" : "Saved"} ${pageTemplate.name}`,
               );
@@ -2126,17 +2201,23 @@ function DesktopApp() {
           templates={sortedTemplateRecords(workspace.templates)}
           bulletins={workspace.bulletins}
           initialTemplatePath={templatePath}
-          onCancel={() => setCreateDestination(undefined)}
+          onCancel={() => {
+            setCreateDestination(undefined);
+            setPendingTemplateFolderId(undefined);
+          }}
           onCreate={async (source, value) => {
             if (createDestination === "bulletin") {
               setCreateDestination(undefined);
               const next =
-                source.kind === "template"
+                source.kind === "blank"
+                  ? createBulletin(defaultTemplate, value)
+                  : source.kind === "template"
                   ? createBulletin(source.record.template, value)
                   : duplicateBulletin(source.record.document, value);
               openNewBulletin(next);
             } else {
-              await createNewTemplate(source, value);
+              await createNewTemplate(source, value, pendingTemplateFolderId);
+              setPendingTemplateFolderId(undefined);
               setCreateDestination(undefined);
             }
           }}
@@ -2565,18 +2646,24 @@ function WorkspacePicker({
 
 function LibraryView({
   workspace,
+  allowedTypes,
+  title,
   onSave,
   onError,
   onDirtyChange,
   onOpenExternal,
   onDeletePages,
+  onDeleteTemplates,
 }: {
   workspace: WorkspaceSummary;
+  allowedTypes?: LibraryRecordType[];
+  title?: string;
   onSave(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
   onDirtyChange?(dirty: boolean): void;
   onOpenExternal(record: LibraryCatalogRecord, create?: boolean): void;
   onDeletePages(ids: string[], alreadyDeleted?: boolean): Promise<void>;
+  onDeleteTemplates(ids: string[], alreadyDeleted?: boolean): Promise<void>;
 }) {
   const items = workspace.library?.items ?? [];
   const [adding, setAdding] = useState(false);
@@ -2604,8 +2691,9 @@ function LibraryView({
   const catalogRecords = useMemo(() => libraryCatalogRecords(
     workspace.library,
     workspace.pageTemplates.map(record => record.pageTemplate),
-    prepackagedComponentDefinitions
-  ), [workspace.library, workspace.pageTemplates]);
+    prepackagedComponentDefinitions,
+    workspace.templates.map(record => record.template)
+  ), [workspace.library, workspace.pageTemplates, workspace.templates]);
   const selectedItem = (family: LibraryFamily) =>
     family.versions.find(
       (item) => item.version === selectedVersions[family.id],
@@ -2751,7 +2839,7 @@ function LibraryView({
   };
   const createCatalogRecord = (type: LibraryRecordType, folderId?: string) => {
     if (type === "image") { setDraftFolderId(folderId); setManagingImages(true); return; }
-    if (type === "component" || type === "page-template") {
+    if (type === "component" || type === "page-template" || type === "template") {
       onOpenExternal({ key: `create:${type}`, targetKind: type, targetId: "", type, title: "", sourceTitle: "", versionCount: 0, folderId, value: undefined }, true);
       return;
     }
@@ -2769,6 +2857,12 @@ function LibraryView({
     const componentIds = new Set(included.filter(record => record.targetKind === "component" && !record.builtin).map(record => record.targetId));
     const eventIds = new Set(included.filter(record => record.targetKind === "calendar-event").map(record => record.targetId));
     const pageIds = [...new Set(included.filter(record => record.targetKind === "page-template").map(record => record.targetId))];
+    const templateIds = [...new Set(included.filter(record => record.targetKind === "template").map(record => record.targetId))];
+    const templateFamilyIds = new Set(workspace.templates.map(record => record.template.id));
+    if (templateIds.length && [...templateFamilyIds].filter(id => !templateIds.includes(id)).length < 1) {
+      onError("A workspace must keep at least one bulletin template.");
+      return;
+    }
     const library = workspace.library ?? { schemaVersion: 1 as const, name: "Church Library", items: [] };
     if (window.bulletin?.trashLibraryRecords) {
       const result = await window.bulletin.trashLibraryRecords(workspace.root, {
@@ -2777,6 +2871,7 @@ function LibraryView({
       }, library);
       await onSave(result.library, true);
       if (result.pageTemplateIds.length) await onDeletePages(result.pageTemplateIds, true);
+      if (result.templateIds.length) await onDeleteTemplates(result.templateIds, true);
       return;
     }
     await onSave({
@@ -2788,12 +2883,14 @@ function LibraryView({
       catalog: (library.catalog ?? []).filter(entry => !included.some(record => record.targetKind === entry.targetKind && record.targetId === entry.targetId))
     });
     if (pageIds.length) await onDeletePages(pageIds);
+    if (templateIds.length) await onDeleteTemplates(templateIds);
   };
   if (!adding && !managingImages && !deleteConfirmation) {
     return <LibraryBrowserDialog
       embedded
       manage
-      title={workspace.library?.name ?? "Library"}
+      title={title ?? workspace.library?.name ?? "Library"}
+      allowedTypes={allowedTypes}
       library={workspace.library ?? { schemaVersion: 1, name: "Church Library", items: [] }}
       root={workspace.root}
       records={catalogRecords}

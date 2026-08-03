@@ -39,7 +39,7 @@ export function effectiveCustomPropertyDefinitions(
   const result = [...(document?.customProperties ?? template?.customProperties ?? [])];
   const seen = new Set(result.map(property => property.id));
   const visit = (blocks: BulletinBlock[]) => blocks.forEach(block => {
-    if (block.type === 'templatePage') {
+    if (block.type === 'templatePage' || block.type === 'templateInstance') {
       for (const property of block.customProperties ?? []) {
         if (!seen.has(property.id)) { result.push(property); seen.add(property.id); }
       }
@@ -101,7 +101,7 @@ export function resolveConditionalBlocks(
     if (block.type === 'group') return [{ ...block, children: resolveConditionalBlocks(block.children, template, document) }];
     if (block.type === 'paragraph') return [{ ...block, children: resolveConditionalBlocks(block.children, template, document).filter(child => child.type === 'richText') }];
     if (block.type === 'churchInfo' && block.children) return [{ ...block, children: resolveConditionalBlocks(block.children, template, document) }];
-    if (block.type === 'templatePage') return [{ ...block, blocks: resolveConditionalBlocks(block.blocks, template, document) }];
+    if (block.type === 'templatePage' || block.type === 'templateInstance') return [{ ...block, blocks: resolveConditionalBlocks(block.blocks, template, document) }];
     return [block];
   });
 }
@@ -137,7 +137,7 @@ export function synchronizeCustomPropertyBindings(blocks: BulletinBlock[], prope
     if (block.type === 'group' || block.type === 'churchInfo') block.children = block.children ? synchronizeCustomPropertyBindings(block.children, properties) : block.children;
     if (block.type === 'paragraph') block.children = synchronizeCustomPropertyBindings(block.children, properties) as typeof block.children;
     if (block.type === 'scriptureReading' && block.elements) block.elements = Object.fromEntries(Object.entries(block.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: sync(settings.condition.property) } } : settings]));
-    if (block.type === 'templatePage') block.blocks = synchronizeCustomPropertyBindings(block.blocks, properties);
+    if (block.type === 'templatePage' || block.type === 'templateInstance') block.blocks = synchronizeCustomPropertyBindings(block.blocks, properties);
     if (block.type === 'canvas') block.scene.elements = block.scene.elements.map(element => {
       const next = structuredClone(element);
       if (next.condition) next.condition.property = sync(next.condition.property);

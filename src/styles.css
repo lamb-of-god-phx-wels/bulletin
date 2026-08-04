@@ -708,9 +708,6 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .global-rich-text-group button { border-radius: 0; border-right-width: 0; }
 .global-rich-text-group button:first-child { border-radius: 5px 0 0 5px; }.global-rich-text-group button:last-child { border-right-width: 1px; border-radius: 0 5px 5px 0; }
 .global-rich-text-toolbar .align-left { text-align: left; }.global-rich-text-toolbar .align-center { text-align: center; }.global-rich-text-toolbar .align-right { text-align: right; }
-.rich-text-editor-shell.has-basic-toolbar { margin-top: 5px; }
-.rich-text-editor-shell.has-basic-toolbar .basic-rich-text-toolbar { border-bottom: 1px solid #cbc7bd; }
-.rich-text-editor-shell.has-basic-toolbar .rich-text-editor { color: #252a27; font-weight: 400; font-style: normal; }
 .canvas-rich-text-toolbar { grid-column: 1 / -1; }
 .rich-text-toolbar { display: flex; gap: 3px; padding: 5px; border-bottom: 1px solid #ddd9d0; background: #f4f1eb; }
 .rich-text-toolbar-group { display: inline-flex; gap: 2px; padding-left: 3px; border-left: 1px solid #d3cfc5; }
@@ -742,11 +739,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .undo-redo-controls button { min-width: 32px; padding-inline: 8px; font-size: 16px; line-height: 1; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }
 .copyright-section + .copyright-section { margin-top: .14in; }
-.copyright-section > p,
-.copyright-generated-entry > p { margin-bottom: 0; }
-.copyright-section > p + p,
-.copyright-generated-entry > p + p,
-.copyright-generated-entry + .copyright-generated-entry { margin-top: 1.25em; }
+.copyright-section > p { margin-bottom: 0; }
+.copyright-section > p + p { margin-top: 1.25em; }
 .full-page-asset { position: absolute; inset: 0; }
 .full-page-asset img { width: 100%; height: 100%; object-fit: contain; }
 .pdf-placeholder { display: grid; place-content: center; height: 100%; color: #6a6e69; text-align: center; background: #f5f3ed; }

@@ -368,7 +368,7 @@ export interface LibraryItemV1 {
   aliases?: string[];
   content?: Paragraph[];
   assets?: Array<AssetRef & { variant?: string }>;
-  license?: { notice: string | Paragraph[]; licenseNumber?: string };
+  license?: { notice: string; licenseNumber?: string };
 }
 export interface LibraryFolder {
   id: string;

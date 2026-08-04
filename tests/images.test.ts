@@ -46,16 +46,6 @@ describe('library images', () => {
     });
   });
 
-  it('preserves rich-text copyright metadata on library images', () => {
-    const notice = [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: 'Licensed title', marks: ['italic' as const] }] }];
-    expect(nextImageLibraryItem(library, {
-      id: 'banner',
-      title: 'Formatted banner',
-      asset: image,
-      notice
-    }).license?.notice).toEqual(notice);
-  });
-
   it('makes stable IDs from uploaded file names', () => {
     expect(imageLibraryId('Summer Picnic 2026.PNG')).toBe('summer-picnic-2026');
   });

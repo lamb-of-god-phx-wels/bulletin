@@ -1,18 +1,6 @@
-import { paragraphsFromPlainText, paragraphsHaveVisibleContent } from './plainText.js';
-import type { LibraryItemV1, LibraryManifestV1, Paragraph } from './types.js';
+import type { LibraryItemV1, LibraryManifestV1 } from './types.js';
 
 export interface LibraryFamily { id: string; kind: LibraryItemV1['kind']; versions: LibraryItemV1[] }
-
-export type LibraryLicenseNotice = NonNullable<LibraryItemV1['license']>['notice'];
-
-export function libraryLicenseNoticeContent(notice?: LibraryLicenseNotice): Paragraph[] {
-  if (Array.isArray(notice)) return notice;
-  return notice?.trim() ? paragraphsFromPlainText(notice) : [];
-}
-
-export function libraryLicenseNoticeHasContent(notice?: LibraryLicenseNotice): boolean {
-  return paragraphsHaveVisibleContent(libraryLicenseNoticeContent(notice));
-}
 
 export function libraryFamilies(items: LibraryItemV1[]): LibraryFamily[] {
   const families = new Map<string, LibraryItemV1[]>();
@@ -26,15 +14,8 @@ export function libraryFamilies(items: LibraryItemV1[]): LibraryFamily[] {
 function mergeSongItems(first: LibraryItemV1, second: LibraryItemV1): LibraryItemV1 {
   const assets = [...(first.assets ?? []), ...(second.assets ?? [])].filter((asset, index, all) => all.findIndex(candidate => candidate.path === asset.path && candidate.variant === asset.variant) === index);
   const aliases = [...(first.aliases ?? []), ...(second.aliases ?? [])].filter((alias, index, all) => all.indexOf(alias) === index);
-  const notices = [first.license?.notice, second.license?.notice]
-    .filter((notice): notice is LibraryLicenseNotice => libraryLicenseNoticeHasContent(notice))
-    .filter((notice, index, all) => all.findIndex(candidate => JSON.stringify(candidate) === JSON.stringify(notice)) === index);
-  const mergedNotice = notices.length <= 1
-    ? notices[0]
-    : notices.every(notice => typeof notice === 'string')
-      ? notices.join('\n')
-      : notices.flatMap(libraryLicenseNoticeContent);
-  const license = mergedNotice ? { ...second.license, ...first.license, notice: mergedNotice } : undefined;
+  const notices = [first.license?.notice, second.license?.notice].filter((notice, index, all): notice is string => Boolean(notice) && all.indexOf(notice) === index);
+  const license = first.license || second.license ? { ...second.license, ...first.license, notice: notices.join('\n') } : undefined;
   return {
     ...second,
     ...first,

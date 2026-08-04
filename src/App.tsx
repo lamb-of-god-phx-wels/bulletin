@@ -22,14 +22,13 @@ import {
   type CreationSource,
 } from "./components/CreateFromDialog";
 import { ImageAssetDialog } from "./components/ImageAssetDialog";
-import { RichTextEditor } from "./components/RichTextEditor";
 import { LibraryBrowserDialog } from "./components/LibraryBrowserDialog";
 import { LibraryFontProvider } from "./components/LibraryFonts";
 import { createBulletin, defaultTemplate } from "./shared/defaults";
-import { libraryFamilies, libraryLicenseNoticeContent, type LibraryFamily } from "./shared/library";
+import { libraryFamilies, type LibraryFamily } from "./shared/library";
 import { paginate } from "./shared/pagination";
 import { flattenBlocks, updateBlockTree } from "./shared/blocks";
-import { paragraphsFromPlainText, paragraphsHaveVisibleContent } from "./shared/plainText";
+import { paragraphsFromPlainText } from "./shared/plainText";
 import {
   duplicateTemplate,
   nextTemplateVersion,
@@ -49,7 +48,6 @@ import type {
   LibraryItemV1,
   LibraryManifestV1,
   LibraryFolder,
-  Paragraph,
   PageTemplateV1,
   TemplateV1,
   ValidationIssue,
@@ -112,7 +110,7 @@ type LibraryDraft = {
   title: string;
   kind: LibraryItemV1["kind"];
   text: string;
-  notice: Paragraph[];
+  notice: string;
   asset?: NonNullable<LibraryItemV1["assets"]>[number];
 };
 const emptyLibraryDraft = (): LibraryDraft => ({
@@ -120,7 +118,7 @@ const emptyLibraryDraft = (): LibraryDraft => ({
   title: "",
   kind: "song",
   text: "",
-  notice: [],
+  notice: "",
 });
 const libraryContentText = (item: LibraryItemV1) =>
   item.content
@@ -2768,7 +2766,7 @@ function LibraryView({
             }),
           }
         : {}),
-      ...(paragraphsHaveVisibleContent(draft.notice)
+      ...(draft.notice
         ? {
             license: {
               notice: draft.notice,
@@ -2843,7 +2841,7 @@ function LibraryView({
       title: item.title,
       kind: item.kind,
       text: libraryContentText(item),
-      notice: libraryLicenseNoticeContent(item.license?.notice),
+      notice: item.license?.notice ?? "",
       asset: item.assets?.[0],
     });
   };
@@ -3111,12 +3109,10 @@ function LibraryView({
           </label>}
           <label>
             Copyright or license notice
-            <RichTextEditor
-              basicToolbar
-              className="copyright-notice-editor"
-              content={draft.notice}
-              label="Copyright or license notice"
-              onChange={(notice) => setDraft({ ...draft, notice })}
+            <textarea
+              rows={3}
+              value={draft.notice}
+              onChange={(e) => setDraft({ ...draft, notice: e.target.value })}
             />
           </label>
           <div className="builder-actions">

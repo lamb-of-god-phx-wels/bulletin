@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { libraryFamilies, libraryLicenseNoticeContent, normalizeLibrary } from '../src/shared/library';
+import { libraryFamilies, normalizeLibrary } from '../src/shared/library';
 import { libraryCatalogRecords } from '../src/shared/libraryCatalog';
 import type { LibraryManifestV1 } from '../src/shared/types';
 import { defaultTemplate } from '../src/shared/defaults';
@@ -28,14 +28,6 @@ describe('library normalization', () => {
     const normalized = normalizeLibrary(legacy);
     expect(normalized.items).toHaveLength(1);
     expect(normalized.items[0]).toMatchObject({ kind: 'song', title: 'Anthem', aliases: ['Hymn 1'], content: [{ children: [{ text: 'Lyrics' }] }], assets: [{ path: 'anthem.pdf' }], license: { notice: 'Licensed' } });
-  });
-
-  it('normalizes legacy plain-text notices while preserving rich notices', () => {
-    expect(libraryLicenseNoticeContent('Legacy notice')).toEqual([
-      { type: 'paragraph', children: [{ type: 'text', text: 'Legacy notice' }] }
-    ]);
-    const rich = [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: 'Book title', marks: ['italic' as const] }] }];
-    expect(libraryLicenseNoticeContent(rich)).toBe(rich);
   });
 
   it('returns an unchanged current library by reference', () => {

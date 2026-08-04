@@ -64,6 +64,8 @@ describe('component definitions', () => {
     const block = instantiateComponentDefinition(definition);
     expect(block.type).toBe('copyright');
     expect(block).not.toHaveProperty('extra');
+    expect(block).not.toHaveProperty('beforeNotices');
+    expect(block).not.toHaveProperty('afterNotices');
     expect(block.presentation?.borderWidthPt).toBe(1);
   });
 

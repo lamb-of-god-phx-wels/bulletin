@@ -738,8 +738,9 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .undo-redo-controls { display: inline-flex; gap: 3px; align-items: center; }
 .undo-redo-controls button { min-width: 32px; padding-inline: 8px; font-size: 16px; line-height: 1; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }
-.copyright > p { margin-bottom: 0; }
-.copyright > p + p { margin-top: 1.25em; }
+.copyright-section + .copyright-section { margin-top: .14in; }
+.copyright-section > p { margin-bottom: 0; }
+.copyright-section > p + p { margin-top: 1.25em; }
 .full-page-asset { position: absolute; inset: 0; }
 .full-page-asset img { width: 100%; height: 100%; object-fit: contain; }
 .pdf-placeholder { display: grid; place-content: center; height: 100%; color: #6a6e69; text-align: center; background: #f5f3ed; }

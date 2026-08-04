@@ -1,9 +1,6 @@
 # TODO
 
 ## General
-* Extra "OneLicense.net copyright notice automatically at end
-  * Implement by allowing pre- and post- manual entries. They can be set in the template.
-
 * Recreate bulletin using UI only.
 
 

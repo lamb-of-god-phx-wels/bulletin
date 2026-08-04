@@ -13,6 +13,7 @@ import { boundRichTextParagraphs, canvasAssetRefs, canvasNativeBlocks } from '..
 import { bookletPrinterSpreads, bookletReadingSpreads } from '../shared/booklet';
 import { CanvasSceneView } from './CanvasSceneView';
 import { RichTextEditor } from './RichTextEditor';
+import { paragraphsHaveVisibleContent } from '../shared/plainText';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
   ? <br key={index} />
@@ -384,9 +385,18 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
       return <section className={`list-block list-${block.style ?? 'plain'}`}>{block.style === 'numbered' ? <ol>{items}</ol> : <ul>{items}</ul>}</section>;
     }
     case 'copyright': {
-      const notices = block.suppressGeneratedNotices ? [] : document.blocks.flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : []).filter(Boolean);
-      const scripture = block.suppressGeneratedNotices ? [] : document.blocks.flatMap(candidate => candidate.type === 'scriptureReading' && candidate.resolved ? [candidate.resolved.attribution] : []);
-      return <section className="copyright"><EditableParagraphs content={block.extra ?? []} label="Additional copyright text" onChange={onBlockChange ? extra => onBlockChange({ ...block, extra }) : undefined} />{[...new Set([...notices, ...scripture])].map((notice, index) => <p key={index}>{notice}</p>)}</section>;
+      const bulletinBlocks = flattenBlocks(document.blocks);
+      const notices = block.suppressGeneratedNotices ? [] : bulletinBlocks.flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : []).filter((notice): notice is string => Boolean(notice));
+      const scripture = block.suppressGeneratedNotices ? [] : bulletinBlocks.flatMap(candidate => candidate.type === 'scriptureReading' && candidate.resolved ? [candidate.resolved.attribution] : []);
+      const generated = [...new Set([...notices, ...scripture])];
+      const before = block.beforeNotices ?? block.extra ?? [];
+      const changeBefore = onBlockChange ? (beforeNotices: Paragraph[]) => { const { extra: _legacy, ...current } = block; onBlockChange({ ...current, beforeNotices: paragraphsHaveVisibleContent(beforeNotices) ? beforeNotices : undefined }); } : undefined;
+      const after = block.afterNotices ?? [];
+      return <section className="copyright">
+        {paragraphsHaveVisibleContent(before) && <div className="copyright-section copyright-before"><EditableParagraphs content={before} label="Copyright text before generated notices" onChange={changeBefore} /></div>}
+        {generated.length > 0 && <div className="copyright-section copyright-generated">{generated.map((notice, index) => <p key={index}>{notice}</p>)}</div>}
+        {paragraphsHaveVisibleContent(after) && <div className="copyright-section copyright-after"><EditableParagraphs content={after} label="Copyright text after generated notices" onChange={onBlockChange ? afterNotices => onBlockChange({ ...block, afterNotices: paragraphsHaveVisibleContent(afterNotices) ? afterNotices : undefined }) : undefined} /></div>}
+      </section>;
     }
     case 'image': return <div className="native-image-block" style={{ height: `${block.heightIn ?? 2.5}in` }}>{assets[block.asset.path] ? <img src={assets[block.asset.path]} alt={block.alt ?? block.asset.alt ?? ''} style={{ objectFit: block.fit ?? 'contain' }} /> : <p className="missing">Image “{block.asset.path}” is unavailable.</p>}</div>;
     case 'fullPageAsset': return <div className="full-page-asset">{block.asset.mediaType === 'application/pdf' ? <div className="pdf-placeholder"><b>{block.asset.alt ?? 'PDF page'}</b><span>Original PDF page inserted during export</span></div> : <img src={assets[block.asset.path]} alt={block.asset.alt ?? ''} />}</div>;

@@ -39,6 +39,9 @@
         "layoutText": { "type": "string", "minLength": 1 },
         "bindings": { "type": "array", "items": { "$ref": "#/$defs/customBinding" } },
         "values": { "type": "object", "additionalProperties": { "type": "string" } },
+        "beforeNotices": { "type": "array", "items": { "type": "object" } },
+        "afterNotices": { "type": "array", "items": { "type": "object" } },
+        "suppressGeneratedNotices": { "type": "boolean" },
         "scene": { "$ref": "#/$defs/canvasScene" },
         "condition": { "$ref": "#/$defs/condition" }
       },

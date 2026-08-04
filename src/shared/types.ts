@@ -211,7 +211,14 @@ export interface ListBlock extends BlockBase {
   style?: 'plain' | 'bulleted' | 'numbered';
   items: Array<{ id: string; title?: string; titleContent?: Paragraph[]; content: Paragraph[]; asset?: AssetRef; assetSide?: 'left' | 'right' }>;
 }
-export interface CopyrightBlock extends BlockBase { type: 'copyright'; extra?: Paragraph[]; suppressGeneratedNotices?: boolean }
+export interface CopyrightBlock extends BlockBase {
+  type: 'copyright';
+  beforeNotices?: Paragraph[];
+  afterNotices?: Paragraph[];
+  /** Legacy manual text, treated as beforeNotices. */
+  extra?: Paragraph[];
+  suppressGeneratedNotices?: boolean;
+}
 export interface ImageBlock extends BlockBase { type: 'image'; asset: AssetRef; fit?: 'contain' | 'cover' | 'fill'; heightIn?: number; alt?: string }
 export interface FullPageAssetBlock extends BlockBase { type: 'fullPageAsset'; asset: AssetRef; replaces?: string }
 export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' | 'medium' | 'large' }

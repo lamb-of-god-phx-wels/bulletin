@@ -1,6 +1,7 @@
 import type { BulletinBlock, BulletinDocumentV1, CustomBlockStyle, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
 import { childBlocks, groupChildCell } from './blocks.js';
 import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureReading.js';
+import { paragraphsHaveVisibleContent } from './plainText.js';
 import { pageTemplateMargin } from './pageTemplates.js';
 import { songHeader } from './songs.js';
 import { effectiveResponsiveReadingSettings, responsiveEntryReader } from './responsiveReading.js';
@@ -85,7 +86,10 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   if (block.type === 'image') return formatted((block.heightIn ?? 2.5) * 72);
   if (block.type === 'paragraph') return formatted(childBlocks(block)!.filter(child => conditionVisible(child, template, document)).reduce((total, child) => total + estimateBlockPoints(child, template, library, document), 0));
   if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
-  if (block.type === 'copyright') return Math.min(formatted(basePoints(block, template) + contentPoints(block.extra, template) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
+  if (block.type === 'copyright') {
+    const before = block.beforeNotices ?? block.extra;
+    return Math.min(formatted(basePoints(block, template) + (paragraphsHaveVisibleContent(before) ? contentPoints(before, template) : 0) + (paragraphsHaveVisibleContent(block.afterNotices) ? contentPoints(block.afterNotices, template) : 0) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
+  }
   if (block.type === 'spacer') return formatted({ small: 8, medium: 18, large: 36 }[block.size]);
   if (block.type === 'responsiveReading') return formatted(block.entries.reduce((total, entry) => total + contentPoints(entry.content, template), 0) + (block.heading && conditionVisible(block.heading, template, document) ? estimateBlockPoints(block.heading, template, library, document) : 0) + 8);
   if (block.type === 'scriptureReading') {

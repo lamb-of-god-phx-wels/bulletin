@@ -74,6 +74,9 @@
         "rowHeightsIn": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 }, "minItems": 1, "maxItems": 12 },
         "tableHeaderRow": { "type": "boolean" },
         "tableShowLines": { "type": "boolean" },
+        "beforeNotices": { "type": "array", "items": { "type": "object" } },
+        "afterNotices": { "type": "array", "items": { "type": "object" } },
+        "suppressGeneratedNotices": { "type": "boolean" },
         "scene": { "$ref": "#/$defs/canvasScene" },
         "condition": { "$ref": "#/$defs/condition" }
       },

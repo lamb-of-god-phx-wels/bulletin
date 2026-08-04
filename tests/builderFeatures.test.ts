@@ -133,6 +133,46 @@ describe('builder feature blocks', () => {
     expect(copyrightMarkup).toContain('mark-italic');
   });
 
+  it('renders manual copyright entries before and after generated notices', () => {
+    const copyright: BulletinBlock = {
+      id: 'rights', type: 'copyright',
+      beforeNotices: [{ type: 'paragraph', children: [{ type: 'text', text: 'Manual preface', marks: ['italic'] }] }],
+      afterNotices: [{ type: 'paragraph', children: [{ type: 'text', text: 'OneLicense.net account notice', marks: ['bold'] }] }]
+    };
+    const scripture: BulletinBlock = {
+      id: 'reading', type: 'scriptureReading', reference: 'John 1:1', translation: 'NIV',
+      resolved: { source: 'manual', retrievedAt: '2026-08-03T00:00:00.000Z', attribution: 'Generated Scripture attribution', content: [] }
+    };
+    const document = { ...createBulletin(defaultTemplate), blocks: [scripture, copyright] };
+    const markup = renderToStaticMarkup(createElement(NativeBlockPreview, { block: copyright, document, library: undefined, assets: {}, marginIn: .4 }));
+    expect(markup.indexOf('Manual preface')).toBeLessThan(markup.indexOf('Generated Scripture attribution'));
+    expect(markup.indexOf('Generated Scripture attribution')).toBeLessThan(markup.indexOf('OneLicense.net account notice'));
+    expect(markup).toContain('copyright-section copyright-before');
+    expect(markup).toContain('copyright-section copyright-generated');
+    expect(markup).toContain('copyright-section copyright-after');
+    expect(markup).toContain('mark-italic');
+    expect(markup).toContain('mark-bold');
+  });
+
+  it('keeps legacy additional copyright text before generated notices', () => {
+    const copyright: BulletinBlock = { id: 'rights', type: 'copyright', suppressGeneratedNotices: true, extra: [{ type: 'paragraph', children: [{ type: 'text', text: 'Legacy manual notice' }] }] };
+    const document = createBulletin(defaultTemplate);
+    const markup = renderToStaticMarkup(createElement(NativeBlockPreview, { block: copyright, document, library: undefined, assets: {}, marginIn: .4 }));
+    expect(markup).toContain('Legacy manual notice');
+  });
+
+  it('omits blank manual copyright sections and their spacing hooks', () => {
+    const copyright: BulletinBlock = {
+      id: 'rights', type: 'copyright',
+      beforeNotices: [{ type: 'paragraph', children: [{ type: 'text', text: '   ' }] }],
+      afterNotices: [{ type: 'paragraph', children: [{ type: 'lineBreak' }] }]
+    };
+    const document = createBulletin(defaultTemplate);
+    const markup = renderToStaticMarkup(createElement(NativeBlockPreview, { block: copyright, document, library: undefined, assets: {}, marginIn: .4, onBlockChange: () => undefined }));
+    expect(markup).not.toContain('copyright-before');
+    expect(markup).not.toContain('copyright-after');
+  });
+
   it('renders generalized plain, bulleted, and numbered lists with rich content and graphics', () => {
     const document = createBulletin(defaultTemplate);
     const list: BulletinBlock = {

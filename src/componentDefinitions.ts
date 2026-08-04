@@ -271,8 +271,8 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
         contentOverride: paragraphs(sample.content)
       };
     case 'bulletin:copyright': {
-      const extra = paragraphs(sample.notices);
-      return { ...base, type: 'copyright', ...(extra.length ? { extra } : {}) };
+      const beforeNotices = paragraphs(sample.notices);
+      return { ...base, type: 'copyright', ...(beforeNotices.length ? { beforeNotices } : {}) };
     }
     case 'bulletin:spacer': {
       const points = typeof sample.size === 'number' ? sample.size : 12;

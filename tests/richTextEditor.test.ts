@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignParagraphRange, formatParagraphRange, formatTextRange, formatTextStyleRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
+import { alignParagraphRange, formatParagraphRange, formatTextRange, formatTextStyleRange, selectedTextMarks, structuredTextForClipboard, textFormattingAtOffset } from '../src/components/RichTextEditor';
 import type { Paragraph } from '../src/shared/types';
 
 describe('rich-text segment formatting', () => {
@@ -40,6 +40,20 @@ describe('rich-text segment formatting', () => {
     expect(cleared[0].children).toEqual([
       { type: 'text', text: 'One important notice' },
     ]);
+  });
+
+  it('reports formatting at the caret instead of reusing stale toolbar state', () => {
+    const content: Paragraph[] = [{
+      type: 'paragraph',
+      children: [
+        { type: 'text', text: 'Plain ' },
+        { type: 'text', text: 'bold italic', marks: ['bold', 'italic'] },
+        { type: 'text', text: ' plain' },
+      ],
+    }];
+    expect(textFormattingAtOffset(content, 2).marks).toEqual([]);
+    expect(textFormattingAtOffset(content, 9).marks).toEqual(['bold', 'italic']);
+    expect(textFormattingAtOffset(content, 20).marks).toEqual([]);
   });
 
   it('aligns only paragraphs touched by the selection', () => {

@@ -14,6 +14,7 @@ import { bookletPrinterSpreads, bookletReadingSpreads } from '../shared/booklet'
 import { CanvasSceneView } from './CanvasSceneView';
 import { RichTextEditor } from './RichTextEditor';
 import { paragraphsHaveVisibleContent } from '../shared/plainText';
+import { libraryLicenseNoticeContent, libraryLicenseNoticeHasContent } from '../shared/library';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
   ? <br key={index} />
@@ -386,15 +387,19 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
     }
     case 'copyright': {
       const bulletinBlocks = flattenBlocks(document.blocks);
-      const notices = block.suppressGeneratedNotices ? [] : bulletinBlocks.flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : []).filter((notice): notice is string => Boolean(notice));
+      const notices = block.suppressGeneratedNotices ? [] : bulletinBlocks
+        .flatMap(candidate => 'libraryItemId' in candidate ? [library?.items.find(entry => entry.id === candidate.libraryItemId)?.license?.notice] : [])
+        .filter(libraryLicenseNoticeHasContent)
+        .map(libraryLicenseNoticeContent);
       const scripture = block.suppressGeneratedNotices ? [] : bulletinBlocks.flatMap(candidate => candidate.type === 'scriptureReading' && candidate.resolved ? [candidate.resolved.attribution] : []);
-      const generated = [...new Set([...notices, ...scripture])];
+      const generated = [...notices, ...scripture.map(textParagraphs)]
+        .filter((notice, index, all) => all.findIndex(candidate => JSON.stringify(candidate) === JSON.stringify(notice)) === index);
       const before = block.beforeNotices ?? block.extra ?? [];
       const changeBefore = onBlockChange ? (beforeNotices: Paragraph[]) => { const { extra: _legacy, ...current } = block; onBlockChange({ ...current, beforeNotices: paragraphsHaveVisibleContent(beforeNotices) ? beforeNotices : undefined }); } : undefined;
       const after = block.afterNotices ?? [];
       return <section className="copyright">
         {paragraphsHaveVisibleContent(before) && <div className="copyright-section copyright-before"><EditableParagraphs content={before} label="Copyright text before generated notices" onChange={changeBefore} /></div>}
-        {generated.length > 0 && <div className="copyright-section copyright-generated">{generated.map((notice, index) => <p key={index}>{notice}</p>)}</div>}
+        {generated.length > 0 && <div className="copyright-section copyright-generated">{generated.map((notice, index) => <div className="copyright-generated-entry" key={index}><Paragraphs content={notice} /></div>)}</div>}
         {paragraphsHaveVisibleContent(after) && <div className="copyright-section copyright-after"><EditableParagraphs content={after} label="Copyright text after generated notices" onChange={onBlockChange ? afterNotices => onBlockChange({ ...block, afterNotices: paragraphsHaveVisibleContent(afterNotices) ? afterNotices : undefined }) : undefined} /></div>}
       </section>;
     }

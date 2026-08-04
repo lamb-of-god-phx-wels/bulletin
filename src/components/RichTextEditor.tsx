@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CustomBlockStyle, Inline, InlineTextStyle, Marks, Paragraph, TextRun } from '../shared/types';
 import { renderStructuredContent, scriptureContentFromEditor } from './ScriptureEditor';
 import { useRichTextEditing, type RichTextAdapter, type RichTextToolbarState } from './RichTextEditing';
@@ -59,6 +59,35 @@ function selectedTextStyle(content: Paragraph[], start: number, end: number): In
     return runs.every(run => run.style?.[key] === value) ? value : undefined;
   };
   return { fontFamily: common('fontFamily'), fontSizePt: common('fontSizePt'), textTransform: common('textTransform') };
+}
+
+export function textFormattingAtOffset(content: Paragraph[], offset: number): { marks: EditableMark[]; style: InlineTextStyle } {
+  let cursor = 0;
+  let previous: TextRun | undefined;
+  for (const paragraph of content) {
+    for (const run of paragraph.children) {
+      if (run.type !== 'text') continue;
+      const end = cursor + run.text.length;
+      if ((offset === 0 && cursor === 0) || (offset > cursor && offset <= end)) {
+        return {
+          marks: (run.marks ?? []).filter((mark): mark is EditableMark => mark === 'bold' || mark === 'italic' || mark === 'smallCaps'),
+          style: run.style ?? {},
+        };
+      }
+      if (offset === cursor && previous) {
+        return {
+          marks: (previous.marks ?? []).filter((mark): mark is EditableMark => mark === 'bold' || mark === 'italic' || mark === 'smallCaps'),
+          style: previous.style ?? {},
+        };
+      }
+      previous = run;
+      cursor = end;
+    }
+  }
+  return {
+    marks: (previous?.marks ?? []).filter((mark): mark is EditableMark => mark === 'bold' || mark === 'italic' || mark === 'smallCaps'),
+    style: previous?.style ?? {},
+  };
 }
 
 export function formatTextStyleRange(content: Paragraph[], start: number, end: number, changes: InlineTextStyle): Paragraph[] {
@@ -228,7 +257,7 @@ function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
   selection?.addRange(range);
 }
 
-export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, onReset, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, commitDelayMs }: {
+export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, basicToolbar = false, onReset, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, commitDelayMs }: {
   content: Paragraph[];
   label: string;
   onChange(content: Paragraph[]): void;
@@ -236,6 +265,7 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
   enterMode?: 'paragraph' | 'responsiveLines';
   variant?: 'field' | 'preview' | 'canvas';
   readOnly?: boolean;
+  basicToolbar?: boolean;
   onReset?(): void;
   verticalAlign?: CustomBlockStyle['verticalAlign'];
   onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void;
@@ -248,6 +278,7 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
   const signatureRef = useRef('');
   const consecutiveEnterRef = useRef(false);
   const toolbarStateRef = useRef<RichTextToolbarState>({ marks: [] });
+  const [localToolbar, setLocalToolbar] = useState<RichTextToolbarState>({ marks: [] });
   const pendingRef = useRef<{ marks: EditableMark[]; style: InlineTextStyle }>({ marks: [], style: {} });
   const adapterRef = useRef<RichTextAdapter | undefined>(undefined);
   const savedSelectionRef = useRef<SelectionOffsets | undefined>(undefined);
@@ -328,10 +359,15 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     });
     return { marks, ...style, align: paragraph?.align, lineHeight: paragraph?.lineHeight, verticalAlign, canReset: Boolean(onReset) };
   };
-  const updateToolbar = () => {
+  const updateToolbar = (syncCaretFormatting = false) => {
     preserveSelection();
+    const selection = savedSelectionRef.current;
+    if (syncCaretFormatting && editorRef.current && selection && selection.start === selection.end) {
+      pendingRef.current = textFormattingAtOffset(scriptureContentFromEditor(editorRef.current), selection.start);
+    }
     const state = stateForSelection();
     toolbarStateRef.current = state;
+    if (basicToolbar) setLocalToolbar(state);
     if (adapterRef.current) editing.refresh(adapterRef.current);
   };
   const applyFormatting = (mark?: EditableMark) => {
@@ -411,6 +447,23 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     onEditingBlur?.();
     if (adapterRef.current) editing.deactivate(adapterRef.current);
   };
+  const selectAllText = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const range = editor.ownerDocument.createRange();
+    range.selectNodeContents(editor);
+    const selection = editor.ownerDocument.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    preserveSelection();
+  };
+  const applyBasicFormatting = (mark: EditableMark) => {
+    preserveSelection();
+    const selection = savedSelectionRef.current;
+    if (!selection || selection.start === selection.end) selectAllText();
+    applyFormatting(mark);
+    window.requestAnimationFrame(() => updateToolbar());
+  };
   const safeRichHtml = (html: string, plain: string) => {
     if (!editorRef.current || !html) return pastedHtml(plain);
     const source = editorRef.current.ownerDocument.createElement('div');
@@ -438,7 +491,11 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     },
   });
   adapterRef.current = adapter;
-  return <div className={`rich-text-editor-shell rich-text-${variant}`} onClick={variant === 'field' ? undefined : event => event.stopPropagation()}>
+  return <div className={`rich-text-editor-shell rich-text-${variant}${basicToolbar ? ' has-basic-toolbar' : ''}`} onClick={variant === 'field' ? undefined : event => event.stopPropagation()}>
+    {basicToolbar && <div className="rich-text-toolbar basic-rich-text-toolbar" role="toolbar" aria-label={`${label} formatting`}>
+      <button type="button" className={localToolbar.marks.includes('bold') ? 'active typography-bold' : 'typography-bold'} aria-label="Bold" aria-pressed={localToolbar.marks.includes('bold')} title="Bold (Ctrl+B)" onMouseDown={event => event.preventDefault()} onClick={() => applyBasicFormatting('bold')}>B</button>
+      <button type="button" className={localToolbar.marks.includes('italic') ? 'active typography-italic' : 'typography-italic'} aria-label="Italic" aria-pressed={localToolbar.marks.includes('italic')} title="Italic (Ctrl+I)" onMouseDown={event => event.preventDefault()} onClick={() => applyBasicFormatting('italic')}>I</button>
+    </div>}
     <div ref={editorRef} className={`rich-text-editor ${className ?? ''}`.trim()} contentEditable={!readOnly} role="textbox" aria-label={label} aria-multiline="true" spellCheck suppressContentEditableWarning onBeforeInput={event => {
       if (readOnly || event.nativeEvent.inputType !== 'insertText' || !event.nativeEvent.data) return;
       const pending = pendingRef.current;
@@ -460,7 +517,7 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     }} onInput={event => {
       if (!['insertLineBreak', 'insertParagraph'].includes(event.nativeEvent.inputType)) consecutiveEnterRef.current = false;
       emit(); updateToolbar();
-    }} onMouseUp={() => { consecutiveEnterRef.current = false; updateToolbar(); }} onKeyDown={event => {
+    }} onMouseUp={() => { consecutiveEnterRef.current = false; updateToolbar(true); }} onKeyDown={event => {
       if ((event.ctrlKey || event.metaKey) && !event.altKey && ['b', 'i'].includes(event.key.toLowerCase())) {
         event.preventDefault();
         applyFormatting(event.key.toLowerCase() === 'b' ? 'bold' : 'italic');
@@ -504,7 +561,7 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
       selection.addRange(nextRange);
       consecutiveEnterRef.current = true;
       emit();
-    }} onKeyUp={updateToolbar} onFocus={() => { editing.activate(adapter); updateToolbar(); onEditingFocus?.(); }} onBlur={() => {
+    }} onKeyUp={() => updateToolbar(true)} onFocus={() => { editing.activate(adapter); updateToolbar(true); onEditingFocus?.(); }} onBlur={() => {
       preserveSelection();
       window.setTimeout(() => {
         const focused = editorRef.current?.ownerDocument.activeElement;

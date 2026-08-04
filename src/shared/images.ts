@@ -1,4 +1,4 @@
-import { libraryFamilies } from './library.js';
+import { libraryFamilies, libraryLicenseNoticeHasContent, type LibraryLicenseNotice } from './library.js';
 import type { AssetRef, LibraryCatalogEntry, LibraryFolder, LibraryItemV1, LibraryManifestV1 } from './types.js';
 
 export interface LibraryImageChoice {
@@ -27,7 +27,7 @@ export function libraryImageChoices(library?: LibraryManifestV1): LibraryImageCh
 
 export function nextImageLibraryItem(
   library: LibraryManifestV1 | undefined,
-  input: { id: string; title: string; asset: AssetRef; notice?: string }
+  input: { id: string; title: string; asset: AssetRef; notice?: LibraryLicenseNotice }
 ): LibraryItemV1 {
   const id = input.id.trim();
   const version = Math.max(0, ...(library?.items ?? []).filter(item => item.id === id).map(item => item.version)) + 1;
@@ -37,7 +37,9 @@ export function nextImageLibraryItem(
     kind: 'image',
     title: input.title.trim(),
     assets: [input.asset],
-    ...(input.notice?.trim() ? { license: { notice: input.notice.trim() } } : {})
+    ...(libraryLicenseNoticeHasContent(input.notice)
+      ? { license: { notice: typeof input.notice === 'string' ? input.notice.trim() : input.notice! } }
+      : {})
   };
 }
 

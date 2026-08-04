@@ -154,6 +154,24 @@ describe('builder feature blocks', () => {
     expect(markup).toContain('mark-bold');
   });
 
+  it('renders rich-text copyright notices from library entries', () => {
+    const song: BulletinBlock = { id: 'song', type: 'song', libraryItemId: 'anthem', songType: 'song', selection: { mode: 'all' }, renderMode: 'lyrics' };
+    const copyright: BulletinBlock = { id: 'rights', type: 'copyright' };
+    const document = { ...createBulletin(defaultTemplate), blocks: [song, copyright] };
+    const library = {
+      schemaVersion: 1 as const,
+      name: 'Test library',
+      items: [{
+        id: 'anthem', version: 1, kind: 'song' as const, title: 'Anthem',
+        license: { notice: [{ type: 'paragraph' as const, align: 'right' as const, children: [{ type: 'text' as const, text: 'Formatted license', marks: ['italic' as const] }] }] }
+      }]
+    };
+    const markup = renderToStaticMarkup(createElement(NativeBlockPreview, { block: copyright, document, library, assets: {}, marginIn: .4 }));
+    expect(markup).toContain('Formatted license');
+    expect(markup).toContain('mark-italic');
+    expect(markup).toContain('text-align:right');
+  });
+
   it('keeps legacy additional copyright text before generated notices', () => {
     const copyright: BulletinBlock = { id: 'rights', type: 'copyright', suppressGeneratedNotices: true, extra: [{ type: 'paragraph', children: [{ type: 'text', text: 'Legacy manual notice' }] }] };
     const document = createBulletin(defaultTemplate);

@@ -10,7 +10,8 @@ import {
   setImageCatalogEntry
 } from '../shared/images.js';
 import { randomId } from '../shared/id.js';
-import type { AssetRef, LibraryImageFolder, LibraryManifestV1 } from '../shared/types.js';
+import type { AssetRef, LibraryImageFolder, LibraryManifestV1, Paragraph } from '../shared/types.js';
+import { RichTextEditor } from './RichTextEditor.js';
 
 const folderKey = (root: string) => `bulletin-image-folder:${root}`;
 const viewKey = (root: string) => `bulletin-image-view:${root}`;
@@ -84,7 +85,7 @@ export function ImageAssetDialog({
   const [addingToLibrary, setAddingToLibrary] = useState(false);
   const [title, setTitle] = useState('');
   const [id, setId] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<Paragraph[]>([]);
   const [uploadFolderId, setUploadFolderId] = useState<string | undefined>(folderId);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -135,7 +136,7 @@ export function ImageAssetDialog({
       if (!asset) return;
       if (asset.mediaType === 'application/pdf') { onError?.('Choose a PNG, JPEG, or SVG for an Image element.'); return; }
       const suggested = (asset.alt ?? 'Library image').replace(/\.[^.]+$/, '');
-      setUploaded(asset); setTitle(suggested); setId(imageLibraryId(suggested)); setUploadFolderId(folderId); setAddingToLibrary(directToLibrary);
+      setUploaded(asset); setTitle(suggested); setId(imageLibraryId(suggested)); setNotice([]); setUploadFolderId(folderId); setAddingToLibrary(directToLibrary);
     } catch (error) { fail(error); }
   };
   const saveToLibrary = async () => {
@@ -317,7 +318,7 @@ export function ImageAssetDialog({
           <h3>Save image to library</h3>
           <div className="field-row"><label>Display name<input autoFocus value={title} onChange={event => { const previous = imageLibraryId(title); const next = event.target.value; setTitle(next); if (!id || id === previous) setId(imageLibraryId(next)); }} /></label><label>Stable ID<input value={id} onChange={event => setId(event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-'))} /></label></div>
           <div className="field-row"><label>Folder<select value={uploadFolderId ?? ''} onChange={event => setUploadFolderId(event.target.value || undefined)}>{folderOptions.map(folder => <option key={folder.id || 'root'} value={folder.id}>{' '.repeat(folder.depth * 2)}{folder.name}</option>)}</select></label><button className="secondary inline-folder-create" onClick={async () => { const created = await createFolder(uploadFolderId); if (created) setUploadFolderId(created); }}>＋ New folder</button></div>
-          <label>Copyright or license notice<textarea rows={3} value={notice} onChange={event => setNotice(event.target.value)} /></label>
+          <label>Copyright or license notice<RichTextEditor basicToolbar className="copyright-notice-editor" content={notice} label="Copyright or license notice" onChange={setNotice} /></label>
           <p className="helper">Using an existing stable ID creates a new image version without moving its folder.</p>
           <div className="builder-actions"><button className="secondary" disabled={saving} onClick={() => { setUploaded(undefined); setAddingToLibrary(false); }}>Cancel</button><button className="primary" disabled={saving || !title.trim() || !id.trim()} onClick={() => void saveToLibrary()}>{saving ? 'Saving…' : 'Save to library and use'}</button></div>
         </>}

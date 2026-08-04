@@ -15,7 +15,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .secondary:hover { border-color: #aaa291; }
 .large { min-height: 50px; padding-inline: 26px; font-size: 16px; }
 .welcome-screen { min-height: 100vh; display: grid; place-content: center; justify-items: start; padding: 10vw; background: radial-gradient(circle at 75% 28%, #fbf7ee 0 18%, transparent 45%), #e8e2d7; }
-.welcome-screen .brand-mark { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 30px; border-radius: 50%; color: white; background: #9b4e30; font-size: 24px; }
+.welcome-screen .brand-mark { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 30px; color: inherit; }
+.brand-logo { display: grid; place-items: center; width: 88%; height: 88%; pointer-events: none; }
+.brand-logo svg { display: block; width: 100%; height: 100%; }
 .welcome-screen h1 { margin: 12px 0 18px; max-width: 700px; font: 54px/1.03 Georgia, serif; letter-spacing: -.035em; }
 .welcome-screen p { max-width: 590px; margin: 0 0 28px; color: #615d54; font-size: 18px; line-height: 1.6; }
 .app-shell { position: relative; display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100vh; overflow: hidden; }
@@ -23,7 +25,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .app-shell.editor-shell.navigation-open { grid-template-columns: 232px 338px minmax(0, 1fr); }
 .sidebar { display: flex; flex-direction: column; padding: 25px 16px 16px; color: #e9e7de; background: #27322e; }
 .app-brand { display: flex; align-items: center; gap: 12px; padding: 0 10px 26px; }
-.app-brand > span { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: #a85433; }
+.app-brand > span { display: grid; place-items: center; width: 35px; height: 35px; color: inherit; }
 .app-brand div { display: flex; flex-direction: column; font-size: 18px; line-height: 1; }
 .app-brand small { margin-top: 3px; color: #aaaFA9; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
 .navigation-rail { position: relative; z-index: 20; display: flex; min-height: 0; flex-direction: column; align-items: center; padding: 14px 7px 10px; color: #e9e7de; background: #27322e; }

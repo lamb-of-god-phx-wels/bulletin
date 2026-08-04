@@ -76,6 +76,13 @@ import {
 } from "./components/useUndoRedo";
 import { RichTextToolbar } from "./components/RichTextEditing";
 import { copyEmbeddedAssets, copySlug, uniqueCopyId, uniqueCopyName } from "./shared/libraryCopy";
+import bulletinBuilderLogo from "./assets/bulletin-builder-logo.svg?raw";
+
+const BrandLogo = () => <span
+  className="brand-logo"
+  aria-hidden="true"
+  dangerouslySetInnerHTML={{ __html: bulletinBuilderLogo }}
+/>;
 
 type Screen =
   | "weekly"
@@ -1150,7 +1157,7 @@ function DesktopApp() {
   if (!workspace)
     return (
       <div className="welcome-screen">
-        <div className="brand-mark">✠</div>
+        <div className="brand-mark"><BrandLogo /></div>
         <div className="eyebrow">Bulletin Builder</div>
         <h1>
           Sunday’s bulletin,
@@ -1389,7 +1396,7 @@ function DesktopApp() {
               aria-label="Navigation"
             >
               <div className="app-brand">
-                <span>✠</span>
+                <span><BrandLogo /></span>
                 <div>
                   <b>Bulletin</b>
                   <small>Builder</small>
@@ -1450,7 +1457,7 @@ function DesktopApp() {
       ) : (
         <aside className="sidebar static-navigation">
           <div className="app-brand">
-            <span>✠</span>
+            <span><BrandLogo /></span>
             <div>
               <b>Bulletin</b>
               <small>Builder</small>

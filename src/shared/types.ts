@@ -511,6 +511,7 @@ export interface BulletinApi {
   createRevision(root: string, relativePath: string, document: BulletinDocumentV1, label: string): Promise<string>;
   exportPdf(root: string, relativePath: string, document: BulletinDocumentV1): Promise<string | null>;
   importAsset(root: string, targetFolder: string, kind?: 'page' | 'font'): Promise<AssetRef | null>;
+  copyAsset(root: string, asset: AssetRef, targetFolder: string): Promise<AssetRef>;
   readAsset(root: string, relativePath: string): Promise<string>;
   lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;
   openScripture(reference: string, translation: string): Promise<void>;

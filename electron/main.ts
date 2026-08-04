@@ -14,7 +14,7 @@ import { normalizeScriptureReference } from '../src/shared/scriptureReference.js
 import { templateForBulletin } from '../src/shared/documentLayout.js';
 import { canvasAssetRefs, canvasNativeBlocks, canvasSpace } from '../src/shared/canvas.js';
 import { flattenBlocks } from '../src/shared/blocks.js';
-import { copyAssetToBlobStore } from './assets.js';
+import { copyAssetToBlobStore, copyAssetWithoutOverwrite } from './assets.js';
 import { DialogPathStore } from './dialogPaths.js';
 import { startWorkspaceWatcher } from './workspaceWatcher.js';
 import { createAppUpdateService, type AppUpdateService } from './updater.js';
@@ -103,6 +103,14 @@ function registerIpc() {
     const mediaType = extension === '.png' ? 'image/png' : extension === '.svg' ? 'image/svg+xml' : extension === '.pdf' ? 'application/pdf'
       : extension === '.ttf' ? 'font/ttf' : extension === '.otf' ? 'font/otf' : extension === '.woff' ? 'font/woff' : extension === '.woff2' ? 'font/woff2' : 'image/jpeg';
     return { path: path.relative(root, destination), mediaType, alt: path.basename(source) };
+  });
+  ipcMain.handle('asset:copy', async (_event, root: string, asset: Parameters<BulletinApi['copyAsset']>[1], targetFolder: string) => {
+    await requireWritable(root);
+    const source = inside(root, asset.path);
+    const folder = inside(root, targetFolder);
+    await mkdir(folder, { recursive: true });
+    const destination = await copyAssetWithoutOverwrite(source, folder);
+    return { ...asset, path: path.relative(root, destination).split(path.sep).join('/') };
   });
   ipcMain.handle('scripture:lookup', (_event, input: Parameters<BulletinApi['lookupScripture']>[0]) => lookupBibleGatewayWeb(input));
   ipcMain.handle('scripture:open', async (_event, reference: string, translation: string) => {

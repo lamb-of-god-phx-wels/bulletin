@@ -279,6 +279,14 @@ export async function installBrowserApi() {
       await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
       return { path, mediaType: mediaType(file), alt: file.name };
     },
+    copyAsset: async (root, asset, targetFolder) => {
+      const value = await getRecord<string>(assetStore, `${root}:${asset.path}`) ?? exampleAssets[asset.path];
+      if (!value) throw new Error(`Asset “${asset.path}” is unavailable.`);
+      const fileName = asset.path.split('/').at(-1) ?? 'asset';
+      const path = `${targetFolder}/${Date.now()}-${randomId()}-${fileName}`;
+      await putRecord(assetStore, `${root}:${path}`, value);
+      return { ...asset, path };
+    },
     readAsset: async (root, path) => { const value = await getRecord<string>(assetStore, `${root}:${path}`); if (!value && !exampleAssets[path]) throw new Error(`Asset “${path}” is unavailable.`); return value ?? exampleAssets[path]; },
     lookupScripture: async input => {
       const response = await fetch('/__bulletin/bible-gateway', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });

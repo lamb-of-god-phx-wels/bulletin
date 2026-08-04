@@ -47,6 +47,8 @@ import type {
   EditingState,
   LibraryItemV1,
   LibraryManifestV1,
+  LibraryFolder,
+  PageTemplateV1,
   TemplateV1,
   ValidationIssue,
   WorkspaceConflict,
@@ -58,10 +60,8 @@ import { randomId } from "./shared/id";
 import { prepackagedComponentDefinitions, prepackagedComponentDiagnostics } from "./componentDefinitions";
 import { libraryCatalogRecords, setCatalogEntry, type LibraryCatalogRecord, type LibraryRecordType } from "./shared/libraryCatalog";
 import { imageFolderDescendantIds } from "./shared/images";
-import {
-  churchEventDisplayName,
-  churchEventsForDate,
-} from "./shared/churchCalendar";
+import { churchEventDisplayName, churchEventsForDate } from "./shared/churchCalendar";
+import { duplicatePageTemplate } from "./shared/pageTemplates";
 import {
   duplicateBulletin,
   filterBulletins,
@@ -75,6 +75,7 @@ import {
   useUndoRedoHistory,
 } from "./components/useUndoRedo";
 import { RichTextToolbar } from "./components/RichTextEditing";
+import { copyEmbeddedAssets, copySlug, uniqueCopyId, uniqueCopyName } from "./shared/libraryCopy";
 
 type Screen =
   | "weekly"
@@ -1912,11 +1913,21 @@ function DesktopApp() {
               if (!alreadyDeleted) for (const target of workspace.templates.filter(record => ids.includes(record.template.id))) await window.bulletin.deleteTemplate(workspace.root, target.path);
               selectAfterTemplateDeletion(remaining);
             }}
+            onCopyPageTemplate={async (pageTemplate) => {
+              if (!window.bulletin) throw new Error("Page-template storage is unavailable.");
+              const path = await window.bulletin.savePageTemplate(workspace.root, pageTemplate);
+              setWorkspace(current => current ? { ...current, pageTemplates: [...current.pageTemplates, { path, pageTemplate }] } : current);
+            }}
+            onCopyTemplate={async (copiedTemplate) => {
+              if (!window.bulletin) throw new Error("Template storage is unavailable.");
+              const path = await window.bulletin.saveTemplate(workspace.root, copiedTemplate);
+              setWorkspace(current => current ? { ...current, templates: [...current.templates, { path, template: copiedTemplate }] } : current);
+            }}
             onSave={async (library, alreadySaved) => {
               if (!window.bulletin) return;
               try {
                 if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
-                setWorkspace({ ...workspace, library });
+                setWorkspace(current => current ? { ...current, library } : current);
                 reportStatus("Library saved");
               } catch (error) {
                 const message =
@@ -2654,6 +2665,8 @@ function LibraryView({
   onOpenExternal,
   onDeletePages,
   onDeleteTemplates,
+  onCopyPageTemplate,
+  onCopyTemplate,
 }: {
   workspace: WorkspaceSummary;
   allowedTypes?: LibraryRecordType[];
@@ -2664,6 +2677,8 @@ function LibraryView({
   onOpenExternal(record: LibraryCatalogRecord, create?: boolean): void;
   onDeletePages(ids: string[], alreadyDeleted?: boolean): Promise<void>;
   onDeleteTemplates(ids: string[], alreadyDeleted?: boolean): Promise<void>;
+  onCopyPageTemplate(pageTemplate: PageTemplateV1): Promise<void>;
+  onCopyTemplate(template: TemplateV1): Promise<void>;
 }) {
   const items = workspace.library?.items ?? [];
   const [adding, setAdding] = useState(false);
@@ -2885,6 +2900,90 @@ function LibraryView({
     if (pageIds.length) await onDeletePages(pageIds);
     if (templateIds.length) await onDeleteTemplates(templateIds);
   };
+  const copyCatalogSelection = async (selectedRecords: LibraryCatalogRecord[], selectedFolderIds: string[], destinationFolderId?: string) => {
+    if (!window.bulletin) throw new Error("Workspace storage is unavailable.");
+    try {
+      const sourceLibrary = workspace.library ?? { schemaVersion: 1 as const, name: "Church Library", items: [] };
+      const sourceFolders = sourceLibrary.folders ?? [];
+      const selectedFolderSet = new Set(selectedFolderIds);
+      for (const id of selectedFolderIds) for (const child of imageFolderDescendantIds(sourceLibrary, id)) selectedFolderSet.add(child);
+      const rootFolderIds = selectedFolderIds.filter(id => {
+        let parent = sourceFolders.find(folder => folder.id === id)?.parentId;
+        while (parent) {
+          if (selectedFolderSet.has(parent)) return false;
+          parent = sourceFolders.find(folder => folder.id === parent)?.parentId;
+        }
+        return true;
+      });
+      const nextFolders: LibraryFolder[] = sourceFolders.map(folder => ({ ...folder }));
+      const folderCopies = new Map<string, string>();
+      const cloneFolder = (sourceId: string, parentId?: string) => {
+        const source = sourceFolders.find(folder => folder.id === sourceId);
+        if (!source) return;
+        let name = source.name;
+        const used = new Set(nextFolders.filter(folder => folder.parentId === parentId).map(folder => folder.name.trim().toLocaleLowerCase()));
+        if (used.has(name.toLocaleLowerCase())) {
+          name = `${source.name} copy`;
+          for (let suffix = 2; used.has(name.toLocaleLowerCase()); suffix++) name = `${source.name} copy ${suffix}`;
+        }
+        const id = `library-folder-${randomId()}`;
+        nextFolders.push({ id, name, ...(parentId ? { parentId } : {}) });
+        folderCopies.set(sourceId, id);
+        sourceFolders.filter(folder => folder.parentId === sourceId).sort((left, right) => left.name.localeCompare(right.name)).forEach(child => cloneFolder(child.id, id));
+      };
+      rootFolderIds.forEach(id => cloneFolder(id, destinationFolderId));
+
+      const explicitKeys = new Set(selectedRecords.map(record => record.key));
+      const recordsToCopy = catalogRecords.filter(record => !record.builtin && (explicitKeys.has(record.key) || Boolean(record.folderId && selectedFolderSet.has(record.folderId))));
+      const reservedNames: Array<{ title: string; folderId?: string }> = [];
+      const usedItemIds = new Set(sourceLibrary.items.map(item => item.id));
+      const usedComponentTypes = new Set([...(sourceLibrary.componentDefinitions ?? []).map(item => item.type), ...prepackagedComponentDefinitions.map(item => item.type)]);
+      let nextLibrary: LibraryManifestV1 = { ...sourceLibrary, folders: nextFolders, items: [...sourceLibrary.items], componentDefinitions: [...(sourceLibrary.componentDefinitions ?? [])], catalog: [...(sourceLibrary.catalog ?? [])] };
+      const localPages = [...workspace.pageTemplates];
+      const localTemplates = [...workspace.templates];
+      const copyAssets = <T,>(value: T, targetFolder: string) => copyEmbeddedAssets(value, targetFolder, (asset, folder) => window.bulletin!.copyAsset(workspace.root, asset, folder));
+
+      for (const record of recordsToCopy) {
+        const destination = record.folderId && folderCopies.has(record.folderId) ? folderCopies.get(record.folderId) : destinationFolderId;
+        const name = uniqueCopyName(record.title, destination, catalogRecords, reservedNames);
+        if (record.targetKind === "library-item") {
+          const source = (record.value as LibraryFamily).versions[0];
+          const id = uniqueCopyId(name, usedItemIds, "library-item");
+          const copied = await copyAssets({ ...structuredClone(source), id, version: 1, title: name }, `assets/library/${id}`);
+          nextLibrary = { ...nextLibrary, items: [...nextLibrary.items, copied] };
+          nextLibrary = setCatalogEntry(nextLibrary, { targetKind: "library-item", targetId: id, folderId: destination });
+        } else if (record.targetKind === "component") {
+          const versions = record.value as NonNullable<LibraryManifestV1["componentDefinitions"]>;
+          const source = versions[0];
+          const namespace = source.type.includes(":") ? source.type.slice(0, source.type.indexOf(":")) : "custom";
+          const localName = uniqueCopyId(name, new Set([...usedComponentTypes].map(type => type.includes(":") ? type.slice(type.indexOf(":") + 1) : type)), "component");
+          let type = `${namespace}:${localName}`;
+          for (let suffix = 2; usedComponentTypes.has(type); suffix++) type = `${namespace}:${localName}-${suffix}`;
+          usedComponentTypes.add(type);
+          const copied = await copyAssets({ ...structuredClone(source), type, version: 1, name }, `assets/components/${copySlug(localName, "component")}`);
+          nextLibrary = { ...nextLibrary, componentDefinitions: [...(nextLibrary.componentDefinitions ?? []), copied] };
+          nextLibrary = setCatalogEntry(nextLibrary, { targetKind: "component", targetId: type, folderId: destination });
+        } else if (record.targetKind === "page-template") {
+          const versions = record.value as PageTemplateV1[];
+          const copiedBase = duplicatePageTemplate(versions[0], name, localPages);
+          const copied = await copyAssets(copiedBase, `assets/page-templates/${copiedBase.id}`);
+          await onCopyPageTemplate(copied);
+          localPages.push({ path: "", pageTemplate: copied });
+          nextLibrary = setCatalogEntry(nextLibrary, { targetKind: "page-template", targetId: copied.id, folderId: destination });
+        } else if (record.targetKind === "template") {
+          const versions = record.value as TemplateV1[];
+          const copiedBase = duplicateTemplate(versions[0], name, localTemplates);
+          const copied = await copyAssets(copiedBase, `assets/templates/${copiedBase.id}`);
+          await onCopyTemplate(copied);
+          localTemplates.push({ path: "", template: copied });
+          nextLibrary = setCatalogEntry(nextLibrary, { targetKind: "template", targetId: copied.id, folderId: destination });
+        }
+      }
+      await onSave(nextLibrary);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  };
   if (!adding && !managingImages && !deleteConfirmation) {
     return <LibraryBrowserDialog
       embedded
@@ -2898,6 +2997,7 @@ function LibraryView({
       onOpen={openCatalogRecord}
       onCreate={createCatalogRecord}
       onDelete={deleteCatalogSelection}
+      onCopy={copyCatalogSelection}
     />;
   }
   return (

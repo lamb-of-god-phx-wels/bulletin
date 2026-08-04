@@ -39,6 +39,7 @@ const api: BulletinApi & { getPrintJob(): Promise<unknown>; printReady(): void }
   createRevision: (...args) => ipcRenderer.invoke('revision:create', ...args),
   exportPdf: (...args) => ipcRenderer.invoke('pdf:export', ...args),
   importAsset: (...args) => ipcRenderer.invoke('asset:import', ...args),
+  copyAsset: (...args) => ipcRenderer.invoke('asset:copy', ...args),
   readAsset: (...args) => ipcRenderer.invoke('asset:read', ...args),
   lookupScripture: input => ipcRenderer.invoke('scripture:lookup', input),
   openScripture: (...args) => ipcRenderer.invoke('scripture:open', ...args),

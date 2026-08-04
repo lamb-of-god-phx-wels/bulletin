@@ -1,8 +1,8 @@
 import { cloneElement, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
+import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, GroupBlock, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
 import { conditionVisible } from '../shared/customProperties';
-import { childBlocks, findBlock, flattenBlocks } from '../shared/blocks';
+import { childBlocks, findBlock, flattenBlocks, groupChildCell, updateBlockTree } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
 import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, responsiveEntryReader, responsiveEntryRole, responsiveReadingEditorContent, safeParseResponsiveReadingContent } from '../shared/responsiveReading';
@@ -213,6 +213,101 @@ export function stopTrackingPointer(event: React.PointerEvent<HTMLElement>) {
   event.currentTarget.parentElement?.classList.remove('tracking-cursor');
 }
 
+function validTrackSizes(values: number[] | undefined, count: number) {
+  return values?.length === count && values.every(value => Number.isFinite(value) && value > 0) ? values : undefined;
+}
+
+function GridGroupView({ block, library, assets, document, template, marginIn, onBlockChange }: { block: GroupBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
+  const gridRef = useRef<HTMLElement>(null);
+  const resize = useRef<{ axis: 'column' | 'row'; index: number; outerEdge: boolean; start: number; sizes: number[]; current: number[]; pixelsPerInch: number; move(event: PointerEvent): void; finish(event: PointerEvent): void } | undefined>(undefined);
+  const [draftColumns, setDraftColumns] = useState<number[] | undefined>();
+  const [draftRows, setDraftRows] = useState<number[] | undefined>();
+  const rows = Math.max(1, Math.min(12, block.rows ?? Math.max(1, Math.ceil(block.children.length / Math.max(1, block.columns ?? 2)))));
+  const columns = Math.max(1, Math.min(12, block.columns ?? 2));
+  const sizing = block.gridSizing ?? 'equal';
+  const savedColumns = validTrackSizes(block.columnWidths, columns);
+  const savedRows = validTrackSizes(block.rowHeightsIn, rows);
+  const columnSizes = draftColumns ?? savedColumns;
+  const rowSizes = draftRows ?? savedRows;
+  const positioned = new Map(block.children.map((child, index) => { const cell = groupChildCell(block, child, index); return [`${cell.row}:${cell.column}`, child] as const; }));
+  const changeChild = onBlockChange ? (changed: BulletinBlock) => onBlockChange({ ...block, children: updateBlockTree(block.children, changed.id, changed) }) : undefined;
+  const style = {
+    '--layout-gap': `${block.layoutMode === 'table' ? 0 : block.gapIn ?? 0}in`,
+    '--layout-columns': columns,
+    '--layout-rows': rows,
+    gridTemplateColumns: columnSizes ? columnSizes.map(value => `${value}fr`).join(' ') : sizing === 'auto' ? `repeat(${columns}, auto)` : `repeat(${columns}, minmax(0, 1fr))`,
+    gridTemplateRows: rowSizes ? rowSizes.map(value => `${value}in`).join(' ') : sizing === 'auto' ? `repeat(${rows}, auto)` : `repeat(${rows}, minmax(0, 1fr))`
+  } as React.CSSProperties;
+  const beginResize = (axis: 'column' | 'row', index: number, event: React.PointerEvent<HTMLSpanElement>, outerEdge = false) => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const cells = Array.from(grid.querySelectorAll<HTMLElement>(':scope > .layout-cell-content'));
+    const sizes = Array.from({ length: axis === 'column' ? columns : rows }, (_, track) => {
+      const cell = cells.find(candidate => Number(candidate.dataset[axis === 'column' ? 'layoutColumn' : 'layoutRow']) === track + 1);
+      return Math.max(12, axis === 'column' ? cell?.getBoundingClientRect().width ?? 0 : cell?.getBoundingClientRect().height ?? 0);
+    });
+    const pageWidth = grid.closest<HTMLElement>('.document-page')?.getBoundingClientRect().width ?? 672;
+    const move = (pointer: PointerEvent) => moveResize(pointer);
+    const finish = (pointer: PointerEvent) => finishResize(pointer);
+    resize.current = { axis, index, outerEdge, start: axis === 'column' ? event.clientX : event.clientY, sizes, current: sizes, pixelsPerInch: pageWidth / 7, move, finish };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish, { once: true });
+    window.addEventListener('pointercancel', finish, { once: true });
+  };
+  const moveResize = (event: { clientX: number; clientY: number }) => {
+    const active = resize.current;
+    if (!active) return;
+    const pointer = active.axis === 'column' ? event.clientX : event.clientY;
+    const delta = pointer - active.start;
+    const pairTotal = active.outerEdge ? 0 : active.sizes[active.index] + active.sizes[active.index + 1];
+    const first = active.outerEdge
+      ? Math.max(12, active.sizes[active.index] + delta)
+      : Math.max(12, Math.min(pairTotal - 12, active.sizes[active.index] + delta));
+    const current = active.sizes.map((value, index) => index === active.index ? first : !active.outerEdge && index === active.index + 1 ? pairTotal - first : value);
+    active.current = current;
+    if (active.axis === 'column') {
+      const total = current.reduce((sum, value) => sum + value, 0);
+      setDraftColumns(current.map(value => value / total));
+    } else setDraftRows(current.map(value => value / active.pixelsPerInch));
+  };
+  const finishResize = (event: { clientX: number; clientY: number }) => {
+    const active = resize.current;
+    if (!active) return;
+    moveResize(event);
+    const current = resize.current!.current;
+    const nextColumns = active.axis === 'column' ? (() => { const total = current.reduce((sum, value) => sum + value, 0); return current.map(value => value / total); })() : draftColumns ?? savedColumns;
+    const nextRows = active.axis === 'row' ? current.map(value => value / active.pixelsPerInch) : draftRows ?? savedRows;
+    window.removeEventListener('pointermove', active.move);
+    window.removeEventListener('pointerup', active.finish);
+    window.removeEventListener('pointercancel', active.finish);
+    resize.current = undefined;
+    setDraftColumns(undefined);
+    setDraftRows(undefined);
+    onBlockChange?.({ ...block, gridSizing: 'custom', columnWidths: nextColumns, rowHeightsIn: nextRows });
+  };
+  const setSizing = (next: 'equal' | 'auto') => {
+    setDraftColumns(undefined);
+    setDraftRows(undefined);
+    onBlockChange?.({ ...block, gridSizing: next, columnWidths: undefined, rowHeightsIn: undefined });
+  };
+  return <section ref={gridRef} className={`block-group layout-${block.layoutMode ?? 'grid'} ${block.layoutMode === 'table' && block.tableHeaderRow ? 'has-table-header' : ''} ${block.layoutMode === 'table' && block.tableShowLines === false ? 'table-lines-hidden' : ''} ${onBlockChange ? 'resizable-layout-preview' : ''}`} style={style}>
+    {Array.from({ length: (block.layoutMode === 'table' || block.children.length || onBlockChange ? rows * columns : 0) }, (_, index) => {
+      const row = Math.floor(index / columns) + 1;
+      const column = index % columns + 1;
+      const child = positioned.get(`${row}:${column}`);
+      return <div className="layout-cell-content" data-layout-row={row} data-layout-column={column} style={{ gridRow: row, gridColumn: column }} key={`${row}:${column}`}>{child && <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={changeChild} />}</div>;
+    })}
+    {onBlockChange && <><div className="grid-sizing-controls" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}><button type="button" className={sizing === 'equal' ? 'active' : ''} onClick={() => setSizing('equal')}>Reset</button><button type="button" className={sizing === 'auto' ? 'active' : ''} onClick={() => setSizing('auto')}>Auto</button></div>
+      <div className="grid-resize-overlay" style={{ gridTemplateColumns: style.gridTemplateColumns, gridTemplateRows: style.gridTemplateRows, gap: block.layoutMode === 'table' ? 0 : `${block.gapIn ?? 0}in` }}>
+        {Array.from({ length: columns - 1 }, (_, index) => <span className="grid-resize-separator column" role="separator" aria-label={`Resize columns ${index + 1} and ${index + 2}`} aria-orientation="vertical" style={{ gridColumn: index + 1, gridRow: '1 / -1' }} onPointerDown={event => beginResize('column', index, event)} key={`column-${index}`} />)}
+        {Array.from({ length: rows }, (_, index) => <span className={`grid-resize-separator row ${index === rows - 1 ? 'outer-edge' : ''}`} role="separator" aria-label={index === rows - 1 ? `Resize bottom of row ${rows}` : `Resize rows ${index + 1} and ${index + 2}`} aria-orientation="horizontal" style={{ gridRow: index + 1, gridColumn: '1 / -1' }} onPointerDown={event => beginResize('row', index, event, index === rows - 1)} key={`row-${index}`} />)}
+      </div>
+    </>}
+  </section>;
+}
+
 function BlockView({ block, library, assets, document, template, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
@@ -234,10 +329,10 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
     case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</div>;
     case 'group': {
       const mode = block.layoutMode ?? 'stack';
-      return <section className={`block-group layout-${mode}`} style={{
-        '--layout-gap': `${mode === 'table' ? 0 : block.gapIn ?? 0}in`,
-        '--layout-columns': Math.max(1, Math.min(12, block.columns ?? (mode === 'stack' ? 1 : 2)))
-      } as React.CSSProperties}>{block.children.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
+      const changeChild = onBlockChange ? (changed: BulletinBlock) => onBlockChange({ ...block, children: updateBlockTree(block.children, changed.id, changed) }) : undefined;
+      return mode === 'stack' ? <section className="block-group layout-stack" style={{ '--layout-gap': `${block.gapIn ?? 0}in` } as React.CSSProperties}>{block.children.map(child =>
+        <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={changeChild} key={child.id} />
+      )}</section> : <GridGroupView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />;
     }
     case 'sermonTitle': return <h1 className="sermon-title"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Sermon title" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h1>;
     case 'sectionHeading': return <h2 className="section-heading"><span aria-hidden="true">✠ </span><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Section heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /><span aria-hidden="true"> ✠</span></h2>;
@@ -372,6 +467,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     '--body-size': `${effectiveTemplate.theme.bodySizePt}pt`, '--line-height': effectiveTemplate.theme.lineHeight,
     '--page-margin': `${effectiveTemplate.theme.marginIn}in`,
     '--preview-scale': zoom,
+    '--preview-inverse-scale': 1 / zoom,
     '--preview-page-width': `${672 * zoom}px`,
     '--preview-page-height': `${816 * zoom}px`
     } as React.CSSProperties

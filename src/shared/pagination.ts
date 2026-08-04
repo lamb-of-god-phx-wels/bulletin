@@ -1,5 +1,5 @@
 import type { BulletinBlock, BulletinDocumentV1, CustomBlockStyle, Inline, LibraryManifestV1, Paragraph, TemplateV1 } from './types.js';
-import { childBlocks } from './blocks.js';
+import { childBlocks, groupChildCell } from './blocks.js';
 import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureReading.js';
 import { pageTemplateMargin } from './pageTemplates.js';
 import { songHeader } from './songs.js';
@@ -69,10 +69,16 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   };
   const formatted = (points: number) => formatPoints(points, presentation, block.type === 'copyright');
   if (block.type === 'group') {
-    const childPoints = block.children.filter(child => conditionVisible(child, template, document)).map(child => estimateBlockPoints(child, template, library, document));
-    const columns = Math.max(1, Math.min(12, block.columns ?? 2));
+    const visibleChildren = block.children.map((child, index) => ({ child, index })).filter(({ child }) => conditionVisible(child, template, document));
+    const childPoints = visibleChildren.map(({ child }) => estimateBlockPoints(child, template, library, document));
+    if (!visibleChildren.length) return formatted(0);
     if ((block.layoutMode ?? 'stack') === 'stack') return formatted(childPoints.reduce((total, points) => total + points, 0) + Math.max(0, childPoints.length - 1) * (block.gapIn ?? 0) * 72);
-    const rows = Array.from({ length: Math.ceil(childPoints.length / columns) }, (_, row) => Math.max(0, ...childPoints.slice(row * columns, (row + 1) * columns)));
+    const rowCount = Math.max(block.rows ?? 1, ...visibleChildren.map(({ child, index }) => groupChildCell(block, child, index).row));
+    const fixedRows = block.gridSizing === 'custom' && block.rowHeightsIn?.length === rowCount && block.rowHeightsIn.every(value => Number.isFinite(value) && value > 0)
+      ? block.rowHeightsIn.reduce((total, height) => total + height * 72, 0)
+      : undefined;
+    if (fixedRows !== undefined) return formatted(fixedRows + Math.max(0, rowCount - 1) * (block.layoutMode === 'table' ? 0 : (block.gapIn ?? .12) * 72));
+    const rows = Array.from({ length: rowCount }, (_, row) => Math.max(0, ...visibleChildren.flatMap(({ child, index }, childIndex) => groupChildCell(block, child, index).row === row + 1 ? [childPoints[childIndex]] : [])));
     return formatted(rows.reduce((total, points) => total + points, 0) + Math.max(0, rows.length - 1) * (block.layoutMode === 'table' ? 0 : (block.gapIn ?? .12) * 72));
   }
   if (block.type === 'canvas') return formatted(block.heightIn * 72);

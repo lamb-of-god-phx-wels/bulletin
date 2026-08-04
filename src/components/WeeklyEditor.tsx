@@ -17,7 +17,7 @@ import { CopyrightFields } from "./CopyrightFields";
 import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
 import { instantiateComponentDefinition } from "../componentDefinitions";
-import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "../shared/blocks";
+import { childBlocks, createLayoutContainer, createTableCell, findBlock, groupAcceptsChild, groupChildCell, moveGroupChildToCell, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
 import { paragraphsFromPlainText } from "../shared/plainText";
 import {
@@ -55,6 +55,9 @@ import { TemplateElementDialog } from "./TemplateElementDialog";
 import { explodeTemplateInstance, instantiateTemplate, templateVersions } from "../shared/templates";
 import { RichTextBindingControl } from "./RichTextBindingControl";
 import { boundRichTextParagraphs } from "../shared/canvas";
+import { ElementPickerDialog } from "./ElementPickerDialog";
+import { NativeBlockFields } from "./NativeBlockFields";
+import { LayoutContainerFields } from "./LayoutContainerFields";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -103,6 +106,9 @@ export function WeeklyEditor({
   const [templateInsertionIndex, setTemplateInsertionIndex] = useState<number>();
   const [creatingPage, setCreatingPage] = useState<PageTemplateV1>();
   const [imageIndex, setImageIndex] = useState<number>();
+  const [elementParentId, setElementParentId] = useState<string>();
+  const [elementCell, setElementCell] = useState<LayoutCell>();
+  const [childImageTarget, setChildImageTarget] = useState<{ parentId: string; cell?: LayoutCell }>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
   const [conditionBlockId, setConditionBlockId] = useState<string>();
   const [propertiesOpen, setPropertiesOpen] = useState(false);
@@ -195,16 +201,49 @@ export function WeeklyEditor({
     if (parent.type === "templateInstance")
       updateBlock(parent.id, { ...parent, blocks: children });
   };
+  const insertChildPaletteItem = (item: ElementPaletteItem, parentId: string, cell?: LayoutCell) => {
+    const parent = findBlock(document.blocks, parentId);
+    if (parent?.type !== 'group') return false;
+    if (parent.layoutMode === 'table') return true;
+    const payload = item.payload as ElementPalettePayload;
+    if (payload.kind === 'component') {
+      const child = { ...instantiateComponentDefinition(payload.definition), weeklyEditable: true } as BulletinBlock;
+      if (!groupAcceptsChild(parent, child)) return true;
+      updateBlock(parent.id, placeGroupChild(parent, child, cell));
+    }
+    else if (payload.kind === 'container') updateBlock(parent.id, placeGroupChild(parent, { ...createLayoutContainer(payload.layoutMode, `container-${randomId()}`), weeklyEditable: true }, cell));
+    else if (payload.kind === 'image') setChildImageTarget({ parentId: parent.id, cell });
+    else return false;
+    return true;
+  };
+  const useChildPaletteItem = (item: ElementPaletteItem) => {
+    if (!elementParentId) return;
+    insertChildPaletteItem(item, elementParentId, elementCell);
+    setElementParentId(undefined);
+    setElementCell(undefined);
+  };
+  const moveBlockIntoContainer = (blockId: string, containerId: string, cell?: LayoutCell) => {
+    const child = document.blocks.find(block => block.id === blockId);
+    const parent = findBlock(document.blocks, containerId);
+    if (!child || parent?.type !== 'group' || findBlock([child], containerId)) return false;
+    if (parent.layoutMode === 'table') return true;
+    if (!groupAcceptsChild(parent, child)) return true;
+    const remaining = document.blocks.filter(block => block.id !== child.id);
+    onChange({ ...document, blocks: updateBlockTree(remaining, parent.id, placeGroupChild(parent, child, cell)) });
+    return true;
+  };
   const nestedEditors = (parent: BulletinBlock): ReactNode => {
     const children = childBlocks(parent) ?? [];
     const isParagraph = parent.type === "paragraph";
     const isScripture = parent.type === "scriptureReading";
-    const reorderable = !isParagraph && !isScripture;
+    const isTable = parent.type === 'group' && parent.layoutMode === 'table';
+    const reorderable = !isParagraph && !isScripture && !isTable;
     const editors = children.map((child) => {
       const editor = (
         <details
           className="nested-block-editor collapsible-editor"
           data-editor-block-id={child.id}
+          data-layout-container={child.type === 'group' ? 'true' : undefined}
           tabIndex={-1}
         >
           <summary>
@@ -226,7 +265,7 @@ export function WeeklyEditor({
               >
                 Format
               </button>
-              {!isScripture && (!isParagraph || child.role === "header") && (
+              {!isScripture && !isTable && (!isParagraph || child.role === "header") && (
                 <button
                   className="danger-text"
                   title="Remove element"
@@ -271,6 +310,7 @@ export function WeeklyEditor({
                     <RichTextEditor content={boundRichTextParagraphs(child, document, bulletinTemplate, library)} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, child.binding ? { ...child, bindingOverride: content } : { ...child, content })} />
                   </label>{child.bindingOverride && <button className="text-button" onClick={() => updateBlock(child.id, { ...child, bindingOverride: undefined })}>Reset to bound value</button>}</>
                 )}
+                {child.type !== 'heading' && child.type !== 'sectionHeading' && child.type !== 'sermonTitle' && child.type !== 'richText' && <NativeBlockFields block={child} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope="weekly" root={root} imageTargetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`} includeChildren={false} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(child.id, next)} />}
                 {childBlocks(child) && nestedEditors(child)}
               </>
             )}
@@ -293,27 +333,36 @@ export function WeeklyEditor({
               ? "Element layout"
               : isParagraph
                 ? "Text blocks"
-                : "Paragraphs"}
+                : isTable ? "Table cells" : parent.type === 'group' ? "Elements" : "Paragraphs"}
           </b>
           <span>
             {isScripture
               ? "Heading, reference, caption, and body can be positioned and formatted independently."
               : isParagraph
                 ? "Header and body formatting are completely independent."
-                : "Each paragraph keeps its header and body together."}
+                : isTable ? "Each cell contains rich text and can also be edited directly in the preview." : parent.type === 'group' ? "Any content or layout element can be placed here." : "Each paragraph keeps its header and body together."}
           </span>
         </div>
         {reorderable ? (
           <SortableList
             items={children}
             onChange={(next) => updateChildren(parent, next)}
+            grid={parent.type === 'group' && (parent.layoutMode ?? 'stack') !== 'stack' ? {
+              rows: Math.max(1, parent.rows ?? 2),
+              columns: Math.max(1, parent.columns ?? 2),
+              containerId: parent.id,
+              cells: Object.fromEntries(parent.children.map((child, index) => [child.id, groupChildCell(parent, child, index)])),
+              onMove: (id, cell) => updateBlock(parent.id, moveGroupChildToCell(parent, id, cell)),
+              onAdd: cell => parent.layoutMode === 'table' ? updateBlock(parent.id, placeGroupChild(parent, { ...createTableCell(`text-${randomId()}`), weeklyEditable: true } as BulletinBlock, cell)) : (setElementParentId(parent.id), setElementCell(cell))
+            } : undefined}
+            onMoveOut={parent.type === 'group' ? (id, targetId, position) => { onChange({ ...document, blocks: moveGroupChildToRoot(document.blocks, parent.id, id, targetId, position) }); return true; } : undefined}
           >
             {editors}
           </SortableList>
         ) : (
           editors
         )}
-        {!isScripture && (
+        {!isScripture && parent.type !== 'group' && (
           <div className="nested-add-actions">
             {isParagraph ? (
               !children.some(
@@ -614,6 +663,8 @@ export function WeeklyEditor({
         items={document.blocks}
         onChange={(blocks) => onChange({ ...document, blocks })}
         onInsert={(descriptor, index) => usePaletteItem(descriptor as ElementPaletteItem, index)}
+        onInsertInto={(descriptor, containerId, cell) => insertChildPaletteItem(descriptor as ElementPaletteItem, containerId, cell)}
+        onMoveInto={moveBlockIntoContainer}
         dockedPalette
         palette={<ElementPalette
           items={flowElementPaletteItems(library?.componentDefinitions ?? [])}
@@ -627,6 +678,8 @@ export function WeeklyEditor({
             <details
               className="editor-card block-editor collapsible-editor"
               data-editor-block-id={block.id}
+              data-sortable-root-item="true"
+              data-layout-container={block.type === 'group' ? 'true' : undefined}
               tabIndex={-1}
             >
               <summary>
@@ -1097,11 +1150,7 @@ export function WeeklyEditor({
                   </div>
                 )}
                 {(block.type === "churchInfo" || block.type === "group") &&
-                  <>{block.type === 'group' && <div className="field-row container-options">
-                    <label>Layout<select value={block.layoutMode ?? 'stack'} onChange={event => updateBlock(block.id, { ...block, layoutMode: event.target.value as NonNullable<typeof block.layoutMode> })}><option value="stack">Stack</option><option value="grid">Grid</option><option value="table">Table</option></select></label>
-                    {(block.layoutMode ?? 'stack') !== 'stack' && <label>Columns<input type="number" min="1" max="12" value={block.columns ?? 2} onChange={event => updateBlock(block.id, { ...block, columns: Math.max(1, Math.min(12, event.currentTarget.valueAsNumber || 1)) })} /></label>}
-                    {(block.layoutMode ?? 'stack') !== 'table' && <label>Gap (in)<input type="number" min="0" max="2" step=".025" value={block.gapIn ?? .12} onChange={event => updateBlock(block.id, { ...block, gapIn: Math.max(0, event.currentTarget.valueAsNumber || 0) })} /></label>}
-                  </div>}{nestedEditors(block)}</>}
+                  <>{block.type === 'group' && <LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} onAdd={cell => { setElementParentId(block.id); setElementCell(cell); }} />}{nestedEditors(block)}</>}
                 {block.type === "copyright" && (
                   <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
                 )}
@@ -1378,6 +1427,20 @@ export function WeeklyEditor({
         onSelect={asset => {
           const block: BulletinBlock = { id: `image-${randomId()}`, type: "image", asset, alt: asset.alt, fit: "contain", heightIn: 2.5, weeklyEditable: true };
           onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, imageIndex) });
+        }}
+      />}
+      {elementParentId && <ElementPickerDialog items={flowElementPaletteItems(library?.componentDefinitions ?? [], false).filter(item => findBlock(document.blocks, elementParentId)?.type !== 'group' || (findBlock(document.blocks, elementParentId) as Extract<BulletinBlock, { type: 'group' }>).layoutMode !== 'table' || (item.payload as ElementPalettePayload).kind === 'component' && (item.payload as Extract<ElementPalettePayload, { kind: 'component' }>).definition.type === 'bulletin:text')} onSelect={useChildPaletteItem} onClose={() => { setElementParentId(undefined); setElementCell(undefined); }} />}
+      {childImageTarget && root && <ImageAssetDialog
+        library={library}
+        root={root}
+        targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`}
+        onLibraryChange={onLibraryChange}
+        onError={onError}
+        onClose={() => setChildImageTarget(undefined)}
+        onSelect={asset => {
+          const parent = findBlock(document.blocks, childImageTarget.parentId);
+          if (parent?.type === 'group') updateBlock(parent.id, placeGroupChild(parent, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5, weeklyEditable: true }, childImageTarget.cell));
+          setChildImageTarget(undefined);
         }}
       />}
     </div>

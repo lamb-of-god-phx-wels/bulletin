@@ -55,6 +55,7 @@ interface BlockBase {
   layout?: LayoutHints;
   presentation?: Partial<CustomBlockStyle>;
   condition?: ElementCondition;
+  gridPosition?: { row: number; column: number };
 }
 
 export interface UnsupportedLegacyCoverBlock extends BlockBase { type: 'titlePage' | 'canvasCover' }
@@ -219,7 +220,13 @@ export interface GroupBlock extends BlockBase {
   children: BulletinBlock[];
   layoutMode?: 'stack' | 'grid' | 'table';
   columns?: number;
+  rows?: number;
   gapIn?: number;
+  gridSizing?: 'equal' | 'auto' | 'custom';
+  columnWidths?: number[];
+  rowHeightsIn?: number[];
+  tableHeaderRow?: boolean;
+  tableShowLines?: boolean;
 }
 export type PageMarginSetting =
   | { mode: 'inherit'; referenceMarginIn: number }

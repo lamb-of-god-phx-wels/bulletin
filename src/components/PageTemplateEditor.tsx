@@ -4,14 +4,13 @@ import { instantiateComponentDefinition } from '../componentDefinitions';
 import { createBulletin } from '../shared/defaults';
 import { estimateBlockPoints } from '../shared/pagination';
 import { pageTemplateIssues, pageTemplateLayout } from '../shared/pageTemplates';
-import { createLayoutContainer } from '../shared/blocks';
+import { createLayoutContainer, findBlock, groupAcceptsChild, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from '../shared/blocks';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { BlockFormattingModal } from './BlockFormattingModal';
 import { BlockLibraryModal } from './BlockLibraryModal';
 import { CanvasDesigner } from './CanvasDesigner';
 import { DocumentView } from './DocumentView';
 import { SortableHandle, SortableItem, SortableList } from './SortableList';
-import { updateBlockTree } from '../shared/blocks';
 import { ElementPalette, type ElementPaletteItem } from './ElementPalette';
 import { flowElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog';
 import { NativeBlockFields } from './NativeBlockFields';
@@ -47,6 +46,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const [formatId, setFormatId] = useState<string>();
   const [status, setStatus] = useState('');
   const [imageIndex, setImageIndex] = useState<number>();
+  const [nestedImageTarget, setNestedImageTarget] = useState<{ parentId: string; cell?: LayoutCell }>();
   const [conditionBlockId, setConditionBlockId] = useState<string>();
   const preview = useRef<HTMLElement>(null);
   const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
@@ -98,6 +98,31 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     } else if (payload.kind === 'image' && root && window.bulletin) {
       setImageIndex(index);
     }
+  };
+  const insertIntoContainer = (item: ElementPaletteItem, containerId: string, cell?: LayoutCell) => {
+    const parent = findBlock(value.blocks, containerId);
+    if (parent?.type !== 'group') return false;
+    if (parent.layoutMode === 'table') return true;
+    const payload = item.payload as ElementPalettePayload;
+    if (payload.kind === 'component') {
+      const child = instantiateComponentDefinition(payload.definition);
+      if (!groupAcceptsChild(parent, child)) return true;
+      change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, child, cell)) });
+    }
+    else if (payload.kind === 'container') change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, createLayoutContainer(payload.layoutMode, `container-${randomId()}`), cell)) });
+    else if (payload.kind === 'image') setNestedImageTarget({ parentId: parent.id, cell });
+    else return false;
+    return true;
+  };
+  const moveBlockIntoContainer = (blockId: string, containerId: string, cell?: LayoutCell) => {
+    const child = value.blocks.find(block => block.id === blockId);
+    const parent = findBlock(value.blocks, containerId);
+    if (!child || parent?.type !== 'group' || findBlock([child], containerId)) return false;
+    if (parent.layoutMode === 'table') return true;
+    if (!groupAcceptsChild(parent, child)) return true;
+    const remaining = value.blocks.filter(block => block.id !== child.id);
+    change({ blocks: updateBlockTree(remaining, parent.id, placeGroupChild(parent, child, cell)) });
+    return true;
   };
   const changeZoom = (next: number) => {
     zoomMode.current = 'manual';
@@ -207,10 +232,12 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
           items={value.blocks}
           onChange={blocks => change({ blocks })}
           onInsert={(descriptor, index) => void usePaletteItem(descriptor as ElementPaletteItem, index)}
+          onInsertInto={(descriptor, containerId, cell) => insertIntoContainer(descriptor as ElementPaletteItem, containerId, cell)}
+          onMoveInto={moveBlockIntoContainer}
           dockedPalette
           palette={palette}
         >
-          {value.blocks.map(block => <SortableItem id={block.id} key={block.id}><details className="editor-card block-editor collapsible-editor" data-editor-block-id={block.id} tabIndex={-1}>
+          {value.blocks.map(block => <SortableItem id={block.id} key={block.id}><details className="editor-card block-editor collapsible-editor" data-editor-block-id={block.id} data-sortable-root-item="true" data-layout-container={block.type === 'group' ? 'true' : undefined} tabIndex={-1}>
             <summary>
               <div><span className="block-type">{block.type}{block.presentation ? ' · formatted' : ''}</span><EditableElementName as="h3" value={title(block)} onRename={displayName => updateBlock({ ...block, displayName } as BulletinBlock)} /></div>
               <div className="reorder" onClick={event => event.preventDefault()}>
@@ -221,7 +248,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
               </div>
             </summary>
             <div className="collapsible-editor-fields">
-              <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} />
+              <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} onMoveOut={(parentId, childId, targetId, position) => change({ blocks: moveGroupChildToRoot(value.blocks, parentId, childId, targetId, position) })} />
             </div>
           </details></SortableItem>)}
         </SortableList>
@@ -251,5 +278,6 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={previewDocument} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} history={activeHistory} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
     {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
+    {nestedImageTarget && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setNestedImageTarget(undefined)} onSelect={asset => { const parent = findBlock(value.blocks, nestedImageTarget.parentId); if (parent?.type === 'group') change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, nestedImageTarget.cell)) }); setNestedImageTarget(undefined); }} />}
   </div>;
 }

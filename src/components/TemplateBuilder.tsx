@@ -3,7 +3,7 @@ import { BlockLibraryModal } from "./BlockLibraryModal";
 import { BlockFormattingModal } from "./BlockFormattingModal";
 import { customBlockIssues } from "../shared/customBlocks";
 import { instantiateComponentDefinition } from "../componentDefinitions";
-import { childBlocks, createLayoutContainer, findBlock, updateBlockTree } from "../shared/blocks";
+import { childBlocks, createLayoutContainer, createTableCell, findBlock, groupAcceptsChild, groupChildCell, moveGroupChildToCell, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from "../shared/blocks";
 import type { DeclarativeComponentDefinition } from "../component-engine/types";
 import type {
   BulletinBlock,
@@ -46,14 +46,8 @@ import { TemplateElementDialog } from "./TemplateElementDialog";
 import { explodeTemplateInstance, instantiateTemplate, templateVersions } from "../shared/templates";
 import { RichTextBindingControl } from "./RichTextBindingControl";
 import { boundRichTextParagraphs } from "../shared/canvas";
-
-const textContent = (value: string) =>
-  value
-    .split(/\n\s*\n/)
-    .map((text) => ({
-      type: "paragraph" as const,
-      children: [{ type: "text" as const, text: text.replace(/\n/g, " ") }],
-    }));
+import { ElementPickerDialog } from "./ElementPickerDialog";
+import { LayoutContainerFields } from "./LayoutContainerFields";
 
 export function TemplateBuilder({
   template,
@@ -102,6 +96,9 @@ export function TemplateBuilder({
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [templatePageBlockId, setTemplatePageBlockId] = useState<string>();
   const [imageIndex, setImageIndex] = useState<number>();
+  const [elementParentId, setElementParentId] = useState<string>();
+  const [elementCell, setElementCell] = useState<LayoutCell>();
+  const [childImageTarget, setChildImageTarget] = useState<{ parentId: string; cell?: LayoutCell }>();
   const [conditionBlockId, setConditionBlockId] = useState<string>();
   const toggleEditor = (id: string) =>
     setEditingBlockIds((current) => {
@@ -125,6 +122,42 @@ export function TemplateBuilder({
   const addBlock = (block: BulletinBlock, index = template.starterBlocks.length) => {
     updateTemplate({ starterBlocks: [...template.starterBlocks.slice(0, index), block, ...template.starterBlocks.slice(index)] });
     setBlockLibraryOpen(false);
+  };
+  const addChildBlock = (parentId: string, child: BulletinBlock, cell?: LayoutCell) => {
+    const parent = findBlock(template.starterBlocks, parentId);
+    if (parent?.type !== 'group' || !groupAcceptsChild(parent, child)) return;
+    updateTemplate({ starterBlocks: updateBlockTree(template.starterBlocks, parent.id, placeGroupChild(parent, child, cell)) });
+  };
+  const insertChildPaletteItem = (item: ElementPaletteItem, parentId: string, cell?: LayoutCell) => {
+    const payload = item.payload as ElementPalettePayload;
+    const parent = findBlock(template.starterBlocks, parentId);
+    if (parent?.type !== 'group') return false;
+    if (parent.layoutMode === 'table') return true;
+    if (payload.kind === 'component') {
+      const child = instantiateComponentDefinition(payload.definition);
+      if (!groupAcceptsChild(parent, child)) return true;
+      addChildBlock(parentId, child, cell);
+    }
+    else if (payload.kind === 'container') addChildBlock(parentId, createLayoutContainer(payload.layoutMode, `container-${randomId()}`), cell);
+    else if (payload.kind === 'image') setChildImageTarget({ parentId, cell });
+    else return false;
+    return true;
+  };
+  const useChildPaletteItem = (item: ElementPaletteItem) => {
+    if (!elementParentId) return;
+    insertChildPaletteItem(item, elementParentId, elementCell);
+    setElementParentId(undefined);
+    setElementCell(undefined);
+  };
+  const moveBlockIntoContainer = (blockId: string, containerId: string, cell?: LayoutCell) => {
+    const child = template.starterBlocks.find(block => block.id === blockId);
+    const parent = findBlock(template.starterBlocks, containerId);
+    if (!child || parent?.type !== 'group' || findBlock([child], containerId)) return false;
+    if (parent.layoutMode === 'table') return true;
+    if (!groupAcceptsChild(parent, child)) return true;
+    const remaining = template.starterBlocks.filter(block => block.id !== child.id);
+    updateTemplate({ starterBlocks: updateBlockTree(remaining, parent.id, placeGroupChild(parent, child, cell)) });
+    return true;
   };
   const usePaletteItem = async (item: ElementPaletteItem, index: number) => {
     const payload = item.payload as ElementPalettePayload;
@@ -192,10 +225,7 @@ export function TemplateBuilder({
       </div>
     ) : block.type === "group" ? (
       <div className="outline-options container-options">
-        <label className="outline-option">Layout<select value={block.layoutMode ?? 'stack'} onChange={event => updateBlock(block.id, { layoutMode: event.target.value as NonNullable<typeof block.layoutMode> })}><option value="stack">Stack</option><option value="grid">Grid</option><option value="table">Table</option></select></label>
-        {(block.layoutMode ?? 'stack') !== 'stack' && <label className="outline-option">Columns<input type="number" min="1" max="12" value={block.columns ?? 2} onChange={event => updateBlock(block.id, { columns: Math.max(1, Math.min(12, event.currentTarget.valueAsNumber || 1)) })} /></label>}
-        {(block.layoutMode ?? 'stack') !== 'table' && <label className="outline-option">Gap (in)<input type="number" min="0" max="2" step=".025" value={block.gapIn ?? .12} onChange={event => updateBlock(block.id, { gapIn: Math.max(0, event.currentTarget.valueAsNumber || 0) })} /></label>}
-        <button className="secondary" onClick={() => updateBlock(block.id, { children: [...block.children, { id: `${block.id}-item-${Date.now()}`, type: 'paragraph', children: [{ id: `${block.id}-text-${Date.now()}`, type: 'richText', role: 'body', content: textContent('New item') }] }] })}>＋ Item</button>
+        <LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} onAdd={cell => { setElementParentId(block.id); setElementCell(cell); }} />
       </div>
     ) : block.type === "song" ? (
       <SongBlockFields
@@ -217,15 +247,15 @@ export function TemplateBuilder({
     ) : block.type === "image" ? (
       <ImageBlockFields block={block} library={library} root={root} targetFolder={`assets/templates/${template.id}`} onLibraryChange={onLibraryChange} onChange={next => updateBlock(block.id, next)} onError={message => setSaveStatus(message)} />
     ) : null;
-  const nestedOutline = (parent: BulletinBlock): React.ReactNode =>
-    parent.type !== "templatePage" &&
-    (parent.type !== "templateInstance" || editingBlockIds.has(parent.id)) &&
-    childBlocks(parent) && (
-      <ol className="nested-outline">
-        {childBlocks(parent)!.map((child) => (
-          <li
+  const nestedOutline = (parent: BulletinBlock): React.ReactNode => {
+    if (parent.type === 'templatePage' || (parent.type === 'templateInstance' && !editingBlockIds.has(parent.id))) return null;
+    const children = childBlocks(parent);
+    if (!children) return null;
+    const entries = children.map(child => {
+      const entry = <li
             className={childBlocks(child) ? "outline-container" : undefined}
             data-editor-block-id={child.id}
+            data-layout-container={child.type === 'group' ? 'true' : undefined}
             tabIndex={-1}
             key={child.id}
           >
@@ -259,13 +289,24 @@ export function TemplateBuilder({
               >
                 Format
               </button>
-              {parent.type === 'group' && <button className="danger-text" aria-label={`Remove ${blockTitle(child)}`} onClick={() => updateBlock(parent.id, { children: parent.children.filter(item => item.id !== child.id) })}>×</button>}
+              {parent.type === 'group' && parent.layoutMode !== 'table' && <button className="danger-text" aria-label={`Remove ${blockTitle(child)}`} onClick={() => updateBlock(parent.id, { children: parent.children.filter(item => item.id !== child.id) })}>×</button>}
+              {parent.type === 'group' && parent.layoutMode !== 'table' && <SortableHandle label={`Drag ${blockTitle(child)} to move it within ${blockTitle(parent)}`} />}
             </div>
             {nestedOutline(child)}
-          </li>
-        ))}
-      </ol>
-    );
+          </li>;
+      return parent.type === 'group' ? <SortableItem id={child.id} key={child.id}>{entry}</SortableItem> : entry;
+    });
+    if (parent.type !== 'group') return <ol className="nested-outline">{entries}</ol>;
+    const grid = (parent.layoutMode ?? 'stack') !== 'stack' ? {
+      rows: Math.max(1, parent.rows ?? 2),
+      columns: Math.max(1, parent.columns ?? 2),
+      containerId: parent.id,
+      cells: Object.fromEntries(parent.children.map((child, index) => [child.id, groupChildCell(parent, child, index)])),
+      onMove: (id: string, cell: LayoutCell) => updateBlock(parent.id, moveGroupChildToCell(parent, id, cell)),
+      onAdd: (cell: LayoutCell) => parent.layoutMode === 'table' ? addChildBlock(parent.id, createTableCell(`text-${randomId()}`), cell) : (setElementParentId(parent.id), setElementCell(cell))
+    } : undefined;
+    return <div className="nested-outline"><SortableList items={parent.children} onChange={children => updateBlock(parent.id, { children })} grid={grid} onMoveOut={(id, targetId, position) => { updateTemplate({ starterBlocks: moveGroupChildToRoot(template.starterBlocks, parent.id, id, targetId, position) }); return true; }}>{entries}</SortableList></div>;
+  };
   const save = async (publish: boolean) => {
     const customIssues = template.starterBlocks.flatMap((block) =>
       block.type === "custom" ? customBlockIssues(block) : [],
@@ -447,6 +488,8 @@ export function TemplateBuilder({
             items={template.starterBlocks}
             onChange={(starterBlocks) => updateTemplate({ starterBlocks })}
             onInsert={(descriptor, index) => void usePaletteItem(descriptor as ElementPaletteItem, index)}
+            onInsertInto={(descriptor, containerId, cell) => insertChildPaletteItem(descriptor as ElementPaletteItem, containerId, cell)}
+            onMoveInto={moveBlockIntoContainer}
             dockedPalette
             palette={<ElementPalette
               items={flowElementPaletteItems(workspaceDefinitions)}
@@ -463,6 +506,8 @@ export function TemplateBuilder({
                       childBlocks(block) ? "outline-container" : undefined
                     }
                     data-editor-block-id={block.id}
+                    data-sortable-root-item="true"
+                    data-layout-container={block.type === 'group' ? 'true' : undefined}
                     tabIndex={-1}
                   >
                     <div className="outline-main">
@@ -788,6 +833,16 @@ export function TemplateBuilder({
         onError={message => setSaveStatus(message)}
         onClose={() => setImageIndex(undefined)}
         onSelect={asset => addBlock({ id: `image-${randomId()}`, type: "image", asset, alt: asset.alt, fit: "contain", heightIn: 2.5 }, imageIndex)}
+      />}
+      {elementParentId && <ElementPickerDialog items={flowElementPaletteItems(workspaceDefinitions, false).filter(item => findBlock(template.starterBlocks, elementParentId)?.type !== 'group' || (findBlock(template.starterBlocks, elementParentId) as Extract<BulletinBlock, { type: 'group' }>).layoutMode !== 'table' || (item.payload as ElementPalettePayload).kind === 'component' && (item.payload as Extract<ElementPalettePayload, { kind: 'component' }>).definition.type === 'bulletin:text')} onSelect={useChildPaletteItem} onClose={() => { setElementParentId(undefined); setElementCell(undefined); }} />}
+      {childImageTarget && root && <ImageAssetDialog
+        library={library}
+        root={root}
+        targetFolder={`assets/templates/${template.id}`}
+        onLibraryChange={onLibraryChange}
+        onError={message => setSaveStatus(message)}
+        onClose={() => setChildImageTarget(undefined)}
+        onSelect={asset => { addChildBlock(childImageTarget.parentId, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, childImageTarget.cell); setChildImageTarget(undefined); }}
       />}
     </div>
   );

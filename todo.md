@@ -2,6 +2,7 @@
 
 ## General
 * Extra "OneLicense.net copyright notice automatically at end
+  * Implement by allowing pre- and post- manual entries. They can be set in the template.
 
 * Recreate bulletin using UI only.
 
@@ -21,6 +22,21 @@
 * Fix inline scripture block formatting (responsive reading)
 
 
-## Layout elements
+## Containers
 
-Layout elements should accept any element as their sub-elements, not just paragraphs
+
+## Private Data
+
+Library data should carry with it metadata that would mark it as private/public. This would be used to
+protect data from AI models once the auto-import and other AI-assistant features are added.
+
+
+## Cosmetic
+
+* Perform a visual inspection and suggest improvements.
+
+
+## Inline Scripture import
+
+For rich text elements, I want an "Import Scripture" button that asks for a reference and will import
+the reference directly into the text at the cursor, followed by the right-aligned scripture reference.

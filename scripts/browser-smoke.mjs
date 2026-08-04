@@ -64,13 +64,37 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_GRID_ONLY === '1') {
+  await evaluate(`Array.from(document.querySelectorAll('.element-palette-item')).find(element=>element.textContent.includes('Grid'))?.click()`);
+  await wait(`Boolean(document.querySelector('.preview-pane .block-group.layout-grid'))`, 'grid container preview');
+  await evaluate(`Array.from(document.querySelectorAll('.sortable-grid-cell.empty')).at(-1)?.click()`);
+  await wait(`Boolean(document.querySelector('.library-create-type-dialog'))`, 'grid cell element picker');
+  await evaluate(`Array.from(document.querySelectorAll('.library-create-type-dialog button')).find(element=>element.textContent.includes('Text'))?.click()`);
+  await wait(`Boolean(Array.from(document.querySelectorAll('.preview-pane .grid-resize-separator.column')).at(-1)?.getBoundingClientRect().height)`, 'column separator hit area');
+  await evaluate(`Array.from(document.querySelectorAll('.preview-pane .grid-resize-separator.column')).at(-1)?.scrollIntoView({block:'center',inline:'center'})`);
+  const before = await evaluate(`Array.from(document.querySelectorAll('.preview-pane .block-group.layout-grid')).at(-1)?.style.gridTemplateColumns`);
+  const separator = await evaluate(`(()=>{const rect=Array.from(document.querySelectorAll('.preview-pane .grid-resize-separator.column')).at(-1).getBoundingClientRect();const x=rect.left+rect.width/2;const y=rect.top+rect.height/2;return {x,y,width:rect.width,height:rect.height,viewport:{width:innerWidth,height:innerHeight},hit:document.elementFromPoint(x,y)?.className,elements:document.elementsFromPoint(x,y).map(element=>({tag:element.tagName,className:String(element.className)})).slice(0,6)}})()`);
+  if (separator.width < 8 || separator.height < 8 || !String(separator.hit).includes('grid-resize-separator')) throw new Error(`Grid separator is not draggable: ${JSON.stringify(separator)}`);
+  await evaluate(`(()=>{const element=Array.from(document.querySelectorAll('.preview-pane .grid-resize-separator.column')).at(-1);element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,buttons:1,clientX:${separator.x},clientY:${separator.y}}));window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,clientX:${separator.x + 24},clientY:${separator.y}}));window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:${separator.x + 24},clientY:${separator.y}}));return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.preview-pane .block-group.layout-grid')).at(-1)?.style.gridTemplateColumns!==${JSON.stringify(before)}`, 'dragged column sizing');
+  const beforeRows = await evaluate(`Array.from(document.querySelectorAll('.preview-pane .block-group.layout-grid')).at(-1)?.style.gridTemplateRows`);
+  const rowSeparator = await evaluate(`(()=>{const rect=Array.from(document.querySelectorAll('.preview-pane .grid-resize-separator.row')).at(-1).getBoundingClientRect();const x=rect.left+rect.width/2;const y=rect.top+rect.height/2;return {x,y,width:rect.width,height:rect.height,hit:document.elementFromPoint(x,y)?.className}})()`);
+  if (rowSeparator.width < 8 || rowSeparator.height < 8 || !String(rowSeparator.hit).includes('grid-resize-separator')) throw new Error(`Grid row separator is not draggable: ${JSON.stringify(rowSeparator)}`);
+  await evaluate(`(()=>{const element=Array.from(document.querySelectorAll('.preview-pane .grid-resize-separator.row')).at(-1);element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,buttons:1,clientX:${rowSeparator.x},clientY:${rowSeparator.y}}));window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,clientX:${rowSeparator.x},clientY:${rowSeparator.y + 12}}));window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:${rowSeparator.x},clientY:${rowSeparator.y + 12}}));return true})()`);
+  await wait(`Array.from(document.querySelectorAll('.preview-pane .block-group.layout-grid')).at(-1)?.style.gridTemplateRows!==${JSON.stringify(beforeRows)}`, 'dragged row sizing');
+  pass('drags row and column separators in the document preview');
+  console.log(`\n${results.length} browser grid checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1') {
   await click('This week');

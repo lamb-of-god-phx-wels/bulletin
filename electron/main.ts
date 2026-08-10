@@ -104,6 +104,19 @@ function registerIpc() {
       : extension === '.ttf' ? 'font/ttf' : extension === '.otf' ? 'font/otf' : extension === '.woff' ? 'font/woff' : extension === '.woff2' ? 'font/woff2' : 'image/jpeg';
     return { path: path.relative(root, destination), mediaType, alt: path.basename(source) };
   });
+  ipcMain.handle('font-assets:import', async (_event, root: string, targetFolder: string) => {
+    await requireWritable(root);
+    const result = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], defaultPath: await dialogPaths.get('asset'), filters: [{ name: 'Font files', extensions: ['ttf', 'otf', 'woff', 'woff2'] }] });
+    if (result.canceled) return [];
+    await dialogPaths.remember('asset', path.dirname(result.filePaths[0]));
+    void targetFolder;
+    return Promise.all(result.filePaths.map(async source => {
+      const destination = await copyAssetToBlobStore(source, root);
+      const extension = path.extname(source).toLowerCase();
+      const mediaType = extension === '.ttf' ? 'font/ttf' : extension === '.otf' ? 'font/otf' : extension === '.woff' ? 'font/woff' : 'font/woff2';
+      return { path: path.relative(root, destination), mediaType, alt: path.basename(source) } as const;
+    }));
+  });
   ipcMain.handle('asset:copy', async (_event, root: string, asset: Parameters<BulletinApi['copyAsset']>[1], targetFolder: string) => {
     await requireWritable(root);
     const source = inside(root, asset.path);

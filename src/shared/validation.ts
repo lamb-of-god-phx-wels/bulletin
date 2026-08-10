@@ -6,6 +6,7 @@ import { estimateBlockPoints } from './pagination.js';
 import { songLibraryItem, songPresentations } from './songs.js';
 import { customPropertyIssues } from './customProperties.js';
 import { flattenBlocks } from './blocks.js';
+import { fontReferenceIssues } from './fonts.js';
 
 export function validateBulletin(value: unknown, library?: LibraryManifestV1, template?: TemplateV1): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -89,5 +90,6 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
       }
     }
   }
+  if (template) issues.push(...fontReferenceIssues(template, library, doc));
   return issues;
 }

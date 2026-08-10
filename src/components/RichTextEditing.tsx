@@ -1,9 +1,10 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { CustomBlockStyle, InlineTextStyle, Marks, Paragraph } from '../shared/types';
-import { useFontOptions } from './LibraryFonts';
+import type { CustomBlockStyle, FontReference, InlineTextStyle, Marks, Paragraph } from '../shared/types';
+import { FontPicker } from './FontPicker';
 
 export type RichTextToolbarState = {
   marks: Marks;
+  fontRef?: FontReference;
   fontFamily?: string;
   fontSizePt?: number;
   textTransform?: NonNullable<InlineTextStyle['textTransform']>;
@@ -81,7 +82,6 @@ const lineHeights = [
 
 export function RichTextToolbar({ className = '' }: { className?: string }) {
   const { active, toolbar, refresh } = useRichTextEditing();
-  const fontOptions = useFontOptions();
   const disabled = !active;
   const command = (run: (adapter: RichTextAdapter) => void) => {
     if (!active) return;
@@ -95,11 +95,7 @@ export function RichTextToolbar({ className = '' }: { className?: string }) {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
     window.setTimeout(() => active?.finish());
   }}>
-    <label>Font<select disabled={disabled} value={toolbar.fontFamily ?? ''} onChange={event => command(adapter => adapter.inlineStyle({ fontFamily: event.target.value }))}>
-      {!toolbar.fontFamily && <option value="">Font</option>}
-      {toolbar.fontFamily && !fontOptions.some(option => option.value === toolbar.fontFamily) && <option value={toolbar.fontFamily}>{toolbar.fontFamily}</option>}
-      {fontOptions.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
-    </select></label>
+    <FontPicker label="Font" disabled={disabled} fontRef={toolbar.fontRef} fontFamily={toolbar.fontFamily} onChange={fontRef => command(adapter => adapter.inlineStyle({ fontRef, fontFamily: undefined }))} />
     <label>Size<input disabled={disabled} type="number" min="6" max="72" step=".5" value={toolbar.fontSizePt ?? ''} placeholder="Size" onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) command(adapter => adapter.inlineStyle({ fontSizePt: event.currentTarget.valueAsNumber })); }} /></label>
     <label>Spacing<select disabled={disabled} value={toolbar.lineHeight ?? ''} onChange={event => command(adapter => adapter.paragraph({ lineHeight: Number(event.target.value) }))}>
       {!toolbar.lineHeight && <option value="">Spacing</option>}{lineHeights.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}

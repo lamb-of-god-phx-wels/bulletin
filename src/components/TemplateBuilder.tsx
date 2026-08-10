@@ -25,7 +25,7 @@ import { ElementPalette, ElementSidebarPortal, type ElementPaletteItem } from ".
 import { PageElementDialog } from "./PageElementDialog";
 import { SongBlockFields } from "./SongBlockFields";
 import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
-import { useFontOptions } from "./LibraryFonts";
+import { FontPicker } from "./FontPicker";
 import { randomId } from "../shared/id";
 import { ImageAssetDialog } from "./ImageAssetDialog";
 import { ImageBlockFields } from "./ImageBlockFields";
@@ -48,6 +48,7 @@ import { RichTextBindingControl } from "./RichTextBindingControl";
 import { boundRichTextParagraphs } from "../shared/canvas";
 import { ElementPickerDialog } from "./ElementPickerDialog";
 import { LayoutContainerFields } from "./LayoutContainerFields";
+import { effectiveFontRoles, familyLabel, remapFontRole } from "../shared/fonts";
 
 export function TemplateBuilder({
   template,
@@ -82,7 +83,8 @@ export function TemplateBuilder({
   canDeleteVersion: boolean;
   canDeleteTemplate: boolean;
 }) {
-  const fontOptions = useFontOptions();
+  const fontRoles = effectiveFontRoles(template.theme, library);
+  const [replacingFontRoleId, setReplacingFontRoleId] = useState<string>();
   const [saveStatus, setSaveStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [blockLibraryOpen, setBlockLibraryOpen] = useState(false);
@@ -114,6 +116,16 @@ export function TemplateBuilder({
     key: keyof TemplateV1["theme"],
     value: string | number,
   ) => updateTemplate({ theme: { ...template.theme, [key]: value } });
+  const updateFontRoles = (roles: typeof fontRoles, starterBlocks = template.starterBlocks) => updateTemplate({
+    theme: {
+      ...template.theme,
+      fontRoles: roles,
+      defaultFontRoleId: 'body',
+      bodyFont: familyLabel(roles.find(role => role.id === 'body')?.family ?? fontRoles[0].family, library),
+      displayFont: familyLabel(roles.find(role => role.id === 'display')?.family ?? roles.find(role => role.id === 'body')!.family, library),
+    },
+    starterBlocks,
+  });
   const responsiveReadingSettings = effectiveResponsiveReadingSettings(template);
   const updateResponsiveReadingSettings = (next: typeof responsiveReadingSettings) => updateTemplate({
     responsiveReading: next,
@@ -389,25 +401,24 @@ export function TemplateBuilder({
         </div>
         <section className="editor-card">
           <h2>Theme</h2>
-          <label>
-            Body font
-            <input
-              list="template-font-families"
-              value={template.theme.bodyFont}
-              onChange={(event) => updateTheme("bodyFont", event.target.value)}
-            />
-          </label>
-          <label>
-            Display font
-            <input
-              list="template-font-families"
-              value={template.theme.displayFont}
-              onChange={(event) =>
-                updateTheme("displayFont", event.target.value)
-              }
-            />
-          </label>
-          <datalist id="template-font-families">{fontOptions.filter(option => option.value !== 'body' && option.value !== 'display').map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</datalist>
+          <div className="theme-font-roles">
+            <header><div><b>Font roles</b><small>Use roles throughout the template so a family can be changed in one place.</small></div><button type="button" className="secondary" onClick={() => {
+              const base = 'font'; let id = base; let suffix = 2;
+              while (fontRoles.some(role => role.id === id)) id = `${base}-${suffix++}`;
+              updateFontRoles([...fontRoles, { id, name: 'New font role', family: fontRoles.find(role => role.id === 'body')!.family }]);
+            }}>＋ Add role</button></header>
+            {fontRoles.map(role => <div className="theme-font-role" key={role.id}>
+              <label>Role name<input value={role.name} disabled={role.id === 'body'} onChange={event => updateFontRoles(fontRoles.map(candidate => candidate.id === role.id ? { ...candidate, name: event.target.value } : candidate))} /></label>
+              <FontPicker label={`${role.name} family`} familiesOnly fontRef={{ kind: 'libraryFont', family: role.family }} onChange={fontRef => { if (fontRef.kind === 'libraryFont') updateFontRoles(fontRoles.map(candidate => candidate.id === role.id ? { ...candidate, family: fontRef.family } : candidate)); }} />
+              {role.id === 'body' ? <span className="role-required">Required</span> : <button type="button" className="danger-text" onClick={() => setReplacingFontRoleId(role.id)}>Delete</button>}
+            </div>)}
+            {replacingFontRoleId && <div className="font-role-replacement"><label>Replace “{fontRoles.find(role => role.id === replacingFontRoleId)?.name}” with<select id="font-role-replacement-select" defaultValue="body">{fontRoles.filter(role => role.id !== replacingFontRoleId).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></label><div><button type="button" className="secondary" onClick={() => setReplacingFontRoleId(undefined)}>Cancel</button><button type="button" className="primary" onClick={() => {
+              const select = document.getElementById('font-role-replacement-select') as HTMLSelectElement | null;
+              const replacement = select?.value ?? 'body';
+              updateFontRoles(fontRoles.filter(role => role.id !== replacingFontRoleId), remapFontRole(template.starterBlocks, replacingFontRoleId, replacement));
+              setReplacingFontRoleId(undefined);
+            }}>Replace and delete</button></div></div>}
+          </div>
           <div className="field-row">
             <label>
               Accent

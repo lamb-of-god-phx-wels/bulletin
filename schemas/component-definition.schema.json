@@ -101,6 +101,13 @@
         "paddingIn": { "$ref": "#/$defs/box" },
         "marginIn": { "$ref": "#/$defs/box" },
         "fontFamily": { "type": "string" },
+        "fontRef": {
+          "oneOf": [
+            { "type": "object", "required": ["kind", "roleId"], "properties": { "kind": { "const": "themeRole" }, "roleId": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+            { "type": "object", "required": ["kind", "family"], "properties": { "kind": { "const": "libraryFont" }, "family": { "type": "object", "required": ["id", "version"], "properties": { "id": { "type": "string", "minLength": 1 }, "version": { "type": "integer", "minimum": 1 } }, "additionalProperties": false } }, "additionalProperties": false },
+            { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "const": "legacyCss" }, "value": { "type": "string", "minLength": 1 } }, "additionalProperties": false }
+          ]
+        },
         "fontSizePt": { "type": "number", "minimum": 1 },
         "lineHeight": { "type": "number", "minimum": 0.5 },
         "fontWeight": {

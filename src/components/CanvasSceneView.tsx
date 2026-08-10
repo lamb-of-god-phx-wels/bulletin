@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { boundRichTextParagraphs, canvasLineMetrics, canvasSpace, canvasTextParagraphs } from '../shared/canvas.js';
 import type { BulletinDocumentV1, CanvasElement, CanvasScene, Paragraph, TemplateV1 } from '../shared/types.js';
 import { conditionVisible } from '../shared/customProperties.js';
+import { fontReferenceCss } from '../shared/fonts.js';
 
 function InlineParagraph({ paragraph }: { paragraph: Paragraph }) {
   return <p style={{ textAlign: paragraph.align, lineHeight: paragraph.lineHeight }}>{paragraph.children.map((run, index) =>
@@ -9,7 +10,7 @@ function InlineParagraph({ paragraph }: { paragraph: Paragraph }) {
       ? <br key={index} />
       : run.type === 'symbol'
         ? <span key={index}>✠</span>
-        : <span className={run.marks?.map(mark => `mark-${mark}`).join(' ')} style={{ fontFamily: run.style?.fontFamily, fontSize: run.style?.fontSizePt ? `${run.style.fontSizePt}pt` : undefined, textTransform: run.style?.textTransform === 'uppercase' ? 'uppercase' : undefined, fontVariant: run.style?.textTransform === 'small-caps' ? 'small-caps' : undefined }} key={index}>{run.text}</span>
+        : <span className={run.marks?.map(mark => `mark-${mark}`).join(' ')} style={{ fontFamily: fontReferenceCss(run.style?.fontRef, run.style?.fontFamily), fontSize: run.style?.fontSizePt ? `${run.style.fontSizePt}pt` : undefined, textTransform: run.style?.textTransform === 'uppercase' ? 'uppercase' : undefined, fontVariant: run.style?.textTransform === 'small-caps' ? 'small-caps' : undefined }} key={index}>{run.text}</span>
   )}</p>;
 }
 
@@ -122,7 +123,7 @@ function CanvasElementView({ element, document, template, assets, renderNativeBl
   const style = {
     ...geometry(element),
     padding: `${padding.top ?? 0}in ${padding.right ?? 0}in ${padding.bottom ?? 0}in ${padding.left ?? 0}in`,
-    fontFamily: element.fontFamily === 'body' ? 'var(--body-font)' : element.fontFamily === 'display' ? 'var(--display-font)' : element.fontFamily,
+    fontFamily: fontReferenceCss(element.fontRef, element.fontFamily),
     fontSize: `${textFontSize(element, document, template)}pt`,
     lineHeight: element.lineHeight ?? 1.15,
     fontWeight: element.fontWeight,

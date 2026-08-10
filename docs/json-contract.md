@@ -55,6 +55,14 @@ Adding a custom block to a template creates a self-contained snapshot with a `de
 - One-off assets are copied into that week's project folder. All paths are workspace-relative, and paths escaping the workspace are rejected.
 - Export snapshots are stored in `revisions/`; PDF output is padded to a multiple of four pages.
 
+## Portable fonts
+
+Fonts are workspace assets rather than operating-system dependencies. In **Library → Fonts**, add a font family, select all of its TTF, OTF, WOFF, or WOFF2 files together, review the detected weight and style for each face, add any license notice, and save. Updating an existing family creates a new version; existing references stay pinned until explicitly upgraded.
+
+Templates define named font roles under **Theme → Font roles**. Every theme has a required Body role and may add roles such as Display, Scripture, Caption, or Hymn. A role selects one exact font-family version. Changing that selection updates all content using the role, while content assigned directly to a family remains pinned to that family version.
+
+Font pickers show theme roles first and direct font families second. Prefer roles for normal template design and direct families for deliberate exceptions. Missing bold or italic faces may be synthesized and are reported as warnings. A missing family file or legacy system-only CSS family is a blocking portability error and must be imported or replaced before PDF export.
+
 ## Future music and AI tools
 
 Library assets accept named `variant` values. A future music compositor can publish verse-specific PNG variants without changing the renderer's core content model.

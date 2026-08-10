@@ -1,5 +1,5 @@
 import { cloneElement, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, GroupBlock, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
+import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, FontReference, GroupBlock, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
 import { conditionVisible } from '../shared/customProperties';
 import { childBlocks, findBlock, flattenBlocks, groupChildCell, updateBlockTree } from '../shared/blocks';
@@ -9,6 +9,7 @@ import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, r
 import { songHeader, songTitle } from '../shared/songs';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
 import { useLibraryFontsReady } from './LibraryFonts';
+import { effectiveFontRoles, familyCssName, fontReferenceCss } from '../shared/fonts';
 import { boundRichTextParagraphs, canvasAssetRefs, canvasNativeBlocks } from '../shared/canvas';
 import { bookletPrinterSpreads, bookletReadingSpreads } from '../shared/booklet';
 import { CanvasSceneView } from './CanvasSceneView';
@@ -20,7 +21,7 @@ const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index)
   : run.type === 'symbol'
     ? <span className="cross" key={index}>✠</span>
     : <span key={index} className={run.marks?.map(mark => `mark-${mark}`).join(' ')} style={{
-      fontFamily: run.style?.fontFamily === 'body' ? 'var(--body-font)' : run.style?.fontFamily === 'display' ? 'var(--display-font)' : run.style?.fontFamily,
+      fontFamily: fontReferenceCss(run.style?.fontRef, run.style?.fontFamily),
       fontSize: run.style?.fontSizePt ? `${run.style.fontSizePt}pt` : undefined,
       textTransform: run.style?.textTransform === 'uppercase' ? 'uppercase' : undefined,
       fontVariant: run.style?.textTransform === 'small-caps' ? 'small-caps' : undefined,
@@ -33,11 +34,13 @@ function Paragraphs({ content }: { content: Paragraph[] }) {
 const textParagraphs = (value: string): Paragraph[] => [{ type: 'paragraph', children: [{ type: 'text', text: value }] }];
 const plainText = (content: Paragraph[]) => content.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n');
 const CanvasTextBoxContext = createContext<{ verticalAlign?: CustomBlockStyle['verticalAlign']; onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void }>({});
+const BlockFontContext = createContext<{ fontRef?: FontReference; fontFamily?: string }>({ fontFamily: 'body' });
 
 function EditableParagraphs({ content, label, onChange, onReset, className, inline = false }: { content: Paragraph[]; label: string; onChange?(content: Paragraph[]): void; onReset?(): void; className?: string; inline?: boolean }) {
   const textBox = useContext(CanvasTextBoxContext);
+  const inheritedFont = useContext(BlockFontContext);
   return onChange
-    ? <RichTextEditor content={content} label={label} onChange={onChange} onReset={onReset} variant={textBox.onVerticalAlignChange ? 'canvas' : 'preview'} className={`${inline ? 'inline-rich-text' : ''} ${className ?? ''}`.trim()} verticalAlign={textBox.verticalAlign} onVerticalAlignChange={textBox.onVerticalAlignChange} />
+    ? <RichTextEditor content={content} label={label} onChange={onChange} onReset={onReset} variant={textBox.onVerticalAlignChange ? 'canvas' : 'preview'} className={`${inline ? 'inline-rich-text' : ''} ${className ?? ''}`.trim()} inheritedFontRef={inheritedFont.fontRef} inheritedFontFamily={inheritedFont.fontFamily} verticalAlign={textBox.verticalAlign} onVerticalAlignChange={textBox.onVerticalAlignChange} />
     : inline ? <>{content.map((paragraph, index) => <span key={index}>{index > 0 && <br />}{inlineText(paragraph)}</span>)}</> : <Paragraphs content={content} />;
 }
 
@@ -150,7 +153,7 @@ function presentationStyle(block: PaginatedBlock): React.CSSProperties | undefin
     marginTop: `${style.marginIn.top}in`, marginBottom: `${style.marginIn.bottom}in`,
     marginLeft: style.placement === 'left' ? 0 : 'auto', marginRight: style.placement === 'right' ? 0 : 'auto',
     padding: `${style.paddingIn.top}in ${style.paddingIn.right}in ${style.paddingIn.bottom}in ${style.paddingIn.left}in`,
-    textAlign: style.textAlign, fontFamily: style.fontFamily === 'body' ? 'var(--body-font)' : style.fontFamily === 'display' ? 'var(--display-font)' : style.fontFamily,
+    textAlign: style.textAlign, fontFamily: fontReferenceCss(style.fontRef, style.fontFamily),
     fontSize: `${style.fontSizePt}pt`, lineHeight: style.lineHeight, fontWeight: style.fontWeight, fontStyle: style.fontStyle,
     fontVariant: style.textTransform === 'small-caps' ? 'small-caps' : undefined,
     textTransform: style.textTransform === 'uppercase' ? 'uppercase' : 'none',
@@ -406,10 +409,15 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
 
 function RenderedBlock({ block, library, assets, document, template, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
   const style = presentationStyle(block);
+  const baseFont = block.type === 'custom' ? block.style : undefined;
+  const inheritedFont = {
+    fontRef: block.presentation?.fontRef ?? baseFont?.fontRef,
+    fontFamily: block.presentation?.fontRef || baseFont?.fontRef ? undefined : block.presentation?.fontFamily ?? baseFont?.fontFamily ?? 'body',
+  };
   const editorBlockId = block.sourceBlockId ?? block.id;
-  if (style) return <div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} /></div>;
+  if (style) return <BlockFontContext.Provider value={inheritedFont}><div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} /></div></BlockFontContext.Provider>;
   const view = BlockView({ block, library, assets, document, template, marginIn, onBlockChange }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
-  return cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId });
+  return <BlockFontContext.Provider value={inheritedFont}>{cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId })}</BlockFontContext.Provider>;
 }
 
 export function NativeBlockPreview({ block, library, assets, document, template, marginIn, onBlockChange, verticalAlign, onVerticalAlignChange }: { block: BulletinDocumentV1['blocks'][number]; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void; verticalAlign?: CustomBlockStyle['verticalAlign']; onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void }) {
@@ -465,6 +473,7 @@ export function DocumentView({ document: bulletin, template, library, root, prin
   const pages = singlePage
     ? allPages.length ? allPages.slice(0, 1) : [{ number: 1, kind: 'content' as const, blocks: [] }]
     : allPages;
+  const roleVariables = Object.fromEntries(effectiveFontRoles(effectiveTemplate.theme, library).map(role => [`--font-role-${role.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`, familyCssName(role.family, library) ?? 'sans-serif']));
   const stackProps = {
     className: `document-stack ${print ? 'is-print' : ''} ${bookletMode ? 'is-booklet' : ''} ${onBlockSelect && !print ? 'is-interactive' : ''}`,
     onClickCapture: onBlockSelect && !print ? (event: React.MouseEvent<HTMLDivElement>) => {
@@ -472,7 +481,8 @@ export function DocumentView({ document: bulletin, template, library, root, prin
     if (block && event.currentTarget.contains(block) && block.dataset.blockId) onBlockSelect(block.dataset.blockId);
     } : undefined,
     style: {
-    '--body-font': effectiveTemplate.theme.bodyFont, '--display-font': effectiveTemplate.theme.displayFont,
+    ...roleVariables,
+    '--body-font': 'var(--font-role-body)', '--display-font': 'var(--font-role-display, var(--font-role-body))',
     '--ink': effectiveTemplate.theme.ink, '--accent': effectiveTemplate.theme.accent,
     '--body-size': `${effectiveTemplate.theme.bodySizePt}pt`, '--line-height': effectiveTemplate.theme.lineHeight,
     '--page-margin': `${effectiveTemplate.theme.marginIn}in`,

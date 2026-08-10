@@ -58,7 +58,17 @@ function selectedTextStyle(content: Paragraph[], start: number, end: number): In
     const value = runs[0].style?.[key];
     return runs.every(run => run.style?.[key] === value) ? value : undefined;
   };
-  return { fontFamily: common('fontFamily'), fontSizePt: common('fontSizePt'), textTransform: common('textTransform') };
+  const firstRef = runs[0].style?.fontRef;
+  const fontRef = runs.every(run => JSON.stringify(run.style?.fontRef) === JSON.stringify(firstRef)) ? firstRef : undefined;
+  return { fontRef, fontFamily: common('fontFamily'), fontSizePt: common('fontSizePt'), textTransform: common('textTransform') };
+}
+
+export function effectiveSelectedTextStyle(content: Paragraph[], start: number, end: number, inherited: InlineTextStyle): InlineTextStyle {
+  const selected = selectedTextStyle(content, start, end);
+  const runs = selectedRuns(content, start, end);
+  return runs.length && runs.every(run => !run.style?.fontRef && !run.style?.fontFamily)
+    ? { ...selected, fontRef: inherited.fontRef, fontFamily: inherited.fontRef ? undefined : inherited.fontFamily }
+    : selected;
 }
 
 export function formatTextStyleRange(content: Paragraph[], start: number, end: number, changes: InlineTextStyle): Paragraph[] {
@@ -228,7 +238,7 @@ function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
   selection?.addRange(range);
 }
 
-export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, onReset, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, commitDelayMs }: {
+export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, onReset, inheritedFontRef, inheritedFontFamily, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, commitDelayMs }: {
   content: Paragraph[];
   label: string;
   onChange(content: Paragraph[]): void;
@@ -237,6 +247,8 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
   variant?: 'field' | 'preview' | 'canvas';
   readOnly?: boolean;
   onReset?(): void;
+  inheritedFontRef?: InlineTextStyle['fontRef'];
+  inheritedFontFamily?: string;
   verticalAlign?: CustomBlockStyle['verticalAlign'];
   onVerticalAlignChange?(value: CustomBlockStyle['verticalAlign']): void;
   onEditingFocus?(): void;
@@ -318,7 +330,13 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     if (!editor || !offsets) return toolbarStateRef.current;
     const current = scriptureContentFromEditor(editor);
     const marks = offsets.start === offsets.end ? pendingRef.current.marks : selectedTextMarks(current, offsets.start, offsets.end);
-    const style = offsets.start === offsets.end ? pendingRef.current.style : selectedTextStyle(current, offsets.start, offsets.end);
+    const inheritedStyle = { fontRef: inheritedFontRef, fontFamily: inheritedFontFamily };
+    const selectedStyle = offsets.start === offsets.end
+      ? pendingRef.current.style.fontRef || pendingRef.current.style.fontFamily
+        ? pendingRef.current.style
+        : { ...pendingRef.current.style, ...inheritedStyle }
+      : effectiveSelectedTextStyle(current, offsets.start, offsets.end, inheritedStyle);
+    const style = selectedStyle;
     let cursor = 0;
     const paragraph = current.find(item => {
       const length = item.children.reduce((total, run) => total + (run.type === 'text' ? run.text.length : 1), 0);
@@ -396,7 +414,7 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
       return;
     }
     const withoutMarks = formatTextRange(scriptureContentFromEditor(editor), offsets.start, offsets.end);
-    const next = formatTextStyleRange(withoutMarks, offsets.start, offsets.end, { fontFamily: undefined, fontSizePt: undefined, textTransform: undefined });
+    const next = formatTextStyleRange(withoutMarks, offsets.start, offsets.end, { fontRef: undefined, fontFamily: undefined, fontSizePt: undefined, textTransform: undefined });
     renderEditorContent(editor, next);
     restoreSelection(editor, offsets);
     signatureRef.current = JSON.stringify(next);

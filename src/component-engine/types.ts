@@ -36,6 +36,10 @@ export interface ComponentStyle {
   paddingIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
   marginIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
   fontFamily?: string;
+  fontRef?:
+    | { kind: 'themeRole'; roleId: string }
+    | { kind: 'libraryFont'; family: { id: string; version: number } }
+    | { kind: 'legacyCss'; value: string };
   fontSizePt?: number;
   lineHeight?: number;
   fontWeight?: 'normal' | 'bold' | number;

@@ -2,6 +2,7 @@ import type { BulletinDocumentV1, PageTemplateV1, TemplateV1 } from './types.js'
 import { createCanvasBlock, defaultCanvasScene } from './canvas.js';
 import { instantiatePageTemplate } from './pageTemplates.js';
 import { defaultResponsiveReadingSettings } from './responsiveReading.js';
+import { bodyFontRole, displayFontRole } from './fonts.js';
 
 const now = () => new Date().toISOString();
 
@@ -25,6 +26,8 @@ export const defaultTemplate: TemplateV1 = {
   status: 'published',
   page: { widthIn: 7, heightIn: 8.5, pageMultiple: 4 },
   theme: {
+    fontRoles: [structuredClone(bodyFontRole), structuredClone(displayFontRole)],
+    defaultFontRoleId: 'body',
     bodyFont: 'Calibri, Arial, sans-serif',
     displayFont: 'Eras Demi ITC, Georgia, serif',
     ink: '#25302d',

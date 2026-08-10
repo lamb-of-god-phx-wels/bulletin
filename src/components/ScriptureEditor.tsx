@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { scriptureParagraphsFromText } from '../shared/scriptureText';
 import type { Inline, InlineTextStyle, Marks, Paragraph } from '../shared/types';
+import { fontReferenceCss } from '../shared/fonts';
 
 function sameMarks(left?: Marks, right?: Marks) {
   return JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
@@ -63,7 +64,7 @@ export function renderStructuredContent(container: HTMLElement, content: Paragra
             if (run.marks?.length) marked.dataset.marks = run.marks.join(',');
             if (run.style) {
               marked.dataset.textStyle = JSON.stringify(run.style);
-              if (run.style.fontFamily) marked.style.fontFamily = run.style.fontFamily;
+              if (run.style.fontRef || run.style.fontFamily) marked.style.fontFamily = fontReferenceCss(run.style.fontRef, run.style.fontFamily) ?? '';
               if (run.style.fontSizePt) marked.style.fontSize = `${run.style.fontSizePt}pt`;
               if (run.style.textTransform === 'uppercase') marked.style.textTransform = 'uppercase';
               if (run.style.textTransform === 'small-caps') marked.style.fontVariant = 'small-caps';

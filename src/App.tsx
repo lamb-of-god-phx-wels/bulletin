@@ -23,7 +23,7 @@ import {
 } from "./components/CreateFromDialog";
 import { ImageAssetDialog } from "./components/ImageAssetDialog";
 import { LibraryBrowserDialog } from "./components/LibraryBrowserDialog";
-import { LibraryFontProvider } from "./components/LibraryFonts";
+import { ImportedFontPreview, LibraryFontProvider } from "./components/LibraryFonts";
 import { createBulletin, defaultTemplate } from "./shared/defaults";
 import { libraryFamilies, type LibraryFamily } from "./shared/library";
 import { paginate } from "./shared/pagination";
@@ -45,6 +45,7 @@ import type {
   BulletinRevisionRecord,
   BulletinDocumentV1,
   EditingState,
+  FontFaceV1,
   LibraryItemV1,
   LibraryManifestV1,
   LibraryFolder,
@@ -77,6 +78,8 @@ import {
 import { RichTextToolbar } from "./components/RichTextEditing";
 import { copyEmbeddedAssets, copySlug, uniqueCopyId, uniqueCopyName } from "./shared/libraryCopy";
 import bulletinBuilderLogo from "./assets/bulletin-builder-logo.svg?raw";
+import { bytesFromDataUrl, detectFontFace } from "./shared/fontMetadata";
+import { fontLoadErrors } from "./shared/fontRuntime";
 
 const BrandLogo = () => <span
   className="brand-logo"
@@ -112,6 +115,7 @@ type LibraryDraft = {
   text: string;
   notice: string;
   asset?: NonNullable<LibraryItemV1["assets"]>[number];
+  fontFaces?: FontFaceV1[];
 };
 const emptyLibraryDraft = (): LibraryDraft => ({
   id: "",
@@ -134,6 +138,14 @@ const libraryContentText = (item: LibraryItemV1) =>
         .join(""),
     )
     .join("\n\n") ?? "";
+const fontReferenceCount = (value: unknown, item: Pick<LibraryItemV1, "id" | "version">): number => {
+  if (!value || typeof value !== "object") return 0;
+  if (Array.isArray(value)) return value.reduce((count, child) => count + fontReferenceCount(child, item), 0);
+  const record = value as Record<string, unknown>;
+  const family = record.family as { id?: string; version?: number } | undefined;
+  const own = family?.id === item.id && family.version === item.version ? 1 : 0;
+  return own + Object.entries(record).filter(([key]) => key !== "family").reduce((count, [, child]) => count + fontReferenceCount(child, item), 0);
+};
 const storedPreviewZoom = () => {
   const raw = localStorage.getItem("bulletin-preview-zoom");
   const value = raw === null ? Number.NaN : Number(raw);
@@ -859,6 +871,7 @@ function DesktopApp() {
       setExporting(false);
     }
   }
+  const hasBlockingExportIssues = exportIssues.some(issue => issue.severity === "error" && (issue.code === "missing-font" || issue.code === "missing-font-role" || issue.code === "legacy-font" || issue.code === "font-load"));
   async function exportPdf() {
     if (!document || !workspace || !window.bulletin) return;
     const issues = validateBulletin(
@@ -866,6 +879,7 @@ function DesktopApp() {
       workspace.library,
       templateForBulletin(template, document),
     );
+    issues.push(...fontLoadErrors().map((message, index) => ({ path: `/fonts/${index}`, message: `A workspace font could not be loaded: ${message}`, severity: "error" as const, code: "font-load" })));
     if (issues.length) {
       setExportIssues(issues);
       reportStatus(
@@ -1384,7 +1398,7 @@ function DesktopApp() {
     </div>
   );
   return (
-    <LibraryFontProvider root={workspace.root} library={workspace.library}><div
+    <LibraryFontProvider root={workspace.root} library={workspace.library} template={template}><div
       className={`app-shell${editorOpen ? " editor-shell" : ""}${navigationOpen ? " navigation-open" : ""}${workspaceWritable ? "" : " workspace-readonly"}`}
     >
       {editorOpen ? (
@@ -2135,10 +2149,7 @@ function DesktopApp() {
               ))}
             </div>
             <footer>
-              <p>
-                You can return to the editor to fix these items, or export the
-                current preview as it appears now.
-              </p>
+              <p>{hasBlockingExportIssues ? "Portable export is unavailable until every referenced font is stored in the workspace or replaced." : "You can return to the editor to fix these items, or export the current preview as it appears now."}</p>
               <div className="export-checklist-actions">
                 <button
                   className="secondary"
@@ -2146,12 +2157,12 @@ function DesktopApp() {
                 >
                   Back to editor
                 </button>
-                <button
+                {!hasBlockingExportIssues && <button
                   className="primary"
                   onClick={() => void performExport()}
                 >
                   Export anyway
-                </button>
+                </button>}
               </div>
             </footer>
           </section>
@@ -2723,6 +2734,17 @@ function LibraryView({
   const chooseAsset = async () => {
     if (!window.bulletin || !draft.id) return;
     try {
+      if (draft.kind === "font" && window.bulletin.importFontAssets) {
+        const assets = await window.bulletin.importFontAssets(workspace.root, `assets/library/${draft.id}`);
+        if (!assets.length) return;
+        const detected = await Promise.all(assets.map(async asset => {
+          try { return detectFontFace(bytesFromDataUrl(await window.bulletin!.readAsset(workspace.root, asset.path)), asset); }
+          catch { return { asset, weight: 400, style: "normal" as const }; }
+        }));
+        const familyName = detected.find(face => face.familyName)?.familyName;
+        setDraft(current => ({ ...current, title: current.title || familyName || "Imported font", fontFaces: detected }));
+        return;
+      }
       const asset = await window.bulletin.importAsset(
         workspace.root,
         `assets/library/${draft.id}`,
@@ -2744,8 +2766,12 @@ function LibraryView({
       onError("Enter a title and stable ID before saving the library item.");
       return;
     }
-    if (draft.kind === "font" && !draft.asset) {
+    if (draft.kind === "font" && !draft.fontFaces?.length && !draft.asset) {
       onError("Attach a TTF, OTF, WOFF, or WOFF2 file before saving the font.");
+      return;
+    }
+    if (draft.kind === "font" && draft.fontFaces?.some((face, index, all) => all.findIndex(candidate => candidate.weight === face.weight && candidate.style === face.style) !== index)) {
+      onError("Each font family can contain only one file for a weight and style combination.");
       return;
     }
     const version =
@@ -2778,6 +2804,9 @@ function LibraryView({
         : {}),
       ...(draft.asset
         ? { assets: [draft.asset, ...(editing?.assets?.slice(1) ?? [])] }
+        : {}),
+      ...(draft.kind === "font" && draft.fontFaces?.length
+        ? { fontFaces: draft.fontFaces, assets: draft.fontFaces.map(face => face.asset) }
         : {}),
     };
     try {
@@ -2817,6 +2846,15 @@ function LibraryView({
           count + entry.template.starterBlocks.filter(usesItem).length,
         0,
       );
+    const fontReferences = item.kind === "font"
+      ? workspace.bulletins.reduce((count, entry) => count + fontReferenceCount(entry.document, item), 0)
+        + workspace.templates.reduce((count, entry) => count + fontReferenceCount(entry.template, item), 0)
+        + workspace.pageTemplates.reduce((count, entry) => count + fontReferenceCount(entry.pageTemplate, item), 0)
+      : 0;
+    if (fontReferences) {
+      onError(`${item.title}, version ${item.version}, is used ${fontReferences} time${fontReferences === 1 ? "" : "s"}. Replace or upgrade those font references before deleting it.`);
+      return;
+    }
     setDeleteConfirmation({
       title: "Delete library item?",
       message: `Do you want to send ${item.title}, version ${item.version}, to Trash? You can restore it later.${references ? ` It is currently referenced ${references} time${references === 1 ? "" : "s"}; existing references remain unchanged.` : ""}`,
@@ -2843,6 +2881,7 @@ function LibraryView({
       text: libraryContentText(item),
       notice: item.license?.notice ?? "",
       asset: item.assets?.[0],
+      fontFaces: item.fontFaces ?? item.assets?.map(asset => ({ asset, weight: 400, style: "normal" as const })),
     });
   };
   const closeForm = () => {
@@ -3107,6 +3146,17 @@ function LibraryView({
               placeholder="Separate paragraphs or verses with a blank line"
             />
           </label>}
+          {draft.kind === "font" && draft.fontFaces?.length ? <section className="font-face-review">
+            <header><div><b>Review family faces</b><small>Detected values can be corrected before saving.</small></div><span>{draft.fontFaces.length} file{draft.fontFaces.length === 1 ? "" : "s"}</span></header>
+            <ImportedFontPreview root={workspace.root} faces={draft.fontFaces} label={draft.title} />
+            {draft.fontFaces.map((face, index) => <div className="font-face-row" key={`${face.asset.path}-${index}`}>
+              <span><b>{face.asset.alt ?? face.postscriptName ?? "Font file"}</b><small>{face.subfamilyName ?? "Detected face"}</small></span>
+              <label>Weight<select value={face.weight} onChange={event => setDraft(current => ({ ...current, fontFaces: current.fontFaces?.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, weight: Number(event.target.value) } : candidate) }))}>{[100,200,300,400,500,600,700,800,900].map(weight => <option value={weight} key={weight}>{weight}{weight === 400 ? " Regular" : weight === 700 ? " Bold" : ""}</option>)}</select></label>
+              <label>Style<select value={face.style} onChange={event => setDraft(current => ({ ...current, fontFaces: current.fontFaces?.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, style: event.target.value as FontFaceV1["style"] } : candidate) }))}><option value="normal">Regular</option><option value="italic">Italic</option></select></label>
+              <button className="danger-text" type="button" onClick={() => setDraft(current => ({ ...current, fontFaces: current.fontFaces?.filter((_, candidateIndex) => candidateIndex !== index) }))}>Remove</button>
+            </div>)}
+            {!draft.fontFaces.some(face => face.weight === 400 && face.style === "normal") && <p className="font-warning">No regular face was detected. The closest face will be synthesized when regular text is requested.</p>}
+          </section> : null}
           <label>
             Copyright or license notice
             <textarea
@@ -3121,7 +3171,9 @@ function LibraryView({
               disabled={!draft.id}
               onClick={chooseAsset}
             >
-              {draft.asset
+              {draft.kind === "font" && draft.fontFaces?.length
+                ? `Replace ${draft.fontFaces.length} font file${draft.fontFaces.length === 1 ? "" : "s"}`
+                : draft.asset
                 ? `Replace ${draft.asset.alt ?? (draft.kind === "font" ? "font file" : "image or PDF")}`
                 : draft.kind === "font" ? "Attach font file" : "Attach image or PDF"}
             </button>
@@ -3477,7 +3529,7 @@ function PrintApp() {
       block.scene.background?.asset?.mediaType === "application/pdf",
   );
   return (
-    <LibraryFontProvider root={job.root} library={workspace.library}><div
+    <LibraryFontProvider root={job.root} library={workspace.library} template={template}><div
       className={`print-screen ${browser ? "browser-print" : "electron-print"}`}
     >
       {browser && (

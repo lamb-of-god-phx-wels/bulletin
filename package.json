@@ -25,6 +25,7 @@
     "ajv-formats": "^3.0.1",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
+    "fontkit": "^2.0.4",
     "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

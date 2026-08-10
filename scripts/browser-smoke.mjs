@@ -23,7 +23,7 @@ const evaluate = async expression => (await command('Runtime.evaluate', { expres
 const wait = async (expression, label, timeout = 8000) => {
   const started = Date.now();
   while (Date.now() - started < timeout) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)); }
-  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,viteError:document.querySelector('vite-error-overlay')?.shadowRoot?.textContent?.trim().slice(0,1200),body:document.body.innerText.trim().slice(0,500),responsiveEditor:document.querySelector('.responsive-reading-editor')?.innerHTML,responsivePreview:Array.from(document.querySelectorAll('.preview-pane .response-row')).map(row=>row.innerHTML),rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
+  const context = await evaluate(`(()=>{const stack=document.querySelector('.preview-pane .document-stack, .builder-preview .document-stack');const frame=document.querySelector('.preview-pane .page-frame, .builder-preview .page-frame')?.getBoundingClientRect();return {status:document.querySelector('.save-status')?.textContent,heading:document.querySelector('.topbar h1')?.textContent,error:document.querySelector('.error-toast p')?.textContent,viteError:document.querySelector('vite-error-overlay')?.shadowRoot?.textContent?.trim().slice(0,1200),body:document.body.innerText.trim().slice(0,500),fontPicker:document.querySelector('.global-rich-text-toolbar .font-picker-value')?.textContent,fontRuns:Array.from(document.querySelectorAll('.preview-pane .rich-text-editor [data-text-style]')).map(run=>({style:run.getAttribute('data-text-style'),family:getComputedStyle(run).fontFamily,text:run.textContent})).slice(0,8),responsiveEditor:document.querySelector('.responsive-reading-editor')?.innerHTML,responsivePreview:Array.from(document.querySelectorAll('.preview-pane .response-row')).map(row=>row.innerHTML),rulerToggle:document.querySelector('.ruler-toggle')?.outerHTML,rulers:document.querySelectorAll('.page-rulers').length,rulerFrames:document.querySelectorAll('.page-frame.with-rulers').length,zoom:document.querySelector('select[aria-label="Preview zoom"]')?.value,stack:stack&&{width:stack.clientWidth,height:stack.clientHeight},frame:frame&&{width:frame.width,height:frame.height}}})()`);
   throw new Error(`Timed out waiting for ${label}: ${JSON.stringify(context)}`);
 };
 const buttonExpression = text => `Array.from(document.querySelectorAll('button')).find(element => element.textContent.trim().includes(${JSON.stringify(text)}))`;
@@ -64,13 +64,74 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_CANVAS_ONLY === '1' || process.env.BULLETIN_FONT_PICKER_ONLY === '1' || process.env.BULLETIN_IMPORTED_FONT_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_IMPORTED_FONT_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  const importedFaceCount = await evaluate(`Array.from(document.fonts).filter(face=>face.family.startsWith('BulletinFont-imported-smoke-font-v')).length`);
+  await click('Library');
+  await wait(`Boolean(document.querySelector('.library-browser.embedded'))`, 'workspace library');
+  await click('＋ New');
+  await wait(`Boolean(document.querySelector('.library-create-type-dialog'))`, 'library item type chooser');
+  await evaluate(`Array.from(document.querySelectorAll('.library-create-type-dialog button')).find(button=>button.textContent.includes('Fonts'))?.click()`);
+  await wait(`Boolean(document.querySelector('.library-form'))`, 'font form');
+  await fill('Title', 'Imported Smoke Font');
+  await setFileForButton('Attach font file', `${process.cwd()}/assets/fonts/ErasDemiItc.ttf`);
+  await wait(`Boolean(document.querySelector('.font-face-review'))`, 'imported font metadata');
+  await wait(`getComputedStyle(document.querySelector('.font-face-review .font-family-preview')).fontFamily.startsWith('BulletinFont-Draft-')&&Array.from(document.fonts).some(face=>face.family.startsWith('BulletinFont-Draft-')&&face.status==='loaded')`, 'imported Eras review preview');
+  await click('Save item');
+  await wait(`Array.from(document.fonts).filter(face=>face.family.startsWith('BulletinFont-imported-smoke-font-v')&&face.status==='loaded').length>${importedFaceCount}`, 'imported font face registration');
+  const loadedFace = await evaluate(`(()=>{const face=Array.from(document.fonts).filter(candidate=>candidate.family.startsWith('BulletinFont-imported-smoke-font-v')).sort((a,b)=>Number(b.family.split('-v').at(-1))-Number(a.family.split('-v').at(-1)))[0];return face&&{family:face.family,status:face.status,weight:face.weight,style:face.style}})()`);
+  if (!loadedFace || loadedFace.status !== 'loaded') throw new Error(`Imported font was not loaded: ${JSON.stringify(loadedFace)}`);
+  await click('This week');
+  await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor[contenteditable="true"]'))`, 'live editor after font import');
+  await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.preview-pane .rich-text-editor[contenteditable="true"]')).find(item=>item.textContent.trim().length>2);if(!editor)return false;editor.click();editor.focus();const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let text=walker.nextNode();while(text&&!text.textContent?.trim())text=walker.nextNode();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return true})()`);
+  await new Promise(resolve => setTimeout(resolve, 150));
+  await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar .font-picker-control')?.click()`);
+  await wait(`Array.from(document.querySelectorAll('.font-picker-popover [role="option"]')).some(button=>button.textContent.includes('Imported Smoke Font'))`, 'imported family in live editor font picker');
+  await evaluate(`Array.from(document.querySelectorAll('.font-picker-popover [role="option"]')).find(button=>button.textContent.includes('Imported Smoke Font'))?.click()`);
+  await wait(`(()=>{const run=document.querySelector('.preview-pane .rich-text-editor [data-text-style*="imported-smoke-font"]');return run&&getComputedStyle(run).fontFamily.includes(${JSON.stringify(loadedFace.family)})})()`, 'imported family applied in live editor');
+  pass('imports raw font bytes and applies the saved workspace family in the live editor');
+  console.log(`\n${results.length} browser imported-font checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
+if (process.env.BULLETIN_FONT_PICKER_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  await click('Page Templates');
+  await wait(`Boolean(Array.from(document.querySelectorAll('button')).find(button=>button.textContent.trim()==='Open'))`, 'page template library');
+  await evaluate(`document.querySelector('[data-library-key]')?.click()`);
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent.trim()==='Open')?.click()`);
+  await wait(`Boolean(document.querySelector('.page-template-designer'))`, 'page template editor');
+  await evaluate(`Array.from(document.querySelectorAll('.page-template-designer button')).find(button=>button.textContent.trim()==='Design')?.click()`);
+  await wait(`Boolean(document.querySelector('.canvas-designer'))`, 'canvas designer');
+  await evaluate(`Array.from(document.querySelectorAll('.canvas-layers li')).find(item=>item.textContent.includes('Series'))?.querySelector('.canvas-layer-select')?.click()`);
+  await evaluate(`document.querySelector('.canvas-selection.selected')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}))`);
+  await wait(`Boolean(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"]'))&&!document.querySelector('.canvas-rich-text-toolbar .font-picker-control')?.disabled`, 'canvas text formatting bar');
+  await evaluate(`(()=>{const editor=document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"]'),text=editor&&document.createTreeWalker(editor,NodeFilter.SHOW_TEXT).nextNode();if(!text||text.textContent.length<2)return false;editor.focus();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return true})()`);
+  await new Promise(resolve => setTimeout(resolve, 100));
+  const inheritedFontLabel = await evaluate(`document.querySelector('.canvas-rich-text-toolbar .font-picker-value')?.textContent`);
+  if (!inheritedFontLabel?.includes('Display')) throw new Error(`Canvas live editor did not report its inherited Display font: ${JSON.stringify(inheritedFontLabel)}`);
+  const control = await evaluate(`(()=>{const rect=document.querySelector('.canvas-rich-text-toolbar .font-picker-control').getBoundingClientRect();return {width:rect.width,height:rect.height}})()`);
+  if (Math.abs(control.width - 150) > 1 || Math.abs(control.height - 28) > 1) throw new Error(`Canvas font control is malformed: ${JSON.stringify(control)}`);
+  await evaluate(`document.querySelector('.canvas-rich-text-toolbar .font-picker-control')?.click()`);
+  await wait(`document.querySelector('.font-picker-popover')?.matches(':popover-open')`, 'unclipped canvas font menu');
+  const menu = await evaluate(`(()=>{const menu=document.querySelector('.font-picker-popover').getBoundingClientRect(),control=document.querySelector('.canvas-rich-text-toolbar .font-picker-control').getBoundingClientRect();return {width:menu.width,height:menu.height,top:menu.top,controlBottom:control.bottom,optionCount:document.querySelectorAll('.font-picker-popover [role="option"]').length}})()`);
+  if (menu.width < 250 || menu.height < 100 || menu.top < menu.controlBottom + 3 || menu.optionCount < 2) throw new Error(`Canvas font menu is clipped or empty: ${JSON.stringify(menu)}`);
+  await evaluate(`Array.from(document.querySelectorAll('.font-picker-popover [role="option"]')).find(button=>button.textContent.includes('Eras'))?.click()`);
+  await wait(`document.querySelector('.canvas-rich-text-toolbar .font-picker-value')?.textContent.includes('Eras')&&getComputedStyle(document.querySelector('.canvas-stage.is-text-editing [data-text-style*="bundled-eras"]')).fontFamily.includes('Eras')`, 'canvas font choice applied and reported');
+  pass('keeps the canvas typography bar compact and opens an unclipped preview menu');
+  console.log(`\n${results.length} browser font-picker checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_GRID_ONLY === '1') {
   await evaluate(`Array.from(document.querySelectorAll('.element-palette-item')).find(element=>element.textContent.includes('Grid'))?.click()`);
@@ -104,10 +165,10 @@ if (process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_INLINE_T
   await new Promise(resolve => setTimeout(resolve, 250));
   await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar button[aria-label="Italic"]')?.click()`);
   await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor [data-marks*="italic"]'))`, 'global toolbar formatting in the document preview');
-  await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar label:first-child select')?.focus()`);
-  await wait(`document.activeElement===document.querySelector('.preview-pane .global-rich-text-toolbar label:first-child select')&&!document.activeElement.disabled`, 'font dropdown keeps the rich-text target active');
-  await evaluate(`(()=>{const select=document.activeElement;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Georgia, serif');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
-  await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor [data-text-style*="Georgia"]'))`, 'font dropdown formats the bookmarked selection');
+  await evaluate(`document.querySelector('.preview-pane .global-rich-text-toolbar .font-picker-control')?.click()`);
+  await wait(`document.querySelectorAll('.preview-pane .font-picker-options [role="option"]').length>=2`, 'font picker shows preview options');
+  await evaluate(`Array.from(document.querySelectorAll('.preview-pane .font-picker-options [role="option"]')).find(button=>button.textContent.includes('Eras'))?.click()`);
+  await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor [data-text-style*="bundled-eras"]'))`, 'font dropdown formats the bookmarked selection');
   pass('edits and formats rich text directly in the document preview');
   console.log(`\n${results.length} browser rich-text checks passed.`);
   socket.close();
@@ -161,13 +222,13 @@ if (process.env.BULLETIN_BUILDER_TODOS_ONLY === '1') {
   await evaluate(`document.querySelector('.revision-history-modal button[aria-label="Close revision history"]')?.click()`);
   await evaluate(`Array.from(document.querySelectorAll('.sidebar nav button')).find(button=>button.textContent.trim().endsWith('Bulletin Templates'))?.click()`);
   await wait(`Boolean(document.querySelector('.template-workbench'))`, 'bulletin template editor');
-  const bodyFont = await evaluate(`Array.from(document.querySelectorAll('label')).find(label=>label.textContent.trim().startsWith('Body font'))?.querySelector('input')?.value`);
-  await fill('Body font', `${bodyFont} A`);
-  await fill('Body font', `${bodyFont} AB`);
+  const displayRole = await evaluate(`document.querySelectorAll('.theme-font-role input')[1]?.value`);
+  await evaluate(`(()=>{const input=document.querySelectorAll('.theme-font-role input')[1],set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,${JSON.stringify(`${displayRole} A`)});input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
+  await evaluate(`(()=>{const input=document.querySelectorAll('.theme-font-role input')[1],set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,${JSON.stringify(`${displayRole} AB`)});input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}))`);
-  await wait(`Array.from(document.querySelectorAll('label')).find(label=>label.textContent.trim().startsWith('Body font'))?.querySelector('input')?.value===${JSON.stringify(`${bodyFont} A`)}`, 'template text undo');
+  await wait(`document.querySelectorAll('.theme-font-role input')[1]?.value===${JSON.stringify(`${displayRole} A`)}`, 'template text undo');
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'y',ctrlKey:true,bubbles:true,cancelable:true}))`);
-  await wait(`Array.from(document.querySelectorAll('label')).find(label=>label.textContent.trim().startsWith('Body font'))?.querySelector('input')?.value===${JSON.stringify(`${bodyFont} AB`)}`, 'template text redo');
+  await wait(`document.querySelectorAll('.theme-font-role input')[1]?.value===${JSON.stringify(`${displayRole} AB`)}`, 'template text redo');
   pass('supports atomic undo/redo, revision history, builder containers, actual format previews, and rich announcement graphics');
   console.log(`\n${results.length} browser builder checks passed.`);
   socket.close();
@@ -241,10 +302,10 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await new Promise(resolve => setTimeout(resolve, 100));
   await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Bold"]')?.click()`);
   await wait(`Boolean(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-marks*="bold"]'))`, 'canvas global rich-text formatting');
-  await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar label:first-child select')?.focus()`);
-  await wait(`document.activeElement===document.querySelector('.canvas-designer .global-rich-text-toolbar label:first-child select')&&!document.activeElement.disabled`, 'canvas font dropdown keeps text selection active');
-  await evaluate(`(()=>{const select=document.activeElement;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Georgia, serif');select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
-  await wait(`document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-text-style*="Georgia"]')&&getComputedStyle(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-text-style*="Georgia"]')).fontFamily.includes('Georgia')`, 'canvas typography updates live');
+  await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar .font-picker-control')?.click()`);
+  await wait(`document.querySelectorAll('.canvas-designer .font-picker-options [role="option"]').length>=2`, 'canvas font picker shows preview options');
+  await evaluate(`Array.from(document.querySelectorAll('.canvas-designer .font-picker-options [role="option"]')).find(button=>button.textContent.includes('Eras'))?.click()`);
+  await wait(`document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-text-style*="bundled-eras"]')&&getComputedStyle(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"] [data-text-style*="bundled-eras"]')).fontFamily.includes('Eras')`, 'canvas typography updates live');
   await wait(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Align top"]')?.getAttribute('aria-pressed')==='true'`, 'canvas text top alignment');
   const alignmentTop = await evaluate(`(()=>{const box=document.querySelector('.canvas-native-block').getBoundingClientRect(),content=document.querySelector('.canvas-native-content > .preview-block').getBoundingClientRect();return content.top-box.top})()`);
   await new Promise(resolve => setTimeout(resolve, 200));

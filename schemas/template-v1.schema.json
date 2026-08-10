@@ -8,9 +8,14 @@
     "schemaVersion": { "const": 1 }, "id": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "name": { "type": "string" },
     "status": { "enum": ["draft", "published"] },
     "page": { "type": "object", "required": ["widthIn", "heightIn", "pageMultiple"], "properties": { "widthIn": { "const": 7 }, "heightIn": { "const": 8.5 }, "pageMultiple": { "const": 4 } }, "additionalProperties": false },
-    "theme": { "type": "object" }, "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" }, "customProperties": { "type": "array", "items": { "$ref": "#/$defs/customProperty" } }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
+    "theme": { "type": "object", "properties": { "fontRoles": { "type": "array", "items": { "$ref": "#/$defs/fontRole" } }, "defaultFontRoleId": { "type": "string", "minLength": 1 } }, "additionalProperties": true }, "responsiveReading": { "$ref": "#/$defs/responsiveReadingSettings" }, "customProperties": { "type": "array", "items": { "$ref": "#/$defs/customProperty" } }, "starterBlocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "filler": { "type": "object" }, "updatedAt": { "type": "string", "format": "date-time" }
   },
   "$defs": {
+    "fontRole": {
+      "type": "object", "required": ["id", "name", "family"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "name": { "type": "string", "minLength": 1 }, "family": { "type": "object", "required": ["id", "version"], "properties": { "id": { "type": "string", "minLength": 1 }, "version": { "type": "integer", "minimum": 1 } }, "additionalProperties": false } },
+      "additionalProperties": false
+    },
     "responsiveReadingSettings": {
       "type": "object",
       "required": ["labels"],

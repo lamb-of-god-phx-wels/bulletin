@@ -24,6 +24,7 @@ describe('public JSON contracts', () => {
     expect(ajv.compile(templateSchema)(defaultTemplate)).toBe(true);
     expect(ajv.compile(pageTemplateSchema)(defaultPageTemplate)).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [] })).toBe(true);
+    expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [{ id: 'font', version: 1, kind: 'font', title: 'Portable', fontFaces: [{ asset: { path: 'font.woff2', mediaType: 'font/woff2' }, weight: 400, style: 'normal' }] }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [{ id: 'banner', version: 1, kind: 'image', title: 'Banner' }], imageFolders: [{ id: 'seasonal', name: 'Seasonal' }, { id: 'advent', name: 'Advent', parentId: 'seasonal' }], imageCatalog: [{ imageId: 'banner', folderId: 'advent', displayName: 'Advent banner' }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], churchWeekNames: [{ sourceName: 'Epiphany 2', displayName: 'Second Sunday after Epiphany' }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], calendarEvents: [{ id: 'easter', name: 'Easter', enabled: true, priority: 100, rules: [{ kind: 'easter' }] }] })).toBe(true);

@@ -1,6 +1,6 @@
 import { defaultCustomBlockStyle } from '../shared/customBlocks';
 import type { BulletinBlock, CustomBlockStyle, TemplateV1 } from '../shared/types';
-import { useFontOptions } from './LibraryFonts';
+import { FontPicker } from './FontPicker';
 
 const lineHeightOptions = [
   { value: 1, label: 'Tight' },
@@ -84,9 +84,7 @@ export function InlineTypographyControls({ block, template, label = 'Typography'
   onVerticalAlignChange?(verticalAlign: CustomBlockStyle['verticalAlign']): void;
   onChange(presentation: CustomBlockStyle): void;
 }) {
-  const fontOptions = useFontOptions();
   const style = effectiveBlockStyle(block, template);
-  const customFont = !fontOptions.some(option => option.value === style.fontFamily);
   const customLineHeight = !lineHeightOptions.some(option => option.value === style.lineHeight);
   const change = (changes: Partial<CustomBlockStyle>) =>
     onChange(applyTypographyChange(block, template, {
@@ -96,16 +94,7 @@ export function InlineTypographyControls({ block, template, label = 'Typography'
 
   return <section className="inline-typography" aria-label={label}>
     <div className="inline-typography-title">{label}</div>
-    <label className="inline-typography-font">Font
-      <select
-        aria-label={`${label} font`}
-        value={style.fontFamily}
-        onChange={event => change({ fontFamily: event.target.value })}
-      >
-        {customFont && <option value={style.fontFamily}>{style.fontFamily}</option>}
-        {fontOptions.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
-      </select>
-    </label>
+    <div className="inline-typography-font"><FontPicker label={`${label} font`} fontRef={style.fontRef} fontFamily={style.fontFamily} onChange={fontRef => change({ fontRef, fontFamily: undefined })} /></div>
     <label className="inline-typography-size">Size
       <input
         aria-label={`${label} size`}

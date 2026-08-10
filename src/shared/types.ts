@@ -1,6 +1,32 @@
 export type Marks = Array<'bold' | 'italic' | 'smallCaps' | 'superscript'>;
 
+export interface FontFamilyRef {
+  id: string;
+  version: number;
+}
+
+export type FontReference =
+  | { kind: 'themeRole'; roleId: string }
+  | { kind: 'libraryFont'; family: FontFamilyRef }
+  | { kind: 'legacyCss'; value: string };
+
+export interface FontFaceV1 {
+  asset: AssetRef;
+  weight: number;
+  style: 'normal' | 'italic';
+  familyName?: string;
+  subfamilyName?: string;
+  postscriptName?: string;
+}
+
+export interface ThemeFontRoleV1 {
+  id: string;
+  name: string;
+  family: FontFamilyRef;
+}
+
 export interface InlineTextStyle {
+  fontRef?: FontReference;
   fontFamily?: string;
   fontSizePt?: number;
   textTransform?: 'none' | 'uppercase' | 'small-caps';
@@ -82,6 +108,7 @@ export interface CanvasTextElement extends CanvasElementBase {
   type: 'text';
   source: CanvasTextSource;
   paddingIn?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
+  fontRef?: FontReference;
   fontFamily?: string;
   fontSizePt?: number;
   lineHeight?: number;
@@ -272,6 +299,7 @@ export interface CustomBlockStyle {
   verticalAlign: 'top' | 'middle' | 'bottom';
   paddingIn: { top: number; right: number; bottom: number; left: number };
   marginIn: { top: number; bottom: number };
+  fontRef?: FontReference;
   fontFamily: string;
   fontSizePt: number;
   lineHeight: number;
@@ -322,6 +350,8 @@ export interface BulletinDocumentV1 {
 }
 
 export interface ThemeV1 {
+  fontRoles?: ThemeFontRoleV1[];
+  defaultFontRoleId?: string;
   bodyFont: string;
   displayFont: string;
   ink: string;
@@ -368,6 +398,7 @@ export interface LibraryItemV1 {
   aliases?: string[];
   content?: Paragraph[];
   assets?: Array<AssetRef & { variant?: string }>;
+  fontFaces?: FontFaceV1[];
   license?: { notice: string; licenseNumber?: string };
 }
 export interface LibraryFolder {
@@ -476,7 +507,7 @@ export interface LibraryManifestV1 {
   componentDefinitions?: DeclarativeComponentDefinition[];
 }
 
-export interface ValidationIssue { path: string; message: string }
+export interface ValidationIssue { path: string; message: string; severity?: 'warning' | 'error'; code?: string }
 export interface WorkspaceSummary {
   root: string;
   bulletins: Array<{ path: string; document: BulletinDocumentV1 }>;
@@ -525,6 +556,7 @@ export interface BulletinApi {
   createRevision(root: string, relativePath: string, document: BulletinDocumentV1, label: string): Promise<string>;
   exportPdf(root: string, relativePath: string, document: BulletinDocumentV1): Promise<string | null>;
   importAsset(root: string, targetFolder: string, kind?: 'page' | 'font'): Promise<AssetRef | null>;
+  importFontAssets?(root: string, targetFolder: string): Promise<AssetRef[]>;
   copyAsset(root: string, asset: AssetRef, targetFolder: string): Promise<AssetRef>;
   readAsset(root: string, relativePath: string): Promise<string>;
   lookupScripture(input: { reference: string; translation: string }): Promise<ScriptureBlock['resolved']>;

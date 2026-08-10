@@ -128,6 +128,18 @@ function chooseFile(kind: 'page' | 'font' = 'page'): Promise<File | null> {
   });
 }
 
+function chooseFontFiles(): Promise<File[]> {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.ttf,.otf,.woff,.woff2'; input.multiple = true; input.hidden = true;
+    document.body.append(input);
+    const finish = (files: File[]) => { input.remove(); resolve(files); };
+    input.onchange = () => finish([...input.files ?? []]);
+    input.addEventListener('cancel', () => finish([]), { once: true });
+    input.click();
+  });
+}
+
 function dataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -278,6 +290,14 @@ export async function installBrowserApi() {
       const path = `${targetFolder}/${Date.now()}-${randomId()}-${file.name}`;
       await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
       return { path, mediaType: mediaType(file), alt: file.name };
+    },
+    importFontAssets: async (root, targetFolder) => {
+      const files = await chooseFontFiles();
+      return Promise.all(files.map(async file => {
+        const path = `${targetFolder}/${Date.now()}-${randomId()}-${file.name}`;
+        await putRecord(assetStore, `${root}:${path}`, await dataUrl(file));
+        return { path, mediaType: mediaType(file), alt: file.name };
+      }));
     },
     copyAsset: async (root, asset, targetFolder) => {
       const value = await getRecord<string>(assetStore, `${root}:${asset.path}`) ?? exampleAssets[asset.path];

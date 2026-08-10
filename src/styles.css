@@ -699,6 +699,10 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .song-header .rich-text-editor, .song-title .rich-text-editor, .section-heading .rich-text-editor { display: inline; }
 .song-header .rich-text-editor > div, .song-title .rich-text-editor > div, .section-heading .rich-text-editor > div { display: inline; }
 .global-rich-text-toolbar { flex: 1 0 100%; display: flex; align-items: end; gap: 5px; min-width: 0; height: 48px; overflow-x: auto; padding: 6px 0 7px; border-top: 1px solid #d8d4ca; }
+.global-rich-text-toolbar > .font-picker { flex: 0 0 150px; gap: 2px; color: #676d68; font-size: 8px; font-weight: 750; }
+.global-rich-text-toolbar .font-picker-control { grid-template-columns: 30px minmax(0, 1fr) auto; width: 150px; height: 28px; min-height: 28px; padding: 0 6px 0 0; border-radius: 5px; font-size: 10px; font-weight: 500; }
+.global-rich-text-toolbar .font-picker-sample { font-size: 15px; }
+.global-rich-text-toolbar .font-picker-value { padding-inline: 6px; }
 .global-rich-text-toolbar label { display: grid; flex: 0 0 auto; gap: 2px; color: #676d68; font-size: 8px; font-weight: 750; }
 .global-rich-text-toolbar select, .global-rich-text-toolbar input, .global-rich-text-toolbar button { height: 28px; min-height: 28px; padding: 0 7px; border: 1px solid #d3cfc6; border-radius: 5px; color: #4e5752; background: #fff; font-size: 10px; }
 .global-rich-text-toolbar label:first-child select { width: 116px; }.global-rich-text-toolbar input { width: 53px; }
@@ -942,6 +946,34 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 code { padding: 2px 5px; border-radius: 4px; background: #ebe8e0; }
 
 @page { size: 7in 8.5in; margin: 0; }
+.font-picker { position: relative; display: grid; gap: 4px; }
+.font-picker-control { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: stretch; min-height: 36px; padding: 0 10px 0 0; overflow: hidden; border: 1px solid #c9c5ba; border-radius: 7px; color: #25302d; background: white; text-align: left; }
+.font-picker-value { align-self: center; min-width: 0; padding: 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-picker-sample { display: grid; place-items: center; color: #39443f; background: #f5f2ea; font-size: 19px; line-height: 1; }
+.font-picker-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.font-picker-popover { position: fixed; z-index: 80; inset: auto; display: grid; width: min(340px, 80vw); max-height: 340px; margin: 0; padding: 8px; overflow: hidden; border: 1px solid #c9c5ba; border-radius: 9px; background: white; box-shadow: 0 14px 35px #1d272240; }
+.font-picker-popover > input { margin-bottom: 6px; }
+.font-picker-options { overflow: auto; }
+.font-picker-options section { display: grid; }
+.font-picker-options section > b { padding: 8px 7px 4px; color: #7a817c; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.font-picker-options button { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; min-height: 42px; padding: 4px 7px; border: 0; border-radius: 6px; color: #25302d; background: transparent; text-align: left; }
+.font-picker-options button:hover, .font-picker-options button[aria-selected="true"] { background: #f1eee6; }
+.font-picker-options button > span:first-child { font-size: 22px; }
+.font-face-review, .theme-font-roles { display: grid; gap: 10px; padding: 12px; border: 1px solid #d9d4c8; border-radius: 9px; background: #faf8f2; }
+.font-face-review > header, .theme-font-roles > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.font-face-review header div, .theme-font-roles header div, .font-face-row > span { display: grid; gap: 2px; }
+.font-face-review small, .theme-font-roles small, .font-face-row small { color: #73786f; }
+.font-family-preview { display: grid; gap: 4px; padding: 16px; border-radius: 7px; color: #25302d; background: white; font-size: 24px; }
+.font-family-preview small { font-family: Inter, CalibriLocal, Arial, sans-serif; font-size: 11px; }
+.font-face-row { display: grid; grid-template-columns: minmax(150px, 1fr) 150px 130px auto; align-items: end; gap: 8px; padding-top: 8px; border-top: 1px solid #e4dfd4; }
+.font-warning { margin: 0; color: #934734; font-size: 12px; }
+.theme-font-role { display: grid; grid-template-columns: minmax(130px, .65fr) minmax(220px, 1fr) auto; align-items: end; gap: 10px; padding-top: 9px; border-top: 1px solid #e4dfd4; }
+.role-required { align-self: center; padding: 4px 8px; border-radius: 999px; color: #657069; background: #e8ece8; font-size: 10px; font-weight: 750; }
+.font-role-replacement { display: flex; align-items: end; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 7px; background: #f3e7df; }
+.font-role-replacement > div { display: flex; gap: 6px; }
+
+@media (max-width: 760px) { .font-face-row, .theme-font-role { grid-template-columns: 1fr; } }
+
 @media print {
   html, body, #root { width: 7in; margin: 0 !important; padding: 0 !important; background: white; }
   .print-controls, .page-rulers, .page-crosshairs, .page-guides { display: none !important; }.print-screen, .print-screen .document-stack { margin: 0; background: white; }

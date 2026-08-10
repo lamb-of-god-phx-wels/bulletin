@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { alignParagraphRange, formatParagraphRange, formatTextRange, formatTextStyleRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
+import { alignParagraphRange, effectiveSelectedTextStyle, formatParagraphRange, formatTextRange, formatTextStyleRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
 import type { Paragraph } from '../src/shared/types';
 
 describe('rich-text segment formatting', () => {
+  it('reports the inherited block font for unformatted live text', () => {
+    const content: Paragraph[] = [{ type: 'paragraph', children: [{ type: 'text', text: 'Display text' }] }];
+    expect(effectiveSelectedTextStyle(content, 0, 7, { fontRef: { kind: 'themeRole', roleId: 'display' } })).toMatchObject({ fontRef: { kind: 'themeRole', roleId: 'display' } });
+    const styled = formatTextStyleRange(content, 0, 7, { fontRef: { kind: 'libraryFont', family: { id: 'font', version: 2 } } });
+    expect(effectiveSelectedTextStyle(styled, 0, 7, { fontRef: { kind: 'themeRole', roleId: 'display' } })).toMatchObject({ fontRef: { kind: 'libraryFont', family: { id: 'font', version: 2 } } });
+  });
+
   it('formats only the selected characters within a text run', () => {
     const content: Paragraph[] = [{
       type: 'paragraph',

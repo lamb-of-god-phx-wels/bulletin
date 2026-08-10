@@ -109,6 +109,7 @@ function presentation(style: ComponentStyle | undefined): Partial<CustomBlockSty
     } : {}),
     ...(style.marginIn ? { marginIn: { top: style.marginIn.top ?? 0, bottom: style.marginIn.bottom ?? 0 } } : {}),
     ...(style.fontFamily ? { fontFamily: style.fontFamily } : {}),
+    ...(style.fontRef ? { fontRef: style.fontRef } : {}),
     ...(style.fontSizePt !== undefined ? { fontSizePt: style.fontSizePt } : {}),
     ...(style.lineHeight !== undefined ? { lineHeight: style.lineHeight } : {}),
     ...(style.fontWeight === 'normal' || style.fontWeight === 'bold' ? { fontWeight: style.fontWeight } : {}),

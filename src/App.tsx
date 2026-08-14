@@ -3075,7 +3075,7 @@ function LibraryView({
               }
             }}
           >
-            {adding ? "Close form" : "＋ Add library item"}
+            {adding ? "Cancel" : "＋ Add library item"}
           </button>
           <div className="library-path">{workspace.root}/library/</div>
         </div>

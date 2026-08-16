@@ -2256,7 +2256,12 @@ function DesktopApp() {
         <BulletinPicker
           bulletins={workspace.bulletins}
           currentPath={relativePath}
+          canCreate={workspaceWritable}
           onClose={() => setBulletinPicker(false)}
+          onCreate={() => {
+            setBulletinPicker(false);
+            beginNewBulletin();
+          }}
           onSelect={(record) => {
             requestBulletinLeave(() => {
               setBulletinPicker(false);
@@ -2491,12 +2496,16 @@ function RevisionHistoryDialog({ revisions, onClose, onRestore }: {
 function BulletinPicker({
   bulletins,
   currentPath,
+  canCreate,
   onClose,
+  onCreate,
   onSelect,
 }: {
   bulletins: BulletinRecord[];
   currentPath: string;
+  canCreate: boolean;
   onClose(): void;
+  onCreate(): void;
   onSelect(record: BulletinRecord): void;
 }) {
   const [query, setQuery] = useState("");
@@ -2545,6 +2554,14 @@ function BulletinPicker({
           <span>
             {matches.length} result{matches.length === 1 ? "" : "s"}
           </span>
+          <button
+            type="button"
+            className="primary bulletin-picker-create"
+            disabled={!canCreate}
+            onClick={onCreate}
+          >
+            ＋ New bulletin
+          </button>
         </div>
         <div className="bulletin-picker-list">
           {matches.map((record) => {

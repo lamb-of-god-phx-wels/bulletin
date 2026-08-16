@@ -298,6 +298,7 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await choose('Sizing', 'fixed');
   await evaluate(`document.querySelector('.canvas-selection')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))`);
   await wait(`Boolean(document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"]'))&&!document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Bold"]')?.disabled`, 'canvas direct text editing');
+  if (!await evaluate(`Boolean(document.querySelector('.canvas-workarea > .canvas-rich-text-toolbar')) && !document.querySelector('.canvas-designer-toolbar .global-rich-text-toolbar')`)) throw new Error('Canvas formatting toolbar is not contained by the preview workarea.');
   await evaluate(`(()=>{const editor=document.querySelector('.canvas-stage.is-text-editing [contenteditable="true"]'),text=editor&&document.createTreeWalker(editor,NodeFilter.SHOW_TEXT).nextNode();if(!text||text.textContent.length<2)return false;editor.focus();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return true})()`);
   await new Promise(resolve => setTimeout(resolve, 100));
   await evaluate(`document.querySelector('.canvas-designer .global-rich-text-toolbar button[aria-label="Bold"]')?.click()`);

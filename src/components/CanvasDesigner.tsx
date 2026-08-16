@@ -102,7 +102,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   const drag = useRef<{ x: number; y: number; scene: CanvasScene; preview: CanvasScene; ids: Set<string>; resize?: CanvasResizeCorner; moved: boolean } | undefined>(undefined);
   const snapGuideTimer = useRef<number | undefined>(undefined);
   const stage = useRef<HTMLDivElement>(null);
-  const workarea = useRef<HTMLElement>(null);
+  const workarea = useRef<HTMLDivElement>(null);
   const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
   const hasInitialZoom = Number.isFinite(initialZoom) && initialZoom >= .1 && initialZoom <= 2;
   const [zoom, setZoom] = useState(hasInitialZoom ? initialZoom : .72);
@@ -700,7 +700,6 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitCanvas} />
       </div>
       <button className="primary" onClick={onClose}>Done</button>
-      <RichTextToolbar className="canvas-rich-text-toolbar" />
     </header>
     <aside className="canvas-elements-sidebar">
       <ElementPalette items={paletteItems} docked onUse={item => void placePaletteItem(item)} />
@@ -715,8 +714,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <div className="canvas-layer-actions"><button type="button" aria-label={`Move ${elementName(element)} forward`} title="Move forward" onClick={() => changeLayerFor(element, 'forward')}>↑</button><button type="button" aria-label={`Move ${elementName(element)} backward`} title="Move backward" onClick={() => changeLayerFor(element, 'backward')}>↓</button><SortableHandle label={`Drag ${elementName(element)} to reorder layers`} /></div>
       </li></SortableItem>)}</ol></SortableContext>
     </aside>
-    <main className="canvas-workarea" ref={workarea} onWheel={handleWheel}>
-      <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
+    <main className="canvas-workarea">
+      <RichTextToolbar className="canvas-rich-text-toolbar" />
+      <div className="canvas-workarea-scroll" ref={workarea} onWheel={handleWheel}>
+        <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
       <CanvasDropTarget stage={stage}><div className={`canvas-stage ${editingElementId ? 'is-text-editing' : ''}`} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) { setSelected(new Set()); setEditingElementId(undefined); } }}>
         <CanvasSceneView scene={scene} document={document} template={template} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} editingElementId={editingElementId} editingMinimumHeightIn={editingMinimumHeightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} template={template} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
@@ -735,8 +736,9 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
           })}
         </div>
       </div></CanvasDropTarget>
+        </div>
+        <div className="canvas-align-tools"><span>Align selection</span>{(['left', 'center', 'right', 'top', 'middle', 'bottom'] as const).map(edge => <button disabled={selected.size < 2} onClick={() => align(edge)} key={edge}>{edge}</button>)}<button disabled={selected.size < 3} onClick={() => distribute('horizontal')}>distribute H</button><button disabled={selected.size < 3} onClick={() => distribute('vertical')}>distribute V</button></div>
       </div>
-      <div className="canvas-align-tools"><span>Align selection</span>{(['left', 'center', 'right', 'top', 'middle', 'bottom'] as const).map(edge => <button disabled={selected.size < 2} onClick={() => align(edge)} key={edge}>{edge}</button>)}<button disabled={selected.size < 3} onClick={() => distribute('horizontal')}>distribute H</button><button disabled={selected.size < 3} onClick={() => distribute('vertical')}>distribute V</button></div>
     </main>
     <aside className="canvas-properties">
       <div className="eyebrow">Properties</div>

@@ -37,14 +37,14 @@ describe('canvas cover scenes', () => {
     const migrated = normalizeCanvasScene({
       coordinateSpace: 'fullPage',
       elements: [
-        { id: 'copy', type: 'text', x: 1, y: 2, width: 3, height: .5, source: { binding: 'info.title' }, verticalAlign: 'bottom' },
+        { id: 'copy', type: 'text', x: 1, y: 2, width: 3, height: .5, source: { binding: 'info.title' }, verticalAlign: 'bottom', overflow: 'shrinkToFit' },
         { id: 'rule', type: 'line', x: .5, y: 3, width: 6, height: 0, widthPt: 1 }
       ]
     });
     expect(migrated).toMatchObject({
       schemaVersion: 2,
       elements: [
-        { id: 'copy', type: 'block', x: 1, y: 2, width: 3, verticalAlign: 'bottom', block: { type: 'richText', binding: 'info.title' } },
+        { id: 'copy', type: 'block', x: 1, y: 2, width: 3, sizing: 'fixed', verticalAlign: 'bottom', block: { type: 'richText', binding: 'info.title' } },
         { id: 'rule', type: 'shape', shape: 'line', x: .5, y: 3, width: 6 }
       ]
     });
@@ -208,7 +208,7 @@ describe('canvas cover scenes', () => {
     expect(markup).not.toContain('stale native image sizing');
   });
 
-  it('keeps native canvas horizontal and vertical typography alignment independent', () => {
+  it('uses the canvas text-box alignment ahead of nested block presentation', () => {
     const scene: CanvasScene = {
       schemaVersion: 2,
       coordinateSpace: 'fullPage',
@@ -220,12 +220,12 @@ describe('canvas cover scenes', () => {
         width: 3,
         height: 1.5,
         sizing: 'fixed',
-        verticalAlign: 'top',
+        verticalAlign: 'bottom',
         block: {
           id: 'native-heading',
           type: 'heading',
           text: 'Welcome',
-          presentation: { textAlign: 'right', verticalAlign: 'bottom' },
+          presentation: { textAlign: 'right', verticalAlign: 'top' },
         },
       }],
     };
@@ -239,5 +239,25 @@ describe('canvas cover scenes', () => {
 
     expect(markup).toContain('justify-content:flex-end');
     expect(markup).toContain('text-align:right');
+  });
+
+  it('reconciles existing canvas alignment fields without changing their rendered position', () => {
+    const normalized = normalizeCanvasScene({
+      schemaVersion: 2,
+      coordinateSpace: 'fullPage',
+      elements: [{
+        id: 'heading',
+        type: 'block',
+        x: 1,
+        y: 1,
+        width: 3,
+        height: 1.5,
+        sizing: 'fixed',
+        verticalAlign: 'top',
+        block: { id: 'native-heading', type: 'heading', text: 'Welcome', presentation: { verticalAlign: 'bottom' } },
+      }],
+    });
+
+    expect(normalized.elements[0]).toMatchObject({ verticalAlign: 'bottom', block: { presentation: { verticalAlign: 'bottom' } } });
   });
 });

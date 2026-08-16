@@ -136,7 +136,12 @@ export function canvasNativeBlockAllowed(block: import('./types.js').BulletinBlo
 }
 
 export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
-  if (scene.schemaVersion === 2 && scene.elements.every(element => element.type === 'block' || element.type === 'shape')) return scene;
+  if (scene.schemaVersion === 2 && scene.elements.every(element => element.type === 'block' || element.type === 'shape')) return {
+    ...scene,
+    elements: scene.elements.map(element => element.type === 'block'
+      ? { ...element, verticalAlign: element.block.presentation?.verticalAlign ?? element.verticalAlign }
+      : element)
+  };
   return {
     ...scene,
     schemaVersion: 2,
@@ -169,7 +174,7 @@ export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
       return {
         ...base,
         type: 'block' as const,
-        sizing: element.overflow === 'fixed' ? 'fixed' as const : 'autoHeight' as const,
+        sizing: element.overflow === 'autoHeight' || !element.overflow ? 'autoHeight' as const : 'fixed' as const,
         verticalAlign: element.verticalAlign,
         block: {
           id: `${element.id}-text`,

@@ -270,6 +270,11 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
     setScene(next);
     onChange({ ...block, scene: next });
   };
+  const alignBlock = (element: Extract<CanvasElement, { type: 'block' }>, verticalAlign: 'top' | 'middle' | 'bottom', nextBlock = element.block): Extract<CanvasElement, { type: 'block' }> => ({
+    ...element,
+    verticalAlign,
+    block: { ...nextBlock, presentation: { ...nextBlock.presentation, verticalAlign } } as typeof nextBlock,
+  });
   const updateElements = (updater: (element: CanvasElement) => CanvasElement, ids = selected) =>
     publish({ ...scene, elements: scene.elements.map(element => ids.has(element.id) ? updater(element) : element) });
   const editable = (_element: CanvasElement) => true;
@@ -725,7 +730,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <div className={`canvas-stage-frame ${showRulers ? 'with-rulers' : ''}`} style={{ width: `${canvasWidth * 96 * zoom}px`, height: `${block.heightIn * 96 * zoom}px` }}>
       {showRulers && <><PageRulers widthIn={canvasWidth} heightIn={block.heightIn} /><div className="page-crosshairs" aria-hidden="true"><i className="crosshair-vertical" /><i className="crosshair-horizontal" /></div></>}
       <CanvasDropTarget stage={stage}><div className={`canvas-stage ${editingElementId ? 'is-text-editing' : ''}`} style={{ width: `${canvasWidth}in`, height: `${block.heightIn}in`, transform: `scale(${zoom})` }} onPointerMove={event => { moveDrag(event); if (showRulers) trackPointer(event); }} onPointerLeave={showRulers ? stopTrackingPointer : undefined} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerDown={event => { setContextMenu(undefined); if (event.target === event.currentTarget) { setSelected(new Set()); setEditingElementId(undefined); } }}>
-        <CanvasSceneView scene={scene} document={document} template={template} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} editingElementId={editingElementId} editingMinimumHeightIn={editingMinimumHeightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} template={template} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, verticalAlign, block: { ...candidate.block, presentation: { ...candidate.block.presentation, verticalAlign } } } : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? { ...candidate, block: next } : candidate) }) : undefined} />} />
+        <CanvasSceneView scene={scene} document={document} template={template} assets={resolvedAssets} marginIn={0} widthIn={canvasWidth} heightIn={block.heightIn} editingElementId={editingElementId} editingMinimumHeightIn={editingMinimumHeightIn} renderNativeBlock={(native, element) => <NativeBlockPreview block={native} library={library} assets={resolvedAssets} document={{ ...document, responsiveReading: effectiveResponsiveReadingSettings(template, document) }} template={template} marginIn={marginIn} verticalAlign={element.verticalAlign ?? native.presentation?.verticalAlign ?? 'top'} onVerticalAlignChange={editingElementId === element.id ? verticalAlign => publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === element.id && candidate.type === 'block' ? alignBlock(candidate, verticalAlign) : candidate) }) : undefined} onBlockChange={editingElementId === element.id ? next => publish({ ...scene, elements: scene.elements.map(candidate => {
+          if (candidate.id !== element.id || candidate.type !== 'block') return candidate;
+          return alignBlock(candidate, next.presentation?.verticalAlign ?? candidate.verticalAlign ?? 'top', next);
+        }) }) : undefined} />} />
         {showGuides && <div className="canvas-safe-guide" style={{ left: `${marginIn}in`, top: `${marginIn}in`, width: `${Math.max(0, canvasWidth - marginIn * 2)}in`, height: `${Math.max(0, block.heightIn - marginIn * 2)}in` }} />}
         {snapGuidesRef.current.x !== undefined && <div className="canvas-smart-guide vertical" style={{ left: `${space.x + snapGuidesRef.current.x}in` }} />}
         {snapGuidesRef.current.y !== undefined && <div className="canvas-smart-guide horizontal" style={{ top: `${space.y + snapGuidesRef.current.y}in` }} />}
@@ -760,7 +768,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
           {nativePrimary && <NativeBlockFields block={nativePrimary} document={document} library={library} template={template} responsiveReadingSettings={effectiveResponsiveReadingSettings(template, document)} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}
           {nativePrimary && nativePrimary.type !== 'image' && <>
-            {!supportsInlineTypography(nativePrimary) && <label>Vertical alignment<select value={primary.verticalAlign ?? 'top'} onChange={event => updatePrimary({ verticalAlign: event.target.value as 'top' | 'middle' | 'bottom' } as Partial<CanvasElement>)}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>}
+            {!supportsInlineTypography(nativePrimary) && <label>Vertical alignment<select value={primary.verticalAlign ?? nativePrimary.presentation?.verticalAlign ?? 'top'} onChange={event => {
+              const verticalAlign = event.target.value as 'top' | 'middle' | 'bottom';
+              publish({ ...scene, elements: scene.elements.map(candidate => candidate.id === primary.id && candidate.type === 'block' ? alignBlock(candidate, verticalAlign) : candidate) });
+            }}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>}
             <button className="secondary canvas-format-button" onClick={() => setFormattingElementId(primary.id)}>Format block…</button>
           </>}
         </>}
@@ -828,7 +839,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
       scope={scope}
       onClose={() => setFormattingElementId(undefined)}
       onSave={(presentation, layout) => {
-        publish({ ...scene, elements: scene.elements.map(item => item.id === element.id && item.type === 'block' ? { ...item, block: { ...item.block, presentation, layout } } : item) });
+        publish({ ...scene, elements: scene.elements.map(item => item.id === element.id && item.type === 'block' ? alignBlock(item, presentation?.verticalAlign ?? item.verticalAlign ?? 'top', { ...item.block, presentation, layout } as typeof item.block) : item) });
         setFormattingElementId(undefined);
       }}
     /></div>;

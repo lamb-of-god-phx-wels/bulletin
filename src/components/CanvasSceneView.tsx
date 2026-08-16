@@ -82,7 +82,7 @@ function CanvasElementView({ element, document, template, assets, renderNativeBl
       : native.type === 'richText'
         ? boundRichTextParagraphs(native, document, template).map((item, index) => <InlineParagraph paragraph={item} key={index} />)
         : 'text' in native ? native.text : native.label ?? (native.type === 'custom' ? native.name : native.type);
-    const verticalAlign = native.presentation?.verticalAlign ?? element.verticalAlign;
+    const verticalAlign = element.verticalAlign ?? native.presentation?.verticalAlign;
     const vertical = verticalAlign === 'middle'
       ? 'center'
       : verticalAlign === 'bottom'

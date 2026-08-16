@@ -42,7 +42,6 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   onClose(): void;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [canvasId, setCanvasId] = useState<string>();
   const [formatId, setFormatId] = useState<string>();
   const [status, setStatus] = useState('');
   const [imageIndex, setImageIndex] = useState<number>();
@@ -222,11 +221,44 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     </div>
     <DocumentView document={previewDocument} template={previewTemplate} library={library} root={root} rulers={showRulers} guides={showGuides} zoom={zoom} singlePage onBlockChange={updateBlock} />
   </main>;
-  return <div className={`page-template-designer page-template-${layout}`} role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
-    <header><div><div className="eyebrow">Reusable {layout === 'canvas' ? 'canvas' : 'regular-layout'} page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
-    {layout === 'regular' ? <>
-      <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /><div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
-      <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
+  if (layout === 'canvas') {
+    const canvas = value.blocks.length === 1 && value.blocks[0].type === 'canvas' ? value.blocks[0] : undefined;
+    if (!canvas) return <div className="page-template-designer page-template-canvas" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
+      <header><div><div className="eyebrow">Reusable canvas page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><button onClick={onClose}>Done</button></div></header>
+      <aside className="elements-sidebar page-template-elements" aria-label="Page template settings"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /></div></aside>
+      <div className="empty-state"><span>!</span><h2>Canvas unavailable</h2>{issues.map(issue => <p key={issue}>{issue}</p>)}</div>
+    </div>;
+    return <CanvasDesigner
+      block={canvas}
+      document={previewDocument}
+      template={previewTemplate}
+      scope="template"
+      marginIn={marginIn}
+      assets={{}}
+      root={root}
+      definitions={definitions}
+      library={library}
+      imageTargetFolder={`assets/page-templates/${value.id}`}
+      title={value.name}
+      eyebrow={`Reusable canvas page · v${value.version}`}
+      sidebarContent={<>
+        {pageSetup}
+        <PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} />
+        {(issues.length > 0 || status) && <div className={`canvas-page-feedback${issues.length ? ' validation warning' : ''}`}>{issues.map(issue => <p key={issue}>{issue}</p>)}{status && <p className="template-save-status">{status}</p>}</div>}
+      </>}
+      headerActions={onSave ? <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></> : undefined}
+      onLibraryChange={onLibraryChange}
+      onError={onError}
+      onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)}
+      onChange={updateBlock}
+      history={activeHistory}
+      onClose={onClose}
+    />;
+  }
+  return <div className="page-template-designer page-template-regular" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
+    <header><div><div className="eyebrow">Reusable regular-layout page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
+    <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /><div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
+    <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
         <div className="editor-section-title"><div><div className="eyebrow">Page content</div><h2>Elements</h2><small>{value.blocks.length} block{value.blocks.length === 1 ? '' : 's'}</small></div></div>
         <SortableList
           items={value.blocks}
@@ -253,29 +285,10 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
           </details></SortableItem>)}
         </SortableList>
         {issues.length > 0 && <div className="validation warning">{issues.map(issue => <p key={issue}>{issue}</p>)}</div>}{status && <p className="template-save-status">{status}</p>}
-      </div></section>
-      {previewPane}
-    </> : <>
-      <aside className="page-template-controls">
-        {pageSetup}
-        <PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} />
-        <p className="helper">This page is a single positioned canvas. Use Design to edit its contents.</p>
-      <SortableList
-        items={value.blocks}
-        onChange={blocks => change({ blocks })}
-        onInsert={undefined}
-      ><ol className="outline">{value.blocks.map(block => <SortableItem id={block.id} key={block.id}><li>
-        <div className="outline-main"><EditableElementName as="b" value={title(block)} onRename={displayName => updateBlock({ ...block, displayName } as BulletinBlock)} /><small>{block.type}</small>
-          {block.type === 'canvas' && <small>7 × 8.5 in · full page</small>}
-        </div><div className="reorder"><button className="format-block-button" onClick={() => setCanvasId(block.id)}>Design</button></div>
-      </li></SortableItem>)}</ol></SortableList>
-      {issues.length > 0 && <div className="validation warning">{issues.map(issue => <p key={issue}>{issue}</p>)}</div>}{status && <p className="template-save-status">{status}</p>}
-      </aside>
-      {previewPane}
-    </>}
+    </div></section>
+    {previewPane}
     {conditionBlockId && (() => { const block = value.blocks.find(item => item.id === conditionBlockId); return block ? <ConditionModal value={block.condition} template={previewTemplate} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock({ ...block, condition } as BulletinBlock); setConditionBlockId(undefined); }} /> : null; })()}
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={previewTemplate} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
-    {canvasId && (() => { const block = value.blocks.find(item => item.id === canvasId); return block?.type === 'canvas' ? <CanvasDesigner block={block} document={previewDocument} template={previewTemplate} scope="template" marginIn={marginIn} assets={{}} root={root} definitions={definitions} library={library} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChooseAsset={() => window.bulletin?.importAsset(root ?? '', `assets/page-templates/${value.id}`) ?? Promise.resolve(null)} onChange={updateBlock} history={activeHistory} onClose={() => setCanvasId(undefined)} /> : null; })()}
     {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
     {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
     {nestedImageTarget && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setNestedImageTarget(undefined)} onSelect={asset => { const parent = findBlock(value.blocks, nestedImageTarget.parentId); if (parent?.type === 'group') change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, nestedImageTarget.cell)) }); setNestedImageTarget(undefined); }} />}

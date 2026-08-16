@@ -1,4 +1,4 @@
-import { cloneElement, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactElement, type Ref } from 'react';
+import { cloneElement, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactElement, type ReactNode, type Ref } from 'react';
 import { closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import {
@@ -69,7 +69,7 @@ function CanvasDropTarget({ stage, children }: { stage: MutableRefObject<HTMLDiv
   });
 }
 
-export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, imageTargetFolder = 'assets/canvases', onLibraryChange, onError, onChooseAsset, onChange, history, onClose }: {
+export function CanvasDesigner({ block, document, template, scope, marginIn, assets, root, definitions = [], library, imageTargetFolder = 'assets/canvases', title = 'Canvas designer', eyebrow = 'Positioned page content', sidebarContent, headerActions, onLibraryChange, onError, onChooseAsset, onChange, history, onClose }: {
   block: CanvasBlock;
   document: BulletinDocumentV1;
   template: TemplateV1;
@@ -80,6 +80,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   definitions?: DeclarativeComponentDefinition[];
   library?: LibraryManifestV1;
   imageTargetFolder?: string;
+  title?: string;
+  eyebrow?: string;
+  sidebarContent?: ReactNode;
+  headerActions?: ReactNode;
   onLibraryChange?(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError?(message: string): void;
   onChooseAsset?(): Promise<AssetRef | null>;
@@ -687,7 +691,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
   return <DndContext sensors={paletteSensors} collisionDetection={closestCenter} autoScroll onDragStart={event => setPaletteOverlay((event.active.data.current?.paletteItem as ElementPaletteItem | undefined)?.label ?? '')} onDragCancel={() => setPaletteOverlay('')} onDragEnd={endDesignerDrag}>
   <div className="canvas-designer" role="dialog" aria-modal="true" aria-labelledby="canvas-designer-title">
     <header className="canvas-designer-toolbar">
-      <div><div className="eyebrow">Positioned page content</div><h2 id="canvas-designer-title">Canvas designer</h2></div>
+      <div><div className="eyebrow">{eyebrow}</div><h2 id="canvas-designer-title">{title}</h2></div>
       <div className="canvas-tools">
         <button disabled={!selected.size} onClick={duplicate}>Duplicate</button><button disabled={!selected.size} onClick={copySelection}>Copy</button><button disabled={!clipboardAvailable} onClick={() => pasteSelection()}>Paste</button><button className={`condition-toggle ${primary?.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(primary?.condition)} disabled={selected.size !== 1} onClick={() => primary && setConditionElementId(primary.id)}>Condition</button><button disabled={selected.size < 2} onClick={group}>Group</button><button disabled={!selected.size || ![...selected].some(id => elements.get(id)?.groupId)} onClick={ungroup}>Ungroup</button><button disabled={!selected.size} onClick={() => updateElements(item => ({ ...item, locked: ![...selected].every(id => elements.get(id)?.locked) }))}>Lock / unlock</button>
         <button disabled={!history.canUndo} onClick={history.undo}>Undo</button><button disabled={!history.canRedo} onClick={history.redo}>Redo</button>
@@ -699,9 +703,10 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         <button type="button" className={`ruler-toggle ${showRulers ? 'active' : ''}`} aria-label={`${showRulers ? 'Hide' : 'Show'} rulers`} aria-pressed={showRulers} onClick={toggleRulers}>Rulers</button>
         <PreviewZoomControls zoom={zoom} onChange={changeZoom} onFit={fitCanvas} />
       </div>
-      <button className="primary" onClick={onClose}>Done</button>
+      <div className="canvas-designer-actions">{headerActions}<button className={headerActions ? undefined : 'primary'} onClick={onClose}>Done</button></div>
     </header>
-    <aside className="canvas-elements-sidebar">
+    <aside className={`canvas-elements-sidebar${sidebarContent ? ' elements-sidebar canvas-page-elements' : ''}`}>
+      {sidebarContent && <div className="canvas-page-settings">{sidebarContent}</div>}
       <ElementPalette items={paletteItems} docked onUse={item => void placePaletteItem(item)} />
     </aside>
     <aside className="canvas-layers">

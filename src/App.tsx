@@ -65,9 +65,7 @@ import { churchEventDisplayName, churchEventsForDate } from "./shared/churchCale
 import { duplicatePageTemplate } from "./shared/pageTemplates";
 import {
   duplicateBulletin,
-  filterBulletins,
   sortedBulletins,
-  type BulletinRecord,
 } from "./shared/bulletins";
 import {
   isRedoShortcut,
@@ -80,6 +78,7 @@ import { copyEmbeddedAssets, copySlug, uniqueCopyId, uniqueCopyName } from "./sh
 import bulletinBuilderLogo from "./assets/bulletin-builder-logo.svg?raw";
 import { bytesFromDataUrl, detectFontFace } from "./shared/fontMetadata";
 import { fontLoadErrors } from "./shared/fontRuntime";
+import { BulletinEditorLanding } from "./components/BulletinEditorLanding";
 
 const BrandLogo = () => <span
   className="brand-logo"
@@ -88,6 +87,7 @@ const BrandLogo = () => <span
 />;
 
 type Screen =
+  | "bulletins"
   | "weekly"
   | "templates"
   | "page-templates"
@@ -252,7 +252,7 @@ export default function App() {
 function DesktopApp() {
   const initialPreviewZoom = storedPreviewZoom();
   const [workspace, setWorkspace] = useState<WorkspaceSummary>();
-  const [screen, setScreen] = useState<Screen>("weekly");
+  const [screen, setScreen] = useState<Screen>("bulletins");
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [document, setDocument] = useState<BulletinDocumentV1>();
   const [relativePath, setRelativePath] = useState("");
@@ -260,7 +260,6 @@ function DesktopApp() {
   const [templatePath, setTemplatePath] = useState("");
   const [status, setStatus] = useState("Ready");
   const [workspacePicker, setWorkspacePicker] = useState(false);
-  const [bulletinPicker, setBulletinPicker] = useState(false);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<
     Array<{ root: string; name: string }>
   >([]);
@@ -586,12 +585,10 @@ function DesktopApp() {
         sortedTemplateRecords(next.templates)[0];
       setTemplate(selectedTemplate?.template ?? defaultTemplate);
       setTemplatePath(selectedTemplate?.path ?? "");
-      const latest = [...next.bulletins].sort((a, b) =>
-        b.document.info.date.localeCompare(a.document.info.date),
-      )[0];
-      if (latest) openDocument(latest.document, latest.path, next.templates);
-      else if (next.compatibility?.writable !== false)
-        startNew(selectedTemplate?.template ?? defaultTemplate);
+      setDocument(undefined);
+      setRelativePath("");
+      savedRevision.current = 0;
+      setScreen("bulletins");
       if (next.sync?.conflicts.length)
         reportStatus(
           `${next.sync.conflicts.length} shared conflict${next.sync.conflicts.length === 1 ? "" : "s"} need attention`,
@@ -643,15 +640,8 @@ function DesktopApp() {
     reportStatus("Saved");
     setScreen("weekly");
   }
-  function showWeekly() {
-    if (document) {
-      const record = templateForReference(
-        workspace?.templates ?? [],
-        document.template,
-      );
-      if (record) selectTemplate(record);
-    }
-    setScreen("weekly");
+  function showBulletinEditor() {
+    setScreen("bulletins");
   }
   function openNewBulletin(next: BulletinDocumentV1) {
     const calendarEvents = workspace?.library?.calendarEvents ?? [];
@@ -676,9 +666,6 @@ function DesktopApp() {
     openDocument(next, path);
     updateEditingState({ bulletinDirty: true });
     reportStatus("Unsaved changes");
-  }
-  function startNew(from = template) {
-    openNewBulletin(createBulletin(from));
   }
   function beginNewBulletin() {
     requestBulletinLeave(() => setCreateDestination("bulletin"));
@@ -823,16 +810,11 @@ function DesktopApp() {
         (item) => item.path !== relativePath,
       );
       setWorkspace({ ...workspace, bulletins: remaining });
-      const latest = [...remaining].sort((a, b) =>
-        b.document.info.date.localeCompare(a.document.info.date),
-      )[0];
-      if (latest) openDocument(latest.document, latest.path);
-      else {
-        documentHistory.reset();
-        setDocument(undefined);
-        setRelativePath("");
-        savedRevision.current = 0;
-      }
+      documentHistory.reset();
+      setDocument(undefined);
+      setRelativePath("");
+      savedRevision.current = 0;
+      setScreen("bulletins");
       reportStatus("Bulletin moved to Trash");
     } catch (error) {
       reportStatus(error instanceof Error ? error.message : String(error));
@@ -1266,16 +1248,11 @@ function DesktopApp() {
     action(): void;
   }> = [
     {
-      label: "This week",
+      label: "Bulletin Editor",
       icon: "◫",
-      active: screen === "weekly",
-      action: showWeekly,
-    },
-    {
-      label: "Bulletins",
-      icon: "▦",
-      active: false,
-      action: () => setBulletinPicker(true),
+      active: screen === "bulletins" || screen === "weekly",
+      leavesBulletin: true,
+      action: showBulletinEditor,
     },
     {
       label: "Bulletin Templates",
@@ -1486,14 +1463,18 @@ function DesktopApp() {
         {screen !== "church-year" && <header className="topbar">
           <div>
             <div className="eyebrow">
-              {screen === "weekly"
+              {screen === "bulletins"
+                ? "Workspace bulletins"
+                : screen === "weekly"
                 ? "Weekly bulletin"
                 : screen === "archive"
                     ? "Recoverable items"
                   : screen}
             </div>
             <h1>
-              {screen === "weekly"
+              {screen === "bulletins"
+                ? "Bulletin Editor"
+                : screen === "weekly"
                 ? (document?.info.title ?? "No bulletin selected")
                 : screen === "templates"
                   ? template.name
@@ -1603,7 +1584,7 @@ function DesktopApp() {
                   disabled={!workspaceWritable}
                   onClick={beginNewBulletin}
                 >
-                  New week
+                  Create New
                 </button>
                 <button
                   type="button"
@@ -1673,6 +1654,12 @@ function DesktopApp() {
               </span>
             </div>
           )}
+        {screen === "bulletins" && <BulletinEditorLanding
+          bulletins={workspace.bulletins}
+          canCreate={workspaceWritable}
+          onCreate={beginNewBulletin}
+          onSelect={record => requestBulletinLeave(() => openDocument(record.document, record.path))}
+        />}
         {screen === "weekly" && document && (
           <div className="weekly-layout">
             <section className="editor-pane" onClick={handleEditorBlockClick}>
@@ -2239,7 +2226,7 @@ function DesktopApp() {
               setCreateDestination(undefined);
               const next =
                 source.kind === "blank"
-                  ? createBulletin(defaultTemplate, value)
+                  ? createBulletin({ ...defaultTemplate, starterBlocks: [], customProperties: undefined }, value)
                   : source.kind === "template"
                   ? createBulletin(source.record.template, value)
                   : duplicateBulletin(source.record.document, value);
@@ -2249,24 +2236,6 @@ function DesktopApp() {
               setPendingTemplateFolderId(undefined);
               setCreateDestination(undefined);
             }
-          }}
-        />
-      )}
-      {bulletinPicker && (
-        <BulletinPicker
-          bulletins={workspace.bulletins}
-          currentPath={relativePath}
-          canCreate={workspaceWritable}
-          onClose={() => setBulletinPicker(false)}
-          onCreate={() => {
-            setBulletinPicker(false);
-            beginNewBulletin();
-          }}
-          onSelect={(record) => {
-            requestBulletinLeave(() => {
-              setBulletinPicker(false);
-              openDocument(record.document, record.path);
-            });
           }}
         />
       )}
@@ -2491,120 +2460,6 @@ function RevisionHistoryDialog({ revisions, onClose, onRestore }: {
       <footer><button className="secondary" onClick={onClose}>Close</button></footer>
     </section>
   </div>;
-}
-
-function BulletinPicker({
-  bulletins,
-  currentPath,
-  canCreate,
-  onClose,
-  onCreate,
-  onSelect,
-}: {
-  bulletins: BulletinRecord[];
-  currentPath: string;
-  canCreate: boolean;
-  onClose(): void;
-  onCreate(): void;
-  onSelect(record: BulletinRecord): void;
-}) {
-  const [query, setQuery] = useState("");
-  const matches = useMemo(
-    () => filterBulletins(bulletins, query),
-    [bulletins, query],
-  );
-  return (
-    <div
-      className="modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="bulletin-picker-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bulletin-picker-title"
-      >
-        <header>
-          <div>
-            <div className="eyebrow">Workspace history</div>
-            <h2 id="bulletin-picker-title">Choose a bulletin</h2>
-            <p>
-              {bulletins.length} saved bulletin
-              {bulletins.length === 1 ? "" : "s"} in this workspace.
-            </p>
-          </div>
-          <button aria-label="Close bulletin picker" onClick={onClose}>
-            ×
-          </button>
-        </header>
-        <div className="bulletin-picker-search">
-          <label>
-            Search all bulletins
-            <input
-              autoFocus
-              type="search"
-              value={query}
-              placeholder="Title, series, date, or church event"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <span>
-            {matches.length} result{matches.length === 1 ? "" : "s"}
-          </span>
-          <button
-            type="button"
-            className="primary bulletin-picker-create"
-            disabled={!canCreate}
-            onClick={onCreate}
-          >
-            ＋ New bulletin
-          </button>
-        </div>
-        <div className="bulletin-picker-list">
-          {matches.map((record) => {
-            const current = record.path === currentPath;
-            const date = new Date(
-              `${record.document.info.date}T12:00:00`,
-            ).toLocaleDateString(undefined, {
-              weekday: "short",
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            });
-            return (
-              <button
-                className={current ? "current" : ""}
-                key={record.path}
-                onClick={() => onSelect(record)}
-              >
-                <time dateTime={record.document.info.date}>
-                  <b>{date}</b>
-                  <small>{record.document.info.churchWeek}</small>
-                </time>
-                <span>
-                  <b>{record.document.info.title || "Untitled bulletin"}</b>
-                  <small>
-                    {record.document.info.series || record.document.church.name}
-                  </small>
-                </span>
-                <strong>{current ? "Current" : "Open"}</strong>
-              </button>
-            );
-          })}
-          {!matches.length && (
-            <div className="bulletin-picker-empty">
-              <span>⌕</span>
-              <b>No matching bulletins</b>
-              <p>Try a title, date, series, or church event.</p>
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
-  );
 }
 
 function WorkspacePicker({

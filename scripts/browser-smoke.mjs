@@ -64,13 +64,59 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_CANVAS_ONLY === '1' || process.env.BULLETIN_FONT_PICKER_ONLY === '1' || process.env.BULLETIN_IMPORTED_FONT_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_CANVAS_ONLY === '1' || process.env.BULLETIN_FONT_PICKER_ONLY === '1' || process.env.BULLETIN_IMPORTED_FONT_ONLY === '1' || process.env.BULLETIN_EDITOR_LANDING_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_EDITOR_LANDING_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  await wait(`document.querySelector('.topbar h1')?.textContent==='Bulletin Editor'&&Boolean(document.querySelector('.bulletin-editor-landing'))`, 'Bulletin Editor landing page');
+  const navigationLabels = await evaluate(`Array.from(document.querySelectorAll('.sidebar nav button')).map(button=>button.textContent.trim())`);
+  if (!navigationLabels.some(label => label.endsWith('Bulletin Editor')) || navigationLabels.some(label => label.endsWith('This week')) || navigationLabels.some(label => label.endsWith('Bulletins') && !label.endsWith('Templates'))) throw new Error(`Bulletin navigation was not consolidated: ${JSON.stringify(navigationLabels)}`);
+  const dates = await evaluate(`Array.from(document.querySelectorAll('.bulletin-editor-list time')).map(time=>time.dateTime)`);
+  if (dates.some((date, index) => index && date > dates[index - 1])) throw new Error(`Bulletins are not newest first: ${JSON.stringify(dates)}`);
+  if (await evaluate(`Boolean(document.querySelector('.bulletin-picker-modal,.modal-backdrop'))`)) throw new Error('The Bulletin Editor landing page opened as a modal.');
+  await click('Create New');
+  await wait(`Boolean(document.querySelector('.create-from-modal.create-kind-modal'))`, 'new bulletin source choices');
+  const choices = await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button b')).map(item=>item.textContent.trim())`);
+  if (JSON.stringify(choices) !== JSON.stringify(['Blank','Template','Past bulletin'])) throw new Error(`New bulletin choices are incorrect: ${JSON.stringify(choices)}`);
+  await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button')).find(button=>button.querySelector('b')?.textContent.trim()==='Blank')?.click()`);
+  await wait(`document.querySelectorAll('.create-from-tabs button').length===3&&document.querySelector('.create-from-tabs button[aria-selected="true"]')?.textContent.trim()==='Blank'`, 'blank bulletin setup');
+  await click('Create a bulletin');
+  await wait(`Boolean(document.querySelector('.weekly-layout'))`, 'create blank bulletin');
+  await wait(`document.querySelector('.save-status')?.textContent==='Saved'`, 'save blank bulletin');
+  await click('Bulletin Editor');
+  await wait(`Boolean(document.querySelector('.bulletin-editor-list > button'))&&!document.querySelector('.modal-backdrop')`, 'return to Bulletin Editor landing');
+  await evaluate(`document.querySelector('.bulletin-editor-list > button')?.click()`);
+  await wait(`Boolean(document.querySelector('.weekly-layout'))`, 'open bulletin from landing');
+  await click('Bulletin Editor');
+  await wait(`Boolean(document.querySelector('.bulletin-editor-landing'))&&!document.querySelector('.modal-backdrop')`, 'return to Bulletin Editor list');
+  pass('uses a consolidated Bulletin Editor landing page with explicit creation sources');
+  console.log(`\n${results.length} browser Bulletin Editor checks passed.`);
+  socket.close();
+  process.exit(0);
+}
+
+const ensureWeeklyBulletin = async () => {
+  if (await evaluate(`Boolean(document.querySelector('.weekly-layout'))`)) return;
+  if (!await evaluate(`Boolean(document.querySelector('.bulletin-editor-landing'))`)) await click('Bulletin Editor');
+  await wait(`Boolean(document.querySelector('.bulletin-editor-landing'))`, 'Bulletin Editor landing');
+  if (await evaluate(`Boolean(document.querySelector('.bulletin-editor-list > button'))`)) {
+    await evaluate(`document.querySelector('.bulletin-editor-list > button')?.click()`);
+  } else {
+    await click('Create New');
+    await wait(`Boolean(document.querySelector('.create-kind-options'))`, 'new bulletin source choices');
+    await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button')).find(button=>button.querySelector('b')?.textContent.trim()==='Template')?.click()`);
+    await wait(`Boolean(document.querySelector('.create-from-tabs'))`, 'bulletin template setup');
+    await click('Create a bulletin');
+  }
+  await wait(`Boolean(document.querySelector('.weekly-layout'))`, 'weekly bulletin editor');
+};
+await ensureWeeklyBulletin();
 
 if (process.env.BULLETIN_IMPORTED_FONT_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -89,7 +135,7 @@ if (process.env.BULLETIN_IMPORTED_FONT_ONLY === '1') {
   await wait(`Array.from(document.fonts).filter(face=>face.family.startsWith('BulletinFont-imported-smoke-font-v')&&face.status==='loaded').length>${importedFaceCount}`, 'imported font face registration');
   const loadedFace = await evaluate(`(()=>{const face=Array.from(document.fonts).filter(candidate=>candidate.family.startsWith('BulletinFont-imported-smoke-font-v')).sort((a,b)=>Number(b.family.split('-v').at(-1))-Number(a.family.split('-v').at(-1)))[0];return face&&{family:face.family,status:face.status,weight:face.weight,style:face.style}})()`);
   if (!loadedFace || loadedFace.status !== 'loaded') throw new Error(`Imported font was not loaded: ${JSON.stringify(loadedFace)}`);
-  await click('This week');
+  await ensureWeeklyBulletin();
   await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor[contenteditable="true"]'))`, 'live editor after font import');
   await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.preview-pane .rich-text-editor[contenteditable="true"]')).find(item=>item.textContent.trim().length>2);if(!editor)return false;editor.click();editor.focus();const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let text=walker.nextNode();while(text&&!text.textContent?.trim())text=walker.nextNode();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return true})()`);
   await new Promise(resolve => setTimeout(resolve, 150));
@@ -170,7 +216,7 @@ if (process.env.BULLETIN_GRID_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1') {
-  await click('This week');
+  await ensureWeeklyBulletin();
   await wait(`Boolean(document.querySelector('.preview-pane .rich-text-editor[contenteditable="true"]'))`, 'editable rich text in the document preview');
   const directEditBlockId = await evaluate(`(()=>{const editor=Array.from(document.querySelectorAll('.preview-pane .rich-text-editor[contenteditable="true"]')).find(item=>item.textContent.trim().length>2);if(!editor)return false;editor.dispatchEvent(new MouseEvent('click',{bubbles:true}));editor.focus();const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let text=walker.nextNode();while(text&&!text.textContent?.trim())text=walker.nextNode();const range=document.createRange();range.setStart(text,0);range.setEnd(text,2);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));return editor.closest('[data-block-id]')?.dataset.blockId})()`);
   await wait(`document.querySelector('[data-editor-block-id="${directEditBlockId}"]')?.classList.contains('editor-block-focus')`, 'preview click focuses its editor element');
@@ -469,7 +515,9 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
   await wait(`Boolean(document.querySelector('.navigation-drawer'))&&Boolean(document.querySelector('.elements-sidebar .element-palette'))&&!document.querySelector('.template-workbench .element-palette')`, 'template palette portal attachment');
   await evaluate(`Array.from(document.querySelectorAll('.navigation-drawer nav button')).find(button=>button.textContent.includes('Library'))?.click()`);
   await wait(`Boolean(document.querySelector('.static-navigation'))`, 'return to management navigation');
-  await evaluate(`Array.from(document.querySelectorAll('.static-navigation nav button')).find(button=>button.textContent.includes('This week'))?.click()`);
+  await evaluate(`Array.from(document.querySelectorAll('.static-navigation nav button')).find(button=>button.textContent.includes('Bulletin Editor'))?.click()`);
+  await wait(`Boolean(document.querySelector('.bulletin-editor-landing'))`, 'Bulletin Editor navigation destination');
+  await evaluate(`document.querySelector('.bulletin-editor-list > button')?.click()`);
   await wait(`Boolean(document.querySelector('.navigation-drawer'))&&Boolean(document.querySelector('.elements-sidebar .element-palette'))`, 'return to expanded editor navigation');
   pass('attaches the template palette correctly when entering Templates from expanded navigation');
 
@@ -532,15 +580,16 @@ if (process.env.BULLETIN_CHURCH_YEAR_ONLY === '1') {
 }
 
 if (process.env.BULLETIN_CREATE_FROM_ONLY === '1') {
-  await click('New week');
+  await click('Create New');
+  await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button')).find(button=>button.querySelector('b')?.textContent.trim()==='Template')?.click()`);
   await wait(`document.querySelector('.create-from-modal button[role="tab"][aria-selected="true"]')?.textContent.includes('Templates')`, 'bulletin template-source chooser');
   await evaluate(`(()=>{const input=document.querySelector('.create-from-modal input[type="date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-08-09');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
   await click('Create a bulletin');
   await wait(`document.querySelector('.editor-pane input[type="date"]')?.value === '2026-08-09'`, 'bulletin created from template');
   await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'saved template-based bulletin');
 
-  await click('New week');
-  await evaluate(`document.querySelector('.create-from-tabs button:last-child').click()`);
+  await click('Create New');
+  await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button')).find(button=>button.querySelector('b')?.textContent.trim()==='Past bulletin')?.click()`);
   await wait(`document.querySelector('.create-from-modal button[role="tab"][aria-selected="true"]')?.textContent.includes('Bulletins')`, 'bulletin-source chooser');
   await evaluate(`(()=>{const input=document.querySelector('.create-from-modal input[type="date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-08-16');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
   await click('Create a bulletin');
@@ -549,12 +598,13 @@ if (process.env.BULLETIN_CREATE_FROM_ONLY === '1') {
 
   await click('Templates');
   await click('New template');
+  await click('Existing template');
   await fill('New template name', 'Browser Template Source');
   await click('Create a template');
   await wait(`document.querySelector('.topbar h1')?.textContent === 'Browser Template Source'`, 'template created from template');
 
   await click('New template');
-  await evaluate(`document.querySelector('.create-from-tabs button:last-child').click()`);
+  await click('Existing bulletin');
   await fill('New template name', 'Browser Bulletin Source');
   await click('Create a template');
   await wait(`document.querySelector('.topbar h1')?.textContent === 'Browser Bulletin Source'`, 'template created from bulletin');
@@ -776,7 +826,7 @@ if (process.env.BULLETIN_SONG_LINES_ONLY === '1') {
   await click('Save item'); await wait(`document.body.textContent.includes('Line Break Hymn')`, 'saved line-break song');
   const storedLyrics = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.library.items.find(item=>item.id==='line-break-hymn').content.map(paragraph=>paragraph.children[0].text))`);
   if (storedLyrics.length !== 2 || storedLyrics[0] !== 'Verse one, line one\nVerse one, line two' || storedLyrics[1] !== 'Verse two, line one\nVerse two, line two') throw new Error(`Library song lines were not preserved: ${JSON.stringify(storedLyrics)}`);
-  await click('This week'); await choose('Library song', 'line-break-hymn');
+  await ensureWeeklyBulletin(); await choose('Library song', 'line-break-hymn');
   const songBlockId = await evaluate(`Array.from(document.querySelectorAll('.editor-pane select')).find(element=>element.value==='line-break-hymn').closest('[data-editor-block-id]').dataset.editorBlockId`);
   await wait(`(()=>{const song=document.querySelector('.preview-pane [data-block-id="${songBlockId}"]');return song?.querySelector('p')?.textContent==='Verse one, line one\\nVerse one, line two'&&getComputedStyle(song.querySelector('p')).whiteSpace==='pre-line'})()`, 'rendered library lyric lines');
   const weeklyLyrics = 'Weekly line one\nWeekly line two\n\nWeekly second verse';
@@ -1072,14 +1122,16 @@ if (process.env.BULLETIN_TEMPLATES_ONLY === '1') {
   await wait(`document.querySelectorAll('select[aria-label="Template and version"] option').length === 3`, 'template version options');
   const versions = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.templates.filter(item=>item.template.id==='festival-service').map(item=>({version:item.template.version,status:item.template.status})).sort((a,b)=>a.version-b.version))`);
   if (versions.length !== 2 || versions[0].status !== 'draft' || versions[1].version !== 2 || versions[1].status !== 'published') throw new Error(`Template version history is incorrect: ${JSON.stringify(versions)}`);
-  await click('This week');
+  await ensureWeeklyBulletin();
   await wait(`document.querySelector('.topbar h1')?.textContent === 'God Loves Sinners'`, 'referenced weekly template');
-  await click('New week');
-  await wait(`Boolean(document.querySelector('.new-bulletin-modal'))`, 'new bulletin template picker');
-  const choices = await evaluate(`Array.from(document.querySelectorAll('.template-choice-list > button b')).map(element=>element.textContent)`);
+  await click('Create New');
+  await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button')).find(button=>button.querySelector('b')?.textContent.trim()==='Template')?.click()`);
+  await wait(`Boolean(document.querySelector('.create-from-modal .create-source-list'))`, 'new bulletin template picker');
+  const choices = await evaluate(`Array.from(document.querySelectorAll('.create-source-list > button b')).map(element=>element.textContent)`);
   if (choices.length !== 2 || !choices.includes('Lamb of God Weekly') || !choices.includes('Festival Service')) throw new Error(`New bulletin template choices are incorrect: ${JSON.stringify(choices)}`);
   await click('Festival Service');
-  await wait(`!document.querySelector('.new-bulletin-modal') && document.querySelector('.topbar h1')?.textContent === 'Sermon title'`, 'festival bulletin');
+  await click('Create a bulletin');
+  await wait(`!document.querySelector('.create-from-modal') && document.querySelector('.topbar h1')?.textContent === 'Sermon title'`, 'festival bulletin');
   await wait(`document.querySelector('.save-status')?.textContent === 'Saved'`, 'festival bulletin save');
   const bulletinTemplate = await evaluate(`window.bulletin.openWorkspace(localStorage.getItem('bulletin-workspace')).then(workspace=>workspace.bulletins.find(item=>item.document.info.title==='Sermon title')?.document.template)`);
   if (bulletinTemplate?.id !== 'festival-service' || bulletinTemplate.version !== 2) throw new Error(`New bulletin did not retain its selected template: ${JSON.stringify(bulletinTemplate)}`);
@@ -1227,7 +1279,7 @@ if (process.env.BULLETIN_PAGINATION_ONLY === '1') {
   await click('Library'); await click('Add library item');
   await fill('Title', 'Long Pagination Song'); await fill('Stable ID', 'long-pagination-song'); await fill('Structured text', longLyrics);
   await click('Save item'); await wait(`document.body.textContent.includes('Long Pagination Song')`, 'long song library item');
-  await click('This week'); await choose('Library song', 'long-pagination-song');
+  await ensureWeeklyBulletin(); await choose('Library song', 'long-pagination-song');
   await wait(`document.querySelectorAll('.document-page').length > 4`, 'paginated long song');
   const overflow = await evaluate(`Array.from(document.querySelectorAll('.page-content')).map((element, index) => ({page:index + 1, scroll:element.scrollHeight, client:element.clientHeight})).filter(page => page.scroll > page.client + 1)`);
   if (overflow.length) throw new Error(`Rendered content overflows pages: ${JSON.stringify(overflow)}`);
@@ -1280,7 +1332,7 @@ await fill('Title', 'Smoke Hymn'); await fill('Stable ID', 'smoke-hymn'); await 
 await click('Save item'); await wait(`Array.from(document.querySelectorAll('.library-group article')).some(element=>element.textContent.includes('Smoke Hymn'))`, 'library item save');
 pass('adds a versioned library item');
 
-await click('This week'); await choose('Library song', 'smoke-hymn'); await choose('Presentation', 'asset');
+await ensureWeeklyBulletin(); await choose('Library song', 'smoke-hymn'); await choose('Presentation', 'asset');
 await setFileForButton('Choose music image or PDF', new URL('../tests/fixtures/smoke-cover.svg', import.meta.url).pathname);
 await wait(`${buttonExpression('Replace smoke-cover.svg')} !== undefined`, 'music asset import');
 pass('selects a library song and imports a music asset');
@@ -1299,7 +1351,7 @@ await click('Publish new version');
 await wait(`document.querySelector('.template-save-status')?.textContent.includes('New version published')`, 'template publish');
 pass('saves a template draft and publishes a new version');
 
-await click('This week'); await click('New week');
+await ensureWeeklyBulletin(); await click('Create New');
 await wait(`document.querySelector('.save-status')?.textContent.includes('Saved')`, 'new bulletin save');
 await wait(`document.querySelectorAll('.recent button').length >= 2`, 'recent bulletin refresh');
 pass('creates, saves, and lists a new bulletin');

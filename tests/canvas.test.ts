@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   canvasBindingText,
   boundRichTextParagraphs,
+  resetBoundRichTextContent,
   canvasElementBounds,
   cloneCanvasSelection,
   convertCanvasCoordinateSpace,
@@ -259,5 +260,28 @@ describe('canvas cover scenes', () => {
     });
 
     expect(normalized.elements[0]).toMatchObject({ verticalAlign: 'bottom', block: { presentation: { verticalAlign: 'bottom' } } });
+  });
+
+  it('resets bound text content without resetting its inline formatting', () => {
+    const bulletin = createBulletin(defaultTemplate, '2026-07-27');
+    const block = {
+      id: 'bound-title',
+      type: 'richText' as const,
+      content: [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }],
+      binding: 'info.title' as const,
+      bindingOverride: [{
+        type: 'paragraph' as const,
+        align: 'center' as const,
+        lineHeight: 1.4,
+        children: [{ type: 'text' as const, text: 'Temporary title', marks: ['bold' as const], style: { fontSizePt: 24 } }],
+      }],
+    };
+    const reset = resetBoundRichTextContent(block);
+    const first = boundRichTextParagraphs(reset, { ...bulletin, info: { ...bulletin.info, title: 'Bound title' } });
+    const updated = boundRichTextParagraphs(reset, { ...bulletin, info: { ...bulletin.info, title: 'Updated bound title' } });
+
+    expect(reset.bindingOverride).toBeUndefined();
+    expect(first[0]).toMatchObject({ align: 'center', lineHeight: 1.4, children: [{ text: 'Bound title', marks: ['bold'], style: { fontSizePt: 24 } }] });
+    expect(updated[0].children[0]).toMatchObject({ text: 'Updated bound title', marks: ['bold'], style: { fontSizePt: 24 } });
   });
 });

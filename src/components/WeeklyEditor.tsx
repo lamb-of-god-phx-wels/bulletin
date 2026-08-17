@@ -54,7 +54,7 @@ import { EditableElementName } from "./EditableElementName";
 import { TemplateElementDialog } from "./TemplateElementDialog";
 import { explodeTemplateInstance, instantiateTemplate, templateVersions } from "../shared/templates";
 import { RichTextBindingControl } from "./RichTextBindingControl";
-import { boundRichTextParagraphs } from "../shared/canvas";
+import { boundRichTextParagraphs, resetBoundRichTextContent } from "../shared/canvas";
 import { ElementPickerDialog } from "./ElementPickerDialog";
 import { NativeBlockFields } from "./NativeBlockFields";
 import { LayoutContainerFields } from "./LayoutContainerFields";
@@ -308,7 +308,7 @@ export function WeeklyEditor({
                         ? "Paragraph text"
                         : "Text"}
                     <RichTextEditor content={boundRichTextParagraphs(child, document, bulletinTemplate, library)} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, child.binding ? { ...child, bindingOverride: content } : { ...child, content })} />
-                  </label>{child.bindingOverride && <button className="text-button" onClick={() => updateBlock(child.id, { ...child, bindingOverride: undefined })}>Reset to bound value</button>}</>
+                  </label>{child.bindingOverride && <button className="text-button" onClick={() => updateBlock(child.id, resetBoundRichTextContent(child))}>Reset to bound value</button>}</>
                 )}
                 {child.type !== 'heading' && child.type !== 'sectionHeading' && child.type !== 'sermonTitle' && child.type !== 'richText' && <NativeBlockFields block={child} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope="weekly" root={root} imageTargetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`} includeChildren={false} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(child.id, next)} />}
                 {childBlocks(child) && nestedEditors(child)}
@@ -751,7 +751,7 @@ export function WeeklyEditor({
                   </label>
                 )}
                 {block.type === "richText" && (
-                  <><RichTextBindingControl value={block.binding} template={bulletinTemplate} library={library} root={root} onChange={binding => updateBlock(block.id, { ...block, binding, bindingOverride: undefined })} /><label>{block.binding ? 'Override' : 'Text'}<RichTextEditor content={boundRichTextParagraphs(block, document, bulletinTemplate, library)} label="Text" onChange={content => updateBlock(block.id, block.binding ? { ...block, bindingOverride: content } : { ...block, content })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => updateBlock(block.id, { ...block, bindingOverride: undefined })}>Reset to bound value</button>}</>
+                  <><RichTextBindingControl value={block.binding} template={bulletinTemplate} library={library} root={root} onChange={binding => updateBlock(block.id, { ...block, binding, bindingOverride: undefined })} /><label>{block.binding ? 'Override' : 'Text'}<RichTextEditor content={boundRichTextParagraphs(block, document, bulletinTemplate, library)} label="Text" onChange={content => updateBlock(block.id, block.binding ? { ...block, bindingOverride: content } : { ...block, content })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => updateBlock(block.id, resetBoundRichTextContent(block))}>Reset to bound value</button>}</>
                 )}
                 {block.type === "paragraph" && nestedEditors(block)}
                 {block.type === "templateInstance" && nestedEditors(block)}

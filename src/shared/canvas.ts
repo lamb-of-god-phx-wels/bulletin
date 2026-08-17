@@ -395,11 +395,41 @@ export function boundRichTextParagraphs(block: Extract<import('./types.js').Bull
   if (block.bindingOverride) return block.bindingOverride;
   if (!block.binding) return block.content;
   const binding = block.binding;
+  let content: Paragraph[];
   if (typeof binding === 'object' && binding.kind === 'libraryItem') {
-    return library?.items.filter(item => item.id === binding.itemId && (!binding.version || item.version === binding.version)).sort((left, right) => right.version - left.version)[0]?.content ?? block.content;
+    content = library?.items.filter(item => item.id === binding.itemId && (!binding.version || item.version === binding.version)).sort((left, right) => right.version - left.version)[0]?.content ?? block.content;
+  } else {
+    const value = canvasBindingText(binding, document, block.dateFormat, template);
+    content = value ? paragraph(value) : block.content;
   }
-  const value = canvasBindingText(binding, document, block.dateFormat, template);
-  return value ? paragraph(value) : block.content;
+  return block.bindingFormatting ? applyRichTextFormatting(block.bindingFormatting, content) : content;
+}
+
+export function applyRichTextFormatting(formatting: Paragraph[], content: Paragraph[]): Paragraph[] {
+  if (!formatting.length) return content;
+  return content.map((paragraph, index) => {
+    const format = formatting[Math.min(index, formatting.length - 1)];
+    const textFormats = format.children.filter((child): child is Extract<typeof child, { type: 'text' }> => child.type === 'text');
+    let textIndex = 0;
+    return {
+      ...paragraph,
+      align: format.align,
+      lineHeight: format.lineHeight,
+      breakBefore: format.breakBefore,
+      children: paragraph.children.map(child => {
+        if (child.type !== 'text') return child;
+        const source = textFormats[Math.min(textIndex++, Math.max(0, textFormats.length - 1))];
+        if (!source) return child;
+        return { ...child, marks: source.marks, style: source.style };
+      })
+    };
+  });
+}
+
+export function resetBoundRichTextContent(block: Extract<import('./types.js').BulletinBlock, { type: 'richText' }>): Extract<import('./types.js').BulletinBlock, { type: 'richText' }> {
+  if (!block.bindingOverride) return block;
+  const { bindingOverride, ...next } = block;
+  return { ...next, bindingFormatting: structuredClone(bindingOverride) };
 }
 
 export function canvasTextParagraphs(element: Extract<CanvasElement, { type: 'text' }>, document: BulletinDocumentV1, template?: TemplateV1): Paragraph[] {

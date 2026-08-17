@@ -184,6 +184,7 @@ export interface RichTextBlock extends BlockBase {
   content: Paragraph[];
   binding?: RichTextBinding;
   bindingOverride?: Paragraph[];
+  bindingFormatting?: Paragraph[];
   dateFormat?: 'long' | 'medium' | 'short' | 'iso';
 }
 export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text: string; content?: Paragraph[] }

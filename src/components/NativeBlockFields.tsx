@@ -11,7 +11,7 @@ import { ResponsiveReadingFields } from './ResponsiveReadingFields';
 import { effectiveResponsiveReadingSettings } from '../shared/responsiveReading';
 import { RichTextEditor } from './RichTextEditor';
 import { RichTextBindingControl } from './RichTextBindingControl';
-import { boundRichTextParagraphs } from '../shared/canvas';
+import { boundRichTextParagraphs, resetBoundRichTextContent } from '../shared/canvas';
 import { createBulletin } from '../shared/defaults';
 import { ConditionModal } from './ConditionModal';
 import { useState } from 'react';
@@ -64,7 +64,7 @@ export function NativeBlockFields({ block, document, library, template, responsi
   };
   return <div className="native-block-fields">
     {(block.type === 'heading' || block.type === 'sectionHeading' || block.type === 'sermonTitle') && <label>Text<RichTextEditor content={block.content ?? paragraphsFromPlainText(block.text)} label="Heading text" onChange={content => onChange({ ...block, text: plain(content), content })} /></label>}
-    {block.type === 'richText' && <><RichTextBindingControl value={block.binding} template={template} library={library} root={root} onChange={binding => onChange({ ...block, binding, bindingOverride: undefined })} /><label>{block.binding ? 'Override' : 'Text'}<textarea rows={4} value={plain(boundRichTextParagraphs(block, document ?? createBulletin(template), template, library))} onChange={event => onChange(block.binding ? { ...block, bindingOverride: paragraphsFromPlainText(event.target.value) } : { ...block, content: paragraphsFromPlainText(event.target.value) })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => { const { bindingOverride: _override, ...next } = block; onChange(next); }}>Reset to bound value</button>}</>}
+    {block.type === 'richText' && <><RichTextBindingControl value={block.binding} template={template} library={library} root={root} onChange={binding => onChange({ ...block, binding, bindingOverride: undefined })} /><label>{block.binding ? 'Override' : 'Text'}<textarea rows={4} value={plain(boundRichTextParagraphs(block, document ?? createBulletin(template), template, library))} onChange={event => onChange(block.binding ? { ...block, bindingOverride: paragraphsFromPlainText(event.target.value) } : { ...block, content: paragraphsFromPlainText(event.target.value) })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => onChange(resetBoundRichTextContent(block))}>Reset to bound value</button>}</>}
     {block.type === 'custom' && <><label>Block name<input value={block.name} onChange={event => onChange({ ...block, name: event.target.value })} /></label><label>Content<textarea rows={4} value={block.layoutText} onChange={event => onChange({ ...block, layoutText: event.target.value })} /></label></>}
     {block.type === 'scriptureReading' && <><label>Reference<input value={block.reference} onChange={event => onChange({ ...block, reference: event.target.value })} /></label><label>Caption<input value={block.caption ?? ''} onChange={event => onChange({ ...block, caption: event.target.value || undefined })} /></label></>}
     {block.type === 'song' && <SongBlockFields block={block} library={library} template={template} scope={scope} root={root} onChange={onChange} />}

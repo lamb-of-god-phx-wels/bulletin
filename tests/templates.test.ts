@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
-import { duplicateTemplate, explodeTemplateInstance, instantiateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, templateFromBulletin, templateVersions, uniqueTemplateId, type TemplateRecord } from '../src/shared/templates';
+import { duplicateTemplate, editableTemplateChoices, explodeTemplateInstance, instantiateTemplate, nextTemplateVersion, sortedTemplateRecords, templateChoices, templateForReference, templateFromBulletin, templateVersions, uniqueTemplateId, type TemplateRecord } from '../src/shared/templates';
 import { paginate } from '../src/shared/pagination';
 
 const record = (id: string, name: string, version: number, status: 'draft' | 'published'): TemplateRecord => ({
@@ -18,6 +18,10 @@ describe('multiple templates', () => {
     expect(templateChoices(records).map(item => item.template.id)).toEqual(['festival', 'weekly']);
     expect(templateChoices(records).find(item => item.template.id === 'weekly')?.template.version).toBe(1);
     expect(templateVersions(records, 'weekly').map(item => item.template.version)).toEqual([2, 1]);
+  });
+
+  it('resumes a draft when choosing a template to edit', () => {
+    expect(editableTemplateChoices(records).find(item => item.template.id === 'weekly')?.path).toBe('templates/weekly/v2-draft.json');
   });
 
   it('resolves a bulletin reference to its exact published version', () => {

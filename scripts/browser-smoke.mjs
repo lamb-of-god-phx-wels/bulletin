@@ -76,10 +76,17 @@ if (process.env.BULLETIN_EDITOR_LANDING_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
   await wait(`document.querySelector('.topbar h1')?.textContent==='Bulletin Editor'&&Boolean(document.querySelector('.bulletin-editor-landing'))`, 'Bulletin Editor landing page');
   const navigationLabels = await evaluate(`Array.from(document.querySelectorAll('.sidebar nav button')).map(button=>button.textContent.trim())`);
-  if (!navigationLabels.some(label => label.endsWith('Bulletin Editor')) || navigationLabels.some(label => label.endsWith('This week')) || navigationLabels.some(label => label.endsWith('Bulletins') && !label.endsWith('Templates'))) throw new Error(`Bulletin navigation was not consolidated: ${JSON.stringify(navigationLabels)}`);
+  if (!navigationLabels.some(label => label.endsWith('Bulletin Editor')) || navigationLabels.some(label => label.endsWith('This week')) || navigationLabels.some(label => label.endsWith('Bulletins')) || navigationLabels.some(label => label.endsWith('Bulletin Templates'))) throw new Error(`Bulletin navigation was not consolidated: ${JSON.stringify(navigationLabels)}`);
   const dates = await evaluate(`Array.from(document.querySelectorAll('.bulletin-editor-list time')).map(time=>time.dateTime)`);
   if (dates.some((date, index) => index && date > dates[index - 1])) throw new Error(`Bulletins are not newest first: ${JSON.stringify(dates)}`);
   if (await evaluate(`Boolean(document.querySelector('.bulletin-picker-modal,.modal-backdrop'))`)) throw new Error('The Bulletin Editor landing page opened as a modal.');
+  await click('Edit Template');
+  await wait(`Boolean(document.querySelector('.template-chooser-modal .template-chooser-list button'))`, 'template chooser');
+  await evaluate(`document.querySelector('.template-chooser-list button')?.click()`);
+  await wait(`Boolean(document.querySelector('.template-editor-layout .editor-pane'))&&document.querySelector('.editor-pane')?.textContent.includes('Template content')`, 'shared template editor');
+  if (await evaluate(`Boolean(Array.from(document.querySelectorAll('.editor-pane label')).find(label=>label.textContent.trim().startsWith('Service date')))`)) throw new Error('Weekly fields appear while editing a template.');
+  await click('Bulletin Editor');
+  await wait(`Boolean(document.querySelector('.bulletin-editor-landing'))`, 'return from template editing');
   await click('Create New');
   await wait(`Boolean(document.querySelector('.create-from-modal.create-kind-modal'))`, 'new bulletin source choices');
   const choices = await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button b')).map(item=>item.textContent.trim())`);

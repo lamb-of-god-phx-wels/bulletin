@@ -30,6 +30,21 @@ export function templateChoices(records: TemplateRecord[]) {
     .sort((left, right) => left.template.name.localeCompare(right.template.name));
 }
 
+/** One editable entry per template family: resume the newest draft when one exists. */
+export function editableTemplateChoices(records: TemplateRecord[]) {
+  const families = new Map<string, TemplateRecord[]>();
+  for (const record of records) {
+    const family = families.get(record.template.id) ?? [];
+    family.push(record);
+    families.set(record.template.id, family);
+  }
+  return [...families.values()].map(family =>
+    family.filter(record => record.template.status === 'draft').sort(byVersion)[0]
+      ?? family.filter(record => record.template.status === 'published').sort(byVersion)[0]
+      ?? family.sort(byVersion)[0]
+  ).sort((left, right) => left.template.name.localeCompare(right.template.name));
+}
+
 export function templateVersions(records: TemplateRecord[], id: string) {
   return records.filter(record => record.template.id === id).sort(byVersion);
 }

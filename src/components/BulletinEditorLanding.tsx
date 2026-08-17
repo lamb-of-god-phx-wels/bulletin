@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { filterBulletins, type BulletinRecord } from '../shared/bulletins';
 
-export function BulletinEditorLanding({ bulletins, canCreate, onCreate, onSelect }: {
+export function BulletinEditorLanding({ bulletins, canCreate, onCreate, onEditTemplate, onSelect }: {
   bulletins: BulletinRecord[];
   canCreate: boolean;
   onCreate(): void;
+  onEditTemplate(): void;
   onSelect(record: BulletinRecord): void;
 }) {
   const [query, setQuery] = useState('');
@@ -17,7 +18,7 @@ export function BulletinEditorLanding({ bulletins, canCreate, onCreate, onSelect
         <h2>Current bulletins</h2>
         <p>{bulletins.length} saved bulletin{bulletins.length === 1 ? '' : 's'}, newest first.</p>
       </div>
-      <button type="button" className="primary" disabled={!canCreate} onClick={onCreate}>＋ Create New</button>
+      <div className="bulletin-editor-landing-actions"><button type="button" className="secondary" onClick={onEditTemplate}>Edit Template</button><button type="button" className="primary" disabled={!canCreate} onClick={onCreate}>＋ Create New</button></div>
     </header>
     <div className="bulletin-editor-search">
       <label>Search bulletins<input type="search" value={query} placeholder="Title, series, date, or church event" onChange={event => setQuery(event.target.value)} /></label>

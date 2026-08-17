@@ -71,6 +71,7 @@ const paragraphText = (content: Paragraph[]) =>
     )
     .join("\n\n");
 export function WeeklyEditor({
+  mode = "bulletin",
   document,
   template,
   templates,
@@ -83,7 +84,9 @@ export function WeeklyEditor({
   onLibraryChange,
   onError,
   onOpenChurchCalendar,
+  templateSettings,
 }: {
+  mode?: "bulletin" | "template";
   document: BulletinDocumentV1;
   template: TemplateV1;
   templates: TemplateV1[];
@@ -96,7 +99,14 @@ export function WeeklyEditor({
   onLibraryChange(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError(message: string): void;
   onOpenChurchCalendar?(): void;
+  templateSettings?: ReactNode;
 }) {
+  const templateMode = mode === "template";
+  const assetFolder = templateMode
+    ? `assets/templates/${template.id}`
+    : `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`;
+  const editableByDefault = <T extends BulletinBlock>(block: T): T =>
+    (templateMode ? block : { ...block, weeklyEditable: true }) as T;
   const bulletinTemplate: TemplateV1 = { ...template, customProperties: document.customProperties ?? template.customProperties };
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
@@ -120,10 +130,11 @@ export function WeeklyEditor({
   const calendarEventName = (event: (typeof matchingChurchEvents)[number]) =>
     churchEventDisplayName(event, document.info.date, library?.calendarEvents ?? []);
   useEffect(() => {
+    if (templateMode) return;
     if (!document.info.date || document.info.churchWeek) return;
     const first = churchEventsForDate(document.info.date, library?.calendarEvents ?? [])[0];
     if (first) onChange({ ...document, info: { ...document.info, churchWeek: churchEventDisplayName(first, document.info.date, library?.calendarEvents ?? []), churchEventId: first.id } });
-  }, [document.id, document.info.date, document.info.churchWeek, library?.calendarEvents]);
+  }, [templateMode, document.id, document.info.date, document.info.churchWeek, library?.calendarEvents]);
   useEffect(() => {
     if (!propertiesOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPropertiesOpen(false); };
@@ -207,11 +218,11 @@ export function WeeklyEditor({
     if (parent.layoutMode === 'table') return true;
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === 'component') {
-      const child = { ...instantiateComponentDefinition(payload.definition), weeklyEditable: true } as BulletinBlock;
+      const child = editableByDefault(instantiateComponentDefinition(payload.definition) as BulletinBlock);
       if (!groupAcceptsChild(parent, child)) return true;
       updateBlock(parent.id, placeGroupChild(parent, child, cell));
     }
-    else if (payload.kind === 'container') updateBlock(parent.id, placeGroupChild(parent, { ...createLayoutContainer(payload.layoutMode, `container-${randomId()}`), weeklyEditable: true }, cell));
+    else if (payload.kind === 'container') updateBlock(parent.id, placeGroupChild(parent, editableByDefault(createLayoutContainer(payload.layoutMode, `container-${randomId()}`)), cell));
     else if (payload.kind === 'image') setChildImageTarget({ parentId: parent.id, cell });
     else return false;
     return true;
@@ -310,7 +321,7 @@ export function WeeklyEditor({
                     <RichTextEditor content={boundRichTextParagraphs(child, document, bulletinTemplate, library)} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, child.binding ? { ...child, bindingOverride: content } : { ...child, content })} />
                   </label>{child.bindingOverride && <button className="text-button" onClick={() => updateBlock(child.id, resetBoundRichTextContent(child))}>Reset to bound value</button>}</>
                 )}
-                {child.type !== 'heading' && child.type !== 'sectionHeading' && child.type !== 'sermonTitle' && child.type !== 'richText' && <NativeBlockFields block={child} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope="weekly" root={root} imageTargetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`} includeChildren={false} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(child.id, next)} />}
+                {child.type !== 'heading' && child.type !== 'sectionHeading' && child.type !== 'sermonTitle' && child.type !== 'richText' && <NativeBlockFields block={child} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope={templateMode ? "template" : "weekly"} root={root} imageTargetFolder={assetFolder} includeChildren={false} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(child.id, next)} />}
                 {childBlocks(child) && nestedEditors(child)}
               </>
             )}
@@ -353,7 +364,7 @@ export function WeeklyEditor({
               containerId: parent.id,
               cells: Object.fromEntries(parent.children.map((child, index) => [child.id, groupChildCell(parent, child, index)])),
               onMove: (id, cell) => updateBlock(parent.id, moveGroupChildToCell(parent, id, cell)),
-              onAdd: cell => parent.layoutMode === 'table' ? updateBlock(parent.id, placeGroupChild(parent, { ...createTableCell(`text-${randomId()}`), weeklyEditable: true } as BulletinBlock, cell)) : (setElementParentId(parent.id), setElementCell(cell))
+              onAdd: cell => parent.layoutMode === 'table' ? updateBlock(parent.id, placeGroupChild(parent, editableByDefault(createTableCell(`text-${randomId()}`)), cell)) : (setElementParentId(parent.id), setElementCell(cell))
             } : undefined}
             onMoveOut={parent.type === 'group' ? (id, targetId, position) => { onChange({ ...document, blocks: moveGroupChildToRoot(document.blocks, parent.id, id, targetId, position) }); return true; } : undefined}
           >
@@ -426,10 +437,7 @@ export function WeeklyEditor({
   const addBlock = (
     definition: Parameters<typeof instantiateComponentDefinition>[0],
   ) => {
-    const block = {
-      ...instantiateComponentDefinition(definition),
-      weeklyEditable: true,
-    } as BulletinBlock;
+    const block = editableByDefault(instantiateComponentDefinition(definition) as BulletinBlock);
     onChange({
       ...document,
       blocks: insertWeeklyBlock(document.blocks, block, blockLibraryIndex),
@@ -462,14 +470,14 @@ export function WeeklyEditor({
     try {
       const asset = await window.bulletin.importAsset(
         root,
-        `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`,
+        assetFolder,
       );
       if (!asset) return;
       const block: BulletinBlock = {
         id: `page-${Date.now()}`,
         type: "fullPageAsset",
         asset,
-        weeklyEditable: true,
+        ...(templateMode ? {} : { weeklyEditable: true }),
       };
       onChange({
         ...document,
@@ -482,11 +490,11 @@ export function WeeklyEditor({
   const usePaletteItem = (item: ElementPaletteItem, index: number) => {
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === "component") {
-      const block = { ...instantiateComponentDefinition(payload.definition), weeklyEditable: true } as BulletinBlock;
+      const block = editableByDefault(instantiateComponentDefinition(payload.definition) as BulletinBlock);
       onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, index) });
       setPendingAddedBlockId(block.id);
     } else if (payload.kind === "container") {
-      const block = { ...createLayoutContainer(payload.layoutMode, `container-${randomId()}`), weeklyEditable: true };
+      const block = editableByDefault(createLayoutContainer(payload.layoutMode, `container-${randomId()}`));
       onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, index) });
       setPendingAddedBlockId(block.id);
     } else if (payload.kind === "page") setPageInsertionIndex(index);
@@ -501,7 +509,7 @@ export function WeeklyEditor({
     try {
       const asset = await window.bulletin.importAsset(
         root,
-        `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`,
+        assetFolder,
       );
       if (asset) updateBlock(block.id, { ...block, asset });
     } catch (error) {
@@ -513,7 +521,7 @@ export function WeeklyEditor({
     try {
       return await window.bulletin.importAsset(
         root,
-        `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`,
+        assetFolder,
       );
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
@@ -583,7 +591,8 @@ export function WeeklyEditor({
   return (
     <div className="editor-scroll">
       <section className="editor-card essentials">
-        <div className="essentials-heading"><div className="eyebrow">This Week</div><button type="button" className="secondary properties-menu-button" onClick={() => setPropertiesOpen(true)}><span aria-hidden="true">⚙</span> Properties</button></div>
+        <div className="essentials-heading"><div className="eyebrow">{templateMode ? "Template" : "This Week"}</div><button type="button" className="secondary properties-menu-button" onClick={() => setPropertiesOpen(true)}><span aria-hidden="true">⚙</span> Properties</button></div>
+        {templateMode ? <div className="template-editor-identity"><b>{template.name}</b><span>Version {template.version} · {template.status === "draft" ? "Draft" : "Published"}</span><p>Edit reusable content and defaults. Weekly service details are supplied when a bulletin is created.</p></div> : <>
         <label>
           Service date
           <input
@@ -625,11 +634,13 @@ export function WeeklyEditor({
           />
         </label>
         <ThisSundayProperties document={document} template={template} onChange={onChange} />
+        </>}
       </section>
       {propertiesOpen && <div className="modal-backdrop bulletin-properties-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPropertiesOpen(false); }}>
         <section className="bulletin-properties-modal" role="dialog" aria-modal="true" aria-labelledby="bulletin-properties-title">
-          <header><div><div className="eyebrow">Bulletin settings</div><h2 id="bulletin-properties-title">Properties</h2></div><button aria-label="Close properties" onClick={() => setPropertiesOpen(false)}>×</button></header>
+          <header><div><div className="eyebrow">{templateMode ? "Template settings" : "Bulletin settings"}</div><h2 id="bulletin-properties-title">Properties</h2></div><button aria-label="Close properties" onClick={() => setPropertiesOpen(false)}>×</button></header>
           <div className="bulletin-properties-sections">
+            {templateMode ? templateSettings : <>
             <section className="editor-card properties-section">
               <header className="properties-section-heading"><div className="eyebrow">Document</div><h3>Page setup</h3></header>
               <div className="properties-section-body">
@@ -645,6 +656,7 @@ export function WeeklyEditor({
               </div>
             </section>
             <WeeklyPropertiesPanel document={document} template={template} onChange={onChange} />
+            </>}
           </div>
           <footer><button type="button" className="primary" onClick={() => setPropertiesOpen(false)}>Done</button></footer>
         </section>
@@ -652,10 +664,9 @@ export function WeeklyEditor({
       <div className="editor-section-title">
         <div>
           <div className="eyebrow">Order of worship</div>
-          <h2>Weekly content</h2>
+          <h2>{templateMode ? "Template content" : "Weekly content"}</h2>
           <small>
-            {document.blocks.length} blocks · changes apply only to this
-            bulletin
+            {document.blocks.length} blocks · {templateMode ? "used when creating bulletins" : "changes apply only to this bulletin"}
           </small>
         </div>
       </div>
@@ -732,6 +743,7 @@ export function WeeklyEditor({
                 </div>
               </summary>
               <div className="collapsible-editor-fields">
+                {templateMode && <label className="check"><input type="checkbox" checked={block.weeklyEditable ?? false} onChange={event => updateBlock(block.id, { ...block, weeklyEditable: event.target.checked })} />Editable each week</label>}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <div className="missing-template-content">
                     <b>Template content needs attention</b>
@@ -924,7 +936,7 @@ export function WeeklyEditor({
                   block={block}
                   library={library}
                   template={bulletinTemplate}
-                  scope="weekly"
+                  scope={templateMode ? "template" : "weekly"}
                   root={root}
                   onChange={next => updateBlock(block.id, next)}
                 />}
@@ -969,10 +981,10 @@ export function WeeklyEditor({
                     );
                   })()}
                 {block.type === "announcements" && (
-                  <AnnouncementFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets/announcements`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
+                  <AnnouncementFields block={block} library={library} root={root} targetFolder={`${assetFolder}/announcements`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {block.type === "list" && (
-                  <ListFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets/lists`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
+                  <ListFields block={block} library={library} root={root} targetFolder={`${assetFolder}/lists`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {block.type === "custom" && (
                   <div className="custom-weekly-fields">
@@ -1203,7 +1215,7 @@ export function WeeklyEditor({
                   </>
                 )}
                 {block.type === "image" && (
-                  <ImageBlockFields block={block} library={library} root={root} targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
+                  <ImageBlockFields block={block} library={library} root={root} targetFolder={assetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} />
                 )}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <button
@@ -1342,7 +1354,7 @@ export function WeeklyEditor({
               template={bulletinTemplate}
               document={document}
               library={library}
-              scope="weekly"
+              scope={templateMode ? "template" : "weekly"}
               onClose={() => setFormattingBlockId(undefined)}
               onSave={(presentation, layout) => {
                 updateBlock(block.id, { ...block, presentation, layout });
@@ -1359,14 +1371,14 @@ export function WeeklyEditor({
               block={block}
               document={document}
               template={bulletinTemplate}
-              scope="weekly"
+              scope={templateMode ? "template" : "weekly"}
               marginIn={document.layout?.marginIn ?? template.theme.marginIn}
               assets={{}}
               root={root}
               definitions={library?.componentDefinitions ?? []}
               library={library}
               onLibraryChange={onLibraryChange}
-              imageTargetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`}
+              imageTargetFolder={assetFolder}
               onError={onError}
               onChooseAsset={chooseCanvasAsset}
               onChange={(next) => updateBlock(next.id, next)}
@@ -1420,12 +1432,12 @@ export function WeeklyEditor({
       {imageIndex !== undefined && root && <ImageAssetDialog
         library={library}
         root={root}
-        targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`}
+        targetFolder={assetFolder}
         onLibraryChange={onLibraryChange}
         onError={onError}
         onClose={() => setImageIndex(undefined)}
         onSelect={asset => {
-          const block: BulletinBlock = { id: `image-${randomId()}`, type: "image", asset, alt: asset.alt, fit: "contain", heightIn: 2.5, weeklyEditable: true };
+          const block: BulletinBlock = editableByDefault({ id: `image-${randomId()}`, type: "image", asset, alt: asset.alt, fit: "contain", heightIn: 2.5 });
           onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, imageIndex) });
         }}
       />}
@@ -1433,13 +1445,13 @@ export function WeeklyEditor({
       {childImageTarget && root && <ImageAssetDialog
         library={library}
         root={root}
-        targetFolder={`${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`}
+        targetFolder={assetFolder}
         onLibraryChange={onLibraryChange}
         onError={onError}
         onClose={() => setChildImageTarget(undefined)}
         onSelect={asset => {
           const parent = findBlock(document.blocks, childImageTarget.parentId);
-          if (parent?.type === 'group') updateBlock(parent.id, placeGroupChild(parent, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5, weeklyEditable: true }, childImageTarget.cell));
+          if (parent?.type === 'group') updateBlock(parent.id, placeGroupChild(parent, editableByDefault({ id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }), childImageTarget.cell));
           setChildImageTarget(undefined);
         }}
       />}

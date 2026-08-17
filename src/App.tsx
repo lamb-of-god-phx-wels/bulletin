@@ -9,8 +9,9 @@ import {
 import { DocumentView } from "./components/DocumentView";
 import { BookletPreview } from "./components/BookletPreview";
 import { WeeklyEditor } from "./components/WeeklyEditor";
-import { TemplateBuilder } from "./components/TemplateBuilder";
-import { TemplateSwitcher } from "./components/TemplateSwitcher";
+import { TemplateSettings } from "./components/TemplateSettings";
+import { TemplateChooserDialog } from "./components/TemplateChooserDialog";
+import { SaveAsTemplateDialog } from "./components/SaveAsTemplateDialog";
 import { ChurchYearView } from "./components/ChurchYearView";
 import { PageTemplatesView } from "./components/PageTemplatesView";
 import {
@@ -31,6 +32,7 @@ import { flattenBlocks, updateBlockTree } from "./shared/blocks";
 import { paragraphsFromPlainText } from "./shared/plainText";
 import {
   duplicateTemplate,
+  editableTemplateChoices,
   nextTemplateVersion,
   sortedTemplateRecords,
   templateChoices,
@@ -56,6 +58,8 @@ import type {
   WorkspaceSummary,
 } from "./shared/types";
 import { validateBulletin } from "./shared/validation";
+import { customBlockIssues } from "./shared/customBlocks";
+import { customPropertyIssues } from "./shared/customProperties";
 import { templateForBulletin } from "./shared/documentLayout";
 import { randomId } from "./shared/id";
 import { prepackagedComponentDefinitions, prepackagedComponentDiagnostics } from "./componentDefinitions";
@@ -106,6 +110,7 @@ type BulletinConflictState = {
   message: string;
 };
 type UnsavedBulletinPrompt = {
+  kind: "bulletin" | "template";
   action(): void | Promise<void>;
 };
 type LibraryDraft = {
@@ -280,6 +285,8 @@ function DesktopApp() {
   >();
   const [pendingTemplateFolderId, setPendingTemplateFolderId] = useState<string>();
   const [pendingPageTemplateFolderId, setPendingPageTemplateFolderId] = useState<string>();
+  const [templateChooserOpen, setTemplateChooserOpen] = useState(false);
+  const [saveAsTemplateOpen, setSaveAsTemplateOpen] = useState(false);
   const [selectedPageTemplateId, setSelectedPageTemplateId] = useState<string>();
   const [pageTemplateCreateRequest, setPageTemplateCreateRequest] = useState(0);
   const [libraryFilter, setLibraryFilter] = useState<LibraryRecordType>();
@@ -367,7 +374,7 @@ function DesktopApp() {
   useEffect(() => {
     if (!workspace || screen === "library") return;
     const container = window.document.querySelector<HTMLElement>(
-      ".preview-pane, .builder-preview",
+      ".preview-pane",
     );
     const stack = container?.querySelector<HTMLElement>(".document-stack");
     if (!container || !stack) return;
@@ -624,6 +631,12 @@ function DesktopApp() {
     setTemplatePath(record.path);
     updateEditingState({ templateDirty: false });
   }
+  function openTemplate(record: TemplateRecord) {
+    selectTemplate(record);
+    setTemplateChooserOpen(false);
+    setScreen("templates");
+    reportStatus(record.template.status === "draft" ? "Draft loaded" : "Published version loaded");
+  }
   function openDocument(
     next: BulletinDocumentV1,
     path: string,
@@ -669,6 +682,12 @@ function DesktopApp() {
   }
   function beginNewBulletin() {
     requestBulletinLeave(() => setCreateDestination("bulletin"));
+  }
+  async function saveCurrentBulletinAsTemplate(name: string) {
+    if (!document || !relativePath) return;
+    if (dirty.current && !(await saveCurrentBulletin(true))) return;
+    await createNewTemplate({ kind: "bulletin", record: { path: relativePath, document } }, name);
+    setSaveAsTemplateOpen(false);
   }
   function changeDocument(next: BulletinDocumentV1) {
     if (!document || next === document) return;
@@ -727,7 +746,24 @@ function DesktopApp() {
     updateEditingState({ bulletinDirty: false });
     reportStatus("Changes discarded");
   }
+  function discardCurrentTemplateChanges() {
+    const saved = workspace?.templates.find(item => item.path === templatePath);
+    if (saved) {
+      templateHistory.reset();
+      setTemplate(saved.template);
+    }
+    updateEditingState({ templateDirty: false });
+    reportStatus("Changes discarded");
+  }
   function requestBulletinLeave(action: () => void | Promise<void>) {
+    if (screen === "templates") {
+      if (!templateDirty.current) {
+        void action();
+        return;
+      }
+      setUnsavedBulletinPrompt({ kind: "template", action });
+      return;
+    }
     if (!dirty.current) {
       void action();
       return;
@@ -739,7 +775,7 @@ function DesktopApp() {
       });
       return;
     }
-    setUnsavedBulletinPrompt({ action });
+    setUnsavedBulletinPrompt({ kind: "bulletin", action });
   }
 
   useEffect(() => {
@@ -778,6 +814,15 @@ function DesktopApp() {
       ) {
         event.preventDefault();
         void saveCurrentBulletin();
+        return;
+      }
+      if (
+        screen === "templates" &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLocaleLowerCase() === "s"
+      ) {
+        event.preventDefault();
+        void saveTemplate(false);
       }
     };
     window.addEventListener("keydown", handler, true);
@@ -794,7 +839,7 @@ function DesktopApp() {
       );
     }
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!dirty.current) return;
+      if (!dirty.current && !templateDirty.current) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -873,8 +918,19 @@ function DesktopApp() {
   }
   async function saveTemplate(publish: boolean) {
     if (!workspace || !window.bulletin) return;
+    if (publish) {
+      const issues = [
+        ...template.starterBlocks.flatMap(block => block.type === "custom" ? customBlockIssues(block) : []),
+        ...customPropertyIssues(template).map(issue => issue.message),
+      ];
+      if (issues.length) {
+        reportStatus(`Fix ${issues.length} template issue${issues.length === 1 ? "" : "s"} before publishing`);
+        return;
+      }
+    }
+    const draftPath = `templates/${template.id}/v${template.version}-draft.json`;
     const expectedUpdatedAt = workspace.templates.find(
-      (item) => item.path === templatePath,
+      (item) => item.path === (publish ? templatePath : draftPath),
     )?.template.updatedAt;
     const next = {
       ...(publish
@@ -915,7 +971,7 @@ function DesktopApp() {
   }
   async function createNewTemplate(source: CreationSource, name: string, folderId?: string) {
     if (!workspace || !window.bulletin) return;
-    const next =
+    let next =
       source.kind === "blank"
         ? duplicateTemplate({ ...defaultTemplate, starterBlocks: [], customProperties: undefined }, name, workspace.templates)
         : source.kind === "template"
@@ -933,6 +989,9 @@ function DesktopApp() {
             workspace.templates,
           );
     try {
+      next = await copyEmbeddedAssets(next, `assets/templates/${next.id}`, (asset, folder) =>
+        window.bulletin!.copyAsset(workspace.root, asset, folder)
+      );
       const path = await window.bulletin.saveTemplate(workspace.root, next);
       const currentLibrary = workspace.library ?? { schemaVersion: 1 as const, name: "Shared Library", items: [] };
       const nextLibrary = folderId
@@ -955,6 +1014,7 @@ function DesktopApp() {
       templateHistory.reset();
       setTemplate(next);
       setTemplatePath(path);
+      updateEditingState({ templateDirty: false });
       setScreen("templates");
       reportStatus(`Created ${name}`);
     } catch (error) {
@@ -1088,7 +1148,7 @@ function DesktopApp() {
   }
   function focusEditorBlock(blockId: string) {
     const editor = window.document.querySelector<HTMLElement>(
-      screen === "templates" ? ".template-workbench" : ".editor-pane",
+      ".editor-pane",
     );
     const candidates = [
       ...(editor?.querySelectorAll<HTMLElement>("[data-editor-block-id]") ??
@@ -1114,7 +1174,7 @@ function DesktopApp() {
   }
   function focusPreviewBlock(blockId: string) {
     const preview = window.document.querySelector<HTMLElement>(
-      screen === "templates" ? ".builder-preview" : ".preview-pane",
+      ".preview-pane",
     );
     const target = [
       ...(preview?.querySelectorAll<HTMLElement>("[data-block-id]") ?? []),
@@ -1167,11 +1227,22 @@ function DesktopApp() {
       </div>
     );
 
-  const pageCount = document
+  const templateDocument: BulletinDocumentV1 = {
+    ...createBulletin(template),
+    id: `template-preview-${template.id}`,
+    template: { id: template.id, version: template.version },
+    customProperties: template.customProperties ? structuredClone(template.customProperties) : undefined,
+    responsiveReading: template.responsiveReading,
+    blocks: structuredClone(template.starterBlocks),
+    updatedAt: template.updatedAt,
+  };
+  const previewDocument = screen === "templates" ? templateDocument : document;
+  const pageCount = previewDocument
     ? paginate(
-        document.blocks,
-        templateForBulletin(template, document),
+        previewDocument.blocks,
+        screen === "templates" ? template : templateForBulletin(template, previewDocument),
         workspace.library,
+        previewDocument,
       ).length
     : 0;
   const issues = document
@@ -1250,19 +1321,9 @@ function DesktopApp() {
     {
       label: "Bulletin Editor",
       icon: "◫",
-      active: screen === "bulletins" || screen === "weekly",
+      active: screen === "bulletins" || screen === "weekly" || screen === "templates",
       leavesBulletin: true,
       action: showBulletinEditor,
-    },
-    {
-      label: "Bulletin Templates",
-      icon: "◇",
-      active: screen === "templates" || (screen === "library" && libraryFilter === "template"),
-      leavesBulletin: true,
-      action: () => {
-        setLibraryFilter("template");
-        setScreen("library");
-      },
     },
     {
       label: "Page Templates",
@@ -1301,7 +1362,7 @@ function DesktopApp() {
     },
   ];
   const runNavigationAction = (item: (typeof navigationItems)[number]) => {
-    if (item.leavesBulletin && screen === "weekly")
+    if (item.leavesBulletin && (screen === "weekly" || screen === "templates"))
       requestBulletinLeave(item.action);
     else item.action();
   };
@@ -1467,6 +1528,8 @@ function DesktopApp() {
                 ? "Workspace bulletins"
                 : screen === "weekly"
                 ? "Weekly bulletin"
+                : screen === "templates"
+                ? "Bulletin template"
                 : screen === "archive"
                     ? "Recoverable items"
                   : screen}
@@ -1586,6 +1649,7 @@ function DesktopApp() {
                 >
                   Create New
                 </button>
+                <button className="secondary" disabled={!workspaceWritable || !document} onClick={() => setSaveAsTemplateOpen(true)}>Save as Template</button>
                 <button
                   type="button"
                   className="primary"
@@ -1605,6 +1669,16 @@ function DesktopApp() {
                 </button>
               </>
             )}
+            {screen === "templates" && <>
+              <label className="template-version-control">Version<select aria-label="Template version" value={templatePath} onChange={event => {
+                const record = workspace.templates.find(item => item.path === event.target.value);
+                if (record) requestBulletinLeave(() => openTemplate(record));
+              }}>{templateVersions(workspace.templates, template.id).map(record => <option value={record.path} key={record.path}>v{record.template.version}{record.template.status === "draft" ? " · Draft" : " · Published"}</option>)}</select></label>
+              <button className="secondary" disabled={!workspaceWritable || !templateDirty.current} onClick={() => void saveTemplate(false)}>Save Draft</button>
+              <button className="primary" disabled={!workspaceWritable} onClick={() => void saveTemplate(true)}>Publish New Version</button>
+              <button className="danger-text" disabled={!workspaceWritable || workspace.templates.length <= 1 || !templatePath} onClick={confirmTemplateVersionDelete}>Delete Version</button>
+              <button className="danger-text" disabled={!workspaceWritable || templateChoices(workspace.templates).length <= 1 || !templatePath} onClick={confirmTemplateFamilyDelete}>Delete Template</button>
+            </>}
           </div>
         </header>}
         {!workspaceWritable && (
@@ -1658,6 +1732,7 @@ function DesktopApp() {
           bulletins={workspace.bulletins}
           canCreate={workspaceWritable}
           onCreate={beginNewBulletin}
+          onEditTemplate={() => setTemplateChooserOpen(true)}
           onSelect={record => requestBulletinLeave(() => openDocument(record.document, record.path))}
         />}
         {screen === "weekly" && document && (
@@ -1763,88 +1838,36 @@ function DesktopApp() {
           </div>
         )}
         {screen === "templates" && (
-          <div className="template-screen">
-            <div
-              className="template-workbench"
-              onClick={handleEditorBlockClick}
-            >
-              <TemplateSwitcher
-                records={workspace.templates}
-                currentPath={templatePath}
-                onSelect={(path) => {
-                  const record = workspace.templates.find(
-                    (item) => item.path === path,
-                  );
-                  if (record) selectTemplate(record);
-                }}
-                onCreate={() => {
-                  setPendingTemplateFolderId(undefined);
-                  setCreateDestination("template");
-                }}
-              />
-              <TemplateBuilder
+          <div className="weekly-layout template-editor-layout">
+            <section className="editor-pane" onClick={handleEditorBlockClick}>
+              <WeeklyEditor
+                mode="template"
+                document={templateDocument}
                 template={template}
                 templates={workspace.templates.map(record => record.template)}
                 pageTemplates={workspace.pageTemplates.map(
                   (record) => record.pageTemplate,
                 )}
-                workspaceDefinitions={
-                  workspace.library?.componentDefinitions ?? []
-                }
                 library={workspace.library}
                 root={workspace.root}
-                onChange={changeTemplate}
+                relativePath={`assets/templates/${template.id}/bulletin.json`}
+                onChange={next => changeTemplate({ ...template, status: "draft", starterBlocks: next.blocks })}
                 history={templateUndoCommands}
-                onDefinitionsChange={async (componentDefinitions) => {
-                  if (!window.bulletin) return;
-                  const library = {
-                    ...(workspace.library ?? {
-                      schemaVersion: 1 as const,
-                      name: "Shared Library",
-                      items: [],
-                    }),
-                    componentDefinitions,
-                  };
-                  try {
-                    await window.bulletin.saveLibrary(
-                      workspace.root,
-                      library,
-                      workspace.library,
-                    );
-                    setWorkspace((current) =>
-                      current ? { ...current, library } : current,
-                    );
-                    reportStatus("JSON component library saved");
-                  } catch (error) {
-                    reportStatus(
-                      error instanceof Error ? error.message : String(error),
-                    );
-                    throw error;
-                  }
-                }}
                 onLibraryChange={async (library, alreadySaved) => {
                   if (!window.bulletin) return;
                   if (!alreadySaved) await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
                   setWorkspace(current => current ? { ...current, library } : current);
                   reportStatus("Image library saved");
                 }}
-                onSave={saveTemplate}
-                onDeleteVersion={confirmTemplateVersionDelete}
-                onDeleteTemplate={confirmTemplateFamilyDelete}
-                canDeleteVersion={
-                  workspace.templates.length > 1 && Boolean(templatePath)
-                }
-                canDeleteTemplate={
-                  templateChoices(workspace.templates).length > 1 &&
-                  Boolean(templatePath)
-                }
+                onError={reportStatus}
+                templateSettings={<TemplateSettings template={template} library={workspace.library} onChange={changeTemplate} />}
               />
-            </div>
-            <div className="builder-preview" onWheel={handlePreviewWheel}>
+            </section>
+            <section className="preview-pane" onWheel={handlePreviewWheel}>
               <div className="preview-toolbar">
                 <div>
                   <b>Template preview</b>
-                  <span>7 × 8.5 in pages</span>
+                  <span>{pageCount} pages · 7 × 8.5 in</span>
                 </div>
                 <PreviewZoomControls
                   zoom={previewZoom}
@@ -1852,14 +1875,14 @@ function DesktopApp() {
                   onFit={(mode) =>
                     fitPreview(
                       mode,
-                      window.document.querySelector(".builder-preview"),
+                      window.document.querySelector(".preview-pane"),
                     )
                   }
                 />
                 <RichTextToolbar />
               </div>
               <DocumentView
-                document={createBulletin(template)}
+                document={templateDocument}
                 template={template}
                 library={workspace.library}
                 root={workspace.root}
@@ -1867,9 +1890,9 @@ function DesktopApp() {
                 guides={showGuides}
                 zoom={previewZoom}
                 onBlockSelect={focusEditorBlock}
-                onBlockChange={workspaceWritable ? (block) => changeTemplate({ ...template, starterBlocks: updateBlockTree(template.starterBlocks, block.id, block) }) : undefined}
+                onBlockChange={workspaceWritable ? (block) => changeTemplate({ ...template, status: "draft", starterBlocks: updateBlockTree(template.starterBlocks, block.id, block) }) : undefined}
               />
-            </div>
+            </section>
           </div>
         )}
         {screen === "library" && (
@@ -1899,9 +1922,8 @@ function DesktopApp() {
                   setCreateDestination("template");
                   return;
                 }
-                const selected = templateChoices(workspace.templates).find(item => item.template.id === record.targetId);
-                if (selected) selectTemplate(selected);
-                setScreen("templates");
+                const selected = editableTemplateChoices(workspace.templates).find(item => item.template.id === record.targetId);
+                if (selected) openTemplate(selected);
                 reportStatus(`Opened ${record.title || "Bulletin Template"}`);
               } else {
                 setScreen("templates");
@@ -2195,22 +2217,43 @@ function DesktopApp() {
       )}
       {unsavedBulletinPrompt && (
         <UnsavedBulletinDialog
+          kind={unsavedBulletinPrompt.kind}
           saving={savingBulletin}
           onCancel={() => setUnsavedBulletinPrompt(undefined)}
           onDiscard={async () => {
             const action = unsavedBulletinPrompt.action;
             setUnsavedBulletinPrompt(undefined);
-            discardCurrentBulletinChanges();
+            if (unsavedBulletinPrompt.kind === "template") discardCurrentTemplateChanges();
+            else discardCurrentBulletinChanges();
             await action();
           }}
           onSave={async () => {
-            if (!(await saveCurrentBulletin(true))) return;
+            if (unsavedBulletinPrompt.kind === "template") {
+              try { await saveTemplate(false); }
+              catch { return; }
+            } else if (!(await saveCurrentBulletin(true))) return;
             const action = unsavedBulletinPrompt.action;
             setUnsavedBulletinPrompt(undefined);
             await action();
           }}
         />
       )}
+      {templateChooserOpen && <TemplateChooserDialog
+        records={workspace.templates}
+        canCreate={workspaceWritable}
+        onClose={() => setTemplateChooserOpen(false)}
+        onSelect={openTemplate}
+        onCreate={() => {
+          setTemplateChooserOpen(false);
+          setPendingTemplateFolderId(undefined);
+          setCreateDestination("template");
+        }}
+      />}
+      {saveAsTemplateOpen && document && <SaveAsTemplateDialog
+        suggestedName={`${document.info.title || document.info.churchWeek || "Bulletin"} Template`}
+        onClose={() => setSaveAsTemplateOpen(false)}
+        onSave={saveCurrentBulletinAsTemplate}
+      />}
       {createDestination && (
         <CreateFromDialog
           destination={createDestination}
@@ -2395,11 +2438,13 @@ function ConfirmDialog({
 }
 
 function UnsavedBulletinDialog({
+  kind,
   saving,
   onCancel,
   onDiscard,
   onSave,
 }: {
+  kind: "bulletin" | "template";
   saving: boolean;
   onCancel(): void;
   onDiscard(): Promise<void>;
@@ -2413,10 +2458,10 @@ function UnsavedBulletinDialog({
         aria-modal="true"
         aria-labelledby="unsaved-bulletin-title"
       >
-        <div className="eyebrow">Unsaved bulletin</div>
+        <div className="eyebrow">Unsaved {kind}</div>
         <h2 id="unsaved-bulletin-title">Save before leaving?</h2>
         <p>
-          This bulletin has changes that have not been saved to the shared
+          This {kind} has changes that have not been saved to the shared
           workspace.
         </p>
         <div>

@@ -10,7 +10,6 @@ import { DocumentView } from "./components/DocumentView";
 import { BookletPreview } from "./components/BookletPreview";
 import { WeeklyEditor } from "./components/WeeklyEditor";
 import { TemplateSettings } from "./components/TemplateSettings";
-import { TemplateChooserDialog } from "./components/TemplateChooserDialog";
 import { SaveAsTemplateDialog } from "./components/SaveAsTemplateDialog";
 import { ChurchYearView } from "./components/ChurchYearView";
 import { PageTemplatesView } from "./components/PageTemplatesView";
@@ -994,14 +993,12 @@ function DesktopApp() {
       );
       const path = await window.bulletin.saveTemplate(workspace.root, next);
       const currentLibrary = workspace.library ?? { schemaVersion: 1 as const, name: "Shared Library", items: [] };
-      const nextLibrary = folderId
-        ? setCatalogEntry(currentLibrary, {
-            targetKind: "template",
-            targetId: next.id,
-            folderId,
-          })
-        : currentLibrary;
-      if (folderId) await window.bulletin.saveLibrary(workspace.root, nextLibrary, workspace.library);
+      const nextLibrary = setCatalogEntry(currentLibrary, {
+        targetKind: "template",
+        targetId: next.id,
+        folderId,
+      });
+      await window.bulletin.saveLibrary(workspace.root, nextLibrary, workspace.library);
       setWorkspace((current) =>
         current
           ? {
@@ -2238,16 +2235,33 @@ function DesktopApp() {
           }}
         />
       )}
-      {templateChooserOpen && <TemplateChooserDialog
-        records={workspace.templates}
-        canCreate={workspaceWritable}
-        onClose={() => setTemplateChooserOpen(false)}
-        onSelect={openTemplate}
-        onCreate={() => {
+      {templateChooserOpen && <LibraryBrowserDialog
+        title="Edit Template"
+        allowedTypes={["template"]}
+        library={workspace.library ?? { schemaVersion: 1, name: "Church Library", items: [] }}
+        root={workspace.root}
+        records={libraryCatalogRecords(
+          workspace.library,
+          workspace.pageTemplates.map(record => record.pageTemplate),
+          prepackagedComponentDefinitions,
+          workspace.templates.map(record => record.template),
+        )}
+        actions={<button className="primary" disabled={!workspaceWritable} onClick={() => {
           setTemplateChooserOpen(false);
           setPendingTemplateFolderId(undefined);
           setCreateDestination("template");
+        }}>＋ Create New</button>}
+        onLibraryChange={async library => {
+          if (!window.bulletin) return;
+          await window.bulletin.saveLibrary(workspace.root, library, workspace.library);
+          setWorkspace(current => current ? { ...current, library } : current);
         }}
+        onSelect={record => {
+          if (record.type !== "template") return;
+          const selected = editableTemplateChoices(workspace.templates).find(item => item.template.id === record.targetId);
+          if (selected) openTemplate(selected);
+        }}
+        onClose={() => setTemplateChooserOpen(false)}
       />}
       {saveAsTemplateOpen && document && <SaveAsTemplateDialog
         suggestedName={`${document.info.title || document.info.churchWeek || "Bulletin"} Template`}

@@ -81,8 +81,9 @@ if (process.env.BULLETIN_EDITOR_LANDING_ONLY === '1') {
   if (dates.some((date, index) => index && date > dates[index - 1])) throw new Error(`Bulletins are not newest first: ${JSON.stringify(dates)}`);
   if (await evaluate(`Boolean(document.querySelector('.bulletin-picker-modal,.modal-backdrop'))`)) throw new Error('The Bulletin Editor landing page opened as a modal.');
   await click('Edit Template');
-  await wait(`Boolean(document.querySelector('.template-chooser-modal .template-chooser-list button'))`, 'template chooser');
-  await evaluate(`document.querySelector('.template-chooser-list button')?.click()`);
+  await wait(`Boolean(document.querySelector('.library-browser .library-record-entries [data-library-key^="template:"]'))`, 'template library chooser');
+  await evaluate(`document.querySelector('.library-browser .library-record-entries [data-library-key^="template:"]')?.click()`);
+  await click('Choose');
   await wait(`Boolean(document.querySelector('.template-editor-layout .editor-pane'))&&document.querySelector('.editor-pane')?.textContent.includes('Template content')`, 'shared template editor');
   if (await evaluate(`Boolean(Array.from(document.querySelectorAll('.editor-pane label')).find(label=>label.textContent.trim().startsWith('Service date')))`)) throw new Error('Weekly fields appear while editing a template.');
   await click('Bulletin Editor');

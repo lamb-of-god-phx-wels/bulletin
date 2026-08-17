@@ -7,6 +7,7 @@ import {
   prepackagedComponentDiagnostics
 } from '../src/componentDefinitions';
 import { flattenBlocks } from '../src/shared/blocks';
+import { flowElementPaletteItems } from '../src/components/elementPaletteCatalog';
 
 describe('component definitions', () => {
   it('loads the complete omakase palette from schema-version-2 JSON', () => {
@@ -32,6 +33,10 @@ describe('component definitions', () => {
     expect(types).not.toEqual(expect.arrayContaining(['bulletin:libraryText', 'bulletin:announcements', 'bulletin:churchInformation']));
     const list = prepackagedComponentDefinitions.find(definition => definition.type === 'bulletin:list')!;
     expect(instantiateComponentDefinition(list)).toMatchObject({ type: 'list', style: 'plain', items: [{ title: 'New item' }] });
+  });
+
+  it('names embedded bulletin templates as sub-templates', () => {
+    expect(flowElementPaletteItems([]).find(item => item.id === 'native:template')).toMatchObject({ label: 'Sub-template' });
   });
 
   it('describes songs as composed layout rather than a block prototype', () => {

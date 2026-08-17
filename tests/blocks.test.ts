@@ -15,6 +15,7 @@ describe('nested blocks', () => {
     expect(blockDisplayName({ ...paragraph, displayName: 'Opening welcome' })).toBe('Opening welcome');
     expect(blockDisplayName({ id: 'reading', type: 'scriptureReading', reference: 'John 1:1–5', translation: 'NIV' })).toBe('John 1:1–5');
     expect(blockDisplayName({ id: 'table', type: 'group', layoutMode: 'table', children: [] })).toBe('Table');
+    expect(blockDisplayName({ id: 'template', type: 'templateInstance', name: '', source: { id: 'weekly', version: 1 }, sourceDigest: 'digest', blocks: [] })).toBe('Sub-template');
   });
 
   it('materializes church information as independently typed elements', () => {

@@ -162,7 +162,7 @@ export function pageTemplateIssues(page: Pick<PageTemplateV1, 'blocks' | 'margin
     issues.push('Regular page templates cannot contain canvas blocks.');
   }
   if (page.blocks.some(block => block.type === 'templatePage')) issues.push('Page templates cannot contain another template page.');
-  if (page.blocks.some(block => block.type === 'templateInstance')) issues.push('Page templates cannot contain a bulletin template.');
+  if (page.blocks.some(block => block.type === 'templateInstance')) issues.push('Page templates cannot contain a sub-template.');
   if (page.blocks.some(block => block.type === 'titlePage' || block.type === 'canvasCover')) issues.push('Legacy cover blocks are not supported.');
   const margin = page.margin.mode === 'fixed' ? page.margin.marginIn : page.margin.referenceMarginIn;
   if (!Number.isFinite(margin) || margin < 0 || margin >= 3.5) issues.push('Choose a valid page margin.');

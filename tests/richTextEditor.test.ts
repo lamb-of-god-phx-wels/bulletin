@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { alignParagraphRange, effectiveSelectedTextStyle, formatParagraphRange, formatTextRange, formatTextStyleRange, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
+import { alignParagraphRange, effectiveSelectedTextStyle, formatParagraphRange, formatTextRange, formatTextStyleRange, pastedLinesHtml, selectedTextMarks, structuredTextForClipboard } from '../src/components/RichTextEditor';
 import type { Paragraph } from '../src/shared/types';
 
 describe('rich-text segment formatting', () => {
+  it('preserves every blank line when preparing pasted list content', () => {
+    expect(pastedLinesHtml('First\n\n\nSecond')).toBe('<div>First</div><div><br data-placeholder></div><div><br data-placeholder></div><div>Second</div>');
+  });
   it('reports the inherited block font for unformatted live text', () => {
     const content: Paragraph[] = [{ type: 'paragraph', children: [{ type: 'text', text: 'Display text' }] }];
     expect(effectiveSelectedTextStyle(content, 0, 7, { fontRef: { kind: 'themeRole', roleId: 'display' } })).toMatchObject({ fontRef: { kind: 'themeRole', roleId: 'display' } });

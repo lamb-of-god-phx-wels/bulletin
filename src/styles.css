@@ -711,10 +711,15 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .list-block.list-plain > ul { padding-left: 0; list-style: none; }
 .list-block li h3 { margin: 0 0 .04in; font-size: 9pt; }
 .list-block li > div > :last-child { margin-bottom: 0; }
+.list-block p.before-structured-line-continuation { margin-bottom: 0; }
 .announcement-with-asset { display: grid; grid-template-columns: .66in 1fr; gap: .12in; align-items: center; }.announcement-with-asset.asset-right { grid-template-columns: 1fr .66in; }.announcement-with-asset.asset-right > .flow-pdf, .announcement-with-asset.asset-right > img { grid-column: 2; grid-row: 1; }.announcement-with-asset.asset-right > div { grid-column: 1; grid-row: 1; }.announcement-with-asset > img, .announcement-with-asset > .flow-pdf { width: .66in; height: .66in; object-fit: contain; }
 .announcement-fields { display: grid; gap: 12px; }
 .announcement-editor { display: grid; gap: 8px; padding: 11px; border: 1px solid #ded9cf; border-radius: 8px; background: #faf9f6; }
 .announcement-editor-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.list-options { align-items: end; }
+.list-options .toggle-option-row { min-height: 34px; }
+.rich-text-editor.list-item-editor > div { margin-bottom: 0; }
+.list-item-combined-editor > [data-scripture-paragraph]:first-child { font-weight: 700; }
 .announcement-graphic-controls { align-items: end; }
 .rich-text-editor-shell { overflow: hidden; border: 1px solid #cbc7bd; border-radius: 7px; background: white; }
 .rich-text-editor-shell.rich-text-preview, .rich-text-editor-shell.rich-text-canvas { display: contents; border: 0; border-radius: 0; background: transparent; }
@@ -722,6 +727,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .rich-text-preview > .rich-text-editor:focus { border-radius: 2px; box-shadow: inset 0 0 0 1px #72a8bd99; }
 .rich-text-canvas > .rich-text-editor:focus { box-shadow: none; }
 .rich-text-preview > .rich-text-editor > div { margin: 0 0 .08in; }
+.list-block .rich-text-preview > .rich-text-editor > div:has(+ div[data-break-before="line"]) { margin-bottom: 0; }
 .rich-text-canvas > .rich-text-editor > div { margin: 0 0 .12in; }
 .rich-text-canvas > .rich-text-editor.inline-rich-text,
 .rich-text-canvas > .rich-text-editor.inline-rich-text > div { display: inline; margin: 0; }

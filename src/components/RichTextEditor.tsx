@@ -5,6 +5,7 @@ import { useRichTextEditing, type RichTextAdapter, type RichTextToolbarState } f
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const pastedHtml = (value: string) => value.replace(/\r\n?/g, '\n').split(/\n\s*\n/).map(paragraph => `<div>${escape(paragraph).replace(/\n/g, '<br>') || '<br data-placeholder>'}</div>`).join('');
+export const pastedLinesHtml = (value: string) => value.replace(/\r\n?/g, '\n').split('\n').map(line => `<div>${escape(line) || '<br data-placeholder>'}</div>`).join('');
 type EditableMark = Extract<Marks[number], 'bold' | 'italic' | 'smallCaps'>;
 type SelectionOffsets = { start: number; end: number };
 
@@ -238,7 +239,7 @@ function restoreSelection(editor: HTMLElement, offsets: SelectionOffsets) {
   selection?.addRange(range);
 }
 
-export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, onReset, inheritedFontRef, inheritedFontFamily, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, commitDelayMs }: {
+export function RichTextEditor({ content, label, onChange, className, enterMode = 'paragraph', variant = 'field', readOnly = false, onReset, inheritedFontRef, inheritedFontFamily, verticalAlign, onVerticalAlignChange, onEditingFocus, onEditingBlur, onRender, preservePastedLines = false, preserveLocalEditsWhileFocused = false, commitDelayMs }: {
   content: Paragraph[];
   label: string;
   onChange(content: Paragraph[]): void;
@@ -254,6 +255,8 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
   onEditingFocus?(): void;
   onEditingBlur?(): void;
   onRender?(editor: HTMLElement): void;
+  preservePastedLines?: boolean;
+  preserveLocalEditsWhileFocused?: boolean;
   commitDelayMs?: number;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -302,9 +305,10 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
   };
   useLayoutEffect(() => {
     if (!editorRef.current || signatureRef.current === signature) return;
+    if (preserveLocalEditsWhileFocused && editorRef.current.ownerDocument.activeElement === editorRef.current) return;
     renderEditorContent(editorRef.current, content);
     signatureRef.current = signature;
-  }, [content, signature]);
+  }, [content, signature, preserveLocalEditsWhileFocused]);
   const emit = () => {
     if (!editorRef.current) return;
     const next = scriptureContentFromEditor(editorRef.current);
@@ -430,6 +434,7 @@ export function RichTextEditor({ content, label, onChange, className, enterMode 
     if (adapterRef.current) editing.deactivate(adapterRef.current);
   };
   const safeRichHtml = (html: string, plain: string) => {
+    if (preservePastedLines) return pastedLinesHtml(plain);
     if (!editorRef.current || !html) return pastedHtml(plain);
     const source = editorRef.current.ownerDocument.createElement('div');
     source.innerHTML = html;

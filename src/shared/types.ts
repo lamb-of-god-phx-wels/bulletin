@@ -239,6 +239,7 @@ export interface AnnouncementsBlock extends BlockBase {
 export interface ListBlock extends BlockBase {
   type: 'list';
   style?: 'plain' | 'bulleted' | 'numbered';
+  headingsEnabled?: boolean;
   items: Array<{ id: string; title?: string; titleContent?: Paragraph[]; content: Paragraph[]; asset?: AssetRef; assetSide?: 'left' | 'right' }>;
 }
 export interface CopyrightBlock extends BlockBase {

@@ -8,7 +8,7 @@ export type ElementPalettePayload =
   | { kind: 'page' }
   | { kind: 'template' }
   | { kind: 'fullPageAsset' }
-  | { kind: 'container'; layoutMode: 'stack' | 'grid' | 'table' }
+  | { kind: 'container'; layoutMode: 'grid' | 'table' }
   | { kind: 'shape'; shape: 'rectangle' | 'line' };
 
 const latestDefinitions = (definitions: DeclarativeComponentDefinition[]) =>
@@ -28,7 +28,6 @@ export function flowElementPaletteItems(workspaceDefinitions: DeclarativeCompone
   return [
     ...components,
     ...(includeContainers ? [
-      { id: 'container:stack', label: 'Stack', description: 'Arrange child elements vertically with consistent spacing.', icon: '☷', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'stack' as const } },
       { id: 'container:grid', label: 'Grid', description: 'Arrange child elements in equal-width columns.', icon: '▦', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'grid' as const } },
       { id: 'container:table', label: 'Table', description: 'Arrange child elements in bordered rows and columns.', icon: '▥', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'table' as const } }
     ] : []),

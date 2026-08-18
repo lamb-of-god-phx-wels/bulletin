@@ -359,7 +359,7 @@ export function WeeklyEditor({
           <SortableList
             items={children}
             onChange={(next) => updateChildren(parent, next)}
-            grid={parent.type === 'group' && (parent.layoutMode ?? 'stack') !== 'stack' ? {
+            grid={parent.type === 'group' ? {
               rows: Math.max(1, parent.rows ?? 2),
               columns: Math.max(1, parent.columns ?? 2),
               containerId: parent.id,
@@ -1162,7 +1162,7 @@ export function WeeklyEditor({
                   </div>
                 )}
                 {block.type === "group" &&
-                  <><LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} onAdd={cell => { setElementParentId(block.id); setElementCell(cell); }} />{nestedEditors(block)}</>}
+                  <><LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} />{nestedEditors(block)}</>}
                 {block.type === "copyright" && (
                   <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
                 )}

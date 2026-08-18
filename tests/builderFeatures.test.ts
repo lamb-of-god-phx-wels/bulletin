@@ -31,14 +31,11 @@ describe('builder feature blocks', () => {
     expect(fields).toContain('Subheading (optional)');
     expect(fields).toContain('Caption (optional)');
   });
-  it('creates editable stack, grid, and table containers and estimates parallel rows', () => {
-    const stack = createLayoutContainer('stack', 'stack');
+  it('creates editable grid and table containers and estimates parallel rows', () => {
     const grid = createLayoutContainer('grid', 'grid');
     const table = createLayoutContainer('table', 'table');
-    expect(stack).toMatchObject({ type: 'group', layoutMode: 'stack', columns: 1 });
     expect(grid).toMatchObject({ type: 'group', layoutMode: 'grid', columns: 2, rows: 2 });
     expect(table).toMatchObject({ type: 'group', layoutMode: 'table', columns: 2, rows: 2, gapIn: 0 });
-    expect(stack.children).toEqual([]);
     expect(grid.children).toEqual([]);
     expect(table.children).toHaveLength(4);
     expect(table.children.every(child => child.type === 'richText')).toBe(true);
@@ -47,7 +44,7 @@ describe('builder feature blocks', () => {
       { id: 'second', type: 'heading', text: 'Second' }
     ] };
     expect(flattenBlocks([grid])).toHaveLength(1);
-    expect(estimateBlockPoints(populatedGrid, defaultTemplate)).toBeLessThan(estimateBlockPoints({ ...populatedGrid, layoutMode: 'stack' }, defaultTemplate));
+    expect(estimateBlockPoints(populatedGrid, defaultTemplate)).toBeGreaterThan(0);
   });
 
   it('places and moves grid children in explicit cells', () => {
@@ -98,11 +95,11 @@ describe('builder feature blocks', () => {
   });
 
   it('moves a nested layout child back into the root flow', () => {
-    const stack = placeGroupChild(createLayoutContainer('stack', 'stack'), { id: 'nested', type: 'heading', text: 'Nested' });
-    const roots: BulletinBlock[] = [{ id: 'before', type: 'spacer', size: 'small' }, stack, { id: 'after', type: 'spacer', size: 'large' }];
-    const moved = moveGroupChildToRoot(roots, 'stack', 'nested', 'after', 'before');
-    expect(moved.map(block => block.id)).toEqual(['before', 'stack', 'nested', 'after']);
-    expect((moved.find(block => block.id === 'stack') as Extract<BulletinBlock, { type: 'group' }>).children).toEqual([]);
+    const grid = placeGroupChild(createLayoutContainer('grid', 'grid'), { id: 'nested', type: 'heading', text: 'Nested' });
+    const roots: BulletinBlock[] = [{ id: 'before', type: 'spacer', size: 'small' }, grid, { id: 'after', type: 'spacer', size: 'large' }];
+    const moved = moveGroupChildToRoot(roots, 'grid', 'nested', 'after', 'before');
+    expect(moved.map(block => block.id)).toEqual(['before', 'grid', 'nested', 'after']);
+    expect((moved.find(block => block.id === 'grid') as Extract<BulletinBlock, { type: 'group' }>).children).toEqual([]);
     expect(moved.find(block => block.id === 'nested')?.gridPosition).toBeUndefined();
   });
 

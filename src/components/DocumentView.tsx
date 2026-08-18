@@ -336,11 +336,7 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
       <RenderedBlock key={child.id} block={child} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />
     )}</section>;
     case 'group': {
-      const mode = block.layoutMode ?? 'stack';
-      const changeChild = onBlockChange ? (changed: BulletinBlock) => onBlockChange({ ...block, children: updateBlockTree(block.children, changed.id, changed) }) : undefined;
-      return mode === 'stack' ? <section className="block-group layout-stack" style={{ '--layout-gap': `${block.gapIn ?? 0}in` } as React.CSSProperties}>{block.children.map(child =>
-        <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={changeChild} key={child.id} />
-      )}</section> : <GridGroupView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />;
+      return <GridGroupView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />;
     }
     case 'sermonTitle': return <h1 className="sermon-title"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Sermon title" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h1>;
     case 'sectionHeading':

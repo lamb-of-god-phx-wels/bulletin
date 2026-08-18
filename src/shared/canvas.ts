@@ -479,7 +479,28 @@ export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock
     }
     if (block.type === 'templatePage') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'templateInstance') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
-    if (block.type === 'group') return { ...block, children: normalizeCanvasBlocks(block.children) };
+    if (block.type === 'group') {
+      const legacy = block as unknown as Omit<typeof block, 'layoutMode'> & { layoutMode?: string; stackDirection?: string };
+      const { stackDirection: _removedDirection, ...current } = legacy;
+      const children = normalizeCanvasBlocks(block.children);
+      if (!legacy.layoutMode || legacy.layoutMode === 'stack') {
+        const horizontal = legacy.stackDirection === 'horizontal';
+        const columns = horizontal ? Math.max(1, Math.min(12, children.length)) : 1;
+        const rows = Math.max(1, Math.min(12, Math.ceil(children.length / columns)));
+        return {
+          ...current,
+          label: block.label === 'Stack' ? 'Grid' : block.label,
+          layoutMode: 'grid',
+          columns,
+          rows,
+          gridSizing: 'equal',
+          columnWidths: undefined,
+          rowHeightsIn: undefined,
+          children: children.map((child, index) => ({ ...child, gridPosition: { row: Math.floor(index / columns) + 1, column: index % columns + 1 } }))
+        } as import('./types.js').GroupBlock;
+      }
+      return { ...current, children } as import('./types.js').GroupBlock;
+    }
     if (block.type === 'paragraph') return { ...block, children: normalizeCanvasBlocks(block.children) as typeof block.children };
     if (block.type === 'responsiveReading' && block.heading) return { ...block, heading: normalizeHeadingBlock(block.heading) as import('./types.js').HeadingBlock };
     return block;

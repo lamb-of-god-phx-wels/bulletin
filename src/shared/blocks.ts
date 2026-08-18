@@ -7,10 +7,10 @@ export function createLayoutContainer(layoutMode: NonNullable<GroupBlock['layout
   const group: GroupBlock = {
     id,
     type: 'group',
-    label: layoutMode === 'stack' ? 'Stack' : layoutMode === 'grid' ? 'Grid' : 'Table',
+    label: layoutMode === 'grid' ? 'Grid' : 'Table',
     layoutMode,
-    columns: layoutMode === 'stack' ? 1 : 2,
-    ...(layoutMode === 'stack' ? {} : { rows: 2 }),
+    columns: 2,
+    rows: 2,
     gapIn: layoutMode === 'table' ? 0 : .12,
     ...(layoutMode === 'table' ? { tableShowLines: true } : {}),
     children: []
@@ -58,7 +58,6 @@ export function groupChildCell(group: GroupBlock, child: BulletinBlock, index: n
 
 export function placeGroupChild(group: GroupBlock, child: BulletinBlock, requested?: LayoutCell): GroupBlock {
   if (!groupAcceptsChild(group, child)) return group;
-  if ((group.layoutMode ?? 'stack') === 'stack') return { ...group, children: [...group.children, child] };
   const columns = Math.max(1, Math.min(12, group.columns ?? 2));
   let rows = Math.max(1, Math.min(12, group.rows ?? 2));
   const positioned = group.children.map((item, index) => ({ item, cell: groupChildCell(group, item, index) }));
@@ -84,7 +83,6 @@ export function placeGroupChild(group: GroupBlock, child: BulletinBlock, request
 }
 
 export function moveGroupChildToCell(group: GroupBlock, childId: string, target: LayoutCell): GroupBlock {
-  if ((group.layoutMode ?? 'stack') === 'stack') return group;
   const positioned = group.children.map((item, index) => ({ item, cell: groupChildCell(group, item, index) }));
   const moving = positioned.find(entry => entry.item.id === childId);
   if (!moving) return group;

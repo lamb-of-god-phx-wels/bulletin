@@ -266,7 +266,7 @@ export interface SpacerBlock extends BlockBase { type: 'spacer'; size: 'small' |
 export interface GroupBlock extends BlockBase {
   type: 'group';
   children: BulletinBlock[];
-  layoutMode?: 'stack' | 'grid' | 'table';
+  layoutMode?: 'grid' | 'table';
   columns?: number;
   rows?: number;
   gapIn?: number;

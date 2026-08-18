@@ -20,6 +20,13 @@ describe('public JSON contracts', () => {
     expect(validate(example)).toBe(false);
     expect(validate.errors?.[0].instancePath).toBe('/blocks/0/type');
   });
+  it('rejects the retired stack layout mode', () => {
+    const bulletin = createBulletin(defaultTemplate);
+    bulletin.blocks = [{ id: 'retired-layout', type: 'group', layoutMode: 'stack', children: [] } as never];
+    const validate = ajv.compile(bulletinSchema);
+    expect(validate(bulletin)).toBe(false);
+    expect(validate.errors?.some(error => error.instancePath.endsWith('/layoutMode'))).toBe(true);
+  });
   it('validates the default template and an empty library', () => {
     expect(ajv.compile(templateSchema)(defaultTemplate)).toBe(true);
     expect(ajv.compile(pageTemplateSchema)(defaultPageTemplate)).toBe(true);

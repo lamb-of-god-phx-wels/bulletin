@@ -73,7 +73,7 @@ export function NativeBlockFields({ block, document, library, template, responsi
     {block.type === 'libraryText' && <LibraryTextFields block={block} library={library} root={root} onChange={onChange} />}
     {block.type === 'spacer' && <label>Size<select value={block.size} onChange={event => onChange({ ...block, size: event.target.value as typeof block.size })}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>}
     {block.type === 'image' && <ImageBlockFields block={block} library={library} root={root} targetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={onChange} />}
-    {block.type === 'group' && <LayoutContainerFields block={block} onChange={onChange} onAdd={cell => { setElementPickerCell(cell); setElementPickerOpen(true); }} />}
+    {block.type === 'group' && <LayoutContainerFields block={block} onChange={onChange} />}
     {block.type === 'copyright' && <CopyrightFields block={block} onChange={onChange} />}
     {block.type === 'announcements' && <AnnouncementFields block={block} library={library} root={root} targetFolder={`${imageTargetFolder}/announcements`} onLibraryChange={onLibraryChange} onError={onError} onChange={onChange} />}
     {block.type === 'list' && <ListFields block={block} library={library} root={root} targetFolder={`${imageTargetFolder}/lists`} onLibraryChange={onLibraryChange} onError={onError} onChange={onChange} />}
@@ -86,7 +86,7 @@ export function NativeBlockFields({ block, document, library, template, responsi
         return block.type === 'group' ? <SortableItem id={child.id} key={child.id}>{card}</SortableItem> : <div key={child.id}>{card}</div>;
       });
       if (block.type !== 'group') return cards;
-      const grid = (block.layoutMode ?? 'stack') !== 'stack' ? { rows: Math.max(1, block.rows ?? 2), columns: Math.max(1, block.columns ?? 2), containerId: block.id, cells: Object.fromEntries(block.children.map((child, index) => [child.id, groupChildCell(block, child, index)])), onMove: (id: string, cell: LayoutCell) => onChange(moveGroupChildToCell(block, id, cell)), onAdd: (cell: LayoutCell) => block.layoutMode === 'table' ? onChange(placeGroupChild(block, createTableCell(`text-${randomId()}`), cell)) : (setElementPickerCell(cell), setElementPickerOpen(true)) } : undefined;
+      const grid = { rows: Math.max(1, block.rows ?? 2), columns: Math.max(1, block.columns ?? 2), containerId: block.id, cells: Object.fromEntries(block.children.map((child, index) => [child.id, groupChildCell(block, child, index)])), onMove: (id: string, cell: LayoutCell) => onChange(moveGroupChildToCell(block, id, cell)), onAdd: (cell: LayoutCell) => block.layoutMode === 'table' ? onChange(placeGroupChild(block, createTableCell(`text-${randomId()}`), cell)) : (setElementPickerCell(cell), setElementPickerOpen(true)) };
       return <SortableList items={block.children} onChange={children => onChange({ ...block, children })} grid={grid} onMoveOut={onMoveOut ? (id, targetId, position) => { onMoveOut(block.id, id, targetId, position); return true; } : undefined}>{cards}</SortableList>;
     })()}
     {conditionChildId && (() => { const child = childBlocks(block)?.find(item => item.id === conditionChildId); return child ? <ConditionModal value={child.condition} template={template} onClose={() => setConditionChildId(undefined)} onSave={condition => { updateChild({ ...child, condition } as BulletinBlock); setConditionChildId(undefined); }} /> : null; })()}

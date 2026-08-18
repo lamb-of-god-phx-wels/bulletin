@@ -80,7 +80,6 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
     const visibleChildren = block.children.map((child, index) => ({ child, index })).filter(({ child }) => conditionVisible(child, template, document));
     const childPoints = visibleChildren.map(({ child }) => estimateBlockPoints(child, template, library, document));
     if (!visibleChildren.length) return formatted(0);
-    if ((block.layoutMode ?? 'stack') === 'stack') return formatted(childPoints.reduce((total, points) => total + points, 0) + Math.max(0, childPoints.length - 1) * (block.gapIn ?? 0) * 72);
     const rowCount = Math.max(block.rows ?? 1, ...visibleChildren.map(({ child, index }) => groupChildCell(block, child, index).row));
     const fixedRows = block.gridSizing === 'custom' && block.rowHeightsIn?.length === rowCount && block.rowHeightsIn.every(value => Number.isFinite(value) && value > 0)
       ? block.rowHeightsIn.reduce((total, height) => total + height * 72, 0)

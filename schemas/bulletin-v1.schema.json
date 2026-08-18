@@ -69,7 +69,7 @@
         "values": { "type": "object", "additionalProperties": { "type": "string" } },
         "style": { "type": "object" },
         "children": { "type": "array", "items": { "$ref": "#/$defs/block" } },
-        "layoutMode": { "enum": ["stack", "grid", "table"] },
+        "layoutMode": { "enum": ["grid", "table"] },
         "columns": { "type": "integer", "minimum": 1, "maximum": 12 },
         "rows": { "type": "integer", "minimum": 1, "maximum": 12 },
         "gapIn": { "type": "number", "minimum": 0, "maximum": 2 },

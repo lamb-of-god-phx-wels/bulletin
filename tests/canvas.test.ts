@@ -25,6 +25,28 @@ import { CanvasSceneView } from '../src/components/CanvasSceneView';
 import type { CanvasScene } from '../src/shared/types';
 
 describe('canvas cover scenes', () => {
+  it('migrates retired layout stacks into grids without losing child order', () => {
+    const [horizontal, vertical] = normalizeCanvasBlocks([
+      { id: 'horizontal', type: 'group', layoutMode: 'stack', stackDirection: 'horizontal', label: 'Stack', children: [
+        { id: 'one', type: 'heading', text: 'One' },
+        { id: 'two', type: 'heading', text: 'Two' },
+      ] },
+      { id: 'vertical', type: 'group', layoutMode: 'stack', stackDirection: 'vertical', children: [
+        { id: 'three', type: 'heading', text: 'Three' },
+        { id: 'four', type: 'heading', text: 'Four' },
+      ] },
+    ] as never);
+    expect(horizontal).toMatchObject({ label: 'Grid', layoutMode: 'grid', columns: 2, rows: 1, children: [
+      { id: 'one', gridPosition: { row: 1, column: 1 } },
+      { id: 'two', gridPosition: { row: 1, column: 2 } },
+    ] });
+    expect(vertical).toMatchObject({ layoutMode: 'grid', columns: 1, rows: 2, children: [
+      { id: 'three', gridPosition: { row: 1, column: 1 } },
+      { id: 'four', gridPosition: { row: 2, column: 1 } },
+    ] });
+    expect(horizontal).not.toHaveProperty('stackDirection');
+  });
+
   it('removes unsupported blocks from documents and native canvas elements', () => {
     const blocks = normalizeCanvasBlocks([
       { id: 'removed', type: 'removed-block' },

@@ -793,7 +793,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .pdf-placeholder span { margin-top: 7px; font-size: 9pt; }
 .mark-bold { font-weight: 700; } .mark-italic { font-style: italic; } .mark-smallCaps { font-variant: small-caps; }
 .mark-superscript { display: inline-block; margin-right: .08em; font-size: .7em; line-height: 0; vertical-align: super; }
-.block-group { display: flex; flex-direction: column; gap: var(--layout-gap, .12in); }
+.block-group { gap: var(--layout-gap, .12in); }
 .block-group.layout-grid, .block-group.layout-table { display: grid; grid-template-columns: repeat(var(--layout-columns, 2), minmax(0, 1fr)); }
 .block-group.layout-table { gap: 0; border-top: 1px solid #c9c5bc; border-left: 1px solid #c9c5bc; }
 .layout-cell-content { min-width: 0; }

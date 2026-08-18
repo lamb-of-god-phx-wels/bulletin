@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { BlockFormattingModal } from '../src/components/BlockFormattingModal';
+import { HeadingFields } from '../src/components/HeadingFields';
 import { NativeBlockPreview } from '../src/components/DocumentView';
 import { createLayoutContainer, createTableCell, flattenBlocks, groupAcceptsChild, groupChildCell, moveGroupChildToCell, moveGroupChildToRoot, placeGroupChild } from '../src/shared/blocks';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
@@ -9,6 +10,27 @@ import { estimateBlockPoints } from '../src/shared/pagination';
 import type { BulletinBlock } from '../src/shared/types';
 
 describe('builder feature blocks', () => {
+  it('renders and edits one semantic Heading element at H1, H2, or H3', () => {
+    const document = createBulletin(defaultTemplate);
+    const markup = (level: 'h1' | 'h2' | 'h3') => renderToStaticMarkup(createElement(NativeBlockPreview, {
+      block: { id: level, type: 'heading', level, text: `${level} title`, subheading: 'Supporting line', caption: 'First caption line\nSecond caption line' },
+      document, library: undefined, assets: {}, marginIn: .4,
+    }));
+    expect(markup('h1')).toContain('<h1 data-heading-part="main">');
+    expect(markup('h2')).toContain('<h2 data-heading-part="main">');
+    expect(markup('h3')).toContain('<h3 data-heading-part="main">');
+    expect(markup('h2')).toContain('data-heading-part="subheading"');
+    expect(markup('h2')).toContain('data-heading-part="caption"');
+    expect(markup('h2')).not.toContain('✠');
+
+    const fields = renderToStaticMarkup(createElement(HeadingFields, {
+      block: { id: 'heading', type: 'heading', level: 'h2', text: 'Heading' },
+      onChange: () => undefined,
+    }));
+    expect(fields).toContain('<option value="h2" selected="">H2</option>');
+    expect(fields).toContain('Subheading (optional)');
+    expect(fields).toContain('Caption (optional)');
+  });
   it('creates editable stack, grid, and table containers and estimates parallel rows', () => {
     const stack = createLayoutContainer('stack', 'stack');
     const grid = createLayoutContainer('grid', 'grid');

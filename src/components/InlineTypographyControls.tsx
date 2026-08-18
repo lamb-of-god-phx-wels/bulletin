@@ -1,6 +1,7 @@
 import { defaultCustomBlockStyle } from '../shared/customBlocks';
 import type { BulletinBlock, CustomBlockStyle, TemplateV1 } from '../shared/types';
 import { FontPicker } from './FontPicker';
+import { effectiveHeadingLevel } from '../shared/headings';
 
 const lineHeightOptions = [
   { value: 1, label: 'Tight' },
@@ -12,10 +13,18 @@ const lineHeightOptions = [
 
 export function effectiveBlockStyle(block: BulletinBlock, template: TemplateV1): CustomBlockStyle {
   const base = block.type === 'custom' ? block.style : undefined;
+  const heading = block.type === 'heading' || block.type === 'sectionHeading'
+    ? ({
+      h1: { textAlign: 'center' as const, fontFamily: 'display', fontSizePt: 16, fontWeight: 'bold' as const, textTransform: 'none' as const, marginIn: { top: .24, bottom: .14 } },
+      h2: { textAlign: 'center' as const, fontFamily: 'display', fontSizePt: 13, fontWeight: 'bold' as const, textTransform: 'none' as const, marginIn: { top: .18, bottom: .24 } },
+      h3: { textAlign: 'left' as const, fontFamily: 'body', fontSizePt: 10, fontWeight: 'bold' as const, textTransform: 'uppercase' as const, marginIn: { top: .2, bottom: .08 } },
+    })[effectiveHeadingLevel(block)]
+    : undefined;
   return {
     ...defaultCustomBlockStyle,
     fontSizePt: template.theme.bodySizePt,
     lineHeight: template.theme.lineHeight,
+    ...heading,
     ...base,
     ...block.presentation,
     paddingIn: {
@@ -25,6 +34,7 @@ export function effectiveBlockStyle(block: BulletinBlock, template: TemplateV1):
     },
     marginIn: {
       ...defaultCustomBlockStyle.marginIn,
+      ...heading?.marginIn,
       ...base?.marginIn,
       ...block.presentation?.marginIn,
     },
@@ -42,7 +52,7 @@ export function applyTypographyChange(
 export function supportsInlineTypography(block: BulletinBlock): boolean {
   return [
     'heading',
-    'sectionHeading',
+    'sectionHeading', // Legacy read compatibility; normalized to Heading on load.
     'sermonTitle',
     'richText',
     'responsiveReading',

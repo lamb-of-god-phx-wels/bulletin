@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
 import { responsiveReadingEditorContent, safeParseResponsiveReadingContent, shouldItalicizeSilentPrayer } from '../shared/responsiveReading';
 import { RichTextEditor } from './RichTextEditor';
-import { paragraphsFromPlainText } from '../shared/plainText';
+import { HeadingFields } from './HeadingFields';
 
 export function ResponsiveReadingFields({ block, settings, template, onChange }: {
   block: ResponsiveReadingBlock;
@@ -33,13 +33,13 @@ export function ResponsiveReadingFields({ block, settings, template, onChange }:
     <div className="responsive-reading-heading-controls">
       {block.heading ? <>
         <div className="field-row responsive-reading-heading-row">
-          <label>Heading<RichTextEditor content={block.heading.content ?? paragraphsFromPlainText(block.heading.text)} label="Responsive reading heading" onChange={content => onChange({ ...block, heading: { ...block.heading!, text: content.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : '').join('')).join('\n\n'), content } })} /></label>
+          <div><HeadingFields block={block.heading} onChange={heading => onChange({ ...block, heading })} /></div>
           <button type="button" className="danger-text" onClick={() => {
             const { heading: _heading, ...next } = block;
             onChange(next);
           }}>Remove heading</button>
         </div>
-      </> : <button type="button" className="secondary" onClick={() => onChange({ ...block, heading: { id: `${block.id}-heading`, type: 'heading', text: '' } })}>＋ Heading</button>}
+      </> : <button type="button" className="secondary" onClick={() => onChange({ ...block, heading: { id: `${block.id}-heading`, type: 'heading', level: 'h2', text: '' } })}>＋ Heading</button>}
     </div>
     <RichTextEditor
       content={editorContent}

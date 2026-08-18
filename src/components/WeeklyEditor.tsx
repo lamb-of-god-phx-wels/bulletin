@@ -59,6 +59,7 @@ import { boundRichTextParagraphs, resetBoundRichTextContent } from "../shared/ca
 import { ElementPickerDialog } from "./ElementPickerDialog";
 import { NativeBlockFields } from "./NativeBlockFields";
 import { LayoutContainerFields } from "./LayoutContainerFields";
+import { HeadingFields } from "./HeadingFields";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -304,9 +305,8 @@ export function WeeklyEditor({
               </p>
             ) : (
               <>
-                {(child.type === "heading" ||
-                  child.type === "sectionHeading" ||
-                  child.type === "sermonTitle") && (
+                {(child.type === "heading" || child.type === "sectionHeading") && <HeadingFields block={child} onChange={next => updateBlock(child.id, next)} />}
+                {child.type === "sermonTitle" && (
                   <label>
                     Heading
                     <RichTextEditor content={child.content ?? paragraphs(child.text)} label="Heading text" onChange={content => updateBlock(child.id, { ...child, text: paragraphText(content), content })} />
@@ -755,9 +755,8 @@ export function WeeklyEditor({
                     </span>
                   </div>
                 )}
-                {(block.type === "sermonTitle" ||
-                  block.type === "heading" ||
-                  block.type === "sectionHeading") && (
+                {(block.type === "heading" || block.type === "sectionHeading") && <HeadingFields block={block} onChange={next => updateBlock(block.id, next)} />}
+                {block.type === "sermonTitle" && (
                   <label>
                     Text
                     <RichTextEditor content={block.content ?? paragraphs(block.text)} label="Text" onChange={content => updateBlock(block.id, { ...block, text: paragraphText(content), content })} />

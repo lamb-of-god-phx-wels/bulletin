@@ -6,6 +6,7 @@ import { pageTemplateMargin } from './pageTemplates.js';
 import { songHeader } from './songs.js';
 import { effectiveResponsiveReadingSettings, isSilentPrayerEntry, responsiveEntryReader } from './responsiveReading.js';
 import { conditionVisible, resolveConditionalBlocks } from './customProperties.js';
+import { effectiveHeadingLevel } from './headings.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
 export interface PageModel { number: number; kind: 'content' | 'fullPage' | 'filler'; blocks: PaginatedBlock[]; marginIn?: number }
@@ -45,7 +46,13 @@ const contentPoints = (content: Paragraph[] | undefined, template: TemplateV1) =
 function basePoints(block: PaginatedBlock, template: TemplateV1): number {
   switch (block.type) {
     case 'sectionHeading': return 38;
-    case 'heading': case 'sermonTitle': return 28;
+    case 'heading': {
+      const main = { h1: 44, h2: 38, h3: 28 }[effectiveHeadingLevel(block)];
+      const subheading = block.subheading?.trim() ? 16 : 0;
+      const captionLines = block.caption?.trim() ? Math.max(1, block.caption.split('\n').length) : 0;
+      return main + subheading + captionLines * 14;
+    }
+    case 'sermonTitle': return 28;
     case 'scriptureReading': return 34 + (block.caption ? template.theme.bodySizePt * template.theme.lineHeight + 8.64 : 0);
     case 'song': case 'libraryText': return 30;
     case 'custom': return (block.showName ?? true) ? 30 : 0;

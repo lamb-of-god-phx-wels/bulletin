@@ -1,5 +1,5 @@
 import { cloneElement, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, FontReference, GroupBlock, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
+import type { AssetRef, BulletinBlock, BulletinDocumentV1, CustomBlock, CustomBlockStyle, FontReference, GroupBlock, HeadingBlock, LibraryManifestV1, Paragraph, ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
 import { customBlockParagraphs, defaultCustomBlockStyle } from '../shared/customBlocks';
 import { conditionVisible } from '../shared/customProperties';
 import { childBlocks, findBlock, flattenBlocks, groupChildCell, updateBlockTree } from '../shared/blocks';
@@ -16,6 +16,7 @@ import { CanvasSceneView } from './CanvasSceneView';
 import { RichTextEditor } from './RichTextEditor';
 import { paragraphsHaveVisibleContent } from '../shared/plainText';
 import { updateListItemContent } from '../shared/listItems';
+import { effectiveHeadingLevel, normalizeHeadingBlock } from '../shared/headings';
 
 const inlineText = (paragraph: Paragraph) => paragraph.children.map((run, index) => run.type === 'lineBreak'
   ? <br key={index} />
@@ -343,8 +344,17 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
       )}</section> : <GridGroupView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />;
     }
     case 'sermonTitle': return <h1 className="sermon-title"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Sermon title" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h1>;
-    case 'sectionHeading': return <h2 className="section-heading"><span aria-hidden="true">✠ </span><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Section heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /><span aria-hidden="true"> ✠</span></h2>;
-    case 'heading': return <h3 className="block-heading"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Heading" onChange={onBlockChange ? content => onBlockChange({ ...block, text: plainText(content), content }) : undefined} /></h3>;
+    case 'sectionHeading':
+    case 'heading': {
+      const heading = normalizeHeadingBlock(block) as HeadingBlock;
+      const level = effectiveHeadingLevel(block);
+      const HeadingTag = level;
+      return <section className={`heading-block heading-${level}`} data-heading-level={level}>
+        <HeadingTag data-heading-part="main"><EditableParagraphs inline content={block.content ?? textParagraphs(block.text)} label="Heading" onChange={onBlockChange ? content => onBlockChange({ ...heading, text: plainText(content), content }) : undefined} /></HeadingTag>
+        {heading.subheading?.trim() && <p className="heading-subheading" data-heading-part="subheading">{heading.subheading}</p>}
+        {heading.caption?.trim() && <p className="heading-caption" data-heading-part="caption">{heading.caption}</p>}
+      </section>;
+    }
     case 'paragraph': return <section className="paragraph-block">{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</section>;
     case 'richText': { const content = boundRichTextParagraphs(block, document, template, library); return <div className={`rich-text ${block.role ? `paragraph-${block.role}` : ''} ${block.scriptureRole ? `scripture-${block.scriptureRole}` : ''}`}><EditableParagraphs content={content} label={block.scriptureRole ?? block.role ?? 'Text'} onChange={onBlockChange ? next => onBlockChange(block.binding ? { ...block, bindingOverride: next } : { ...block, content: next }) : undefined} onReset={block.bindingOverride && onBlockChange ? () => onBlockChange(resetBoundRichTextContent(block)) : undefined} /></div>; }
     case 'custom': return <section className="custom-block">{(block.showName ?? true) && <h3 className="custom-block-heading">{block.name}</h3>}<Paragraphs content={customBlockParagraphs(block, document, template)} /></section>;

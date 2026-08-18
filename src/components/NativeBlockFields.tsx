@@ -23,6 +23,7 @@ import { randomId } from '../shared/id';
 import { ImageAssetDialog } from './ImageAssetDialog';
 import { LayoutContainerFields } from './LayoutContainerFields';
 import { SortableHandle, SortableItem, SortableList } from './SortableList';
+import { HeadingFields } from './HeadingFields';
 
 const plain = (content: Extract<BulletinBlock, { type: 'richText' }>['content'] | undefined) =>
   content?.map(paragraph => paragraph.children.map(run => run.type === 'text' ? run.text : run.type === 'lineBreak' ? '\n' : '✠').join('')).join('\n\n') ?? '';
@@ -63,7 +64,8 @@ export function NativeBlockFields({ block, document, library, template, responsi
     if (payload.kind !== 'image') setElementPickerCell(undefined);
   };
   return <div className="native-block-fields">
-    {(block.type === 'heading' || block.type === 'sectionHeading' || block.type === 'sermonTitle') && <label>Text<RichTextEditor content={block.content ?? paragraphsFromPlainText(block.text)} label="Heading text" onChange={content => onChange({ ...block, text: plain(content), content })} /></label>}
+    {(block.type === 'heading' || block.type === 'sectionHeading') && <HeadingFields block={block} onChange={onChange} />}
+    {block.type === 'sermonTitle' && <label>Text<RichTextEditor content={block.content ?? paragraphsFromPlainText(block.text)} label="Heading text" onChange={content => onChange({ ...block, text: plain(content), content })} /></label>}
     {block.type === 'richText' && <><RichTextBindingControl value={block.binding} template={template} library={library} root={root} onChange={binding => onChange({ ...block, binding, bindingOverride: undefined })} /><label>{block.binding ? 'Override' : 'Text'}<textarea rows={4} value={plain(boundRichTextParagraphs(block, document ?? createBulletin(template), template, library))} onChange={event => onChange(block.binding ? { ...block, bindingOverride: paragraphsFromPlainText(event.target.value) } : { ...block, content: paragraphsFromPlainText(event.target.value) })} /></label>{block.bindingOverride && <button className="text-button" onClick={() => onChange(resetBoundRichTextContent(block))}>Reset to bound value</button>}</>}
     {block.type === 'custom' && <><label>Block name<input value={block.name} onChange={event => onChange({ ...block, name: event.target.value })} /></label><label>Content<textarea rows={4} value={block.layoutText} onChange={event => onChange({ ...block, layoutText: event.target.value })} /></label></>}
     {block.type === 'scriptureReading' && <><label>Reference<input value={block.reference} onChange={event => onChange({ ...block, reference: event.target.value })} /></label><label>Caption<input value={block.caption ?? ''} onChange={event => onChange({ ...block, caption: event.target.value || undefined })} /></label></>}

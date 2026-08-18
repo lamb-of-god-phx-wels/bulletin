@@ -22,5 +22,13 @@ describe('legacy bulletin migration', () => {
   it('creates stable unique IDs when headings repeat', () => {
     const migrated = migrateLegacyBulletin({ bulletinInfo: { date: { data: '2026-01-01' } }, content: [{ type: 'heading', text: 'Prayer' }, { type: 'heading', text: 'Prayer' }] });
     expect(migrated.blocks.map(block => block.id)).toEqual(['prayer', 'prayer-2']);
+    expect(migrated.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'heading', level: 'h3' }),
+    ]));
+  });
+
+  it('migrates legacy section headings into H2 headings', () => {
+    const migrated = migrateLegacyBulletin({ bulletinInfo: { date: { data: '2026-01-01' } }, content: [{ type: 'sectionHeading', text: 'The Word' }] });
+    expect(migrated.blocks[0]).toMatchObject({ type: 'heading', level: 'h2', text: 'The Word' });
   });
 });

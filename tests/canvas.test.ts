@@ -11,6 +11,7 @@ import {
   createCanvasBlock,
   defaultCanvasScene,
   normalizeCanvasScene,
+  normalizeCanvasBlocks,
   rotateCanvasLine,
   reorderCanvasElements,
   resizeCanvasGeometry,
@@ -24,6 +25,26 @@ import { CanvasSceneView } from '../src/components/CanvasSceneView';
 import type { CanvasScene } from '../src/shared/types';
 
 describe('canvas cover scenes', () => {
+  it('normalizes legacy headings recursively, including native canvas blocks', () => {
+    const [group, canvas] = normalizeCanvasBlocks([{
+      id: 'group', type: 'group', children: [
+        { id: 'old-heading', type: 'heading', text: 'Old heading' },
+        { id: 'old-section', type: 'sectionHeading', text: 'Old section' },
+      ],
+    }, {
+      id: 'canvas', type: 'canvas', heightIn: 2, scene: {
+        schemaVersion: 2, coordinateSpace: 'fullPage', elements: [{
+          id: 'native-section', type: 'block', x: 0, y: 0, width: 2, height: .5,
+          block: { id: 'nested-section', type: 'sectionHeading', text: 'Nested section' },
+        }],
+      },
+    }]);
+    expect(group).toMatchObject({ type: 'group', children: [
+      { id: 'old-heading', type: 'heading', level: 'h3' },
+      { id: 'old-section', type: 'heading', level: 'h2' },
+    ] });
+    expect(canvas).toMatchObject({ type: 'canvas', scene: { elements: [{ block: { id: 'nested-section', type: 'heading', level: 'h2' } }] } });
+  });
   it('creates canvases at the full physical page size', () => {
     expect(createCanvasBlock('new-canvas')).toMatchObject({
       id: 'new-canvas',

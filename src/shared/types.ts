@@ -174,7 +174,18 @@ export interface CanvasBlock extends BlockBase {
   widthMode?: 'contentBox' | 'fullPage';
 }
 export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
-export interface HeadingBlock extends BlockBase { type: 'heading' | 'sectionHeading'; text: string; content?: Paragraph[] }
+export type HeadingLevel = 'h1' | 'h2' | 'h3';
+export interface HeadingBlock extends BlockBase {
+  type: 'heading';
+  /** Missing only on legacy headings, which are interpreted as H3. */
+  level?: HeadingLevel;
+  text: string;
+  content?: Paragraph[];
+  subheading?: string;
+  caption?: string;
+}
+/** Legacy read/import shape. Normalized to an H2 Heading when a workspace opens. */
+export interface LegacySectionHeadingBlock extends BlockBase { type: 'sectionHeading'; text: string; content?: Paragraph[] }
 export interface ParagraphBlock extends BlockBase { type: 'paragraph'; children: RichTextBlock[] }
 export type ScriptureElementRole = 'heading' | 'reference' | 'caption' | 'body';
 export interface RichTextBlock extends BlockBase {
@@ -326,7 +337,7 @@ export interface CustomBlock extends BlockBase {
   style?: CustomBlockStyle;
 }
 
-export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | TemplateInstanceBlock | ChurchInfoBlock | HeadingBlock | ParagraphBlock | RichTextBlock |
+export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | TemplateInstanceBlock | ChurchInfoBlock | HeadingBlock | LegacySectionHeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | ListBlock | CopyrightBlock | ImageBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 

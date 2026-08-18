@@ -673,15 +673,23 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .church-info .tagline { color: #696d68; font-style: italic; }
 .contact-card { margin-top: .4in; padding: .25in; border: 1px solid #d8d4cb; color: #696d68; text-align: center; }
 .sermon-title { padding: 0 0 .12in; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; font-size: 13pt; text-align: center; text-transform: uppercase; }
-.section-heading { margin: .18in 0 .24in !important; font: 13pt var(--display-font); text-align: center; }
-.block-heading, .song h3 { margin: .2in 0 .08in !important; font-size: 10pt; text-transform: uppercase; }
+.heading-block { color: inherit; }
+.heading-block > :is(h1, h2, h3, p) { margin-bottom: 0; }
+.heading-h1 { margin: .24in 0 .14in; text-align: center; }
+.heading-h1 > h1 { font: bold 16pt/1.28 var(--display-font); }
+.heading-h2 { margin: .18in 0 .24in; text-align: center; }
+.heading-h2 > h2 { font: bold 13pt/1.28 var(--display-font); }
+.heading-h3 { margin: .2in 0 .08in; text-align: left; }
+.heading-h3 > h3 { font: bold 10pt/1.28 var(--body-font); text-transform: uppercase; }
+.heading-subheading { margin-top: .04in; font: italic 10pt/1.28 var(--body-font); }
+.heading-caption { margin-top: .03in; color: #696d68; font: 9pt/1.28 var(--body-font); white-space: pre-line; }
+.song h3 { margin: .2in 0 .08in !important; font-size: 10pt; text-transform: uppercase; }
 .paragraph-block { margin: 0 0 .16in; }.paragraph-block .rich-text p:last-child { margin-bottom: 0; }.paragraph-block .paragraph-header { font-weight: bold; text-transform: uppercase; }
-.page-content > .section-heading:first-child,
-.page-content > .block-heading:first-child,
+.page-content > .heading-block:first-child,
 .page-content > .sermon-title:first-child,
 .page-content > section:first-child > .block-heading:first-child,
 .page-content > .song:first-child > h3:first-child { margin-top: 0 !important; }
-.block-heading span, .song h3 .song-title { font-weight: 400; text-transform: none; }
+.song h3 .song-title { font-weight: 400; text-transform: none; }
 .song h3 .song-header, .song h3 .song-title { display: inline-block; }
 .response-row { display: grid; grid-template-columns: .25in 1fr; gap: .04in; }
 .response-row p { margin-bottom: .08in; }
@@ -732,9 +740,9 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .rich-text-canvas > .rich-text-editor.inline-rich-text,
 .rich-text-canvas > .rich-text-editor.inline-rich-text > div { display: inline; margin: 0; }
 .rich-text-preview > .rich-text-editor > div:last-child, .rich-text-canvas > .rich-text-editor > div:last-child { margin-bottom: 0; }
-.song-header .rich-text-editor-shell, .song-title .rich-text-editor-shell, .section-heading .rich-text-editor-shell { display: inline; }
-.song-header .rich-text-editor, .song-title .rich-text-editor, .section-heading .rich-text-editor { display: inline; }
-.song-header .rich-text-editor > div, .song-title .rich-text-editor > div, .section-heading .rich-text-editor > div { display: inline; }
+.song-header .rich-text-editor-shell, .song-title .rich-text-editor-shell, .heading-block [data-heading-part="main"] .rich-text-editor-shell { display: inline; }
+.song-header .rich-text-editor, .song-title .rich-text-editor, .heading-block [data-heading-part="main"] .rich-text-editor { display: inline; }
+.song-header .rich-text-editor > div, .song-title .rich-text-editor > div, .heading-block [data-heading-part="main"] .rich-text-editor > div { display: inline; }
 .global-rich-text-toolbar { flex: 1 0 100%; display: flex; align-items: end; gap: 5px; min-width: 0; height: 48px; overflow-x: auto; padding: 6px 0 7px; border-top: 1px solid #d8d4ca; }
 .global-rich-text-toolbar > .font-picker { flex: 0 0 150px; gap: 2px; color: #676d68; font-size: 8px; font-weight: 750; }
 .global-rich-text-toolbar .font-picker-control { grid-template-columns: 30px minmax(0, 1fr) auto; width: 150px; height: 28px; min-height: 28px; padding: 0 6px 0 0; border-radius: 5px; font-size: 10px; font-weight: 500; }
@@ -916,7 +924,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .block-formatting-modal > footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 20px; border-top: 1px solid #d9d5cc; background: white; }.block-formatting-modal > footer > div { display: flex; gap: 8px; }
 .block-presentation { box-sizing: border-box; }
 .block-presentation.full-height-presentation { position: relative; height: 100%; }
-.block-presentation.has-presentation > :is(.section-heading, .block-heading, .sermon-title) { margin: 0 !important; color: inherit; font-family: inherit !important; font-size: inherit !important; font-style: inherit; font-weight: inherit; text-align: inherit !important; text-transform: inherit; }
+.block-presentation.has-presentation > :is(.heading-block, .sermon-title) { margin: 0 !important; color: inherit; font-family: inherit !important; font-size: inherit !important; font-style: inherit; font-weight: inherit; text-align: inherit !important; text-transform: inherit; }
+.block-presentation.has-presentation > .heading-block > [data-heading-part="main"] { color: inherit; font-family: inherit !important; font-size: inherit !important; font-style: inherit; font-weight: inherit; text-align: inherit !important; text-transform: inherit; }
 .block-presentation.has-presentation > .paragraph-block { margin: 0; }
 .block-presentation.has-presentation > .rich-text > p:last-child { margin-bottom: 0; }
 .block-presentation.has-presentation > .copyright { margin: 0; padding: 0; border: 0; color: inherit; font: inherit; text-align: inherit; text-transform: inherit; }

@@ -45,8 +45,8 @@ function migrateBlock(item: Legacy, index: number, seen: Map<string, number>): B
     case 'titlePage': return { id, type: 'titlePage', weeklyEditable: true };
     case 'welcomePage': return { id, type: 'churchInfo' };
     case 'sermonTitle': return { id, type: 'sermonTitle', text: item.text ?? '', weeklyEditable: true };
-    case 'heading':
-    case 'sectionHeading': return { id, type: item.type, text: item.text ?? '' };
+    case 'heading': return { id, type: 'heading', level: 'h3', text: item.text ?? '' };
+    case 'sectionHeading': return { id, type: 'heading', level: 'h2', text: item.text ?? '' };
     case 'responsiveReading': return migrateResponsive(item, id);
     case 'scriptureReading': return {
       id, type: 'scriptureReading', label: item.label, caption: item.caption ?? undefined,

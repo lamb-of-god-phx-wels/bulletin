@@ -14,6 +14,7 @@ import type {
 } from './types.js';
 import { flattenBlocks } from './blocks.js';
 import { textBindingValue } from './customProperties.js';
+import { normalizeHeadingBlock } from './headings.js';
 
 export const CANVAS_PAGE = Object.freeze({ width: 7, height: 8.5 });
 export const CANVAS_GRID_IN = 1 / 16;
@@ -461,13 +462,18 @@ export const canvasNativeBlocks = (scene: CanvasScene) =>
   normalizeCanvasScene(scene).elements.flatMap(element => element.type === 'block' ? [element.block] : []);
 
 export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock[]): import('./types.js').BulletinBlock[] {
-  return blocks.map(block => {
-    if (block.type === 'canvas') return { ...block, scene: normalizeCanvasScene(block.scene) };
+  return blocks.map(source => {
+    const block = normalizeHeadingBlock(source);
+    if (block.type === 'canvas') {
+      const scene = normalizeCanvasScene(block.scene);
+      return { ...block, scene: { ...scene, elements: scene.elements.map(element => element.type === 'block' ? { ...element, block: normalizeCanvasBlocks([element.block])[0] } : element) } };
+    }
     if (block.type === 'templatePage') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'templateInstance') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'group') return { ...block, children: normalizeCanvasBlocks(block.children) };
     if (block.type === 'churchInfo') return { ...block, children: block.children ? normalizeCanvasBlocks(block.children) : block.children };
     if (block.type === 'paragraph') return { ...block, children: normalizeCanvasBlocks(block.children) as typeof block.children };
+    if (block.type === 'responsiveReading' && block.heading) return { ...block, heading: normalizeHeadingBlock(block.heading) as import('./types.js').HeadingBlock };
     return block;
   });
 }

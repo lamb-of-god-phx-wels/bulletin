@@ -12,13 +12,12 @@ import { bulletinEditorElementPaletteItems, canvasElementPaletteItems, flowEleme
 describe('component definitions', () => {
   it('loads the complete omakase palette from schema-version-2 JSON', () => {
     expect(prepackagedComponentDiagnostics).toEqual([]);
-    expect(prepackagedComponentDefinitions).toHaveLength(10);
+    expect(prepackagedComponentDefinitions).toHaveLength(9);
     expect(prepackagedComponentDefinitions.map(definition => definition.type)).toEqual([
       'bulletin:scriptureReading',
       'bulletin:song',
       'bulletin:heading',
       'bulletin:paragraph',
-      'bulletin:sectionHeading',
       'bulletin:text',
       'bulletin:responsiveReading',
       'bulletin:list',
@@ -26,6 +25,17 @@ describe('component definitions', () => {
       'bulletin:copyright'
     ]);
     expect(prepackagedComponentDefinitions.every(definition => definition.schemaVersion === 2)).toBe(true);
+  });
+
+  it('instantiates the consolidated Heading as H2 with optional themable parts', () => {
+    const definition = prepackagedComponentDefinitions.find(item => item.type === 'bulletin:heading')!;
+    expect(definition).toMatchObject({ version: 2, inputSchema: { required: ['level', 'text'] } });
+    expect(definition.editor?.fields.map(field => field.input)).toEqual(['level', 'text', 'subheading', 'caption']);
+    expect(definition.defaultStyles?.parts).toHaveProperty('subheading');
+    expect(definition.defaultStyles?.parts).toHaveProperty('caption');
+    expect(instantiateComponentDefinition(definition)).toMatchObject({ type: 'heading', level: 'h2', text: 'New heading' });
+    expect(instantiateComponentDefinition(definition)).not.toHaveProperty('subheading');
+    expect(instantiateComponentDefinition(definition)).not.toHaveProperty('caption');
   });
 
   it('uses native paragraphs and lists instead of specialized reusable-text, announcement, and church-page entries', () => {
@@ -45,6 +55,12 @@ describe('component definitions', () => {
     expect(bulletinEditorElementPaletteItems([]).map(item => item.label)).toContain('Paragraph');
     expect(flowElementPaletteItems([]).map(item => item.label)).toContain('Text');
     expect(canvasElementPaletteItems([]).map(item => item.label)).toContain('Text');
+  });
+
+  it('offers one consolidated Heading and no Section heading', () => {
+    const labels = flowElementPaletteItems([]).map(item => item.label);
+    expect(labels.filter(label => label === 'Heading')).toHaveLength(1);
+    expect(labels).not.toContain('Section heading');
   });
 
   it('describes songs as composed layout rather than a block prototype', () => {

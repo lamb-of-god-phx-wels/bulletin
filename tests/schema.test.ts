@@ -30,6 +30,12 @@ describe('public JSON contracts', () => {
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], calendarEvents: [{ id: 'easter', name: 'Easter', enabled: true, priority: 100, rules: [{ kind: 'easter' }] }] })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], calendarEvents: welsCalendarPreset() })).toBe(true);
     expect(ajv.compile(librarySchema)({ schemaVersion: 1, name: 'Library', items: [], componentDefinitions: [prepackagedComponentDefinitions[0]] })).toBe(true);
+    expect(defaultTemplate.starterBlocks.filter(block => block.type === 'heading')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ level: 'h2', text: 'The Gathering' }),
+      expect.objectContaining({ level: 'h2', text: 'The Word' }),
+      expect.objectContaining({ level: 'h2', text: 'The Prayers' }),
+    ]));
+    expect(defaultTemplate.starterBlocks.some(block => block.type === 'sectionHeading')).toBe(false);
   });
   it('validates custom properties, overrides, bindings, and conditional blocks', () => {
     const property: CustomPropertyDefinition = { id: 'show-communion', name: 'Show Communion', valueType: 'boolean', defaultValue: true, includeInThisSunday: true };

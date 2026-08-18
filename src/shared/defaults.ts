@@ -40,13 +40,13 @@ export const defaultTemplate: TemplateV1 = {
   starterBlocks: [
     instantiatePageTemplate(defaultPageTemplate, 'cover'),
     { id: 'sermon-title', type: 'sermonTitle', text: 'Sermon title', weeklyEditable: true },
-    { id: 'gathering', type: 'sectionHeading', text: 'The Gathering' },
+    { id: 'gathering', type: 'heading', level: 'h2', text: 'The Gathering' },
     { id: 'opening-hymn', type: 'song', songType: 'hymn', libraryItemId: '', selection: { mode: 'all' }, renderMode: 'lyrics', label: 'Opening Hymn', weeklyEditable: true },
-    { id: 'word', type: 'sectionHeading', text: 'The Word' },
+    { id: 'word', type: 'heading', level: 'h2', text: 'The Word' },
     { id: 'first-reading', type: 'scriptureReading', reference: '', translation: 'NIV', label: 'First Reading', weeklyEditable: true },
     { id: 'gospel', type: 'scriptureReading', reference: '', translation: 'NIV', label: 'Gospel', weeklyEditable: true },
     { id: 'sermon', type: 'scriptureReading', reference: '', translation: 'NIV', label: 'Sermon', weeklyEditable: true },
-    { id: 'prayers', type: 'sectionHeading', text: 'The Prayers' },
+    { id: 'prayers', type: 'heading', level: 'h2', text: 'The Prayers' },
     { id: 'announcements', type: 'list', displayName: 'Announcements', style: 'plain', items: [], weeklyEditable: true },
     { id: 'copyright', type: 'copyright' }
   ],

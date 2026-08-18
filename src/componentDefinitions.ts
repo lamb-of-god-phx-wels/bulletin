@@ -22,7 +22,6 @@ const paletteOrder = [
   'bulletin:song',
   'bulletin:heading',
   'bulletin:paragraph',
-  'bulletin:sectionHeading',
   'bulletin:text',
   'bulletin:responsiveReading',
   'bulletin:list',
@@ -94,7 +93,7 @@ function paragraphs(value: JsonValue | undefined): Paragraph[] {
 
 function presentation(style: ComponentStyle | undefined): Partial<CustomBlockStyle> | undefined {
   if (!style) return undefined;
-  return {
+  const result: Partial<CustomBlockStyle> = {
     ...(style.widthPercent !== undefined ? { widthPercent: style.widthPercent } : {}),
     ...(style.placement ? { placement: style.placement } : {}),
     ...(style.textAlign ? { textAlign: style.textAlign } : {}),
@@ -121,6 +120,7 @@ function presentation(style: ComponentStyle | undefined): Partial<CustomBlockSty
     ...(style.borderColor ? { borderColor: style.borderColor } : {}),
     ...(style.borderRadiusPt !== undefined ? { borderRadiusPt: style.borderRadiusPt } : {})
   };
+  return Object.keys(result).length ? result : undefined;
 }
 
 function richText(id: string, content: Paragraph[], role?: 'header' | 'body', style?: ComponentStyle): BulletinBlock {
@@ -172,9 +172,16 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
     case 'bulletin:paragraph':
       return paragraphBlock(id, typeof sample.heading === 'string' ? sample.heading : undefined, sample.body, definition);
     case 'bulletin:heading':
-      return { ...base, type: 'heading', text: typeof sample.text === 'string' ? sample.text : definition.name };
+      return {
+        ...base,
+        type: 'heading',
+        level: sample.level === 'h1' || sample.level === 'h3' ? sample.level : 'h2',
+        text: typeof sample.text === 'string' ? sample.text : definition.name,
+        ...(typeof sample.subheading === 'string' && sample.subheading.trim() ? { subheading: sample.subheading } : {}),
+        ...(typeof sample.caption === 'string' && sample.caption.trim() ? { caption: sample.caption } : {})
+      };
     case 'bulletin:sectionHeading':
-      return { ...base, type: 'sectionHeading', text: typeof sample.text === 'string' ? sample.text : definition.name };
+      return { ...base, type: 'heading', level: 'h2', text: typeof sample.text === 'string' ? sample.text : definition.name };
     case 'bulletin:scriptureReading':
       return {
         ...base,
@@ -199,7 +206,7 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
       return {
         ...base,
         type: 'responsiveReading',
-        heading: typeof sample.heading === 'string' ? { id: `${base.id}-heading`, type: 'heading', text: sample.heading } : undefined,
+        heading: typeof sample.heading === 'string' ? { id: `${base.id}-heading`, type: 'heading', level: 'h3', text: sample.heading } : undefined,
         entries: Array.isArray(sample.items) ? sample.items.map(item => {
           const entry = item as Record<string, JsonValue>;
           return {

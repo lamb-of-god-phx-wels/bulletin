@@ -15,7 +15,9 @@ const latestDefinitions = (definitions: DeclarativeComponentDefinition[]) =>
   [...new Map(definitions.slice().sort((left, right) => left.version - right.version).map(definition => [definition.type, definition])).values()];
 
 export function flowElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[], includePages = true, includeContainers = true): ElementPaletteItem[] {
-  const components = [...prepackagedComponentDefinitions, ...latestDefinitions(workspaceDefinitions)].map(definition => ({
+  const components = [...prepackagedComponentDefinitions, ...latestDefinitions(workspaceDefinitions)]
+    .filter(definition => definition.type !== 'bulletin:sectionHeading')
+    .map(definition => ({
     id: `component:${definition.type}@${definition.version}`,
     label: definition.name,
     description: definition.description,

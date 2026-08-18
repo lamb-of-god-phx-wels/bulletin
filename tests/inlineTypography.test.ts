@@ -30,7 +30,7 @@ describe('inline typography controls', () => {
     });
 
     expect(effectiveBlockStyle(block, template)).toMatchObject({
-      fontSizePt: 11.5,
+      fontSizePt: 10,
       lineHeight: 1.4,
       verticalAlign: 'top',
       widthPercent: 72,
@@ -38,7 +38,7 @@ describe('inline typography controls', () => {
       paddingIn: { top: .1, right: .2, bottom: .3, left: .4 },
     });
     expect(applyTypographyChange(block, template, { fontWeight: 'bold' })).toMatchObject({
-      fontSizePt: 11.5,
+      fontSizePt: 10,
       lineHeight: 1.4,
       widthPercent: 72,
       fontWeight: 'bold',

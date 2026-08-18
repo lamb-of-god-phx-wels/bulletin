@@ -30,7 +30,7 @@ export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], te
   const [pendingDelete, setPendingDelete] = useState<DeclarativeComponentDefinition>();
   const [managing, setManaging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const excludedTypes = new Set(excludedComponentTypes);
+  const excludedTypes = new Set([...excludedComponentTypes, 'bulletin:sectionHeading']);
   const availableWorkspaceDefinitions = workspaceDefinitions.filter(definition => !excludedTypes.has(definition.type));
   const availablePrepackagedDefinitions = prepackagedComponentDefinitions.filter(definition => !excludedTypes.has(definition.type));
   const availableLibrary = library ? { ...library, componentDefinitions: library.componentDefinitions?.filter(definition => !excludedTypes.has(definition.type)) } : library;

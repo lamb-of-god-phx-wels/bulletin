@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ResponsiveReadingBlock, ResponsiveReadingSettings, TemplateV1 } from '../shared/types';
-import { responsiveReadingEditorContent, safeParseResponsiveReadingContent } from '../shared/responsiveReading';
+import { responsiveReadingEditorContent, safeParseResponsiveReadingContent, shouldItalicizeSilentPrayer } from '../shared/responsiveReading';
 import { RichTextEditor } from './RichTextEditor';
 import { paragraphsFromPlainText } from '../shared/plainText';
 
@@ -15,6 +15,12 @@ export function ResponsiveReadingFields({ block, settings, template, onChange }:
   const emittedEntriesRef = useRef<string | undefined>(undefined);
   const entriesSignature = JSON.stringify(block.entries);
   const settingsSignature = JSON.stringify(settings);
+  const annotateSpecialLines = (editor: HTMLElement | null) => {
+    if (!editor) return;
+    Array.from(editor.querySelectorAll<HTMLElement>(':scope > [data-scripture-paragraph]')).forEach(paragraph => {
+      paragraph.dataset.responsiveElement = paragraph.textContent === 'Silent Prayer' ? 'silentPrayer' : '';
+    });
+  };
   useEffect(() => {
     if (emittedEntriesRef.current === entriesSignature) {
       emittedEntriesRef.current = undefined;
@@ -23,7 +29,7 @@ export function ResponsiveReadingFields({ block, settings, template, onChange }:
     setEditorContent(responsiveReadingEditorContent(block.entries, settings));
     setParseError('');
   }, [entriesSignature, settingsSignature]);
-  return <div className="responsive-reading-fields">
+  return <div className={`responsive-reading-fields ${shouldItalicizeSilentPrayer(settings) ? 'italicize-silent-prayer' : ''}`.trim()}>
     <div className="responsive-reading-heading-controls">
       {block.heading ? <>
         <div className="field-row responsive-reading-heading-row">
@@ -40,6 +46,7 @@ export function ResponsiveReadingFields({ block, settings, template, onChange }:
       label="Responsive reading"
       className="responsive-reading-editor"
       enterMode="responsiveLines"
+      onRender={annotateSpecialLines}
       onChange={content => {
         const result = safeParseResponsiveReadingContent(content, settings, block.entries);
         if (result.error) {

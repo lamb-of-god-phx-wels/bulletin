@@ -5,7 +5,7 @@ import { conditionVisible } from '../shared/customProperties';
 import { childBlocks, findBlock, flattenBlocks, groupChildCell, updateBlockTree } from '../shared/blocks';
 import { paginate, type PaginatedBlock } from '../shared/pagination';
 import { templateForBulletin } from '../shared/documentLayout';
-import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, responsiveEntryReader, responsiveEntryRole, responsiveReadingEditorContent, safeParseResponsiveReadingContent } from '../shared/responsiveReading';
+import { defaultResponsiveReadingSettings, effectiveResponsiveReadingSettings, isSilentPrayerEntry, responsiveEntryReader, responsiveEntryRole, responsiveReadingEditorContent, safeParseResponsiveReadingContent, shouldItalicizeSilentPrayer } from '../shared/responsiveReading';
 import { songHeader, songTitle } from '../shared/songs';
 import { scriptureElementBlocks, scriptureElementHasContent } from '../shared/scriptureReading';
 import { useLibraryFontsReady } from './LibraryFonts';
@@ -48,12 +48,13 @@ function annotateResponsiveEditor(editor: HTMLElement | null, settings: Responsi
   if (!editor) return;
   const aliases = [
     ...Object.entries(settings.labels).map(([role, label]) => ({ label, role })),
-    ...entries.map(entry => ({ label: responsiveEntryReader(entry, settings), role: responsiveEntryRole(entry) })),
+    ...entries.filter(entry => !isSilentPrayerEntry(entry)).map(entry => ({ label: responsiveEntryReader(entry, settings), role: responsiveEntryRole(entry) })),
   ].filter((alias, index, all) => alias.label.trim() && all.findIndex(candidate => candidate.label.trim().toLocaleLowerCase() === alias.label.trim().toLocaleLowerCase()) === index)
     .sort((left, right) => right.label.length - left.label.length);
   let role = 'leader';
   Array.from(editor.querySelectorAll<HTMLElement>(':scope > [data-scripture-paragraph]')).forEach(paragraph => {
     const text = paragraph.textContent ?? '';
+    paragraph.dataset.responsiveElement = text === 'Silent Prayer' ? 'silentPrayer' : '';
     const alias = aliases.find(candidate => text.slice(0, candidate.label.length + 1).toLocaleLowerCase() === `${candidate.label}:`.toLocaleLowerCase());
     if (alias) role = alias.role;
     paragraph.dataset.responseRole = role;
@@ -77,15 +78,17 @@ function ResponsiveReadingPreview({ block, settings, onChange }: { block: Respon
     if (pendingBlock.current) onChangeRef.current?.(pendingBlock.current);
   }, []);
   const renderedRows = block.entries.map((entry, index) => {
+    if (isSilentPrayerEntry(entry)) return <div className="response-row response-special" data-responsive-element="silentPrayer" key={index}><div><Paragraphs content={entry.content} /></div></div>;
     const role = responsiveEntryRole(entry);
     return <div className={`response-row response-${role}`} data-response-role={role} key={index}><span className="response-reader">{responsiveEntryReader(entry, settings)}:</span><div><Paragraphs content={entry.content} /></div></div>;
   });
-  if (!onChange || !editingPreview) return <div className={`responsive ${onChange ? 'responsive-reading-direct-target' : ''}`} onClick={onChange ? event => {
+  const italicizeClass = shouldItalicizeSilentPrayer(settings) ? 'italicize-silent-prayer' : '';
+  if (!onChange || !editingPreview) return <div className={`responsive ${italicizeClass} ${onChange ? 'responsive-reading-direct-target' : ''}`.trim()} onClick={onChange ? event => {
     event.stopPropagation();
     setEditingPreview(true);
     window.setTimeout(() => editorHost.current?.querySelector<HTMLElement>('.responsive-reading-preview-editor')?.focus());
   } : undefined}>{renderedRows}</div>;
-  return <div className="responsive responsive-reading-preview-editable" ref={editorHost}><RichTextEditor content={draft} label="Responsive reading" className="responsive-reading-editor responsive-reading-preview-editor" enterMode="responsiveLines" variant="preview" commitDelayMs={0} onRender={editor => annotateResponsiveEditor(editor, settings, block.entries)} onEditingBlur={() => {
+  return <div className={`responsive responsive-reading-preview-editable ${italicizeClass}`.trim()} ref={editorHost}><RichTextEditor content={draft} label="Responsive reading" className="responsive-reading-editor responsive-reading-preview-editor" enterMode="responsiveLines" variant="preview" commitDelayMs={0} onRender={editor => annotateResponsiveEditor(editor, settings, block.entries)} onEditingBlur={() => {
     const next = pendingBlock.current;
     pendingBlock.current = undefined;
     if (next) onChange(next);

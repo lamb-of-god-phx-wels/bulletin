@@ -4,7 +4,7 @@ import { scriptureElementBlocks, scriptureElementHasContent } from './scriptureR
 import { paragraphsHaveVisibleContent } from './plainText.js';
 import { pageTemplateMargin } from './pageTemplates.js';
 import { songHeader } from './songs.js';
-import { effectiveResponsiveReadingSettings, responsiveEntryReader } from './responsiveReading.js';
+import { effectiveResponsiveReadingSettings, isSilentPrayerEntry, responsiveEntryReader } from './responsiveReading.js';
 import { conditionVisible, resolveConditionalBlocks } from './customProperties.js';
 
 export type PaginatedBlock = BulletinBlock & { pageContent?: Paragraph[]; paginationContinuation?: boolean; sourceBlockId?: string };
@@ -180,7 +180,7 @@ function splitLongBlocks(blocks: BulletinBlock[], template: TemplateV1, library?
       const settings = effectiveResponsiveReadingSettings(template);
       const entries = block.entries.flatMap(entry => {
         const chunks = groupParagraphs(entry.content, usable, template);
-        return (chunks.length ? chunks : [entry.content]).map((content, index) => index
+        return (chunks.length ? chunks : [entry.content]).map((content, index) => index && !isSilentPrayerEntry(entry)
           ? { ...entry, reader: `${responsiveEntryReader(entry, settings)} (cont.)`, readerMode: 'custom' as const, content }
           : { ...entry, content });
       });

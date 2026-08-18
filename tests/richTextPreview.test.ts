@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DocumentView } from '../src/components/DocumentView';
 import { RichTextToolbar } from '../src/components/RichTextEditing';
+import { ResponsiveReadingSettingsFields } from '../src/components/ResponsiveReadingSettingsFields';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 import { customPropertyBinding } from '../src/shared/customProperties';
 
@@ -38,6 +39,27 @@ describe('global rich-text preview editing', () => {
     expect(markup).toContain('responsive-reading-direct-target');
     expect(markup).toContain('response-row response-leader');
     expect(markup).not.toContain('contentEditable="true"');
+  });
+
+  it('renders Silent Prayer as a readerless special element with default italics', () => {
+    const document = createBulletin(defaultTemplate, '2026-08-02');
+    document.blocks = [{ id: 'reading', type: 'responsiveReading', entries: [
+      { reader: 'M', role: 'leader', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Let us pray.' }] }] },
+      { reader: '', element: 'silentPrayer', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Silent Prayer' }] }] },
+    ] }];
+    const markup = renderToStaticMarkup(createElement(DocumentView, { document, template: defaultTemplate, rulers: false }));
+    expect(markup).toContain('italicize-silent-prayer');
+    expect(markup).toContain('data-responsive-element="silentPrayer"');
+    expect(markup).toContain('response-special');
+    expect(markup).not.toContain('response-special"><span class="response-reader"');
+
+    const settings = renderToStaticMarkup(createElement(ResponsiveReadingSettingsFields, {
+      value: { labels: { leader: 'M', follower: 'C', all: 'All' } },
+      onChange: () => undefined,
+    }));
+    expect(settings).toContain('role="switch"');
+    expect(settings).toContain('aria-checked="true"');
+    expect(settings).toContain('Italicize &quot;Silent Prayer&quot;');
   });
 
   it('renders the shared toolbar disabled when no rich-text target is focused', () => {

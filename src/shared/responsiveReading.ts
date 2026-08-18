@@ -2,7 +2,16 @@ import type { BulletinBlock, Inline, Paragraph, ResponsiveReadingEntry, Responsi
 
 export const defaultResponsiveReadingSettings: ResponsiveReadingSettings = {
   labels: { leader: 'M', follower: 'C', all: 'All' },
+  italicizeSilentPrayer: true,
 };
+
+export function shouldItalicizeSilentPrayer(settings: ResponsiveReadingSettings) {
+  return settings.italicizeSilentPrayer !== false;
+}
+
+export function isSilentPrayerEntry(entry: Pick<ResponsiveReadingEntry, 'element'>) {
+  return entry.element === 'silentPrayer';
+}
 
 export function responsiveEntryRole(entry: Pick<ResponsiveReadingEntry, 'reader' | 'role'>): ResponsiveReadingRole {
   if (entry.role) return entry.role;
@@ -19,6 +28,7 @@ export function effectiveResponsiveReadingSettings(template: Pick<TemplateV1, 'r
 }
 
 export function responsiveReaderIsConfigured(entry: ResponsiveReadingEntry, settings: ResponsiveReadingSettings) {
+  if (isSilentPrayerEntry(entry)) return false;
   if (entry.readerMode) return entry.readerMode === 'configured';
   const role = responsiveEntryRole(entry);
   const reader = entry.reader.trim().toLocaleLowerCase();
@@ -27,6 +37,7 @@ export function responsiveReaderIsConfigured(entry: ResponsiveReadingEntry, sett
 }
 
 export function responsiveEntryReader(entry: ResponsiveReadingEntry, settings: ResponsiveReadingSettings) {
+  if (isSilentPrayerEntry(entry)) return '';
   return responsiveReaderIsConfigured(entry, settings)
     ? settings.labels[responsiveEntryRole(entry)]
     : entry.reader;
@@ -92,6 +103,10 @@ function prefixedLine(line: Inline[], aliases: ReaderAlias[]) {
   return { alias, content: dropCharacters(line, alias.label.length + 1 + whitespace) };
 }
 
+function silentPrayerLine(line: Inline[]) {
+  return lineText(line) === 'Silent Prayer';
+}
+
 export type ResponsiveReadingParseResult =
   | { entries: ResponsiveReadingEntry[]; error?: undefined }
   | { entries?: undefined; error: string };
@@ -104,6 +119,16 @@ export function parseResponsiveReadingContent(content: Paragraph[], settings: Re
   content.forEach((paragraph, paragraphIndex) => {
     const lines = splitLines(paragraph.children);
     lines.forEach((line, lineIndex) => {
+      if (silentPrayerLine(line)) {
+        entries.push({
+          reader: '',
+          element: 'silentPrayer',
+          content: [{ type: 'paragraph', ...(paragraph.align ? { align: paragraph.align } : {}), children: structuredClone(line) }],
+        });
+        current = undefined;
+        pendingBreaks = 0;
+        return;
+      }
       const prefix = prefixedLine(line, aliases);
       if (prefix) {
         current = {
@@ -154,6 +179,7 @@ export function responsiveReadingEditorContent(entries: ResponsiveReadingEntry[]
       ...(index ? { breakBefore: 'line' as const } : {}),
       children: children.length ? children : [{ type: 'text' as const, text: '' }],
     })));
+    if (isSilentPrayerEntry(entry)) return lines;
     return lines.map((paragraph, index) => ({
       ...structuredClone(paragraph),
       children: index === 0
@@ -168,6 +194,7 @@ export function updateResponsiveReaderLabels(blocks: BulletinBlock[], previous: 
     if (block.type === 'responsiveReading') return {
       ...block,
       entries: block.entries.map(entry => {
+        if (isSilentPrayerEntry(entry)) return entry;
         const role = responsiveEntryRole(entry);
         return responsiveReaderIsConfigured(entry, previous)
           ? { ...entry, role, readerMode: 'configured', reader: next.labels[role] }

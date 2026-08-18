@@ -7,6 +7,7 @@ import {
   responsiveEntryRole,
   responsiveReadingEditorContent,
   safeParseResponsiveReadingContent,
+  shouldItalicizeSilentPrayer,
   updateResponsiveReaderLabels,
 } from '../src/shared/responsiveReading';
 import type { BulletinBlock, Paragraph, ResponsiveReadingSettings } from '../src/shared/types';
@@ -87,6 +88,43 @@ describe('responsive reading roles', () => {
       { type: 'paragraph', children: [{ type: 'text', text: 'Second paragraph' }] },
       { type: 'paragraph', children: [{ type: 'text', text: 'Third paragraph' }] },
     ]);
+  });
+
+  it('parses only an exact standalone Silent Prayer line as a special element', () => {
+    const result = parseResponsiveReadingContent([{
+      type: 'paragraph',
+      children: [
+        { type: 'text', text: 'M: Let us pray.' },
+        { type: 'lineBreak' },
+        { type: 'text', text: 'Silent Prayer' },
+        { type: 'lineBreak' },
+        { type: 'text', text: 'M: Amen.' },
+      ],
+    }], defaultResponsiveReadingSettings);
+    expect(result.entries).toMatchObject([
+      { role: 'leader', content: [{ children: [{ text: 'Let us pray.' }] }] },
+      { reader: '', element: 'silentPrayer', content: [{ children: [{ text: 'Silent Prayer' }] }] },
+      { role: 'leader', content: [{ children: [{ text: 'Amen.' }] }] },
+    ]);
+    expect(responsiveReadingEditorContent(result.entries!, defaultResponsiveReadingSettings)).toMatchObject([
+      { children: [{ text: 'M: ' }, { text: 'Let us pray.' }] },
+      { children: [{ text: 'Silent Prayer' }] },
+      { children: [{ text: 'M: ' }, { text: 'Amen.' }] },
+    ]);
+    expect(parseResponsiveReadingContent([
+      { type: 'paragraph', children: [{ type: 'text', text: 'Silent Prayer' }] },
+    ], defaultResponsiveReadingSettings).entries).toMatchObject([{ element: 'silentPrayer' }]);
+
+    for (const text of ['silent prayer', 'Silent Prayer ', 'A Silent Prayer']) {
+      const parsed = parseResponsiveReadingContent([{ type: 'paragraph', children: [{ type: 'text', text: `M: ${text}` }] }], defaultResponsiveReadingSettings);
+      expect(parsed.entries?.[0]).not.toHaveProperty('element');
+    }
+  });
+
+  it('defaults automatic Silent Prayer italics to enabled', () => {
+    expect(defaultResponsiveReadingSettings.italicizeSilentPrayer).toBe(true);
+    expect(shouldItalicizeSilentPrayer({ labels: { leader: 'M', follower: 'C', all: 'All' } })).toBe(true);
+    expect(shouldItalicizeSilentPrayer({ labels: { leader: 'M', follower: 'C', all: 'All' }, italicizeSilentPrayer: false })).toBe(false);
   });
 
   it('preserves independent alignment for each hard line', () => {

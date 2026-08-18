@@ -20,6 +20,7 @@
       "type": "object",
       "required": ["labels"],
       "properties": {
+        "italicizeSilentPrayer": { "type": "boolean", "default": true },
         "labels": {
           "type": "object",
           "required": ["leader", "follower", "all"],

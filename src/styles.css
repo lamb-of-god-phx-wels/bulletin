@@ -685,6 +685,8 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .response-row p { margin-bottom: .08in; }
 .response-row p.before-structured-line-continuation { margin-bottom: 0; }
 .response-row .response-reader { font-weight: inherit; }
+.response-special { display: block; }
+.italicize-silent-prayer [data-responsive-element="silentPrayer"] { font-style: italic; }
 .response-leader { font-weight: 400; }
 .response-follower { font-weight: 700; }
 .response-all { font-weight: 700; }
@@ -766,6 +768,7 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .responsive-reader-labels { align-items: end; }
 .responsive-reader-labels label { min-width: 0; }
 .responsive-reading-settings-fields { display: grid; gap: 7px; }
+.responsive-reading-toggle-row { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 12px; color: #5d625e; font-size: 12px; font-weight: 700; }
 .undo-redo-controls { display: inline-flex; gap: 3px; align-items: center; }
 .undo-redo-controls button { min-width: 32px; padding-inline: 8px; font-size: 16px; line-height: 1; }
 .copyright { margin-top: .3in; padding-top: .15in; border-top: 1px solid #777; font-size: 6.5pt; line-height: 1.25; }

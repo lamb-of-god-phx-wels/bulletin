@@ -191,11 +191,13 @@ export interface SermonTitleBlock extends BlockBase { type: 'sermonTitle'; text:
 export type ResponsiveReadingRole = 'leader' | 'follower' | 'all';
 export interface ResponsiveReadingSettings {
   labels: Record<ResponsiveReadingRole, string>;
+  italicizeSilentPrayer?: boolean;
 }
 export interface ResponsiveReadingEntry {
   reader: string;
   role?: ResponsiveReadingRole;
   readerMode?: 'configured' | 'custom';
+  element?: 'silentPrayer';
   content: Paragraph[];
 }
 export interface ResponsiveReadingBlock extends BlockBase {

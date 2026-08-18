@@ -2,6 +2,12 @@
 
 ## General
 * Recreate bulletin using UI only.
+* The vertical text alignment is still not correct
+* Due to padding, the left/right/center/justify buttons are not clearly distinguished from each other. Make it more obvious.
+
+## Fonts
+
+* Make the font import simpler
 
 
 ## Template/bulletin builder
@@ -17,6 +23,9 @@
 * Text and inline scripture elements should be separate in the editable fields (think responsiveReading)
 * Asset types need schemas (not all are a text field, copyright info, and picture/pdf)
 * Fix inline scripture block formatting (responsive reading)
+* Default folder set on workspace creation
+* Default folders for assets (if not created from folder view)
+
 
 
 ## Containers

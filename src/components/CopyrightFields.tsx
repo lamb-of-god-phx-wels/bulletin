@@ -1,6 +1,7 @@
 import type { CopyrightBlock } from '../shared/types';
 import { paragraphsHaveVisibleContent } from '../shared/plainText';
 import { RichTextEditor } from './RichTextEditor';
+import { ToggleSwitch } from './ToggleSwitch';
 
 export function CopyrightFields({ block, onChange }: { block: CopyrightBlock; onChange(block: CopyrightBlock): void }) {
   const before = block.beforeNotices ?? block.extra ?? [];
@@ -9,7 +10,7 @@ export function CopyrightFields({ block, onChange }: { block: CopyrightBlock; on
     onChange({ ...current, beforeNotices: paragraphsHaveVisibleContent(beforeNotices) ? beforeNotices : undefined });
   };
   return <div className="copyright-fields">
-    <label className="check"><input type="checkbox" checked={block.suppressGeneratedNotices ?? false} onChange={event => onChange({ ...block, suppressGeneratedNotices: event.target.checked })} />Suppress generated notices</label>
+    <div className="toggle-option-row"><span>Suppress generated notices</span><ToggleSwitch label="Suppress generated notices" checked={block.suppressGeneratedNotices ?? false} onChange={suppressGeneratedNotices => onChange({ ...block, suppressGeneratedNotices })} /></div>
     <label>Before generated notices</label>
     <RichTextEditor content={before} label="Copyright text before generated notices" onChange={updateBefore} />
     <small className="field-help">Library and Scripture notices are inserted automatically after this text.</small>

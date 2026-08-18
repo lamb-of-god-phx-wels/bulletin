@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { filterBulletins, sortedBulletins, type BulletinRecord } from '../shared/bulletins';
 import type { TemplateRecord } from '../shared/templates';
 import { localIsoDate, sundayOnOrAfter } from '../shared/dates';
+import { ToggleSwitch } from './ToggleSwitch';
 
 const sundayPreferenceKey = 'bulletin-new-week-snap-to-sunday';
 const storedSundayPreference = () => typeof window === 'undefined' ? null : window.localStorage.getItem(sundayPreferenceKey);
@@ -61,7 +62,7 @@ export function CreateFromDialog({ destination, templates, bulletins, initialTem
       <header><div><div className="eyebrow">New {destination}</div><h2 id="create-from-title">{title}</h2><p>{sourceKind === 'blank' ? `Start with a clean, empty ${destination}.` : `Choose the existing ${sourceKind === 'bulletin' && destination === 'bulletin' ? 'past bulletin' : sourceKind} to use as your starting point.`}</p></div><button aria-label="Close" onClick={onCancel}>×</button></header>
       <div className="create-from-settings">
         <label>{destination === 'bulletin' ? 'Service date' : 'New template name'}<input autoFocus type={destination === 'bulletin' ? 'date' : 'text'} value={value} placeholder={destination === 'template' ? 'e.g. Festival Service' : undefined} onChange={event => setValue(destination === 'bulletin' && snapToSunday ? sundayOnOrAfter(event.target.value) : event.target.value)} /></label>
-        {destination === 'bulletin' && <label className="checkbox-row"><input type="checkbox" checked={snapToSunday} onChange={event => { const checked = event.target.checked; setSnapToSunday(checked); localStorage.setItem(sundayPreferenceKey, String(checked)); if (checked) setValue(current => sundayOnOrAfter(current)); }} />Snap service dates forward to the next Sunday</label>}
+        {destination === 'bulletin' && <div className="create-from-toggle-row"><span>Snap service dates forward to the next Sunday</span><ToggleSwitch label="Snap service dates forward to the next Sunday" checked={snapToSunday} onChange={checked => { setSnapToSunday(checked); localStorage.setItem(sundayPreferenceKey, String(checked)); if (checked) setValue(current => sundayOnOrAfter(current)); }} /></div>}
         {destination === 'bulletin' && <div className="create-from-tabs" role="tablist" aria-label="Source type">
           <button role="tab" aria-selected={sourceKind === 'blank'} className={sourceKind === 'blank' ? 'active' : ''} onClick={() => switchKind('blank')}>Blank</button>
           <button role="tab" aria-selected={sourceKind === 'template'} className={sourceKind === 'template' ? 'active' : ''} onClick={() => switchKind('template')}>Bulletin Templates <span>{templates.length}</span></button>

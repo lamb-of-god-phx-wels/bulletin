@@ -16,6 +16,7 @@ import { ListFields } from "./ListFields";
 import { CopyrightFields } from "./CopyrightFields";
 import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
+import { ToggleSwitch } from "./ToggleSwitch";
 import { instantiateComponentDefinition } from "../componentDefinitions";
 import { childBlocks, createLayoutContainer, createTableCell, findBlock, groupAcceptsChild, groupChildCell, moveGroupChildToCell, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
@@ -743,7 +744,7 @@ export function WeeklyEditor({
                 </div>
               </summary>
               <div className="collapsible-editor-fields">
-                {templateMode && <label className="check"><input type="checkbox" checked={block.weeklyEditable ?? false} onChange={event => updateBlock(block.id, { ...block, weeklyEditable: event.target.checked })} />Editable each week</label>}
+                {templateMode && <div className="toggle-option-row"><span>Editable each week</span><ToggleSwitch label="Editable each week" checked={block.weeklyEditable ?? false} onChange={weeklyEditable => updateBlock(block.id, { ...block, weeklyEditable })} /></div>}
                 {missingLibraryReference(block) && !block.weeklyEditable && (
                   <div className="missing-template-content">
                     <b>Template content needs attention</b>

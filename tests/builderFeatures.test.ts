@@ -111,6 +111,8 @@ describe('builder feature blocks', () => {
     }));
     expect(markup).toContain('A real heading');
     expect(markup).not.toContain('Sample block content appears here');
+    expect(markup.match(/role="switch"/g)).toHaveLength(3);
+    expect(markup).not.toContain('type="checkbox"');
   });
 
   it('renders rich announcement and copyright marks alongside announcement graphics', () => {

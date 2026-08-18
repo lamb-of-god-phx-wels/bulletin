@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { BulletinDocumentV1, CanvasTextBinding, CustomPropertyDefinition, CustomPropertyValue, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { builtInTextBindings, customPropertyBinding, customPropertyUsages, defaultValueForCustomProperty, effectiveCustomPropertyDefinitions, effectiveCustomPropertyValue, isCustomPropertyBinding, synchronizeCustomPropertyBindings } from '../shared/customProperties';
 import { randomId } from '../shared/id';
+import { ToggleSwitch } from './ToggleSwitch';
 
 const encodedBinding = (binding: CanvasTextBinding | undefined) => !binding ? '' : isCustomPropertyBinding(binding) ? `custom:${binding.propertyId}` : `builtin:${binding}`;
 const propertyTypeLabel = (valueType: CustomPropertyDefinition['valueType']) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : 'Number';
@@ -27,7 +28,7 @@ export function CustomPropertyBindingSelect({ value, template, booleanOnly = fal
 function PropertyInput({ property, value, onChange }: { property: CustomPropertyDefinition; value: CustomPropertyValue; onChange(value: CustomPropertyValue): void }) {
   if (property.valueType === 'boolean') {
     const checked = Boolean(value);
-    return <button type="button" role="switch" aria-label={`${property.name} value`} aria-checked={checked} className="property-toggle" onClick={() => onChange(!checked)}><span aria-hidden="true" /></button>;
+    return <ToggleSwitch label={`${property.name} value`} checked={checked} onChange={onChange} />;
   }
   if (property.valueType === 'number') return <input type="number" aria-label={`${property.name} value`} value={typeof value === 'number' ? value : 0} onChange={event => Number.isFinite(event.currentTarget.valueAsNumber) && onChange(event.currentTarget.valueAsNumber)} />;
   return <input aria-label={`${property.name} value`} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value)} />;
@@ -56,7 +57,7 @@ function TrashIcon() {
 }
 
 function ThisSundayToggle({ property, onChange }: { property: CustomPropertyDefinition; onChange(include: boolean): void }) {
-  return <div className="property-this-sunday-line"><span>Include in <i>This Sunday</i></span><button type="button" role="switch" aria-label={`Include ${property.name} in This Sunday`} aria-checked={Boolean(property.includeInThisSunday)} className="property-toggle" onClick={() => onChange(!property.includeInThisSunday)}><span aria-hidden="true" /></button></div>;
+  return <div className="property-this-sunday-line"><span>Include in <i>This Sunday</i></span><ToggleSwitch label={`Include ${property.name} in This Sunday`} checked={Boolean(property.includeInThisSunday)} onChange={onChange} /></div>;
 }
 
 export function TemplatePropertiesPanel({ template, onChange }: { template: TemplateV1; onChange(template: TemplateV1): void }) {

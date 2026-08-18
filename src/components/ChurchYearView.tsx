@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { churchCalendarIssues, churchEventDates, churchEventDisplayName, churchEventsForDate, churchLectionaryYear, welsCalendarPreset } from '../shared/churchCalendar';
 import { randomId } from '../shared/id';
 import type { ChurchCalendarEvent, ChurchEventRule, ChurchLectionaryYear, LibraryManifestV1 } from '../shared/types';
+import { ToggleSwitch } from './ToggleSwitch';
 
 const monthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const isoDate = (year: number, month: number, day: number) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -55,7 +56,7 @@ function EventEditor({ value, events, onChange, onClose, onDelete }: { value: Ch
     <header><div><div className="eyebrow">Church-owned asset</div><h3>{value.name}</h3></div><button aria-label="Close event editor" onClick={onClose}>×</button></header>
     <label>Asset name<input value={value.name} onChange={event => onChange({ ...value, name: event.target.value })} /></label>
     <label>Bulletin name<select value={value.nameMode ?? 'literal'} onChange={event => onChange({ ...value, nameMode: event.target.value === 'literal' ? undefined : 'sundayAfterPentecost' })}><option value="literal">Use asset name</option><option value="sundayAfterPentecost">Numbered Sunday After Pentecost</option></select></label>
-    <div className="field-row"><label>Priority<input type="number" value={value.priority} onChange={event => onChange({ ...value, priority: event.currentTarget.valueAsNumber })} /></label><label className="check"><input type="checkbox" checked={value.enabled} onChange={event => onChange({ ...value, enabled: event.target.checked })} />Enabled</label></div>
+    <div className="field-row"><label>Priority<input type="number" value={value.priority} onChange={event => onChange({ ...value, priority: event.currentTarget.valueAsNumber })} /></label><div className="toggle-option-row"><span>Enabled</span><ToggleSwitch label="Event enabled" checked={value.enabled} onChange={enabled => onChange({ ...value, enabled })} /></div></div>
     <fieldset className="calendar-cycle"><legend>Lectionary years</legend>{(['A', 'B', 'C'] as const).map(year => <label className="check" key={year}><input type="checkbox" checked={!value.lectionaryYears?.length || value.lectionaryYears.includes(year)} onChange={event => {
 	      const current: ChurchLectionaryYear[] = value.lectionaryYears?.length ? value.lectionaryYears : ['A', 'B', 'C'];
       const next = event.target.checked ? [...new Set([...current, year])] : current.filter(item => item !== year);

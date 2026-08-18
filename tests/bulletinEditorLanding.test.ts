@@ -41,5 +41,6 @@ describe('bulletin editor landing', () => {
     expect(markup).toContain('>Blank</b>');
     expect(markup).toContain('>Template</b>');
     expect(markup).toContain('Past bulletin');
+    expect(markup).not.toContain('type="checkbox"');
   });
 });

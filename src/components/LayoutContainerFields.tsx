@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { GroupBlock } from '../shared/types';
 import { ensureTableCells } from '../shared/blocks';
+import { ToggleSwitch } from './ToggleSwitch';
 
 export function LayoutContainerFields({ block, onChange, onAdd }: {
   block: GroupBlock;
@@ -33,7 +34,7 @@ export function LayoutContainerFields({ block, onChange, onAdd }: {
       {mode !== 'stack' && <><label>Columns<input type="number" min="1" max="12" value={columns} onChange={event => { const next = Math.max(1, Math.min(12, event.currentTarget.valueAsNumber || 1)); onChange(reflow(next, mode === 'table' ? rows : Math.max(block.rows ?? 2, Math.ceil(block.children.length / next)))); }} /></label><label>Rows<input type="number" min={minimumRows} max="12" value={rows} onChange={event => { const next = Math.max(minimumRows, Math.min(12, event.currentTarget.valueAsNumber || 1)); onChange(mode === 'table' || next < rows ? reflow(columns, next) : { ...block, rows: next, gridSizing: 'equal', columnWidths: undefined, rowHeightsIn: undefined }); }} /></label></>}
       {mode !== 'table' && <label>Gap (in)<input type="number" min="0" max="2" step=".025" value={block.gapIn ?? .12} onChange={event => onChange({ ...block, gapIn: Math.max(0, event.currentTarget.valueAsNumber || 0) })} /></label>}
     </div>
-    {mode === 'table' && <div className="table-options"><div className="table-toggle-row"><span>Header row</span><button type="button" role="switch" aria-label="Header row" aria-checked={Boolean(block.tableHeaderRow)} className="property-toggle" onClick={() => onChange({ ...block, tableHeaderRow: !block.tableHeaderRow })}><span aria-hidden="true" /></button></div><div className="table-toggle-row"><span>Show lines</span><button type="button" role="switch" aria-label="Show table lines" aria-checked={block.tableShowLines !== false} className="property-toggle" onClick={() => onChange({ ...block, tableShowLines: block.tableShowLines === false })}><span aria-hidden="true" /></button></div></div>}
+    {mode === 'table' && <div className="table-options"><div className="table-toggle-row"><span>Header row</span><ToggleSwitch label="Header row" checked={Boolean(block.tableHeaderRow)} onChange={tableHeaderRow => onChange({ ...block, tableHeaderRow })} /></div><div className="table-toggle-row"><span>Show lines</span><ToggleSwitch label="Show table lines" checked={block.tableShowLines !== false} onChange={tableShowLines => onChange({ ...block, tableShowLines })} /></div></div>}
     {mode !== 'stack' && <p className="helper">Drag row and column separators in the preview to resize cells.</p>}
     {mode === 'stack' && <button className="secondary" onClick={() => onAdd()}>＋ Element</button>}
   </>;

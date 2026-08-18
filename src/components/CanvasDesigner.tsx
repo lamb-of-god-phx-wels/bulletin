@@ -33,6 +33,7 @@ import { CanvasSceneView } from './CanvasSceneView.js';
 import { ElementPalette, type ElementPaletteItem } from './ElementPalette.js';
 import { canvasElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog.js';
 import { instantiateComponentDefinition } from '../componentDefinitions.js';
+import { ToggleSwitch } from './ToggleSwitch.js';
 import { NativeBlockFields } from './NativeBlockFields.js';
 import { blockDisplayName } from '../shared/blockNames.js';
 import { BlockFormattingModal } from './BlockFormattingModal.js';
@@ -763,7 +764,7 @@ export function CanvasDesigner({ block, document, template, scope, marginIn, ass
         {!(primary.type === 'block' && primary.block.type === 'song') &&
           <label>Name<input value={primary.name ?? ''} disabled={!editable(primary)} onChange={event => updatePrimary({ name: event.target.value })} /></label>}
         <div className="canvas-geometry-grid">{(['x', 'y', 'width', 'height'] as const).map(key => <label key={key}>{key}<input type="number" step=".0625" value={primary[key]} disabled={!editable(primary)} onChange={event => setNumber(key, event.currentTarget.valueAsNumber)} /></label>)}</div>
-        <label className="check"><input type="checkbox" checked={primary.locked ?? false} onChange={event => updatePrimary({ locked: event.target.checked })} />Locked</label>
+        <div className="toggle-option-row"><span>Locked</span><ToggleSwitch label="Locked" checked={primary.locked ?? false} onChange={locked => updatePrimary({ locked })} /></div>
         {primary.type === 'block' && <>
           <label>Sizing<select value={primary.sizing ?? 'autoHeight'} onChange={event => updatePrimary({ sizing: event.target.value as 'autoHeight' | 'fixed' } as Partial<CanvasElement>)}><option value="autoHeight">Auto height</option><option value="fixed">Fixed / clip</option></select></label>
           {nativePrimary && <NativeBlockFields block={nativePrimary} document={document} library={library} template={template} responsiveReadingSettings={effectiveResponsiveReadingSettings(template, document)} scope={scope} root={root} imageTargetFolder={imageTargetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updatePrimary({ block: next } as Partial<CanvasElement>)} />}

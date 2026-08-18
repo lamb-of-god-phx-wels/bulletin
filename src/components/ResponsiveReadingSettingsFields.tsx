@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ResponsiveReadingRole, ResponsiveReadingSettings } from '../shared/types';
 import { responsiveReadingSettingsIssues, shouldItalicizeSilentPrayer } from '../shared/responsiveReading';
+import { ToggleSwitch } from './ToggleSwitch';
 
 const roles: Array<{ role: ResponsiveReadingRole; label: string }> = [
   { role: 'leader', label: 'Leader' },
@@ -28,11 +29,11 @@ export function ResponsiveReadingSettingsFields({ value, onChange }: {
         }}
       /></label>)}
     </div>
-    <div className="responsive-reading-toggle-row"><span>Italicize &quot;Silent Prayer&quot;</span><button type="button" role="switch" aria-label={'Italicize "Silent Prayer"'} aria-checked={shouldItalicizeSilentPrayer(draft)} className="property-toggle" onClick={() => {
-      const next = { ...draft, italicizeSilentPrayer: !shouldItalicizeSilentPrayer(draft) };
+    <div className="responsive-reading-toggle-row"><span>Italicize &quot;Silent Prayer&quot;</span><ToggleSwitch label={'Italicize "Silent Prayer"'} checked={shouldItalicizeSilentPrayer(draft)} onChange={checked => {
+      const next = { ...draft, italicizeSilentPrayer: checked };
       setDraft(next);
       onChange(next);
-    }}><span aria-hidden="true" /></button></div>
+    }} /></div>
     {issues.map(issue => <small className="validation warning" role="alert" key={issue}>{issue}</small>)}
   </div>;
 }

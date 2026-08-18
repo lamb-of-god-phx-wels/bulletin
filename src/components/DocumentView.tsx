@@ -315,7 +315,7 @@ function GridGroupView({ block, library, assets, document, template, marginIn, o
 function BlockView({ block, library, assets, document, template, marginIn, onBlockChange }: { block: PaginatedBlock; library?: LibraryManifestV1; assets: Record<string, string>; document: BulletinDocumentV1; template?: TemplateV1; marginIn: number; onBlockChange?(block: BulletinBlock): void }) {
   const item = 'libraryItemId' in block ? library?.items.filter(entry => entry.id === block.libraryItemId && (!block.libraryItemVersion || entry.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0] : undefined;
   switch (block.type) {
-    case 'titlePage': case 'canvasCover': return <div className="missing">This document contains an unsupported legacy cover. Insert a reusable page template instead.</div>;
+    case 'titlePage': case 'canvasCover': return <div className="missing">This document contains an unsupported legacy cover. Insert a reusable page design instead.</div>;
     case 'canvas': {
       const fullPage = (block.widthMode ?? 'contentBox') === 'fullPage';
       const widthIn = fullPage ? 7 : 7 - marginIn * 2;

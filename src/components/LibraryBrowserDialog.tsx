@@ -22,7 +22,7 @@ const createTypeDescription: Record<LibraryRecordType, string> = {
   font: 'A font available throughout the workspace.',
   'church-info': 'Reusable church contact information.',
   component: 'A reusable native content element.',
-  'page-template': 'A reusable single-page design.',
+  'page-template': 'A reusable page design.',
   template: 'A reusable multi-page bulletin layout.'
 };
 

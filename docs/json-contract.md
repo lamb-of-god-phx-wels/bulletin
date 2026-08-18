@@ -40,7 +40,7 @@ Native `richText`, including paragraph text and rich text positioned on a canvas
 
 Container blocks use a recursive `children` array. Each `paragraph` contains an optional header `richText` child plus a body `richText` child. The container keeps them together semantically while each text child retains its own bindings, margins, padding, typography, ID, and presentation override. Setting the header’s bottom margin and body’s top margin to zero produces no forced gap.
 
-Historical `churchInfo`, `libraryText`, and `announcements` blocks remain readable and editable for compatibility, but new documents compose the same results from native paragraphs, lists, images, and reusable page templates.
+Historical `churchInfo`, `libraryText`, and `announcements` blocks remain readable and editable for compatibility, but new documents compose the same results from native paragraphs, lists, images, and reusable page designs.
 
 A reusable custom-block definition is stored in the workspace library. It has a human-readable `name`, a `layoutText` string, named `bindings`, and presentation settings for width, placement, padding, spacing, alignment, typography, fill, and border. Placeholders use double braces, such as `{{serviceTime}}`. A binding can expose a new weekly input or read `info.title`, `info.date`, `info.churchWeek`, `info.series`, or `church.name`.
 

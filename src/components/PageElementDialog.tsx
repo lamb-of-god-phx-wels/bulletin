@@ -28,9 +28,9 @@ export function PageElementDialog({ pages, library, root, onSelect, onCreate, on
     library={library ?? { schemaVersion: 1, name: 'Library', items: [] }}
     root={root ?? 'library'}
     records={libraryCatalogRecords(library, pages.filter(page => page.status === 'published'))}
-    title="Choose a reusable page"
+    title="Choose a Page Design"
     allowedTypes={['page-template']}
-    actions={<button className="primary" onClick={() => setCreating(true)}>＋ Create new page</button>}
+    actions={<button className="primary" onClick={() => setCreating(true)}>＋ Create new Page Design</button>}
     onLibraryChange={async () => undefined}
     onClose={onClose}
     onSelect={record => {
@@ -41,9 +41,9 @@ export function PageElementDialog({ pages, library, root, onSelect, onCreate, on
   />;
   return <div className="modal-backdrop block-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="page-element-dialog" role="dialog" aria-modal="true" aria-labelledby="page-element-title">
-      <header><div><div className="eyebrow">Page element</div><h2 id="page-element-title">{creating ? 'Create a reusable page' : 'Choose a reusable page'}</h2></div><button aria-label="Close" onClick={onClose}>×</button></header>
+      <header><div><div className="eyebrow">Page Design element</div><h2 id="page-element-title">{creating ? 'Create a Page Design' : 'Choose a Page Design'}</h2></div><button aria-label="Close" onClick={onClose}>×</button></header>
       <div className="page-element-create">
-        <label>Page name<input autoFocus value={name} onChange={event => setName(event.target.value)} /></label>
+        <label>Page Design name<input autoFocus value={name} onChange={event => setName(event.target.value)} /></label>
         <div className="page-layout-options">
           <button disabled={!name.trim()} onClick={() => create('canvas')}><span>▧</span><b>Canvas</b><small>Position native elements and shapes freely.</small></button>
           <button disabled={!name.trim()} onClick={() => create('regular')}><span>☷</span><b>Regular layout</b><small>Flow native blocks inside page margins.</small></button>

@@ -84,7 +84,7 @@ export function PageTemplatePropertiesPanel({ pageTemplate, onChange }: { pageTe
   const [focusPropertyId, setFocusPropertyId] = useState<string>();
   const update = (id: string, changes: Partial<CustomPropertyDefinition>) => onChange({ ...pageTemplate, status: 'draft', customProperties: properties.map(property => property.id === id ? { ...property, ...changes } : property) });
   return <details className="editor-card collapsible-editor page-setup-card sidebar-page-setup custom-properties-panel">
-    <summary><div><div className="eyebrow">Page template</div><b>Custom properties</b></div></summary>
+    <summary><div><div className="eyebrow">Page design</div><b>Custom properties</b></div></summary>
     <div className="collapsible-editor-fields custom-properties-list">
       {properties.map(property => {
         const usages = customPropertyUsages(pageTemplate.blocks, property.id);

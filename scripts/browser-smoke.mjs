@@ -159,7 +159,7 @@ if (process.env.BULLETIN_IMPORTED_FONT_ONLY === '1') {
 
 if (process.env.BULLETIN_FONT_PICKER_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
-  await click('Page Templates');
+  await click('Page Designer');
   await wait(`Boolean(Array.from(document.querySelectorAll('button')).find(button=>button.textContent.trim()==='Open'))`, 'page template library');
   await evaluate(`document.querySelector('[data-library-key]')?.click()`);
   await evaluate(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent.trim()==='Open')?.click()`);
@@ -303,8 +303,8 @@ if (process.env.BULLETIN_BUILDER_TODOS_ONLY === '1') {
 
 if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
-  await click('Page Templates');
-  await wait(`document.querySelector('.library-browser > header h2')?.textContent.includes('Page Templates')`, 'Page Templates library');
+  await click('Page Designer');
+  await wait(`document.querySelector('.library-browser > header h2')?.textContent.includes('Page Designs')`, 'Page Designs library');
   await evaluate(`Object.defineProperty(crypto,'randomUUID',{configurable:true,value:undefined})`);
   await click('＋ New');
   await wait(`Boolean(document.querySelector('.page-layout-choice'))`, 'page layout choice');
@@ -460,8 +460,8 @@ if (process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1') {
 
 if (process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1500, height: 900, deviceScaleFactor: 1, mobile: false });
-  await click('Page Templates');
-  await wait(`document.querySelector('.library-browser > header h2')?.textContent.includes('Page Templates')`, 'Page Templates library');
+  await click('Page Designer');
+  await wait(`document.querySelector('.library-browser > header h2')?.textContent.includes('Page Designs')`, 'Page Designs library');
   if (await evaluate(`Array.from(document.querySelectorAll('.library-screen button')).some(button=>button.textContent.includes('Capture'))`)) throw new Error('Broken page capture actions are still visible.');
   await click('＋ New');
   await wait(`Boolean(document.querySelector('.page-layout-choice'))`, 'regular page layout choice');

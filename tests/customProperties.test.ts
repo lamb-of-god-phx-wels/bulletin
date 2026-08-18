@@ -42,7 +42,7 @@ describe('custom properties and conditional blocks', () => {
       margin: { mode: 'inherit', referenceMarginIn: .4 }, customProperties: [enabled], blocks: [], updatedAt: '2026-08-01T00:00:00.000Z',
     };
     const markup = renderToStaticMarkup(createElement(PageTemplatePropertiesPanel, { pageTemplate: page, onChange: () => undefined }));
-    expect(markup).toContain('Page template');
+    expect(markup).toContain('Page design');
     expect(markup).toContain('Show Communion');
     expect(markup).toContain('role="switch"');
     expect(markup).toContain('Include in <i>This Sunday</i>');

@@ -225,7 +225,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     const canvas = value.blocks.length === 1 && value.blocks[0].type === 'canvas' ? value.blocks[0] : undefined;
     if (!canvas) return <div className="page-template-designer page-template-canvas" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
       <header><div><div className="eyebrow">Reusable canvas page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><button onClick={onClose}>Done</button></div></header>
-      <aside className="elements-sidebar page-template-elements" aria-label="Page template settings"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /></div></aside>
+      <aside className="elements-sidebar page-template-elements" aria-label="Page design settings"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /></div></aside>
       <div className="empty-state"><span>!</span><h2>Canvas unavailable</h2>{issues.map(issue => <p key={issue}>{issue}</p>)}</div>
     </div>;
     return <CanvasDesigner
@@ -257,7 +257,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   }
   return <div className="page-template-designer page-template-regular" role="dialog" aria-modal="true" aria-labelledby="page-template-editor-title">
     <header><div><div className="eyebrow">Reusable regular-layout page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
-    <aside className="elements-sidebar page-template-elements" aria-label="Page template elements"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /><div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
+    <aside className="elements-sidebar page-template-elements" aria-label="Page design elements"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /><div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
     <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
         <div className="editor-section-title"><div><div className="eyebrow">Page content</div><h2>Elements</h2><small>{value.blocks.length} block{value.blocks.length === 1 ? '' : 's'}</small></div></div>
         <SortableList

@@ -156,10 +156,10 @@ export function pageTemplateIssues(page: Pick<PageTemplateV1, 'blocks' | 'margin
   const issues: string[] = [];
   const layout = pageTemplateLayout(page);
   if (layout === 'canvas' && (page.blocks.length !== 1 || page.blocks[0].type !== 'canvas')) {
-    issues.push('Canvas page templates must contain exactly one canvas.');
+    issues.push('Canvas page designs must contain exactly one canvas.');
   }
   if (layout === 'regular' && page.blocks.some(block => block.type === 'canvas')) {
-    issues.push('Regular page templates cannot contain canvas blocks.');
+    issues.push('Regular page designs cannot contain canvas blocks.');
   }
   if (page.blocks.some(block => block.type === 'templatePage')) issues.push('Page templates cannot contain another template page.');
   if (page.blocks.some(block => block.type === 'templateInstance')) issues.push('Page templates cannot contain a sub-template.');

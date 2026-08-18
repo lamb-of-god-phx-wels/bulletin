@@ -1323,7 +1323,7 @@ function DesktopApp() {
       action: showBulletinEditor,
     },
     {
-      label: "Page Templates",
+      label: "Page Designer",
       icon: "▣",
       active: screen === "page-templates" || (screen === "library" && libraryFilter === "page-template"),
       leavesBulletin: true,
@@ -1539,9 +1539,9 @@ function DesktopApp() {
                 : screen === "templates"
                   ? template.name
                   : screen === "library" && libraryFilter
-                    ? libraryFilter === "template" ? "Bulletin Templates" : libraryFilter === "page-template" ? "Page Templates" : workspace.library?.name
+                    ? libraryFilter === "template" ? "Bulletin Templates" : libraryFilter === "page-template" ? "Page Designs" : workspace.library?.name
                   : screen === "page-templates"
-                    ? "Page Templates"
+                    ? "Page Designs"
                     : screen === "archive"
                       ? "Trash"
                       : workspace.library?.name}
@@ -1896,7 +1896,7 @@ function DesktopApp() {
           <LibraryView
             workspace={workspace}
             allowedTypes={libraryFilter ? [libraryFilter] : undefined}
-            title={libraryFilter === "template" ? "Bulletin Templates" : libraryFilter === "page-template" ? "Page Templates" : undefined}
+            title={libraryFilter === "template" ? "Bulletin Templates" : libraryFilter === "page-template" ? "Page Designs" : undefined}
             onDirtyChange={(value) =>
               updateEditingState({ auxiliaryDirty: value })
             }
@@ -1912,7 +1912,7 @@ function DesktopApp() {
                   setSelectedPageTemplateId(record.targetId);
                 }
                 setScreen("page-templates");
-                reportStatus(create ? "Choose a page layout" : `Opened ${record.title || "Page Template"}`);
+                reportStatus(create ? "Choose a page layout" : `Opened ${record.title || "Page Design"}`);
               } else if (record.type === "template") {
                 if (create) {
                   setPendingTemplateFolderId(record.folderId);

@@ -115,7 +115,7 @@ export const libraryRecordTypeLabel: Record<LibraryRecordType, string> = {
   font: 'Fonts',
   'church-info': 'Church information',
   component: 'Components',
-  'page-template': 'Pages',
+  'page-template': 'Page Designs',
   template: 'Templates'
 };
 

@@ -70,7 +70,7 @@ export function PageTemplatesView({ records, requestedId, createRequest, templat
     setDraft(saved.pageTemplate);
   };
   return <div className="page-templates-screen">
-    <header className="library-intro"><div><div className="eyebrow">Synchronized reusable pages</div><h2>{choices.length} page template{choices.length === 1 ? '' : 's'}</h2><p>Create either a positioned canvas page or a regular block-layout page, then pin it into any bulletin or bulletin template.</p></div><div className="builder-actions"><button className="secondary" disabled={!selected} onClick={duplicate}>Duplicate</button><button className="primary" onClick={createBlank}>＋ New page template</button></div></header>
+    <header className="library-intro"><div><div className="eyebrow">Synchronized reusable pages</div><h2>{choices.length} page design{choices.length === 1 ? '' : 's'}</h2><p>Create either a positioned canvas page or a regular block-layout page, then pin it into any bulletin or bulletin template.</p></div><div className="builder-actions"><button className="secondary" disabled={!selected} onClick={duplicate}>Duplicate</button><button className="primary" onClick={createBlank}>＋ New page design</button></div></header>
     {!choices.length ? <div className="empty-state"><span>▣</span><h2>No reusable pages yet</h2><p>Create a blank page to begin.</p></div> : <section className="page-template-cards">{choices.map(record => <article className={record.pageTemplate.id === selected?.pageTemplate.id ? 'selected' : ''} key={record.pageTemplate.id} onClick={() => setSelectedId(record.pageTemplate.id)}>
       <div><b>{record.pageTemplate.name}</b><small>{pageTemplateLayout(record.pageTemplate) === 'canvas' ? 'Canvas' : 'Regular layout'} · Latest v{record.pageTemplate.version} · {record.pageTemplate.status} · {record.pageTemplate.margin.mode === 'inherit' ? 'inherits margins' : `${record.pageTemplate.margin.marginIn} in margins`}</small></div>
       <div className="builder-actions"><button className="secondary" onClick={event => { event.stopPropagation(); edit(record.pageTemplate); }}>Edit</button><button className="danger-text" onClick={event => { event.stopPropagation(); void onArchive(record).catch(error => onError(error instanceof Error ? error.message : String(error))); }}>Delete</button></div>
@@ -78,10 +78,10 @@ export function PageTemplatesView({ records, requestedId, createRequest, templat
     {draft && <PageTemplateEditor value={draft} template={template} document={document} library={library} root={root} definitions={definitions} onLibraryChange={onLibraryChange} onError={onError} onChange={setDraft} onSave={save} onClose={() => { setDraft(undefined); onReturnToLibrary(); }} />}
     {creatingName !== undefined && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setCreatingName(undefined); onReturnToLibrary(); } }}>
       <section className="page-layout-choice" role="dialog" aria-modal="true" aria-labelledby="page-layout-choice-title">
-        <div className="eyebrow">New page template</div>
-        <h2 id="page-layout-choice-title">Create a page template</h2>
+        <div className="eyebrow">New page design</div>
+        <h2 id="page-layout-choice-title">Create a page design</h2>
         <p>The page type stays fixed so canvas objects and flowing document blocks are not accidentally mixed.</p>
-        <label>Page template name<input autoFocus value={creatingName} placeholder="e.g. Festival cover" onChange={event => setCreatingName(event.target.value)} /></label>
+        <label>Page design name<input autoFocus value={creatingName} placeholder="e.g. Festival cover" onChange={event => setCreatingName(event.target.value)} /></label>
         <div className="page-layout-options">
           <button disabled={!creatingName.trim()} onClick={() => createWithLayout('canvas')}><span>▧</span><b>Canvas</b><small>Position text, images, shapes, and lines anywhere on a full 7 × 8.5-inch page.</small></button>
           <button disabled={!creatingName.trim()} onClick={() => createWithLayout('regular')}><span>☷</span><b>Regular layout</b><small>Build a page from document blocks that flow within the selected page margins.</small></button>

@@ -37,6 +37,7 @@ describe('component definitions', () => {
 
   it('names embedded bulletin templates as sub-templates', () => {
     expect(flowElementPaletteItems([]).find(item => item.id === 'native:template')).toMatchObject({ label: 'Sub-template' });
+    expect(flowElementPaletteItems([]).find(item => item.id === 'native:page')).toMatchObject({ label: 'Page Design' });
   });
 
   it('describes songs as composed layout rather than a block prototype', () => {

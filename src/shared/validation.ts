@@ -24,7 +24,7 @@ export function validateBulletin(value: unknown, library?: LibraryManifestV1, te
     else if (ids.has(block.id)) issues.push({ path: `/blocks/${index}/id`, message: `Duplicate block ID: ${block.id}` });
     ids.add(block.id);
     if (block.type === 'titlePage' || block.type === 'canvasCover') {
-      issues.push({ path: `/blocks/${index}/type`, message: `Legacy ${block.type} blocks are unsupported. Remove the block and insert a reusable page template.` });
+      issues.push({ path: `/blocks/${index}/type`, message: `Legacy ${block.type} blocks are unsupported. Remove the block and insert a reusable page design.` });
     }
     if (block.type === 'scriptureReading' && !block.reference) issues.push({ path: `/blocks/${index}/reference`, message: 'Enter a Scripture reference.' });
     else if (block.type === 'scriptureReading' && !block.resolved) issues.push({ path: `/blocks/${index}/resolved`, message: 'Fetch or paste the approved passage text.' });

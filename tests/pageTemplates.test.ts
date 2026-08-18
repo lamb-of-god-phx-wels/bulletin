@@ -23,8 +23,8 @@ describe('single-page templates', () => {
     const regular = createPageTemplate('Regular', [], [], { mode: 'inherit', referenceMarginIn: .4 }, 'regular');
     expect(pageTemplateLayout(canvas)).toBe('canvas');
     expect(pageTemplateLayout(regular)).toBe('regular');
-    expect(pageTemplateIssues({ ...canvas, blocks: [] })).toContain('Canvas page templates must contain exactly one canvas.');
-    expect(pageTemplateIssues({ ...regular, blocks: [createCanvasBlock('canvas')] })).toContain('Regular page templates cannot contain canvas blocks.');
+    expect(pageTemplateIssues({ ...canvas, blocks: [] })).toContain('Canvas page designs must contain exactly one canvas.');
+    expect(pageTemplateIssues({ ...regular, blocks: [createCanvasBlock('canvas')] })).toContain('Regular page designs cannot contain canvas blocks.');
     expect(canvas.customProperties).toEqual([]);
   });
 

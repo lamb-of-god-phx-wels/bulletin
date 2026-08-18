@@ -60,6 +60,7 @@ import { ElementPickerDialog } from "./ElementPickerDialog";
 import { NativeBlockFields } from "./NativeBlockFields";
 import { LayoutContainerFields } from "./LayoutContainerFields";
 import { HeadingFields } from "./HeadingFields";
+import { CollapseAllElementsButton } from "./CollapseAllElementsButton";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -670,6 +671,7 @@ export function WeeklyEditor({
             {document.blocks.length} blocks · {templateMode ? "used when creating bulletins" : "changes apply only to this bulletin"}
           </small>
         </div>
+        <CollapseAllElementsButton />
       </div>
       <SortableList
         items={document.blocks}

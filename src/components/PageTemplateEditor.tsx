@@ -24,6 +24,7 @@ import { RichTextToolbar } from './RichTextEditing';
 import { PageTemplatePropertiesPanel } from './CustomProperties';
 import { blockDisplayName } from '../shared/blockNames';
 import { EditableElementName } from './EditableElementName';
+import { CollapseAllElementsButton } from './CollapseAllElementsButton';
 
 const title = blockDisplayName;
 
@@ -259,7 +260,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     <header><div><div className="eyebrow">Reusable regular-layout page · v{value.version}</div><h2 id="page-template-editor-title">{value.name}</h2></div><div className="builder-actions"><UndoRedoButtons history={activeHistory} />{onSave && <><button className="secondary" onClick={() => void save(false)}>Save draft</button><button className="primary" disabled={issues.length > 0} onClick={() => void save(true)}>Publish version</button></>}<button onClick={onClose}>Done</button></div></header>
     <aside className="elements-sidebar page-template-elements" aria-label="Page design elements"><div className="sidebar-palette-slot">{pageSetup}<PageTemplatePropertiesPanel pageTemplate={value} onChange={next => change(next)} /><div className="page-template-palette-slot" id="page-template-element-palette-slot" /></div></aside>
     <section className="editor-pane page-template-flow-editor"><div className="editor-scroll">
-        <div className="editor-section-title"><div><div className="eyebrow">Page content</div><h2>Elements</h2><small>{value.blocks.length} block{value.blocks.length === 1 ? '' : 's'}</small></div></div>
+        <div className="editor-section-title"><div><div className="eyebrow">Page content</div><h2>Elements</h2><small>{value.blocks.length} block{value.blocks.length === 1 ? '' : 's'}</small></div><CollapseAllElementsButton /></div>
         <SortableList
           items={value.blocks}
           onChange={blocks => change({ blocks })}

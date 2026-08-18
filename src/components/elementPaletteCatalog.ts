@@ -39,6 +39,13 @@ export function flowElementPaletteItems(workspaceDefinitions: DeclarativeCompone
   ] as ElementPaletteItem[];
 }
 
+export function bulletinEditorElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[], includePages = true, includeContainers = true): ElementPaletteItem[] {
+  return flowElementPaletteItems(workspaceDefinitions, includePages, includeContainers).filter(item => {
+    const payload = item.payload as ElementPalettePayload;
+    return payload.kind !== 'component' || payload.definition.type !== 'bulletin:text';
+  });
+}
+
 export function canvasElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[]): ElementPaletteItem[] {
   return [
     ...flowElementPaletteItems(workspaceDefinitions, false, false),

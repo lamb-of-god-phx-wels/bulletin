@@ -26,7 +26,7 @@ import {
   updateResponsiveReaderLabels,
 } from "../shared/responsiveReading";
 import { insertWeeklyBlock, removeWeeklyBlock } from "../shared/weeklyBlocks";
-import { flowElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
+import { bulletinEditorElementPaletteItems, type ElementPalettePayload } from "./elementPaletteCatalog";
 import { randomId } from "../shared/id";
 import {
   churchEventDisplayName,
@@ -679,7 +679,7 @@ export function WeeklyEditor({
         onMoveInto={moveBlockIntoContainer}
         dockedPalette
         palette={<ElementPalette
-          items={flowElementPaletteItems(library?.componentDefinitions ?? [])}
+          items={bulletinEditorElementPaletteItems(library?.componentDefinitions ?? [])}
           portalTargetId="app-element-palette-slot"
           onUse={item => usePaletteItem(item, document.blocks.length)}
           actions={<button className="text-button" onClick={() => setBlockLibraryIndex(document.blocks.length)}>Manage components…</button>}
@@ -1296,6 +1296,7 @@ export function WeeklyEditor({
           template={bulletinTemplate}
           library={library}
           root={root}
+          excludedComponentTypes={['bulletin:text']}
           onClose={() => setBlockLibraryIndex(undefined)}
           onUsePageTemplate={(page) => {
             const block = instantiatePageTemplate(page, randomId(), bulletinTemplate);
@@ -1442,7 +1443,7 @@ export function WeeklyEditor({
           onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, imageIndex) });
         }}
       />}
-      {elementParentId && <ElementPickerDialog items={flowElementPaletteItems(library?.componentDefinitions ?? [], false).filter(item => findBlock(document.blocks, elementParentId)?.type !== 'group' || (findBlock(document.blocks, elementParentId) as Extract<BulletinBlock, { type: 'group' }>).layoutMode !== 'table' || (item.payload as ElementPalettePayload).kind === 'component' && (item.payload as Extract<ElementPalettePayload, { kind: 'component' }>).definition.type === 'bulletin:text')} onSelect={useChildPaletteItem} onClose={() => { setElementParentId(undefined); setElementCell(undefined); }} />}
+      {elementParentId && <ElementPickerDialog items={bulletinEditorElementPaletteItems(library?.componentDefinitions ?? [], false).filter(item => findBlock(document.blocks, elementParentId)?.type !== 'group' || (findBlock(document.blocks, elementParentId) as Extract<BulletinBlock, { type: 'group' }>).layoutMode !== 'table' || (item.payload as ElementPalettePayload).kind === 'component' && (item.payload as Extract<ElementPalettePayload, { kind: 'component' }>).definition.type === 'bulletin:text')} onSelect={useChildPaletteItem} onClose={() => { setElementParentId(undefined); setElementCell(undefined); }} />}
       {childImageTarget && root && <ImageAssetDialog
         library={library}
         root={root}

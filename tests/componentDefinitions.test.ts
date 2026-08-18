@@ -7,7 +7,7 @@ import {
   prepackagedComponentDiagnostics
 } from '../src/componentDefinitions';
 import { flattenBlocks } from '../src/shared/blocks';
-import { flowElementPaletteItems } from '../src/components/elementPaletteCatalog';
+import { bulletinEditorElementPaletteItems, canvasElementPaletteItems, flowElementPaletteItems } from '../src/components/elementPaletteCatalog';
 
 describe('component definitions', () => {
   it('loads the complete omakase palette from schema-version-2 JSON', () => {
@@ -38,6 +38,13 @@ describe('component definitions', () => {
   it('names embedded bulletin templates as sub-templates', () => {
     expect(flowElementPaletteItems([]).find(item => item.id === 'native:template')).toMatchObject({ label: 'Sub-template' });
     expect(flowElementPaletteItems([]).find(item => item.id === 'native:page')).toMatchObject({ label: 'Page Design' });
+  });
+
+  it('offers Text only in page design palettes', () => {
+    expect(bulletinEditorElementPaletteItems([]).map(item => item.label)).not.toContain('Text');
+    expect(bulletinEditorElementPaletteItems([]).map(item => item.label)).toContain('Paragraph');
+    expect(flowElementPaletteItems([]).map(item => item.label)).toContain('Text');
+    expect(canvasElementPaletteItems([]).map(item => item.label)).toContain('Text');
   });
 
   it('describes songs as composed layout rather than a block prototype', () => {

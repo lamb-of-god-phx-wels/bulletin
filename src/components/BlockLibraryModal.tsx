@@ -12,12 +12,13 @@ function ChoiceIcon({ icon = 'T' }: { icon?: string }) {
   return <span className="block-choice-icon">{icon}</span>;
 }
 
-export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], template, library, root, onClose, onUsePageTemplate, onUsePrepackaged, onUseDefinition, onSaveDefinition, onDeleteDefinition }: {
+export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], template, library, root, excludedComponentTypes = [], onClose, onUsePageTemplate, onUsePrepackaged, onUseDefinition, onSaveDefinition, onDeleteDefinition }: {
   workspaceDefinitions: DeclarativeComponentDefinition[];
   pageTemplates?: PageTemplateV1[];
   template: TemplateV1;
   library?: LibraryManifestV1;
   root?: string;
+  excludedComponentTypes?: string[];
   onClose(): void;
   onUsePageTemplate?(pageTemplate: PageTemplateV1): void;
   onUsePrepackaged(definition: DeclarativeComponentDefinition): void;
@@ -29,6 +30,10 @@ export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], te
   const [pendingDelete, setPendingDelete] = useState<DeclarativeComponentDefinition>();
   const [managing, setManaging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const excludedTypes = new Set(excludedComponentTypes);
+  const availableWorkspaceDefinitions = workspaceDefinitions.filter(definition => !excludedTypes.has(definition.type));
+  const availablePrepackagedDefinitions = prepackagedComponentDefinitions.filter(definition => !excludedTypes.has(definition.type));
+  const availableLibrary = library ? { ...library, componentDefinitions: library.componentDefinitions?.filter(definition => !excludedTypes.has(definition.type)) } : library;
   const definitionText = (definition: DeclarativeComponentDefinition) => `${JSON.stringify(definition, null, 2)}\n`;
   const fileStem = (definition: DeclarativeComponentDefinition) => definition.type.replace(':', '-');
   const beginEdit = (definition: DeclarativeComponentDefinition) => {
@@ -60,9 +65,9 @@ export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], te
     <div><button className="secondary" autoFocus onClick={() => setPendingDelete(undefined)}>Cancel</button><button className="danger" onClick={async () => { await onDeleteDefinition(pendingDelete); setPendingDelete(undefined); }}>Delete version</button></div>
   </section></div>;
   if (!managing) return <LibraryBrowserDialog
-    library={library ?? { schemaVersion: 1, name: 'Library', items: [] }}
+    library={availableLibrary ?? { schemaVersion: 1, name: 'Library', items: [] }}
     root={root ?? 'library'}
-    records={libraryCatalogRecords(library, pageTemplates.filter(page => page.status === 'published'), prepackagedComponentDefinitions)}
+    records={libraryCatalogRecords(availableLibrary, pageTemplates.filter(page => page.status === 'published'), availablePrepackagedDefinitions)}
     title="Add a block or reusable page"
     allowedTypes={['component', 'page-template']}
     actions={<>
@@ -99,13 +104,13 @@ export function BlockLibraryModal({ workspaceDefinitions, pageTemplates = [], te
       <div className="block-choice-actions"><button className="secondary" onClick={() => onUsePageTemplate?.(page)}>Insert page</button></div>
     </article>)}</div></>}
     <div className="block-library-toolbar"><b>Workspace JSON components</b><button className="primary" onClick={() => fileInput.current?.click()}>＋ Import JSON</button><input ref={fileInput} hidden type="file" accept=".json,application/json" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) setReview({ text: await file.text(), fileName: file.name }); }} /></div>
-    {workspaceDefinitions.length ? <div className="block-choice-grid custom-choices workspace-descriptor-choices">{workspaceDefinitions.slice().sort((left, right) => left.name.localeCompare(right.name) || right.version - left.version).map(definition => <article className="block-choice" key={`${definition.type}@${definition.version}`}>
+    {availableWorkspaceDefinitions.length ? <div className="block-choice-grid custom-choices workspace-descriptor-choices">{availableWorkspaceDefinitions.slice().sort((left, right) => left.name.localeCompare(right.name) || right.version - left.version).map(definition => <article className="block-choice" key={`${definition.type}@${definition.version}`}>
       <ChoiceIcon icon={definition.editor?.icon ?? '◇'} />
       <div><b>{definition.name}</b><span>{definition.type} · v{definition.version}</span></div>
       <div className="block-choice-actions"><button className="text-button" onClick={() => setReview({ text: definitionText(definition), fileName: `${fileStem(definition)}.v${definition.version}.json`, readOnly: true })}>View JSON</button><button className="text-button" onClick={() => beginEdit(definition)}>Edit</button><button className="danger-text" onClick={() => setPendingDelete(definition)}>Delete</button><button className="secondary" onClick={() => onUseDefinition(definition)}>Add</button></div>
     </article>)}</div> : <div className="block-library-empty">Import a component definition to add a versioned workspace component. It will be validated and previewed before it is saved.</div>}
     <div className="block-library-toolbar built-in-heading"><b>Pre-packaged components</b><span className="descriptor-source-note">Loaded from component-definitions/prepackaged</span></div>
-    <div className="block-choice-grid">{prepackagedComponentDefinitions.map(definition => <article className="block-choice built-in-choice" key={`${definition.type}@${definition.version}`}>
+    <div className="block-choice-grid">{availablePrepackagedDefinitions.map(definition => <article className="block-choice built-in-choice" key={`${definition.type}@${definition.version}`}>
       <ChoiceIcon icon={definition.editor?.icon} />
       <span><b>{definition.name}</b><small>{definition.description}</small></span>
       <div className="block-choice-actions"><button className="text-button" onClick={() => setReview({ text: definitionText(definition), fileName: `${fileStem(definition)}.json`, readOnly: true })}>View JSON</button><button className="secondary" onClick={() => onUsePrepackaged(definition)}>Add</button></div>

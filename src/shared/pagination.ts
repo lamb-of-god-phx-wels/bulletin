@@ -92,7 +92,7 @@ export function estimateBlockPoints(block: PaginatedBlock, template: TemplateV1,
   if (block.type === 'canvas') return formatted(block.heightIn * 72);
   if (block.type === 'image') return formatted((block.heightIn ?? 2.5) * 72);
   if (block.type === 'paragraph') return formatted(childBlocks(block)!.filter(child => conditionVisible(child, template, document)).reduce((total, child) => total + estimateBlockPoints(child, template, library, document), 0));
-  if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') return usablePoints(template);
+  if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'fullPageAsset') return usablePoints(template);
   if (block.type === 'copyright') {
     const before = block.beforeNotices ?? block.extra;
     return Math.min(formatted(basePoints(block, template) + (paragraphsHaveVisibleContent(before) ? contentPoints(before, template) : 0) + (paragraphsHaveVisibleContent(block.afterNotices) ? contentPoints(block.afterNotices, template) : 0) + (block.suppressGeneratedNotices ? 0 : 110)), usablePoints(template));
@@ -243,7 +243,7 @@ export function paginate(blocks: BulletinBlock[], template: TemplateV1, library?
   const flattenInstances = (items: BulletinBlock[]): BulletinBlock[] => items.flatMap(block => block.type === 'templateInstance' ? flattenInstances(block.blocks) : [block]);
   const renderBlocks = flattenInstances(resolveConditionalBlocks(blocks, template, document));
   for (const block of splitLongBlocks(renderBlocks, template, library, document)) {
-    if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset') {
+    if (block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'fullPageAsset') {
       flush(); pages.push({
         number: pages.length + 1,
         kind: block.type === 'fullPageAsset' ? 'fullPage' : 'content',

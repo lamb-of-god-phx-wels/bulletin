@@ -100,7 +100,6 @@ export function resolveConditionalBlocks(
     if (!conditionVisible(block, template, document)) return [];
     if (block.type === 'group') return [{ ...block, children: resolveConditionalBlocks(block.children, template, document) }];
     if (block.type === 'paragraph') return [{ ...block, children: resolveConditionalBlocks(block.children, template, document).filter(child => child.type === 'richText') }];
-    if (block.type === 'churchInfo' && block.children) return [{ ...block, children: resolveConditionalBlocks(block.children, template, document) }];
     if (block.type === 'templatePage' || block.type === 'templateInstance') return [{ ...block, blocks: resolveConditionalBlocks(block.blocks, template, document) }];
     return [block];
   });
@@ -134,7 +133,7 @@ export function synchronizeCustomPropertyBindings(blocks: BulletinBlock[], prope
     if (block.condition) block.condition.property = sync(block.condition.property);
     if (block.type === 'richText' && isCustomPropertyBinding(block.binding)) block.binding = sync(block.binding);
     if (block.type === 'custom') block.bindings = block.bindings.map(binding => isCustomPropertyBinding(binding.source) ? { ...binding, source: sync(binding.source) } : binding);
-    if (block.type === 'group' || block.type === 'churchInfo') block.children = block.children ? synchronizeCustomPropertyBindings(block.children, properties) : block.children;
+    if (block.type === 'group') block.children = synchronizeCustomPropertyBindings(block.children, properties);
     if (block.type === 'paragraph') block.children = synchronizeCustomPropertyBindings(block.children, properties) as typeof block.children;
     if (block.type === 'scriptureReading' && block.elements) block.elements = Object.fromEntries(Object.entries(block.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: sync(settings.condition.property) } } : settings]));
     if (block.type === 'templatePage' || block.type === 'templateInstance') block.blocks = synchronizeCustomPropertyBindings(block.blocks, properties);

@@ -40,7 +40,7 @@ describe('component definitions', () => {
 
   it('uses native paragraphs and lists instead of specialized reusable-text, announcement, and church-page entries', () => {
     const types = prepackagedComponentDefinitions.map(definition => definition.type);
-    expect(types).not.toEqual(expect.arrayContaining(['bulletin:libraryText', 'bulletin:announcements', 'bulletin:churchInformation']));
+    expect(types).not.toEqual(expect.arrayContaining(['bulletin:libraryText', 'bulletin:announcements']));
     const list = prepackagedComponentDefinitions.find(definition => definition.type === 'bulletin:list')!;
     expect(instantiateComponentDefinition(list)).toMatchObject({ type: 'list', style: 'plain', items: [{ title: 'New item' }] });
   });

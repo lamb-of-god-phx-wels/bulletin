@@ -4,7 +4,7 @@ import { migrateLegacyBulletin } from '../src/shared/migrate';
 describe('legacy bulletin migration', () => {
   it('normalizes the known example date, readings, verse selections, and cross symbols', () => {
     const migrated = migrateLegacyBulletin({
-      churchInfo: { name: 'Lamb of God Lutheran Church' },
+      church: { name: 'Lamb of God Lutheran Church' },
       bulletinInfo: { title: 'God Loves Sinners', date: { type: 'date', data: '2026-07-20' }, churchWeek: 'Second Sunday' },
       content: [
         { type: 'responsiveReading', content: [{ reader: 'M', content: [{ type: 'text', text: 'In the name of <<cross>> Jesus.' }] }] },

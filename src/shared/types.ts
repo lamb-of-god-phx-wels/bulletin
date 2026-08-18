@@ -173,7 +173,6 @@ export interface CanvasBlock extends BlockBase {
   heightIn: number;
   widthMode?: 'contentBox' | 'fullPage';
 }
-export interface ChurchInfoBlock extends BlockBase { type: 'churchInfo'; libraryItemId?: string; libraryItemVersion?: number; heroAsset?: AssetRef; children?: BulletinBlock[] }
 export type HeadingLevel = 'h1' | 'h2' | 'h3';
 export interface HeadingBlock extends BlockBase {
   type: 'heading';
@@ -337,7 +336,7 @@ export interface CustomBlock extends BlockBase {
   style?: CustomBlockStyle;
 }
 
-export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | TemplateInstanceBlock | ChurchInfoBlock | HeadingBlock | LegacySectionHeadingBlock | ParagraphBlock | RichTextBlock |
+export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | TemplateInstanceBlock | HeadingBlock | LegacySectionHeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
   AnnouncementsBlock | ListBlock | CopyrightBlock | ImageBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
 
@@ -404,7 +403,7 @@ export interface PageTemplateV1 {
   updatedAt: string;
 }
 
-export type LibraryKind = 'song' | 'liturgy' | 'image' | 'font' | 'church-info';
+export type LibraryKind = 'song' | 'liturgy' | 'image' | 'font';
 export interface LibraryItemV1 {
   id: string;
   version: number;

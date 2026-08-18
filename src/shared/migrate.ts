@@ -39,11 +39,11 @@ function migrateResponsive(item: Legacy, id: string): ResponsiveReadingBlock {
   };
 }
 
-function migrateBlock(item: Legacy, index: number, seen: Map<string, number>): BulletinBlock {
+function migrateBlock(item: Legacy, index: number, seen: Map<string, number>): BulletinBlock | undefined {
   const id = uniqueId(slug(item.label ?? item.text ?? item.title ?? item.type ?? `block-${index + 1}`), seen);
   switch (item.type) {
     case 'titlePage': return { id, type: 'titlePage', weeklyEditable: true };
-    case 'welcomePage': return { id, type: 'churchInfo' };
+    case 'welcomePage': return undefined;
     case 'sermonTitle': return { id, type: 'sermonTitle', text: item.text ?? '', weeklyEditable: true };
     case 'heading': return { id, type: 'heading', level: 'h3', text: item.text ?? '' };
     case 'sectionHeading': return { id, type: 'heading', level: 'h2', text: item.text ?? '' };
@@ -87,12 +87,12 @@ export function migrateLegacyBulletin(input: Legacy): BulletinDocumentV1 {
     id: `bulletin-${date}`,
     revision: 0,
     template: { id: 'lamb-of-god-weekly', version: 1 },
-    church: { name: input.churchInfo?.name ?? 'Church' },
+    church: { name: input.church?.name ?? 'Church' },
     info: {
       title: input.bulletinInfo?.title ?? '', series: input.bulletinInfo?.series,
       date, churchWeek: input.bulletinInfo?.churchWeek ?? ''
     },
-    blocks: (input.content ?? []).map((item: Legacy, index: number) => migrateBlock(item, index, seen)),
+    blocks: (input.content ?? []).map((item: Legacy, index: number) => migrateBlock(item, index, seen)).filter((block: BulletinBlock | undefined): block is BulletinBlock => Boolean(block)),
     updatedAt: new Date().toISOString()
   };
 }

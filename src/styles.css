@@ -667,10 +667,6 @@ details textarea { border-width: 1px 0 0; border-radius: 0 0 7px 7px; }
 .canvas-context-menu { position: fixed; z-index: 120; display: grid; width: 176px; padding: 5px; border: 1px solid #cfcac0; border-radius: 8px; background: #fff; box-shadow: 0 12px 34px #17211d42; }
 .canvas-context-menu button { min-height: 32px; padding: 0 10px; border: 0; border-radius: 5px; color: #354039; background: transparent; font-size: 11px; font-weight: 700; text-align: left; }
 .canvas-context-menu button:hover { color: #873e27; background: #f6ede7; }
-.church-info { position: relative; }.church-info-image { float: left; width: 1.05in; height: .57in; margin: 0 .12in .05in 0; object-fit: cover; }
-.church-info h1 { padding: .12in 0; border-bottom: 3px solid var(--accent); font: 19pt var(--display-font); }
-.church-info h2 { margin: .25in 0 .05in; font-size: 10pt; text-transform: uppercase; }
-.church-info .tagline { color: #696d68; font-style: italic; }
 .contact-card { margin-top: .4in; padding: .25in; border: 1px solid #d8d4cb; color: #696d68; text-align: center; }
 .sermon-title { padding: 0 0 .12in; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; font-size: 13pt; text-align: center; text-transform: uppercase; }
 .heading-block { color: inherit; }

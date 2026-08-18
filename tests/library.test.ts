@@ -20,6 +20,14 @@ describe('library normalization', () => {
     expect(normalizeLibrary(legacy).items[0]).toMatchObject({ id: 'anthem', version: 1, kind: 'song' });
   });
 
+  it('removes unsupported item kinds from stored libraries', () => {
+    const stored = { schemaVersion: 1, name: 'Library', items: [
+      { id: 'supported', version: 1, kind: 'liturgy', title: 'Supported' },
+      { id: 'removed', version: 1, kind: 'removed-kind', title: 'Removed' },
+    ] } as unknown as LibraryManifestV1;
+    expect(normalizeLibrary(stored).items.map(item => item.id)).toEqual(['supported']);
+  });
+
   it('merges matching lyric and sheet-music records without losing either', () => {
     const legacy = { schemaVersion: 1, name: 'Library', items: [
       { id: 'anthem', version: 1, kind: 'song', title: 'Anthem', aliases: ['Hymn 1'], content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Lyrics' }] }] },

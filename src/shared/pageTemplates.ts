@@ -88,7 +88,7 @@ export function remapProperties(block: BulletinBlock, template?: TemplateV1): Bu
   if (next.condition) next.condition.property = propertyForBinding(next.condition.property, template);
   if (next.type === 'richText' && isCustomPropertyBinding(next.binding)) next.binding = propertyForBinding(next.binding, template);
   if (next.type === 'custom') next.bindings = next.bindings.map(binding => isCustomPropertyBinding(binding.source) ? { ...binding, source: propertyForBinding(binding.source, template) } : binding);
-  if (next.type === 'group' || next.type === 'churchInfo') next.children = next.children?.map(child => remapProperties(child, template)) ?? [];
+  if (next.type === 'group') next.children = next.children.map(child => remapProperties(child, template));
   if (next.type === 'paragraph') next.children = next.children.map(child => remapProperties(child, template) as typeof child);
   if (next.type === 'scriptureReading' && next.elements) next.elements = Object.fromEntries(Object.entries(next.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: propertyForBinding(settings.condition.property, template) } } : settings]));
   if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapProperties(child, template));
@@ -129,7 +129,7 @@ function freshId(id: string, used: Set<string>) {
 
 export function remapBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
   const next = { ...structuredClone(block), id: freshId(block.id, used) } as BulletinBlock;
-  if (next.type === 'group' || next.type === 'churchInfo') next.children = next.children?.map(child => remapBlock(child, used));
+  if (next.type === 'group') next.children = next.children.map(child => remapBlock(child, used));
   if (next.type === 'paragraph') next.children = next.children.map(child => remapBlock(child, used) as typeof child);
   if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapBlock(child, used));
   if (next.type === 'templateInstance') next.blocks = next.blocks.map(child => remapBlock(child, used));

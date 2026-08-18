@@ -113,13 +113,12 @@ export const libraryRecordTypeLabel: Record<LibraryRecordType, string> = {
   liturgy: 'Liturgy',
   image: 'Images',
   font: 'Fonts',
-  'church-info': 'Church information',
   component: 'Components',
   'page-template': 'Page Designs',
   template: 'Templates'
 };
 
 export const libraryRecordIcon: Record<LibraryRecordType, string> = {
-  song: '♫', liturgy: '¶', image: '▧', font: 'A', 'church-info': '⌂',
+  song: '♫', liturgy: '¶', image: '▧', font: 'A',
   component: '◇', 'page-template': '▣', template: '☷'
 };

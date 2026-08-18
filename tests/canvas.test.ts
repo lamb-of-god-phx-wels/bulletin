@@ -25,6 +25,22 @@ import { CanvasSceneView } from '../src/components/CanvasSceneView';
 import type { CanvasScene } from '../src/shared/types';
 
 describe('canvas cover scenes', () => {
+  it('removes unsupported blocks from documents and native canvas elements', () => {
+    const blocks = normalizeCanvasBlocks([
+      { id: 'removed', type: 'removed-block' },
+      {
+        id: 'canvas', type: 'canvas', heightIn: 2, scene: {
+          coordinateSpace: 'fullPage', elements: [{
+            id: 'removed-native', type: 'block', x: 0, y: 0, width: 2, height: 1,
+            block: { id: 'removed-child', type: 'removed-block' },
+          }],
+        },
+      },
+    ] as never);
+    expect(blocks.map(block => block.id)).toEqual(['canvas']);
+    expect(blocks[0]).toMatchObject({ type: 'canvas', scene: { elements: [] } });
+  });
+
   it('normalizes legacy headings recursively, including native canvas blocks', () => {
     const [group, canvas] = normalizeCanvasBlocks([{
       id: 'group', type: 'group', children: [

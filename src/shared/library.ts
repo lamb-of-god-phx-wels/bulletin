@@ -28,6 +28,8 @@ function mergeSongItems(first: LibraryItemV1, second: LibraryItemV1): LibraryIte
   };
 }
 
+const supportedLibraryKinds = new Set(['song', 'liturgy', 'image', 'font', 'music']);
+
 export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 {
   const stored = library as LibraryManifestV1 & { blockDescriptors?: unknown };
   const { blockDescriptors: removedLegacyDescriptors, ...currentLibrary } = stored;
@@ -35,6 +37,10 @@ export function normalizeLibrary(library: LibraryManifestV1): LibraryManifestV1 
   const items: LibraryItemV1[] = [];
   const songs = new Map<string, number>();
   for (const original of currentLibrary.items) {
+    if (!supportedLibraryKinds.has((original as { kind: string }).kind)) {
+      changed = true;
+      continue;
+    }
     const legacyMusic = (original.kind as string) === 'music';
     const item: LibraryItemV1 = legacyMusic ? { ...original, kind: 'song' } : original;
     changed ||= legacyMusic;

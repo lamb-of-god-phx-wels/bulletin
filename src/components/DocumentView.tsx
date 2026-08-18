@@ -335,7 +335,6 @@ function BlockView({ block, library, assets, document, template, marginIn, onBlo
     case 'templateInstance': return <section className="template-instance" data-template-id={`${block.source.id}@${block.source.version}`}>{block.blocks.map(child =>
       <RenderedBlock key={child.id} block={child} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} />
     )}</section>;
-    case 'churchInfo': return <div className="church-info">{block.heroAsset && assets[block.heroAsset.path] && <img className="church-info-image" src={assets[block.heroAsset.path]} alt="Lamb of God church building" />}<h1>{document.church.name}</h1>{childBlocks(block)!.map(child => <RenderedBlock block={child as PaginatedBlock} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} key={child.id} />)}</div>;
     case 'group': {
       const mode = block.layoutMode ?? 'stack';
       const changeChild = onBlockChange ? (changed: BulletinBlock) => onBlockChange({ ...block, children: updateBlockTree(block.children, changed.id, changed) }) : undefined;
@@ -429,7 +428,7 @@ function RenderedBlock({ block, library, assets, document, template, marginIn, o
     fontFamily: block.presentation?.fontRef || baseFont?.fontRef ? undefined : block.presentation?.fontFamily ?? baseFont?.fontFamily ?? 'body',
   };
   const editorBlockId = block.sourceBlockId ?? block.id;
-  if (style) return <BlockFontContext.Provider value={inheritedFont}><div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'churchInfo' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} /></div></BlockFontContext.Provider>;
+  if (style) return <BlockFontContext.Provider value={inheritedFont}><div className={`block-presentation has-presentation preview-block ${block.type === 'titlePage' || block.type === 'canvasCover' || block.type === 'templatePage' || block.type === 'fullPageAsset' ? 'full-height-presentation' : ''}`} data-block-id={editorBlockId} style={style}><BlockView block={block} library={library} assets={assets} document={document} template={template} marginIn={marginIn} onBlockChange={onBlockChange} /></div></BlockFontContext.Provider>;
   const view = BlockView({ block, library, assets, document, template, marginIn, onBlockChange }) as ReactElement<{ className?: string; 'data-block-id'?: string }>;
   return <BlockFontContext.Provider value={inheritedFont}>{cloneElement(view, { className: `${view.props.className ?? ''} preview-block`.trim(), 'data-block-id': editorBlockId })}</BlockFontContext.Provider>;
 }
@@ -466,7 +465,6 @@ export function DocumentView({ document: bulletin, template, library, root, prin
         if ('libraryItemId' in native) result.push(...(library?.items.filter(item => item.id === native.libraryItemId && (!native.libraryItemVersion || item.version === native.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));
       }
     }
-    if (block.type === 'churchInfo' && block.heroAsset) result.push(block.heroAsset);
     if (block.type === 'announcements') result.push(...block.items.flatMap(item => item.asset ? [item.asset] : []));
     if (block.type === 'list') result.push(...block.items.flatMap(item => item.asset ? [item.asset] : []));
     if ('libraryItemId' in block) result.push(...(library?.items.filter(item => item.id === block.libraryItemId && (!block.libraryItemVersion || item.version === block.libraryItemVersion)).sort((a, b) => b.version - a.version)[0]?.assets ?? []));

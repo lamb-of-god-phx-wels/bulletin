@@ -337,7 +337,7 @@ const freshCopyId = (source: string, used: Set<string>) => {
 
 function cloneCanvasBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
   const next = { ...structuredClone(block), id: freshCopyId(block.id, used) } as BulletinBlock;
-  if (next.type === 'group' || next.type === 'churchInfo') {
+  if (next.type === 'group') {
     next.children = next.children?.map(child => cloneCanvasBlock(child, used));
   }
   if (next.type === 'paragraph') {
@@ -450,7 +450,6 @@ export function canvasAssetRefs(scene: CanvasScene): AssetRef[] {
       if (element.type !== 'block') return [];
       const block = element.block;
       if ('asset' in block && block.asset) return [block.asset];
-      if (block.type === 'churchInfo' && block.heroAsset) return [block.heroAsset];
       if (block.type === 'announcements') return block.items.flatMap(item => item.asset ? [item.asset] : []);
       if (block.type === 'list') return block.items.flatMap(item => item.asset ? [item.asset] : []);
       return [];
@@ -461,17 +460,26 @@ export function canvasAssetRefs(scene: CanvasScene): AssetRef[] {
 export const canvasNativeBlocks = (scene: CanvasScene) =>
   normalizeCanvasScene(scene).elements.flatMap(element => element.type === 'block' ? [element.block] : []);
 
+const supportedBlockTypes = new Set([
+  'titlePage', 'canvasCover', 'canvas', 'templatePage', 'templateInstance', 'heading', 'sectionHeading',
+  'paragraph', 'richText', 'sermonTitle', 'responsiveReading', 'scriptureReading', 'song', 'libraryText',
+  'announcements', 'list', 'copyright', 'image', 'fullPageAsset', 'spacer', 'group', 'custom'
+]);
+
 export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock[]): import('./types.js').BulletinBlock[] {
-  return blocks.map(source => {
+  return blocks.filter(block => supportedBlockTypes.has((block as { type: string }).type)).map(source => {
     const block = normalizeHeadingBlock(source);
     if (block.type === 'canvas') {
       const scene = normalizeCanvasScene(block.scene);
-      return { ...block, scene: { ...scene, elements: scene.elements.map(element => element.type === 'block' ? { ...element, block: normalizeCanvasBlocks([element.block])[0] } : element) } };
+      return { ...block, scene: { ...scene, elements: scene.elements.flatMap<CanvasElement>(element => {
+        if (element.type !== 'block') return [element];
+        const native = normalizeCanvasBlocks([element.block])[0];
+        return native ? [{ ...element, block: native }] : [];
+      }) } };
     }
     if (block.type === 'templatePage') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'templateInstance') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'group') return { ...block, children: normalizeCanvasBlocks(block.children) };
-    if (block.type === 'churchInfo') return { ...block, children: block.children ? normalizeCanvasBlocks(block.children) : block.children };
     if (block.type === 'paragraph') return { ...block, children: normalizeCanvasBlocks(block.children) as typeof block.children };
     if (block.type === 'responsiveReading' && block.heading) return { ...block, heading: normalizeHeadingBlock(block.heading) as import('./types.js').HeadingBlock };
     return block;

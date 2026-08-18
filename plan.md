@@ -25,7 +25,7 @@
         overrides.
 
       - TemplateV1: page dimensions, theme tokens, page masters, starter block tree, weekly-editable fields, default filler page, and pagination rules.
-      - LibraryManifestV1: immutable/versioned songs, liturgy, images, fonts, PDF assets, church information, and licensing/attribution metadata.
+      - LibraryManifestV1: immutable/versioned songs, liturgy, images, fonts, PDF assets, and licensing/attribution metadata.
 
   - Use structured rich text—paragraphs, text spans, bold/italic marks, alignment, and named symbols—rather than arbitrary HTML. Normalize current inconsistencies such as
     scripture versus bibleReference, "all" versus verse arrays, and the mixed cross-symbol encodings.
@@ -53,7 +53,7 @@
   - Template builder:
       - Provide a drag-reorder outline, typed block palette, library selectors, weekly-editable flags, page-master selection, theme controls, and sample-data preview.
       - Save edits as drafts; publishing creates a new immutable template version. Do not expose arbitrary coordinates, custom HTML, or custom CSS.
-      - Include blocks for cover and church-information pages, headings, rich text, responsive readings, Scripture, songs, prayers/creeds, announcements, copyright material,
+      - Include blocks for cover pages, headings, rich text, responsive readings, Scripture, songs, prayers/creeds, announcements, copyright material,
         and full-page assets.
 
   - Rendering:

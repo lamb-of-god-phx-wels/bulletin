@@ -201,7 +201,7 @@ export function updateResponsiveReaderLabels(blocks: BulletinBlock[], previous: 
           : { ...entry, role, readerMode: 'custom' };
       }),
     };
-    if (block.type === 'churchInfo' || block.type === 'group') return { ...block, children: block.children?.map(updateBlock) ?? [] };
+    if (block.type === 'group') return { ...block, children: block.children.map(updateBlock) };
     if (block.type === 'paragraph') return { ...block, children: block.children.map(child => updateBlock(child) as typeof child) };
     if (block.type === 'templatePage') return { ...block, blocks: block.blocks.map(updateBlock) };
     if (block.type === 'templateInstance') return { ...block, blocks: block.blocks.map(updateBlock) };

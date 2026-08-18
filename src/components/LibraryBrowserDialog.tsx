@@ -20,7 +20,6 @@ const createTypeDescription: Record<LibraryRecordType, string> = {
   liturgy: 'Reusable service and worship text.',
   image: 'Artwork and photographs for bulletins.',
   font: 'A font available throughout the workspace.',
-  'church-info': 'Reusable church contact information.',
   component: 'A reusable native content element.',
   'page-template': 'A reusable page design.',
   template: 'A reusable multi-page bulletin layout.'

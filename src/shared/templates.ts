@@ -128,7 +128,7 @@ export function duplicateTemplate(source: TemplateV1, name: string, records: Tem
 
 function reusableBlock(source: BulletinBlock): BulletinBlock {
   const block = structuredClone(source);
-  if (block.type === 'churchInfo' || block.type === 'group') block.children = block.children?.map(reusableBlock);
+  if (block.type === 'group') block.children = block.children.map(reusableBlock);
   if (block.type === 'paragraph') block.children = block.children.map(child => reusableBlock(child) as typeof child);
   if (block.type === 'templatePage') block.blocks = block.blocks.map(reusableBlock);
   if (block.type === 'templateInstance') block.blocks = block.blocks.map(reusableBlock);

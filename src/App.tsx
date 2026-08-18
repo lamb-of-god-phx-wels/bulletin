@@ -3064,7 +3064,6 @@ function LibraryView({
             >
               <option value="song">Song</option>
               <option value="liturgy">Liturgy</option>
-              <option value="church-info">Church information</option>
               <option value="font">Font</option>
             </select>
           </label>

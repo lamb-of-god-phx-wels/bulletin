@@ -254,22 +254,6 @@ export function instantiateComponentDefinition(definition: DeclarativeComponentD
           };
         }) : []
       };
-    case 'bulletin:churchInformation': {
-      const sections = Array.isArray(sample.sections) ? sample.sections : [];
-      return {
-        ...base,
-        type: 'churchInfo',
-        children: sections.map((section, index) => {
-          const value = section as Record<string, JsonValue>;
-          return paragraphBlock(
-            `${id}-${typeof value.id === 'string' ? value.id : index}`,
-            typeof value.heading === 'string' ? value.heading : undefined,
-            value.body,
-            definition
-          );
-        })
-      };
-    }
     case 'bulletin:libraryText':
       return {
         ...base,

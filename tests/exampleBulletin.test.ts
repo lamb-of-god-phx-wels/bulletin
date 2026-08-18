@@ -18,12 +18,11 @@ const template: TemplateV1 = {
 };
 
 describe('June 7, 2026 example bulletin', () => {
-  it('recreates the source booklet as twelve deliberately composed pages', () => {
+  it('recreates the source booklet with its final booklet filler page', () => {
     const pages = paginate((example as BulletinDocumentV1).blocks, template, exampleLibrary);
     expect(pages).toHaveLength(12);
     expect(pages.map(page => page.blocks[0]?.id)).toEqual([
       'titlepage',
-      'welcomepage',
       'god-loves-sinners',
       'responsivereading-3',
       'song-of-praise',
@@ -33,12 +32,13 @@ describe('June 7, 2026 example bulletin', () => {
       'hymn-of-the-day-continuation',
       'the-prayers',
       'closing-song',
-      'announcements-part-1'
+      'announcements-part-1',
+      undefined
     ]);
-    expect(pages[4].blocks.map(block => block.id)).toContain('first-reading');
-    expect(pages[5].blocks.map(block => block.id)).toContain('psalm');
-    expect(pages[8].blocks.map(block => block.id)).toEqual(expect.arrayContaining(['sermon', 'confession-of-faith']));
-    expect(pages[9].blocks.map(block => block.id)).toContain('copyrightblock');
+    expect(pages[3].blocks.map(block => block.id)).toContain('first-reading');
+    expect(pages[4].blocks.map(block => block.id)).toContain('psalm');
+    expect(pages[7].blocks.map(block => block.id)).toEqual(expect.arrayContaining(['sermon', 'confession-of-faith']));
+    expect(pages[8].blocks.map(block => block.id)).toContain('copyrightblock');
   });
 
   it('includes the source readings, music assets, notices, and complete announcements', () => {

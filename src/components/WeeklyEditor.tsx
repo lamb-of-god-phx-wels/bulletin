@@ -204,7 +204,7 @@ export function WeeklyEditor({
     });
   const blockName = blockDisplayName;
   const updateChildren = (parent: BulletinBlock, children: BulletinBlock[]) => {
-    if (parent.type === "churchInfo" || parent.type === "group")
+    if (parent.type === "group")
       updateBlock(parent.id, { ...parent, children });
     if (parent.type === "paragraph")
       updateBlock(parent.id, {
@@ -1161,8 +1161,8 @@ export function WeeklyEditor({
                     </div>
                   </div>
                 )}
-                {(block.type === "churchInfo" || block.type === "group") &&
-                  <>{block.type === 'group' && <LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} onAdd={cell => { setElementParentId(block.id); setElementCell(cell); }} />}{nestedEditors(block)}</>}
+                {block.type === "group" &&
+                  <><LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} onAdd={cell => { setElementParentId(block.id); setElementCell(cell); }} />{nestedEditors(block)}</>}
                 {block.type === "copyright" && (
                   <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
                 )}

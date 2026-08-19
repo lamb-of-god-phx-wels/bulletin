@@ -93,6 +93,14 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .custom-property-value-line .property-toggle { justify-self: end; }
 .custom-property-definition-line .property-toggle { align-self: center; }
 .custom-property-definition-line .property-reset-button { align-self: center; margin-bottom: 2px; }
+.property-list-options, .element-chooser-fields { display: grid; gap: .55rem; }
+.property-list-options .custom-property-definition-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.element-chooser-choice-controls { display: flex; align-items: end; gap: .5rem; }
+.element-chooser-choice-controls label { flex: 1; }
+.element-chooser-choice-controls .danger-text { min-width: 31px; min-height: 31px; margin-bottom: 1px; font-size: 17px; }
+.chooser-empty-slot { width: 100%; min-height: 82px; }
+.element-chooser-setup-fields { display: grid; gap: 12px; padding: 16px 18px; }
+.element-chooser-setup-fields .helper { margin: 0; }
 .property-this-sunday-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; padding-top: 4px; border-top: 1px solid #ffffff10; color: #aab2ae; font-size: 9px; font-weight: 650; }
 .property-this-sunday-line i { font-style: italic; }
 .property-reset-button { min-height: 27px; padding: 3px 6px; border: 0; color: #d68b69; background: transparent; font-size: 9px; }

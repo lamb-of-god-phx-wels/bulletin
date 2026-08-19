@@ -133,7 +133,7 @@ export function defaultCanvasScene(): CanvasScene {
 }
 
 export function canvasNativeBlockAllowed(block: import('./types.js').BulletinBlock) {
-  return !['canvas', 'templatePage', 'templateInstance', 'fullPageAsset', 'titlePage', 'canvasCover'].includes(block.type);
+  return !['canvas', 'templatePage', 'templateInstance', 'elementChooser', 'fullPageAsset', 'titlePage', 'canvasCover'].includes(block.type);
 }
 
 export function normalizeCanvasScene(scene: CanvasScene): CanvasScene {
@@ -463,7 +463,7 @@ export const canvasNativeBlocks = (scene: CanvasScene) =>
 const supportedBlockTypes = new Set([
   'titlePage', 'canvasCover', 'canvas', 'templatePage', 'templateInstance', 'heading', 'sectionHeading',
   'paragraph', 'richText', 'sermonTitle', 'responsiveReading', 'scriptureReading', 'song', 'libraryText',
-  'announcements', 'list', 'copyright', 'image', 'fullPageAsset', 'spacer', 'group', 'custom'
+  'announcements', 'list', 'copyright', 'image', 'fullPageAsset', 'spacer', 'group', 'elementChooser', 'custom'
 ]);
 
 export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock[]): import('./types.js').BulletinBlock[] {
@@ -479,6 +479,7 @@ export function normalizeCanvasBlocks(blocks: import('./types.js').BulletinBlock
     }
     if (block.type === 'templatePage') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
     if (block.type === 'templateInstance') return { ...block, blocks: normalizeCanvasBlocks(block.blocks) };
+    if (block.type === 'elementChooser') return { ...block, choices: block.choices.map(choice => choice.block ? ({ ...choice, block: normalizeCanvasBlocks([choice.block])[0] ?? choice.block }) : choice) };
     if (block.type === 'group') {
       const legacy = block as unknown as Omit<typeof block, 'layoutMode'> & { layoutMode?: string; stackDirection?: string };
       const { stackDirection: _removedDirection, ...current } = legacy;

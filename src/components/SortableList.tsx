@@ -5,11 +5,13 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  type CollisionDetection,
   useDroppable
 } from '@dnd-kit/core';
 import {
@@ -34,6 +36,11 @@ interface SortableGridConfig {
 
 const SortableItemContext = createContext<ReturnType<typeof useSortable> | undefined>(undefined);
 const SortableListContext = createContext<{ suppressClick: MutableRefObject<boolean> } | undefined>(undefined);
+const chooserAwareCollisionDetection: CollisionDetection = args => {
+  const pointerCollisions = pointerWithin(args);
+  const chooserSlot = pointerCollisions.find(collision => String(collision.id).startsWith('__chooser-option__:'));
+  return chooserSlot ? [chooserSlot] : closestCenter(args);
+};
 
 function EmptyDropTarget() {
   const droppable = useDroppable({ id: '__empty-list__' });
@@ -59,6 +66,7 @@ export function SortableList<T extends SortableRecord>({ items, onChange, onInse
 }) {
   const suppressClick = useRef(false);
   const exitRegionRef = useRef<HTMLDivElement>(null);
+  const chooserDropTarget = useRef<string | undefined>(undefined);
   const detailsState = useRef<{ id: string; open: boolean } | undefined>(undefined);
   const [overlayLabel, setOverlayLabel] = useState('');
   const sensors = useSensors(
@@ -100,6 +108,18 @@ export function SortableList<T extends SortableRecord>({ items, onChange, onInse
   const move = (event: DragMoveEvent) => {
     restoreDetailsState();
     clearInsertionMarker();
+    chooserDropTarget.current = undefined;
+    const translated = event.active.rect.current.translated;
+    const overElement = event.over
+      ? document.querySelector<HTMLElement>(`[data-editor-block-id="${globalThis.CSS.escape(String(event.over.id))}"]`)
+      : undefined;
+    const slot = overElement?.closest<HTMLElement>('.chooser-empty-slot') ?? (translated
+      ? document.elementFromPoint(translated.left + translated.width / 2, translated.top + translated.height / 2)?.closest<HTMLElement>('.chooser-empty-slot')
+      : undefined);
+    if (slot?.dataset.layoutContainerId) {
+      chooserDropTarget.current = slot.dataset.layoutContainerId;
+      slot.classList.add('palette-insert-inside');
+    }
     if (!event.over || event.over.id === '__empty-list__') return;
     const intent = dropIntent(event);
     if (event.active.data.current?.paletteItem && intent) intent.element.classList.add(`palette-insert-${intent.position}`);
@@ -123,11 +143,13 @@ export function SortableList<T extends SortableRecord>({ items, onChange, onInse
       suppressClick.current = false;
       detailsState.current = undefined;
       setOverlayLabel('');
+      chooserDropTarget.current = undefined;
     }, 0);
   };
   const finish = ({ active, over }: DragEndEvent) => {
     const paletteItem = active.data.current?.paletteItem;
     if (paletteItem) {
+      if (chooserDropTarget.current && onInsertInto?.(paletteItem, chooserDropTarget.current)) { releaseClick(); return; }
       if (over && onInsert) {
         const intent = dropIntent({ active, over });
         if (intent?.position === 'inside' && onInsertInto?.(paletteItem, intent.containerId, intent.cell)) {
@@ -146,6 +168,7 @@ export function SortableList<T extends SortableRecord>({ items, onChange, onInse
       releaseClick();
       return;
     }
+    if (chooserDropTarget.current && onMoveInto?.(String(active.id), chooserDropTarget.current)) { releaseClick(); return; }
     if (onMoveOut && active.rect.current.translated && exitRegionRef.current) {
       const center = {
         x: active.rect.current.translated.left + active.rect.current.translated.width / 2,
@@ -181,7 +204,7 @@ export function SortableList<T extends SortableRecord>({ items, onChange, onInse
   const presentedChildren = onMoveOut ? <div className={`sortable-exit-region ${grid ? 'grid-region' : 'list-region'}`} ref={exitRegionRef}>{sortableChildren}</div> : sortableChildren;
   const strategy = grid ? rectSortingStrategy : verticalListSortingStrategy;
   return <SortableListContext.Provider value={{ suppressClick }}>
-    <DndContext sensors={sensors} collisionDetection={closestCenter} autoScroll onDragStart={begin} onDragMove={move} onDragCancel={releaseClick} onDragEnd={finish}>
+    <DndContext sensors={sensors} collisionDetection={chooserAwareCollisionDetection} autoScroll onDragStart={begin} onDragMove={move} onDragCancel={releaseClick} onDragEnd={finish}>
       {palette && dockedPalette ? <>{palette}<div className="palette-sortable-content"><SortableContext items={items.map(item => item.id)} strategy={strategy}>{presentedChildren}</SortableContext>{!items.length && !grid && <EmptyDropTarget />}</div></> : palette ? <div className="palette-sortable-layout">
         {palette}
         <div className="palette-sortable-content"><SortableContext items={items.map(item => item.id)} strategy={strategy}>{presentedChildren}</SortableContext>{!items.length && !grid && <EmptyDropTarget />}</div>

@@ -1,4 +1,5 @@
-import type { BulletinBlock, CustomBlockStyle, GroupBlock, Paragraph } from './types.js';
+import type { BulletinBlock, CustomBlockStyle, CustomPropertyDefinition, ElementChooserBlock, GroupBlock, Paragraph } from './types.js';
+import { randomId } from './id.js';
 import { scriptureElementBlocks, updateScriptureElement } from './scriptureReading.js';
 
 const text = (value: string): Paragraph[] => [{ type: 'paragraph', children: [{ type: 'text', text: value }] }];
@@ -15,7 +16,29 @@ export function createLayoutContainer(layoutMode: NonNullable<GroupBlock['layout
     ...(layoutMode === 'table' ? { tableShowLines: true } : {}),
     children: []
   };
-  return layoutMode === 'table' ? ensureTableCells(group) : group;
+  return group;
+}
+
+export function uniquePropertyName(properties: CustomPropertyDefinition[], base = 'Element choice') {
+  const names = new Set(properties.map(property => property.name.trim().toLocaleLowerCase()));
+  if (!names.has(base.toLocaleLowerCase())) return base;
+  let suffix = 2;
+  while (names.has(`${base} ${suffix}`.toLocaleLowerCase())) suffix += 1;
+  return `${base} ${suffix}`;
+}
+
+export function createElementChooser(properties: CustomPropertyDefinition[]): { block: ElementChooserBlock; property: CustomPropertyDefinition } {
+  const blockId = `chooser-${randomId()}`;
+  const property: CustomPropertyDefinition = {
+    id: `property-${randomId()}`,
+    name: uniquePropertyName(properties),
+    valueType: 'list',
+    defaultValue: '',
+    options: [],
+    includeInThisSunday: true,
+    managedByChooserId: blockId,
+  };
+  return { block: { id: blockId, type: 'elementChooser', property: { kind: 'customProperty', propertyId: property.id, propertyName: property.name, valueType: 'list' }, choices: [] }, property };
 }
 
 export interface LayoutCell { row: number; column: number }
@@ -28,7 +51,7 @@ export function ensureTableCells(group: GroupBlock): GroupBlock {
   if (group.layoutMode !== 'table') return group;
   const columns = Math.max(1, Math.min(12, group.columns ?? 2));
   const rows = Math.max(1, Math.min(12, group.rows ?? 2));
-  const existing = new Map(group.children.filter(child => child.type === 'richText').map((child, index) => {
+  const existing = new Map(group.children.map((child, index) => {
     const cell = groupChildCell(group, child, index);
     return [`${cell.row}:${cell.column}`, child] as const;
   }));
@@ -44,7 +67,9 @@ export function ensureTableCells(group: GroupBlock): GroupBlock {
 }
 
 export function groupAcceptsChild(group: GroupBlock, child: BulletinBlock) {
-  return group.layoutMode !== 'table' || child.type === 'richText';
+  void group;
+  void child;
+  return true;
 }
 
 export function groupChildCell(group: GroupBlock, child: BulletinBlock, index: number): LayoutCell {
@@ -110,6 +135,7 @@ export function moveGroupChildToRoot(blocks: BulletinBlock[], parentId: string, 
 }
 
 export function childBlocks(block: BulletinBlock): BulletinBlock[] | undefined {
+  if (block.type === 'elementChooser') return block.choices.flatMap(choice => choice.block ? [choice.block] : []);
   if (block.type === 'group') return block.children;
   if (block.type === 'templatePage') return block.blocks;
   if (block.type === 'templateInstance') return block.blocks;
@@ -140,6 +166,7 @@ export function updateBlockTree(blocks: BulletinBlock[], id: string, next: Bulle
     if (!children?.some(child => findBlock([child], id))) return block;
     const updatedChildren = updateBlockTree(children, id, next);
     if (block.type === 'group') return { ...block, children: updatedChildren };
+    if (block.type === 'elementChooser') return { ...block, choices: block.choices.map(choice => !choice.block ? choice : ({ ...choice, block: updatedChildren.find(child => child.id === choice.block!.id) ?? choice.block })) };
     if (block.type === 'templatePage') return { ...block, blocks: updatedChildren };
     if (block.type === 'templateInstance') return { ...block, blocks: updatedChildren };
     if (block.type === 'paragraph') return { ...block, children: updatedChildren.filter(child => child.type === 'richText') };

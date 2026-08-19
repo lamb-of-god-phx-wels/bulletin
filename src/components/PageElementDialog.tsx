@@ -11,13 +11,13 @@ export function PageElementDialog({ pages, library, root, onSelect, onCreate, on
   library?: LibraryManifestV1;
   root?: string;
   onSelect(page: PageTemplateV1): void;
-  onCreate(page: PageTemplateV1): void;
+  onCreate?(page: PageTemplateV1): void;
   onClose(): void;
 }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('New page');
   const records = pages.map((pageTemplate, index) => ({ path: `page-${index}`, pageTemplate }));
-  const create = (layout: 'canvas' | 'regular') => onCreate(createPageTemplate(
+  const create = (layout: 'canvas' | 'regular') => onCreate?.(createPageTemplate(
     name.trim() || 'New page',
     records,
     layout === 'canvas' ? [createCanvasBlock(`canvas-${randomId()}`)] : [],
@@ -30,7 +30,7 @@ export function PageElementDialog({ pages, library, root, onSelect, onCreate, on
     records={libraryCatalogRecords(library, pages.filter(page => page.status === 'published'))}
     title="Choose a Page Design"
     allowedTypes={['page-template']}
-    actions={<button className="primary" onClick={() => setCreating(true)}>＋ Create new Page Design</button>}
+    actions={onCreate ? <button className="primary" onClick={() => setCreating(true)}>＋ Create new Page Design</button> : undefined}
     onLibraryChange={async () => undefined}
     onClose={onClose}
     onSelect={record => {

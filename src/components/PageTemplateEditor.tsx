@@ -3,8 +3,9 @@ import type { DeclarativeComponentDefinition } from '../component-engine/types';
 import { instantiateComponentDefinition } from '../componentDefinitions';
 import { createBulletin } from '../shared/defaults';
 import { estimateBlockPoints } from '../shared/pagination';
-import { pageTemplateIssues, pageTemplateLayout } from '../shared/pageTemplates';
-import { createLayoutContainer, findBlock, groupAcceptsChild, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from '../shared/blocks';
+import { instantiatePageTemplate, pageTemplateIssues, pageTemplateLayout } from '../shared/pageTemplates';
+import { instantiateTemplate } from '../shared/templates';
+import { createElementChooser, createLayoutContainer, findBlock, groupAcceptsChild, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from '../shared/blocks';
 import type { BulletinBlock, BulletinDocumentV1, LibraryManifestV1, PageTemplateV1, TemplateV1 } from '../shared/types';
 import { BlockFormattingModal } from './BlockFormattingModal';
 import { BlockLibraryModal } from './BlockLibraryModal';
@@ -15,7 +16,7 @@ import { ElementPalette, type ElementPaletteItem } from './ElementPalette';
 import { flowElementPaletteItems, type ElementPalettePayload } from './elementPaletteCatalog';
 import { NativeBlockFields } from './NativeBlockFields';
 import { randomId } from '../shared/id';
-import { customPropertyIssues } from '../shared/customProperties';
+import { customPropertyIssues, pruneUnusedChooserProperties } from '../shared/customProperties';
 import { ConditionModal } from './ConditionModal';
 import { ImageAssetDialog } from './ImageAssetDialog';
 import { PreviewZoomControls, stepPreviewZoom } from './PreviewZoomControls';
@@ -25,16 +26,20 @@ import { PageTemplatePropertiesPanel } from './CustomProperties';
 import { blockDisplayName } from '../shared/blockNames';
 import { EditableElementName } from './EditableElementName';
 import { CollapseAllElementsButton } from './CollapseAllElementsButton';
+import { PageElementDialog } from './PageElementDialog';
+import { TemplateElementDialog } from './TemplateElementDialog';
 
 const title = blockDisplayName;
 
-export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, onLibraryChange, onError, onChange, history, onSave, onClose }: {
+export function PageTemplateEditor({ value, template, document = createBulletin(template), library, root, definitions, templates = [], pageTemplates = [], onLibraryChange, onError, onChange, history, onSave, onClose }: {
   value: PageTemplateV1;
   template: TemplateV1;
   document?: BulletinDocumentV1;
   library?: LibraryManifestV1;
   root?: string;
   definitions: DeclarativeComponentDefinition[];
+  templates?: TemplateV1[];
+  pageTemplates?: PageTemplateV1[];
   onLibraryChange?(library: LibraryManifestV1, alreadySaved?: boolean): Promise<void>;
   onError?(message: string): void;
   onChange(value: PageTemplateV1): void;
@@ -46,7 +51,11 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
   const [formatId, setFormatId] = useState<string>();
   const [status, setStatus] = useState('');
   const [imageIndex, setImageIndex] = useState<number>();
-  const [nestedImageTarget, setNestedImageTarget] = useState<{ parentId: string; cell?: LayoutCell }>();
+  const [pageIndex, setPageIndex] = useState<number>();
+  const [templateIndex, setTemplateIndex] = useState<number>();
+  const [nestedImageTarget, setNestedImageTarget] = useState<{ parentId: string; cell?: LayoutCell; chooserChoiceId?: string }>();
+  const [nestedPageTarget, setNestedPageTarget] = useState<{ parentId: string; cell?: LayoutCell; chooserChoiceId?: string }>();
+  const [nestedTemplateTarget, setNestedTemplateTarget] = useState<{ parentId: string; cell?: LayoutCell; chooserChoiceId?: string }>();
   const [conditionBlockId, setConditionBlockId] = useState<string>();
   const preview = useRef<HTMLElement>(null);
   const initialZoom = Number(localStorage.getItem('bulletin-preview-zoom'));
@@ -81,6 +90,24 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     redo: redoLocal,
   };
   const updateBlock = (next: BulletinBlock) => change({ blocks: updateBlockTree(value.blocks, next.id, next) });
+  const insertNestedBlock = (target: { parentId: string; cell?: LayoutCell; chooserChoiceId?: string }, child: BulletinBlock) => {
+    const parent = findBlock(value.blocks, target.parentId);
+    if (parent?.type === 'group') { change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, child, target.cell)) }); return true; }
+    if (parent?.type === 'elementChooser') {
+      const choice = parent.choices.find(candidate => candidate.id === target.chooserChoiceId);
+      if (!choice || choice.block) return false;
+      change({ blocks: updateBlockTree(value.blocks, parent.id, { ...parent, choices: parent.choices.map(candidate => candidate.id === choice.id ? { ...candidate, block: child } : candidate) }) });
+      return true;
+    }
+    return false;
+  };
+  const addNestedFullPageAsset = async (target: { parentId: string; cell?: LayoutCell; chooserChoiceId?: string }) => {
+    if (!root || !window.bulletin) return;
+    try {
+      const asset = await window.bulletin.importAsset(root, `assets/page-templates/${value.id}`);
+      if (asset) insertNestedBlock(target, { id: `page-${randomId()}`, type: 'fullPageAsset', asset });
+    } catch (error) { onError?.(error instanceof Error ? error.message : String(error)); }
+  };
   const save = async (publish: boolean) => {
     if (publish && issues.length) { setStatus(issues[0]); return; }
     setStatus(publish ? 'Publishing…' : 'Saving…');
@@ -95,30 +122,72 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     } else if (payload.kind === 'container') {
       const block = createLayoutContainer(payload.layoutMode, `container-${randomId()}`);
       change({ blocks: [...value.blocks.slice(0, index), block, ...value.blocks.slice(index)] });
+    } else if (payload.kind === 'elementChooser') {
+      const created = createElementChooser(value.customProperties ?? []);
+      change({ customProperties: [...(value.customProperties ?? []), created.property], blocks: [...value.blocks.slice(0, index), created.block, ...value.blocks.slice(index)] });
     } else if (payload.kind === 'image' && root && window.bulletin) {
       setImageIndex(index);
+    } else if (payload.kind === 'page') setPageIndex(index);
+    else if (payload.kind === 'template') setTemplateIndex(index);
+    else if (payload.kind === 'fullPageAsset' && root && window.bulletin) {
+      try {
+        const asset = await window.bulletin.importAsset(root, `assets/page-templates/${value.id}`);
+        if (asset) change({ blocks: [...value.blocks.slice(0, index), { id: `page-${randomId()}`, type: 'fullPageAsset', asset }, ...value.blocks.slice(index)] });
+      } catch (error) { onError?.(error instanceof Error ? error.message : String(error)); }
     }
   };
-  const insertIntoContainer = (item: ElementPaletteItem, containerId: string, cell?: LayoutCell) => {
+  const insertIntoContainer = (item: ElementPaletteItem, containerId: string, cell?: LayoutCell, requestedChoiceId?: string) => {
     const parent = findBlock(value.blocks, containerId);
-    if (parent?.type !== 'group') return false;
-    if (parent.layoutMode === 'table') return true;
+    if (!parent) return false;
     const payload = item.payload as ElementPalettePayload;
+    if (parent.type === 'elementChooser') {
+      const property = value.customProperties?.find(candidate => candidate.id === parent.property.propertyId);
+      const choice = parent.choices.find(candidate => candidate.id === requestedChoiceId) ?? parent.choices.find(candidate => candidate.id === property?.defaultValue) ?? parent.choices[0];
+      if (!property || !choice || choice.block) return true;
+      const target = { parentId: parent.id, chooserChoiceId: choice.id };
+      const fill = (child: BulletinBlock, additional: NonNullable<PageTemplateV1['customProperties']> = []) => { const blocks = updateBlockTree(value.blocks, parent.id, { ...parent, choices: parent.choices.map(candidate => candidate.id === choice.id ? { ...candidate, block: child } : candidate) }); change({ blocks, customProperties: [...(value.customProperties ?? []), ...additional] }); };
+      if (payload.kind === 'component') fill(instantiateComponentDefinition(payload.definition));
+      else if (payload.kind === 'container') fill(createLayoutContainer(payload.layoutMode, `container-${randomId()}`));
+      else if (payload.kind === 'elementChooser') { const created = createElementChooser(value.customProperties ?? []); fill(created.block, [created.property]); }
+      else if (payload.kind === 'image') setNestedImageTarget({ parentId: parent.id, chooserChoiceId: choice.id });
+      else if (payload.kind === 'page') setNestedPageTarget(target);
+      else if (payload.kind === 'template') setNestedTemplateTarget(target);
+      else if (payload.kind === 'fullPageAsset') void addNestedFullPageAsset(target);
+      else return false;
+      return true;
+    }
+    if (parent.type !== 'group') return false;
+    const target = { parentId: parent.id, cell };
     if (payload.kind === 'component') {
       const child = instantiateComponentDefinition(payload.definition);
       if (!groupAcceptsChild(parent, child)) return true;
       change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, child, cell)) });
     }
     else if (payload.kind === 'container') change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, createLayoutContainer(payload.layoutMode, `container-${randomId()}`), cell)) });
+    else if (payload.kind === 'elementChooser') {
+      const created = createElementChooser(value.customProperties ?? []);
+      change({ customProperties: [...(value.customProperties ?? []), created.property], blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, created.block, cell)) });
+    }
     else if (payload.kind === 'image') setNestedImageTarget({ parentId: parent.id, cell });
+    else if (payload.kind === 'page') setNestedPageTarget(target);
+    else if (payload.kind === 'template') setNestedTemplateTarget(target);
+    else if (payload.kind === 'fullPageAsset') void addNestedFullPageAsset(target);
     else return false;
     return true;
   };
   const moveBlockIntoContainer = (blockId: string, containerId: string, cell?: LayoutCell) => {
     const child = value.blocks.find(block => block.id === blockId);
     const parent = findBlock(value.blocks, containerId);
-    if (!child || parent?.type !== 'group' || findBlock([child], containerId)) return false;
-    if (parent.layoutMode === 'table') return true;
+    if (!child || !parent || findBlock([child], containerId)) return false;
+    if (parent.type === 'elementChooser') {
+      const property = value.customProperties?.find(candidate => candidate.id === parent.property.propertyId);
+      const choice = parent.choices.find(candidate => candidate.id === property?.defaultValue) ?? parent.choices[0];
+      if (!property || !choice || choice.block) return true;
+      const remaining = value.blocks.filter(block => block.id !== child.id);
+      change({ blocks: updateBlockTree(remaining, parent.id, { ...parent, choices: parent.choices.map(candidate => candidate.id === choice.id ? { ...candidate, block: child } : candidate) }) });
+      return true;
+    }
+    if (parent.type !== 'group') return false;
     if (!groupAcceptsChild(parent, child)) return true;
     const remaining = value.blocks.filter(block => block.id !== child.id);
     change({ blocks: updateBlockTree(remaining, parent.id, placeGroupChild(parent, child, cell)) });
@@ -205,7 +274,7 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     </div>
   </details>;
   const palette = <ElementPalette
-    items={flowElementPaletteItems(definitions, false)}
+    items={flowElementPaletteItems(definitions, true)}
     portalTargetId="page-template-element-palette-slot"
     onUse={item => void usePaletteItem(item, value.blocks.length)}
     actions={<button className="text-button" onClick={() => setLibraryOpen(true)}>Manage components…</button>}
@@ -276,12 +345,12 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
               <div className="reorder" onClick={event => event.preventDefault()}>
                 <button className={`format-block-button condition-toggle ${block.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(block.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(block.id)}>Condition</button>
                 <button className="format-block-button format-action" title="Format block" onClick={() => setFormatId(block.id)}>Format</button>
-                <button className="danger-text" title={`Remove ${title(block)}`} aria-label={`Remove ${title(block)}`} onClick={() => change({ blocks: value.blocks.filter(item => item.id !== block.id) })}>×</button>
+                <button className="danger-text" title={`Remove ${title(block)}`} aria-label={`Remove ${title(block)}`} onClick={() => { const blocks = value.blocks.filter(item => item.id !== block.id); change({ blocks, customProperties: pruneUnusedChooserProperties(value.customProperties ?? [], blocks).properties }); }}>×</button>
                 <SortableHandle label={`Drag ${title(block)} to reorder`} />
               </div>
             </summary>
             <div className="collapsible-editor-fields">
-              <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} onMoveOut={(parentId, childId, targetId, position) => change({ blocks: moveGroupChildToRoot(value.blocks, parentId, childId, targetId, position) })} />
+              <NativeBlockFields block={block} library={library} template={previewTemplate} scope="template" root={root} imageTargetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onChange={updateBlock} onChooserChange={(next, property, _selected, additional = []) => { const blocks = updateBlockTree(value.blocks, next.id, next); const properties = [...(value.customProperties ?? []).map(item => item.id === property.id ? property : item), ...additional]; change({ customProperties: pruneUnusedChooserProperties(properties, blocks).properties, blocks }); }} onFormatBlock={setFormatId} onMoveOut={(parentId, childId, targetId, position) => change({ blocks: moveGroupChildToRoot(value.blocks, parentId, childId, targetId, position) })} onRequestElement={insertIntoContainer} />
             </div>
           </details></SortableItem>)}
         </SortableList>
@@ -290,8 +359,12 @@ export function PageTemplateEditor({ value, template, document = createBulletin(
     {previewPane}
     {conditionBlockId && (() => { const block = value.blocks.find(item => item.id === conditionBlockId); return block ? <ConditionModal value={block.condition} template={previewTemplate} onClose={() => setConditionBlockId(undefined)} onSave={condition => { updateBlock({ ...block, condition } as BulletinBlock); setConditionBlockId(undefined); }} /> : null; })()}
     {libraryOpen && <BlockLibraryModal workspaceDefinitions={definitions} template={previewTemplate} library={library} root={root} onClose={() => setLibraryOpen(false)} onUsePrepackaged={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onUseDefinition={definition => { change({ blocks: [...value.blocks, instantiateComponentDefinition(definition)] }); setLibraryOpen(false); }} onSaveDefinition={async () => undefined} onDeleteDefinition={async () => undefined} />}
-    {formatId && (() => { const block = value.blocks.find(item => item.id === formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
+    {formatId && (() => { const block = findBlock(value.blocks, formatId); return block ? <BlockFormattingModal block={block} template={previewTemplate} document={document} library={library} scope="template" onClose={() => setFormatId(undefined)} onSave={(presentation, layout) => { updateBlock({ ...block, presentation, layout } as BulletinBlock); setFormatId(undefined); }} /> : null; })()}
     {imageIndex !== undefined && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setImageIndex(undefined)} onSelect={asset => change({ blocks: [...value.blocks.slice(0, imageIndex), { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, ...value.blocks.slice(imageIndex)] })} />}
-    {nestedImageTarget && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setNestedImageTarget(undefined)} onSelect={asset => { const parent = findBlock(value.blocks, nestedImageTarget.parentId); if (parent?.type === 'group') change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, nestedImageTarget.cell)) }); setNestedImageTarget(undefined); }} />}
+    {pageIndex !== undefined && <PageElementDialog pages={pageTemplates} library={library} root={root} onClose={() => setPageIndex(undefined)} onSelect={page => { change({ blocks: [...value.blocks.slice(0, pageIndex), instantiatePageTemplate(page, randomId(), previewTemplate), ...value.blocks.slice(pageIndex)] }); setPageIndex(undefined); }} />}
+    {templateIndex !== undefined && <TemplateElementDialog templates={templates} library={library} root={root} excludeTemplateId={template.id} onClose={() => setTemplateIndex(undefined)} onSelect={source => { change({ blocks: [...value.blocks.slice(0, templateIndex), instantiateTemplate(source, randomId(), previewTemplate, value.blocks), ...value.blocks.slice(templateIndex)] }); setTemplateIndex(undefined); }} />}
+    {nestedPageTarget && <PageElementDialog pages={pageTemplates} library={library} root={root} onClose={() => setNestedPageTarget(undefined)} onSelect={page => { insertNestedBlock(nestedPageTarget, instantiatePageTemplate(page, randomId(), previewTemplate)); setNestedPageTarget(undefined); }} />}
+    {nestedTemplateTarget && <TemplateElementDialog templates={templates} library={library} root={root} excludeTemplateId={template.id} onClose={() => setNestedTemplateTarget(undefined)} onSelect={source => { insertNestedBlock(nestedTemplateTarget, instantiateTemplate(source, randomId(), previewTemplate, value.blocks)); setNestedTemplateTarget(undefined); }} />}
+    {nestedImageTarget && root && <ImageAssetDialog library={library} root={root} targetFolder={`assets/page-templates/${value.id}`} onLibraryChange={onLibraryChange} onError={onError} onClose={() => setNestedImageTarget(undefined)} onSelect={asset => { const parent = findBlock(value.blocks, nestedImageTarget.parentId); if (parent?.type === 'group') change({ blocks: updateBlockTree(value.blocks, parent.id, placeGroupChild(parent, { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }, nestedImageTarget.cell)) }); if (parent?.type === 'elementChooser' && nestedImageTarget.chooserChoiceId) change({ blocks: updateBlockTree(value.blocks, parent.id, { ...parent, choices: parent.choices.map(choice => choice.id === nestedImageTarget.chooserChoiceId ? { ...choice, block: { id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 } } : choice) }) }); setNestedImageTarget(undefined); }} />}
   </div>;
 }

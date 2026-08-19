@@ -53,12 +53,16 @@ export interface LayoutHints {
 }
 
 export type CustomPropertyValue = string | number | boolean;
-export type CustomPropertyType = 'string' | 'number' | 'boolean';
+export type CustomPropertyType = 'string' | 'number' | 'boolean' | 'list';
+export interface CustomPropertyOption { id: string; label: string }
 export interface CustomPropertyDefinition {
   id: string;
   name: string;
   valueType: CustomPropertyType;
   defaultValue: CustomPropertyValue;
+  options?: CustomPropertyOption[];
+  /** Set when the property's options are owned by an Element Chooser. */
+  managedByChooserId?: string;
   includeInThisSunday?: boolean;
 }
 export interface CustomPropertyBinding {
@@ -276,6 +280,11 @@ export interface GroupBlock extends BlockBase {
   tableHeaderRow?: boolean;
   tableShowLines?: boolean;
 }
+export interface ElementChooserBlock extends BlockBase {
+  type: 'elementChooser';
+  property: CustomPropertyBinding;
+  choices: Array<{ id: string; name: string; block?: BulletinBlock }>;
+}
 export type PageMarginSetting =
   | { mode: 'inherit'; referenceMarginIn: number }
   | { mode: 'fixed'; marginIn: number };
@@ -338,7 +347,7 @@ export interface CustomBlock extends BlockBase {
 
 export type BulletinBlock = UnsupportedLegacyCoverBlock | CanvasBlock | TemplatePageBlock | TemplateInstanceBlock | HeadingBlock | LegacySectionHeadingBlock | ParagraphBlock | RichTextBlock |
   SermonTitleBlock | ResponsiveReadingBlock | ScriptureBlock | SongBlock | LibraryTextBlock |
-  AnnouncementsBlock | ListBlock | CopyrightBlock | ImageBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | CustomBlock;
+  AnnouncementsBlock | ListBlock | CopyrightBlock | ImageBlock | FullPageAssetBlock | SpacerBlock | GroupBlock | ElementChooserBlock | CustomBlock;
 
 export interface AssetRef {
   path: string;

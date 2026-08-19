@@ -1,6 +1,4 @@
-import { useEffect } from 'react';
 import type { GroupBlock } from '../shared/types';
-import { ensureTableCells } from '../shared/blocks';
 import { ToggleSwitch } from './ToggleSwitch';
 
 export function LayoutContainerFields({ block, onChange }: {
@@ -21,12 +19,8 @@ export function LayoutContainerFields({ block, onChange }: {
     rowHeightsIn: undefined,
     children: mode === 'table' ? block.children : block.children.map((child, index) => ({ ...child, gridPosition: { row: Math.floor(index / nextColumns) + 1, column: index % nextColumns + 1 } }))
     } as GroupBlock;
-    return mode === 'table' ? ensureTableCells(next) : next;
+    return next;
   };
-  useEffect(() => {
-    const complete = ensureTableCells(block);
-    if (complete !== block) onChange(complete);
-  }, [block, onChange]);
   return <>
     <div className="field-row container-options">
       <label>Layout<input value={mode === 'table' ? 'Table' : 'Grid'} disabled /></label>

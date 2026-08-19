@@ -1,6 +1,9 @@
 # TODO
 
 ## General
+*  Change "Element Chooser" to "Element Selector"
+* When inserting a new element selector, you should be able to choose from an existing
+list property to use as the selector.
 * Recreate bulletin using UI only.
 * The vertical text alignment is still not correct
 * Due to padding, the left/right/center/justify buttons are not clearly distinguished from each other. Make it more obvious.

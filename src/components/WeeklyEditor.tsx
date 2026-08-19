@@ -18,7 +18,7 @@ import { ResponsiveReadingFields } from "./ResponsiveReadingFields";
 import { ResponsiveReadingSettingsFields } from "./ResponsiveReadingSettingsFields";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { instantiateComponentDefinition } from "../componentDefinitions";
-import { childBlocks, createLayoutContainer, createTableCell, findBlock, groupAcceptsChild, groupChildCell, moveGroupChildToCell, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from "../shared/blocks";
+import { childBlocks, createElementChooser, createLayoutContainer, findBlock, groupAcceptsChild, groupChildCell, moveGroupChildToCell, moveGroupChildToRoot, placeGroupChild, updateBlockTree, type LayoutCell } from "../shared/blocks";
 import { libraryFamilies } from "../shared/library";
 import { paragraphsFromPlainText } from "../shared/plainText";
 import {
@@ -61,6 +61,7 @@ import { NativeBlockFields } from "./NativeBlockFields";
 import { LayoutContainerFields } from "./LayoutContainerFields";
 import { HeadingFields } from "./HeadingFields";
 import { CollapseAllElementsButton } from "./CollapseAllElementsButton";
+import { effectiveCustomPropertyDefinitions, effectiveCustomPropertyValue, pruneUnusedChooserProperties } from "../shared/customProperties";
 
 const paragraphs = (text: string): Paragraph[] => paragraphsFromPlainText(text);
 const paragraphText = (content: Paragraph[]) =>
@@ -110,7 +111,7 @@ export function WeeklyEditor({
     : `${relativePath.replace(/[/\\]bulletin\.json$/, "")}/assets`;
   const editableByDefault = <T extends BulletinBlock>(block: T): T =>
     (templateMode ? block : { ...block, weeklyEditable: true }) as T;
-  const bulletinTemplate: TemplateV1 = { ...template, customProperties: document.customProperties ?? template.customProperties };
+  const bulletinTemplate: TemplateV1 = { ...template, customProperties: effectiveCustomPropertyDefinitions(template, document) };
   const [formattingBlockId, setFormattingBlockId] = useState<string>();
   const [canvasBlockId, setCanvasBlockId] = useState<string>();
   const [templatePageBlockId, setTemplatePageBlockId] = useState<string>();
@@ -121,7 +122,9 @@ export function WeeklyEditor({
   const [imageIndex, setImageIndex] = useState<number>();
   const [elementParentId, setElementParentId] = useState<string>();
   const [elementCell, setElementCell] = useState<LayoutCell>();
-  const [childImageTarget, setChildImageTarget] = useState<{ parentId: string; cell?: LayoutCell }>();
+  const [childImageTarget, setChildImageTarget] = useState<{ parentId: string; cell?: LayoutCell; chooserChoiceId?: string }>();
+  const [childPageTarget, setChildPageTarget] = useState<{ parentId: string; cell?: LayoutCell; chooserChoiceId?: string }>();
+  const [childTemplateTarget, setChildTemplateTarget] = useState<{ parentId: string; cell?: LayoutCell; chooserChoiceId?: string }>();
   const [pendingAddedBlockId, setPendingAddedBlockId] = useState<string>();
   const [conditionBlockId, setConditionBlockId] = useState<string>();
   const [propertiesOpen, setPropertiesOpen] = useState(false);
@@ -203,30 +206,85 @@ export function WeeklyEditor({
       ...document,
       blocks: updateBlockTree(document.blocks, id, next),
     });
+  const updateChooser = (next: Extract<BulletinBlock, { type: 'elementChooser' }>, property: NonNullable<BulletinDocumentV1['customProperties']>[number], selectedValue?: string | number | boolean, additionalProperties: NonNullable<BulletinDocumentV1['customProperties']> = [], removePropertyIds: string[] = []) => {
+    void removePropertyIds;
+    const properties = [...(document.customProperties ?? template.customProperties ?? [])];
+    const updated = [...(properties.some(item => item.id === property.id) ? properties.map(item => item.id === property.id ? property : item) : [...properties, property]), ...additionalProperties];
+    const blocks = updateBlockTree(document.blocks, next.id, next);
+    const overrides = !templateMode && selectedValue !== undefined ? { ...document.customPropertyOverrides, [property.id]: selectedValue } : document.customPropertyOverrides;
+    const pruned = pruneUnusedChooserProperties(updated, blocks, overrides);
+    onChange({ ...document, customProperties: pruned.properties, customPropertyOverrides: pruned.overrides, blocks });
+  };
   const blockName = blockDisplayName;
+  const formattingTargetId = (candidate: BulletinBlock) => {
+    if (candidate.type !== 'elementChooser') return candidate.id;
+    const value = effectiveCustomPropertyValue(candidate.property.propertyId, template, document);
+    const property = effectiveCustomPropertyDefinitions(template, document).find(item => item.id === candidate.property.propertyId);
+    return (candidate.choices.find(choice => choice.id === value) ?? candidate.choices.find(choice => choice.id === property?.defaultValue) ?? candidate.choices[0])?.block?.id;
+  };
   const updateChildren = (parent: BulletinBlock, children: BulletinBlock[]) => {
+    let blocks = document.blocks;
     if (parent.type === "group")
-      updateBlock(parent.id, { ...parent, children });
+      blocks = updateBlockTree(blocks, parent.id, { ...parent, children });
     if (parent.type === "paragraph")
-      updateBlock(parent.id, {
+      blocks = updateBlockTree(blocks, parent.id, {
         ...parent,
         children: children.filter((child) => child.type === "richText"),
       });
     if (parent.type === "templateInstance")
-      updateBlock(parent.id, { ...parent, blocks: children });
+      blocks = updateBlockTree(blocks, parent.id, { ...parent, blocks: children });
+    const pruned = pruneUnusedChooserProperties(document.customProperties ?? template.customProperties ?? [], blocks, document.customPropertyOverrides);
+    onChange({ ...document, blocks, customProperties: pruned.properties, customPropertyOverrides: pruned.overrides });
   };
-  const insertChildPaletteItem = (item: ElementPaletteItem, parentId: string, cell?: LayoutCell) => {
+  const insertChildBlock = (target: { parentId: string; cell?: LayoutCell; chooserChoiceId?: string }, child: BulletinBlock) => {
+    const parent = findBlock(document.blocks, target.parentId);
+    if (parent?.type === 'group') { updateBlock(parent.id, placeGroupChild(parent, editableByDefault(child), target.cell)); return true; }
+    if (parent?.type === 'elementChooser') {
+      const property = effectiveCustomPropertyDefinitions(template, document).find(candidate => candidate.id === parent.property.propertyId);
+      const choice = parent.choices.find(candidate => candidate.id === target.chooserChoiceId);
+      if (!property || !choice || choice.block) return false;
+      updateChooser({ ...parent, choices: parent.choices.map(candidate => candidate.id === choice.id ? { ...candidate, block: editableByDefault(child) } : candidate) }, property);
+      return true;
+    }
+    return false;
+  };
+  const insertChildPaletteItem = (item: ElementPaletteItem, parentId: string, cell?: LayoutCell, requestedChoiceId?: string) => {
     const parent = findBlock(document.blocks, parentId);
-    if (parent?.type !== 'group') return false;
-    if (parent.layoutMode === 'table') return true;
+    if (!parent) return false;
     const payload = item.payload as ElementPalettePayload;
+    if (parent.type === 'elementChooser') {
+      const property = effectiveCustomPropertyDefinitions(template, document).find(candidate => candidate.id === parent.property.propertyId);
+      const value = property ? effectiveCustomPropertyValue(property.id, template, document) : undefined;
+      const choice = parent.choices.find(candidate => candidate.id === requestedChoiceId) ?? parent.choices.find(candidate => candidate.id === value) ?? parent.choices.find(candidate => candidate.id === property?.defaultValue) ?? parent.choices[0];
+      if (!property || !choice || choice.block) return true;
+      const target = { parentId, chooserChoiceId: choice.id };
+      const fill = (child: BulletinBlock, additional: NonNullable<BulletinDocumentV1['customProperties']> = []) => updateChooser({ ...parent, choices: parent.choices.map(candidate => candidate.id === choice.id ? { ...candidate, block: editableByDefault(child) } : candidate) }, property, undefined, additional);
+      if (payload.kind === 'component') fill(instantiateComponentDefinition(payload.definition) as BulletinBlock);
+      else if (payload.kind === 'container') fill(createLayoutContainer(payload.layoutMode, `container-${randomId()}`));
+      else if (payload.kind === 'elementChooser') { const created = createElementChooser(document.customProperties ?? template.customProperties ?? []); fill(created.block, [created.property]); }
+      else if (payload.kind === 'image') setChildImageTarget({ parentId: parent.id, chooserChoiceId: choice.id });
+      else if (payload.kind === 'page') setChildPageTarget(target);
+      else if (payload.kind === 'template') setChildTemplateTarget(target);
+      else if (payload.kind === 'fullPageAsset') void addChildFullPageAsset(target);
+      else return false;
+      return true;
+    }
+    if (parent.type !== 'group') return false;
+    const target = { parentId, cell };
     if (payload.kind === 'component') {
       const child = editableByDefault(instantiateComponentDefinition(payload.definition) as BulletinBlock);
       if (!groupAcceptsChild(parent, child)) return true;
       updateBlock(parent.id, placeGroupChild(parent, child, cell));
     }
     else if (payload.kind === 'container') updateBlock(parent.id, placeGroupChild(parent, editableByDefault(createLayoutContainer(payload.layoutMode, `container-${randomId()}`)), cell));
+    else if (payload.kind === 'elementChooser') {
+      const created = createElementChooser(document.customProperties ?? template.customProperties ?? []);
+      onChange({ ...document, customProperties: [...(document.customProperties ?? template.customProperties ?? []), created.property], blocks: updateBlockTree(document.blocks, parent.id, placeGroupChild(parent, editableByDefault(created.block), cell)) });
+    }
     else if (payload.kind === 'image') setChildImageTarget({ parentId: parent.id, cell });
+    else if (payload.kind === 'page') setChildPageTarget(target);
+    else if (payload.kind === 'template') setChildTemplateTarget(target);
+    else if (payload.kind === 'fullPageAsset') void addChildFullPageAsset(target);
     else return false;
     return true;
   };
@@ -239,8 +297,17 @@ export function WeeklyEditor({
   const moveBlockIntoContainer = (blockId: string, containerId: string, cell?: LayoutCell) => {
     const child = document.blocks.find(block => block.id === blockId);
     const parent = findBlock(document.blocks, containerId);
-    if (!child || parent?.type !== 'group' || findBlock([child], containerId)) return false;
-    if (parent.layoutMode === 'table') return true;
+    if (!child || !parent || findBlock([child], containerId)) return false;
+    if (parent.type === 'elementChooser') {
+      const property = effectiveCustomPropertyDefinitions(template, document).find(candidate => candidate.id === parent.property.propertyId);
+      const value = property ? effectiveCustomPropertyValue(property.id, template, document) : undefined;
+      const choice = parent.choices.find(candidate => candidate.id === value) ?? parent.choices.find(candidate => candidate.id === property?.defaultValue) ?? parent.choices[0];
+      if (!property || !choice || choice.block) return true;
+      const remaining = document.blocks.filter(block => block.id !== child.id);
+      onChange({ ...document, blocks: updateBlockTree(remaining, parent.id, { ...parent, choices: parent.choices.map(candidate => candidate.id === choice.id ? { ...candidate, block: child } : candidate) }) });
+      return true;
+    }
+    if (parent.type !== 'group') return false;
     if (!groupAcceptsChild(parent, child)) return true;
     const remaining = document.blocks.filter(block => block.id !== child.id);
     onChange({ ...document, blocks: updateBlockTree(remaining, parent.id, placeGroupChild(parent, child, cell)) });
@@ -251,7 +318,7 @@ export function WeeklyEditor({
     const isParagraph = parent.type === "paragraph";
     const isScripture = parent.type === "scriptureReading";
     const isTable = parent.type === 'group' && parent.layoutMode === 'table';
-    const reorderable = !isParagraph && !isScripture && !isTable;
+    const reorderable = !isParagraph && !isScripture;
     const editors = children.map((child) => {
       const editor = (
         <details
@@ -275,11 +342,11 @@ export function WeeklyEditor({
               <button className={`format-block-button condition-toggle ${child.condition ? 'condition-active' : ''}`} aria-pressed={Boolean(child.condition)} title="Set conditional visibility" onClick={() => setConditionBlockId(child.id)}>Condition</button>
               <button
                 className="format-block-button format-action"
-                onClick={() => setFormattingBlockId(child.id)}
+                onClick={() => { const id = formattingTargetId(child); if (id) setFormattingBlockId(id); }}
               >
                 Format
               </button>
-              {!isScripture && !isTable && (!isParagraph || child.role === "header") && (
+              {!isScripture && (!isParagraph || child.role === "header") && (
                 <button
                   className="danger-text"
                   title="Remove element"
@@ -323,7 +390,7 @@ export function WeeklyEditor({
                     <RichTextEditor content={boundRichTextParagraphs(child, document, bulletinTemplate, library)} label={child.role === "header" ? "Header text" : "Paragraph text"} onChange={content => updateBlock(child.id, child.binding ? { ...child, bindingOverride: content } : { ...child, content })} />
                   </label>{child.bindingOverride && <button className="text-button" onClick={() => updateBlock(child.id, resetBoundRichTextContent(child))}>Reset to bound value</button>}</>
                 )}
-                {child.type !== 'heading' && child.type !== 'sectionHeading' && child.type !== 'sermonTitle' && child.type !== 'richText' && <NativeBlockFields block={child} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope={templateMode ? "template" : "weekly"} root={root} imageTargetFolder={assetFolder} includeChildren={false} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(child.id, next)} />}
+                {child.type !== 'heading' && child.type !== 'sectionHeading' && child.type !== 'sermonTitle' && child.type !== 'richText' && <NativeBlockFields block={child} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope={templateMode ? "template" : "weekly"} root={root} imageTargetFolder={assetFolder} includeChildren={false} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(child.id, next)} onChooserChange={updateChooser} onFormatBlock={setFormattingBlockId} onRequestElement={insertChildPaletteItem} />}
                 {childBlocks(child) && nestedEditors(child)}
               </>
             )}
@@ -353,7 +420,7 @@ export function WeeklyEditor({
               ? "Heading, reference, caption, and body can be positioned and formatted independently."
               : isParagraph
                 ? "Header and body formatting are completely independent."
-                : isTable ? "Each cell contains rich text and can also be edited directly in the preview." : parent.type === 'group' ? "Any content or layout element can be placed here." : "Each paragraph keeps its header and body together."}
+                : isTable ? "Each cell can contain any content, layout, or page element." : parent.type === 'group' ? "Any content, layout, or page element can be placed here." : "Each paragraph keeps its header and body together."}
           </span>
         </div>
         {reorderable ? (
@@ -366,7 +433,7 @@ export function WeeklyEditor({
               containerId: parent.id,
               cells: Object.fromEntries(parent.children.map((child, index) => [child.id, groupChildCell(parent, child, index)])),
               onMove: (id, cell) => updateBlock(parent.id, moveGroupChildToCell(parent, id, cell)),
-              onAdd: cell => parent.layoutMode === 'table' ? updateBlock(parent.id, placeGroupChild(parent, editableByDefault(createTableCell(`text-${randomId()}`)), cell)) : (setElementParentId(parent.id), setElementCell(cell))
+              onAdd: cell => { setElementParentId(parent.id); setElementCell(cell); }
             } : undefined}
             onMoveOut={parent.type === 'group' ? (id, targetId, position) => { onChange({ ...document, blocks: moveGroupChildToRoot(document.blocks, parent.id, id, targetId, position) }); return true; } : undefined}
           >
@@ -489,6 +556,15 @@ export function WeeklyEditor({
       onError(error instanceof Error ? error.message : String(error));
     }
   };
+  const addChildFullPageAsset = async (target: { parentId: string; cell?: LayoutCell; chooserChoiceId?: string }) => {
+    if (!root || !window.bulletin) return;
+    try {
+      const asset = await window.bulletin.importAsset(root, assetFolder);
+      if (asset) insertChildBlock(target, { id: `page-${randomId()}`, type: 'fullPageAsset', asset });
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  };
   const usePaletteItem = (item: ElementPaletteItem, index: number) => {
     const payload = item.payload as ElementPalettePayload;
     if (payload.kind === "component") {
@@ -498,6 +574,11 @@ export function WeeklyEditor({
     } else if (payload.kind === "container") {
       const block = editableByDefault(createLayoutContainer(payload.layoutMode, `container-${randomId()}`));
       onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, index) });
+      setPendingAddedBlockId(block.id);
+    } else if (payload.kind === 'elementChooser') {
+      const created = createElementChooser(document.customProperties ?? template.customProperties ?? []);
+      const block = editableByDefault(created.block);
+      onChange({ ...document, customProperties: [...(document.customProperties ?? template.customProperties ?? []), created.property], blocks: insertWeeklyBlock(document.blocks, block, index) });
       setPendingAddedBlockId(block.id);
     } else if (payload.kind === "page") setPageInsertionIndex(index);
     else if (payload.kind === "template") setTemplateInsertionIndex(index);
@@ -723,7 +804,7 @@ export function WeeklyEditor({
                   </> : <button
                       className="format-block-button format-action"
                       title="Format block"
-                      onClick={() => setFormattingBlockId(block.id)}
+                      onClick={() => { const id = formattingTargetId(block); if (id) setFormattingBlockId(id); }}
                     >
                       Format
                     </button>}
@@ -731,12 +812,7 @@ export function WeeklyEditor({
                     className="danger-text"
                     title={`Remove ${blockName(block)}`}
                     aria-label={`Remove ${blockName(block)}`}
-                    onClick={() =>
-                      onChange({
-                        ...document,
-                        blocks: removeWeeklyBlock(document.blocks, block.id),
-                      })
-                    }
+                    onClick={() => { const blocks = removeWeeklyBlock(document.blocks, block.id); const pruned = pruneUnusedChooserProperties(document.customProperties ?? template.customProperties ?? [], blocks, document.customPropertyOverrides); onChange({ ...document, blocks, customProperties: pruned.properties, customPropertyOverrides: pruned.overrides }); }}
                   >
                     ×
                   </button>
@@ -1165,6 +1241,7 @@ export function WeeklyEditor({
                 )}
                 {block.type === "group" &&
                   <><LayoutContainerFields block={block} onChange={next => updateBlock(block.id, next)} />{nestedEditors(block)}</>}
+                {block.type === 'elementChooser' && <NativeBlockFields block={block} document={document} library={library} template={bulletinTemplate} responsiveReadingSettings={responsiveReadingSettings} scope={templateMode ? 'template' : 'weekly'} root={root} imageTargetFolder={assetFolder} onLibraryChange={onLibraryChange} onError={onError} onChange={next => updateBlock(block.id, next)} onChooserChange={updateChooser} onFormatBlock={setFormattingBlockId} onRequestElement={insertChildPaletteItem} />}
                 {block.type === "copyright" && (
                   <CopyrightFields block={block} onChange={next => updateBlock(block.id, next)} />
                 )}
@@ -1265,10 +1342,32 @@ export function WeeklyEditor({
           }}
         />
       )}
+      {childPageTarget && !creatingPage && (
+        <PageElementDialog
+          pages={pageTemplates}
+          library={library}
+          root={root}
+          onClose={() => setChildPageTarget(undefined)}
+          onSelect={page => { insertChildBlock(childPageTarget, instantiatePageTemplate(page, randomId(), bulletinTemplate)); setChildPageTarget(undefined); }}
+          onCreate={setCreatingPage}
+        />
+      )}
+      {childTemplateTarget && (
+        <TemplateElementDialog
+          templates={templates}
+          library={library}
+          root={root}
+          excludeTemplateId={template.id}
+          onClose={() => setChildTemplateTarget(undefined)}
+          onSelect={source => { insertChildBlock(childTemplateTarget, instantiateTemplate(source, randomId(), bulletinTemplate, document.blocks)); setChildTemplateTarget(undefined); }}
+        />
+      )}
       {creatingPage && (
         <PageTemplateEditor
           value={creatingPage}
           template={bulletinTemplate}
+          templates={templates}
+          pageTemplates={pageTemplates}
           document={document}
           library={library}
           root={root}
@@ -1286,8 +1385,13 @@ export function WeeklyEditor({
               setCreatingPage(undefined);
               setPageInsertionIndex(undefined);
             }
+            else if (publish && childPageTarget) {
+              insertChildBlock(childPageTarget, instantiatePageTemplate(saved, randomId(), bulletinTemplate));
+              setCreatingPage(undefined);
+              setChildPageTarget(undefined);
+            }
           }}
-          onClose={() => { setCreatingPage(undefined); setPageInsertionIndex(undefined); }}
+          onClose={() => { setCreatingPage(undefined); setPageInsertionIndex(undefined); setChildPageTarget(undefined); }}
         />
       )}
       {blockLibraryIndex !== undefined && (
@@ -1411,6 +1515,8 @@ export function WeeklyEditor({
             <PageTemplateEditor
               value={page}
               template={bulletinTemplate}
+              templates={templates}
+              pageTemplates={pageTemplates}
               document={document}
               library={library}
               root={root}
@@ -1444,7 +1550,7 @@ export function WeeklyEditor({
           onChange({ ...document, blocks: insertWeeklyBlock(document.blocks, block, imageIndex) });
         }}
       />}
-      {elementParentId && <ElementPickerDialog items={bulletinEditorElementPaletteItems(library?.componentDefinitions ?? [], false).filter(item => findBlock(document.blocks, elementParentId)?.type !== 'group' || (findBlock(document.blocks, elementParentId) as Extract<BulletinBlock, { type: 'group' }>).layoutMode !== 'table' || (item.payload as ElementPalettePayload).kind === 'component' && (item.payload as Extract<ElementPalettePayload, { kind: 'component' }>).definition.type === 'bulletin:text')} onSelect={useChildPaletteItem} onClose={() => { setElementParentId(undefined); setElementCell(undefined); }} />}
+      {elementParentId && <ElementPickerDialog items={bulletinEditorElementPaletteItems(library?.componentDefinitions ?? [], true)} onSelect={useChildPaletteItem} onClose={() => { setElementParentId(undefined); setElementCell(undefined); }} />}
       {childImageTarget && root && <ImageAssetDialog
         library={library}
         root={root}
@@ -1455,6 +1561,10 @@ export function WeeklyEditor({
         onSelect={asset => {
           const parent = findBlock(document.blocks, childImageTarget.parentId);
           if (parent?.type === 'group') updateBlock(parent.id, placeGroupChild(parent, editableByDefault({ id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }), childImageTarget.cell));
+          if (parent?.type === 'elementChooser' && childImageTarget.chooserChoiceId) {
+            const property = effectiveCustomPropertyDefinitions(template, document).find(candidate => candidate.id === parent.property.propertyId);
+            if (property) updateChooser({ ...parent, choices: parent.choices.map(choice => choice.id === childImageTarget.chooserChoiceId ? { ...choice, block: editableByDefault({ id: `image-${randomId()}`, type: 'image', asset, alt: asset.alt, fit: 'contain', heightIn: 2.5 }) } : choice) }, property);
+          }
           setChildImageTarget(undefined);
         }}
       />}

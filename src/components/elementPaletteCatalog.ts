@@ -8,13 +8,14 @@ export type ElementPalettePayload =
   | { kind: 'page' }
   | { kind: 'template' }
   | { kind: 'fullPageAsset' }
+  | { kind: 'elementChooser' }
   | { kind: 'container'; layoutMode: 'grid' | 'table' }
   | { kind: 'shape'; shape: 'rectangle' | 'line' };
 
 const latestDefinitions = (definitions: DeclarativeComponentDefinition[]) =>
   [...new Map(definitions.slice().sort((left, right) => left.version - right.version).map(definition => [definition.type, definition])).values()];
 
-export function flowElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[], includePages = true, includeContainers = true): ElementPaletteItem[] {
+export function flowElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[], includePages = true, includeContainers = true, includeChooser = true): ElementPaletteItem[] {
   const components = [...prepackagedComponentDefinitions, ...latestDefinitions(workspaceDefinitions)]
     .filter(definition => definition.type !== 'bulletin:sectionHeading')
     .map(definition => ({
@@ -31,6 +32,7 @@ export function flowElementPaletteItems(workspaceDefinitions: DeclarativeCompone
       { id: 'container:grid', label: 'Grid', description: 'Arrange child elements in equal-width columns.', icon: '▦', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'grid' as const } },
       { id: 'container:table', label: 'Table', description: 'Arrange child elements in bordered rows and columns.', icon: '▥', category: 'layout' as const, payload: { kind: 'container' as const, layoutMode: 'table' as const } }
     ] : []),
+    ...(includeChooser ? [{ id: 'container:element-chooser', label: 'Element Chooser', description: 'Select one of several alternative elements.', icon: '⇄', category: 'layout' as const, payload: { kind: 'elementChooser' as const } }] : []),
     { id: 'native:image', label: 'Image', description: 'An image that flows with document content.', icon: '▧', category: 'media', payload: { kind: 'image' } },
     ...(includePages ? [
       { id: 'native:template', label: 'Sub-template', description: 'Insert a published bulletin template as one reusable element.', icon: '▥', category: 'pages' as const, payload: { kind: 'template' as const } },
@@ -49,7 +51,7 @@ export function bulletinEditorElementPaletteItems(workspaceDefinitions: Declarat
 
 export function canvasElementPaletteItems(workspaceDefinitions: DeclarativeComponentDefinition[]): ElementPaletteItem[] {
   return [
-    ...flowElementPaletteItems(workspaceDefinitions, false, false),
+    ...flowElementPaletteItems(workspaceDefinitions, false, false, false),
     { id: 'shape:rectangle', label: 'Rectangle', icon: '□', category: 'shapes', payload: { kind: 'shape', shape: 'rectangle' } },
     { id: 'shape:line', label: 'Line', icon: '╱', category: 'shapes', payload: { kind: 'shape', shape: 'line' } }
   ] as ElementPaletteItem[];

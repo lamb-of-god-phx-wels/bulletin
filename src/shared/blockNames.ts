@@ -35,6 +35,7 @@ export function blockDisplayName(block: BulletinBlock): string {
   if (block.type === 'image') return concise(block.alt || block.asset.alt || '', 'Image');
   if (block.type === 'fullPageAsset') return concise(block.asset.alt || '', 'Full-page asset');
   if (block.type === 'group') return concise(block.label || '', block.layoutMode === 'table' ? 'Table' : 'Grid');
+  if (block.type === 'elementChooser') return concise(block.label || '', 'Element Chooser');
   if (block.type === 'canvas') return concise(block.label || '', 'Canvas');
   if (block.type === 'announcements') return concise(block.label || '', 'Announcements');
   if (block.type === 'list') return concise(block.label || '', 'List');

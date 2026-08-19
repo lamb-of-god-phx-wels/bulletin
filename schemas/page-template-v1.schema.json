@@ -28,14 +28,17 @@
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "name": { "type": "string", "minLength": 1 },
-        "valueType": { "enum": ["string", "number", "boolean"] },
+        "valueType": { "enum": ["string", "number", "boolean", "list"] },
         "defaultValue": {},
-        "includeInThisSunday": { "type": "boolean" }
+        "includeInThisSunday": { "type": "boolean" },
+        "managedByChooserId": { "type": "string", "minLength": 1 },
+        "options": { "type": "array", "items": { "type": "object", "required": ["id", "label"], "properties": { "id": { "type": "string", "minLength": 1 }, "label": { "type": "string", "minLength": 1 } }, "additionalProperties": false } }
       },
       "allOf": [
         { "if": { "properties": { "valueType": { "const": "string" } } }, "then": { "properties": { "defaultValue": { "type": "string" } } } },
         { "if": { "properties": { "valueType": { "const": "number" } } }, "then": { "properties": { "defaultValue": { "type": "number" } } } },
-        { "if": { "properties": { "valueType": { "const": "boolean" } } }, "then": { "properties": { "defaultValue": { "type": "boolean" } } } }
+        { "if": { "properties": { "valueType": { "const": "boolean" } } }, "then": { "properties": { "defaultValue": { "type": "boolean" } } } },
+        { "if": { "properties": { "valueType": { "const": "list" } } }, "then": { "required": ["options"], "properties": { "defaultValue": { "type": "string" } } } }
       ],
       "additionalProperties": false
     }

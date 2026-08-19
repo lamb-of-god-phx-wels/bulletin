@@ -66,4 +66,24 @@ describe('nested blocks', () => {
     });
     expect(blockDisplayName(findBlock(updated, 'reading-reference')!)).toBe('Gospel opening');
   });
+
+  it('traverses and updates every Element Chooser alternative', () => {
+    const chooser: BulletinBlock = { id: 'chooser', type: 'elementChooser', property: { kind: 'customProperty', propertyId: 'choice', propertyName: 'Choice', valueType: 'list' }, choices: [
+      { id: 'one', name: 'One', block: { id: 'one-block', type: 'heading', text: 'One' } },
+      { id: 'two', name: 'Two', block: { id: 'two-block', type: 'heading', text: 'Two' } },
+    ] };
+    expect(flattenBlocks([chooser]).map(block => block.id)).toEqual(['chooser', 'one-block', 'two-block']);
+    const updated = updateBlockTree([chooser], 'two-block', { id: 'two-block', type: 'heading', text: 'Updated' });
+    expect(findBlock(updated, 'two-block')).toMatchObject({ text: 'Updated' });
+    expect(blockDisplayName(chooser)).toBe('Element Chooser');
+  });
+
+  it('keeps empty chooser options selectable without treating them as child blocks', () => {
+    const chooser: BulletinBlock = { id: 'chooser', type: 'elementChooser', property: { kind: 'customProperty', propertyId: 'choice', propertyName: 'Choice', valueType: 'list' }, choices: [
+      { id: 'empty', name: 'Empty' },
+      { id: 'filled', name: 'Filled', block: { id: 'filled-block', type: 'spacer', size: 'small' } },
+    ] };
+    expect(childBlocks(chooser)?.map(block => block.id)).toEqual(['filled-block']);
+    expect(flattenBlocks([chooser]).map(block => block.id)).toEqual(['chooser', 'filled-block']);
+  });
 });

@@ -37,8 +37,7 @@ describe('builder feature blocks', () => {
     expect(grid).toMatchObject({ type: 'group', layoutMode: 'grid', columns: 2, rows: 2 });
     expect(table).toMatchObject({ type: 'group', layoutMode: 'table', columns: 2, rows: 2, gapIn: 0 });
     expect(grid.children).toEqual([]);
-    expect(table.children).toHaveLength(4);
-    expect(table.children.every(child => child.type === 'richText')).toBe(true);
+    expect(table.children).toEqual([]);
     const populatedGrid: BulletinBlock = { ...grid, children: [
       { id: 'first', type: 'heading', text: 'First' },
       { id: 'second', type: 'heading', text: 'Second' }
@@ -58,15 +57,14 @@ describe('builder feature blocks', () => {
     expect(moved.children.find(child => child.id === 'heading')?.gridPosition).toEqual({ row: 1, column: 1 });
   });
 
-  it('keeps tables specialized to rich-text cells', () => {
+  it('allows any element in initially empty table cells', () => {
     const table = createLayoutContainer('table', 'table');
     const text = createTableCell('cell');
     expect(groupAcceptsChild(table, text)).toBe(true);
-    expect(groupAcceptsChild(table, { id: 'image', type: 'image', asset: { path: 'x.png', mediaType: 'image/png' } })).toBe(false);
-    expect(table.children.map(child => child.gridPosition)).toEqual([
-      { row: 1, column: 1 }, { row: 1, column: 2 }, { row: 2, column: 1 }, { row: 2, column: 2 }
-    ]);
-    expect(placeGroupChild(table, { id: 'heading', type: 'heading', text: 'No' }, { row: 1, column: 2 })).toBe(table);
+    expect(groupAcceptsChild(table, { id: 'image', type: 'image', asset: { path: 'x.png', mediaType: 'image/png' } })).toBe(true);
+    expect(table.children).toEqual([]);
+    const withPage = placeGroupChild(table, { id: 'page', type: 'fullPageAsset', asset: { path: 'page.pdf', mediaType: 'application/pdf' } }, { row: 1, column: 2 });
+    expect(withPage.children.find(child => child.id === 'page')?.gridPosition).toEqual({ row: 1, column: 2 });
   });
 
   it('renders saved grid sizing and preview resize controls', () => {
@@ -90,7 +88,7 @@ describe('builder feature blocks', () => {
     const markup = renderToStaticMarkup(createElement(NativeBlockPreview, { block: table, document, library: undefined, assets: {}, marginIn: .4, onBlockChange: () => undefined }));
     expect(markup).toContain('has-table-header');
     expect(markup).toContain('table-lines-hidden');
-    expect(markup.match(/contentEditable="true"/g)).toHaveLength(4);
+    expect(markup.match(/class="layout-cell-content"/g)).toHaveLength(4);
     expect(markup).not.toContain('Add element');
   });
 

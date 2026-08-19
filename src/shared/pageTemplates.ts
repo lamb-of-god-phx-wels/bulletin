@@ -89,6 +89,7 @@ export function remapProperties(block: BulletinBlock, template?: TemplateV1): Bu
   if (next.type === 'richText' && isCustomPropertyBinding(next.binding)) next.binding = propertyForBinding(next.binding, template);
   if (next.type === 'custom') next.bindings = next.bindings.map(binding => isCustomPropertyBinding(binding.source) ? { ...binding, source: propertyForBinding(binding.source, template) } : binding);
   if (next.type === 'group') next.children = next.children.map(child => remapProperties(child, template));
+  if (next.type === 'elementChooser') { next.property = propertyForBinding(next.property, template); next.choices = next.choices.map(choice => choice.block ? ({ ...choice, block: remapProperties(choice.block, template) }) : choice); }
   if (next.type === 'paragraph') next.children = next.children.map(child => remapProperties(child, template) as typeof child);
   if (next.type === 'scriptureReading' && next.elements) next.elements = Object.fromEntries(Object.entries(next.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: propertyForBinding(settings.condition.property, template) } } : settings]));
   if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapProperties(child, template));
@@ -102,6 +103,30 @@ export function remapProperties(block: BulletinBlock, template?: TemplateV1): Bu
 }
 
 export function instantiatePageTemplate(source: PageTemplateV1, id: string = randomId(), template?: TemplateV1): TemplatePageBlock {
+  const hostProperties = effectiveCustomPropertyDefinitions(template);
+  const propertyIds = new Set(hostProperties.map(property => property.id));
+  const propertyNames = new Set(hostProperties.map(property => property.name.trim().toLocaleLowerCase()));
+  const bindings = new Map<string, CustomPropertyBinding>();
+  const properties = source.customProperties?.map(property => {
+    const requested = { kind: 'customProperty', propertyId: property.id, propertyName: property.name, valueType: property.valueType } satisfies CustomPropertyBinding;
+    const matched = property.managedByChooserId ? requested : propertyForBinding(requested, template);
+    const hostProperty = hostProperties.find(candidate => candidate.id === matched.propertyId && candidate.valueType === matched.valueType);
+    if (hostProperty && !property.managedByChooserId) { bindings.set(property.id, matched); return structuredClone(hostProperty); }
+    let propertyId = property.id;
+    for (let suffix = 2; propertyIds.has(propertyId); suffix++) propertyId = `${property.id}-${suffix}`;
+    propertyIds.add(propertyId);
+    let name = property.name;
+    for (let suffix = 2; propertyNames.has(name.trim().toLocaleLowerCase()); suffix++) name = `${property.name} ${suffix}`;
+    propertyNames.add(name.trim().toLocaleLowerCase());
+    bindings.set(property.id, { kind: 'customProperty', propertyId, propertyName: name, valueType: property.valueType });
+    return { ...structuredClone(property), id: propertyId, name };
+  });
+  const mapBindings = (value: unknown): unknown => {
+    if (isCustomPropertyBinding(value)) return bindings.get(value.propertyId) ?? value;
+    if (Array.isArray(value)) return value.map(mapBindings);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, mapBindings(nested)]));
+    return value;
+  };
   return {
     id,
     type: 'templatePage',
@@ -110,11 +135,8 @@ export function instantiatePageTemplate(source: PageTemplateV1, id: string = ran
     sourceDigest: pageTemplateDigest(source),
     pageLayout: pageTemplateLayout(source),
     margin: structuredClone(source.margin),
-    customProperties: source.customProperties?.map(property => {
-      const binding = propertyForBinding({ kind: 'customProperty', propertyId: property.id, propertyName: property.name, valueType: property.valueType }, template);
-      return binding.propertyId === property.id ? structuredClone(property) : effectiveCustomPropertyDefinitions(template).find(candidate => candidate.id === binding.propertyId) ?? structuredClone(property);
-    }),
-    blocks: source.blocks.map(block => remapProperties(block, template))
+    customProperties: properties,
+    blocks: source.blocks.map(block => remapProperties(mapBindings(block) as BulletinBlock, template))
   };
 }
 
@@ -130,6 +152,7 @@ function freshId(id: string, used: Set<string>) {
 export function remapBlock(block: BulletinBlock, used: Set<string>): BulletinBlock {
   const next = { ...structuredClone(block), id: freshId(block.id, used) } as BulletinBlock;
   if (next.type === 'group') next.children = next.children.map(child => remapBlock(child, used));
+  if (next.type === 'elementChooser') next.choices = next.choices.map(choice => choice.block ? ({ ...choice, block: remapBlock(choice.block, used) }) : choice);
   if (next.type === 'paragraph') next.children = next.children.map(child => remapBlock(child, used) as typeof child);
   if (next.type === 'templatePage') next.blocks = next.blocks.map(child => remapBlock(child, used));
   if (next.type === 'templateInstance') next.blocks = next.blocks.map(child => remapBlock(child, used));

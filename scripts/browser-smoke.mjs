@@ -64,13 +64,64 @@ if (process.env.BULLETIN_PALETTE_ONLY === '1') {
 }
 await wait(process.env.BULLETIN_PALETTE_ONLY === '1'
   ? `Boolean(document.querySelector('.sidebar-palette-slot .element-palette'))`
-  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_CANVAS_ONLY === '1' || process.env.BULLETIN_FONT_PICKER_ONLY === '1' || process.env.BULLETIN_IMPORTED_FONT_ONLY === '1' || process.env.BULLETIN_EDITOR_LANDING_ONLY === '1'
+  : process.env.BULLETIN_CHURCH_YEAR_ONLY === '1' || process.env.BULLETIN_INLINE_TYPOGRAPHY_ONLY === '1' || process.env.BULLETIN_BLOCK_FORMATTING_ONLY === '1' || process.env.BULLETIN_BUILDER_TODOS_ONLY === '1' || process.env.BULLETIN_GRID_ONLY === '1' || process.env.BULLETIN_CHOOSER_ONLY === '1' || process.env.BULLETIN_RESPONSIVE_ONLY === '1' || process.env.BULLETIN_RICH_TEXT_ONLY === '1' || process.env.BULLETIN_CANVAS_ONLY === '1' || process.env.BULLETIN_FONT_PICKER_ONLY === '1' || process.env.BULLETIN_IMPORTED_FONT_ONLY === '1' || process.env.BULLETIN_EDITOR_LANDING_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
   : process.env.BULLETIN_PAGE_TEMPLATE_CANVAS_ONLY === '1' || process.env.BULLETIN_PAGE_TEMPLATE_REGULAR_ONLY === '1'
     ? `Boolean(document.querySelector('.app-shell'))`
     : `document.body.textContent.includes('God Loves Sinners')`, 'initial workspace');
 if (await evaluate(`document.body.textContent.toLowerCase().includes('browser demo')`)) throw new Error('Browser demo wording remains.');
 pass('loads a real persistent local workspace without demo wording');
+
+if (process.env.BULLETIN_CHOOSER_ONLY === '1') {
+  await command('Emulation.setDeviceMetricsOverride', { width: 1500, height: 1000, deviceScaleFactor: 1, mobile: false });
+  if (await evaluate(`Boolean(document.querySelector('.bulletin-editor-landing'))`)) {
+    await click('Create New');
+    await wait(`Boolean(document.querySelector('.create-kind-modal'))`, 'new bulletin choices');
+    await evaluate(`Array.from(document.querySelectorAll('.create-kind-options button')).find(button=>button.querySelector('b')?.textContent.trim()==='Blank')?.click()`);
+    await click('Create a bulletin');
+  }
+  await wait(`Boolean(document.querySelector('.element-palette'))&&document.body.innerText.includes('WEEKLY BULLETIN')`, 'weekly editor palette');
+  await evaluate(`Array.from(document.querySelectorAll('.element-palette-item')).find(button=>button.textContent.includes('Element Chooser'))?.click()`);
+  await wait(`Boolean(document.querySelector('.element-chooser-setup-dialog'))&&document.querySelector('.element-chooser-setup-dialog')?.textContent.includes('This Sunday')`, 'chooser selector-name wizard');
+  await evaluate(`(()=>{const element=document.querySelector('.element-chooser-setup-dialog input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'Service version');element.dispatchEvent(new Event('input',{bubbles:true}));element.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await click('Continue');
+  await wait(`!document.querySelector('.element-chooser-setup-dialog')&&Boolean(document.querySelector('.element-chooser-fields'))&&Boolean(document.querySelector('.this-sunday-properties select'))`, 'configured empty chooser and Sunday selector');
+  if (!await evaluate(`document.querySelector('.element-chooser-fields')?.textContent.includes('No options yet')`)) throw new Error('New chooser did not start empty.');
+  await evaluate(`Array.from(document.querySelectorAll('.element-chooser-fields button')).find(button=>button.textContent.includes('Add option'))?.click()`);
+  await wait(`Boolean(document.querySelector('.element-chooser-option-dialog'))`, 'first option-name wizard');
+  await evaluate(`(()=>{const element=document.querySelector('.element-chooser-option-dialog input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'Primary heading');element.dispatchEvent(new Event('input',{bubbles:true}));element.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await click('Continue');
+  await wait(`Boolean(document.querySelector('.chooser-empty-slot'))&&document.querySelector('.element-chooser-fields > label select')?.options.length===1&&!document.querySelector('.element-picker-dialog')`, 'blank first chooser option');
+  await evaluate(`document.querySelector('.chooser-empty-slot')?.click()`);
+  await wait(`Boolean(document.querySelector('.element-picker-dialog'))`, 'chooser option picker');
+  const chooserElementChoices = await evaluate(`Array.from(document.querySelectorAll('.element-picker-dialog button b')).map(item=>item.textContent.trim())`);
+  for (const label of ['Sub-template', 'Page Design', 'Full-page image / PDF']) if (!chooserElementChoices.includes(label)) throw new Error(`Chooser element picker is missing ${label}: ${JSON.stringify(chooserElementChoices)}`);
+  await evaluate(`Array.from(document.querySelectorAll('.element-picker-dialog button')).find(button=>button.querySelector('b')?.textContent.trim()==='Heading')?.click()`);
+  await wait(`document.querySelector('.element-chooser-fields > label select')?.options.length===1`, 'first chooser option');
+  await evaluate(`Array.from(document.querySelectorAll('.element-chooser-fields button')).find(button=>button.textContent.includes('Add option'))?.click()`);
+  await wait(`Boolean(document.querySelector('.element-chooser-option-dialog'))`, 'second option-name wizard');
+  await evaluate(`(()=>{const element=document.querySelector('.element-chooser-option-dialog input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,'Alternate layout');element.dispatchEvent(new Event('input',{bubbles:true}));element.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await click('Continue');
+  await wait(`Boolean(document.querySelector('.chooser-empty-slot'))&&document.querySelector('.element-chooser-fields > label select')?.options.length===2&&!document.querySelector('.element-picker-dialog')`, 'blank second chooser option');
+  const chooserDrop = await evaluate(`(()=>{const target=document.querySelector('.chooser-empty-slot');target.scrollIntoView({block:'center'});const item=Array.from(document.querySelectorAll('.element-palette-item')).find(button=>button.textContent.includes('Spacer')),a=item.getBoundingClientRect(),b=target.getBoundingClientRect();return {start:{x:a.left+a.width/2,y:a.top+a.height/2},end:{x:b.left+b.width/2,y:b.top+b.height/2}}})()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: chooserDrop.start.x, y: chooserDrop.start.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 8; step++) { const ratio = step / 8; await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: chooserDrop.start.x + (chooserDrop.end.x - chooserDrop.start.x) * ratio, y: chooserDrop.start.y + (chooserDrop.end.y - chooserDrop.start.y) * ratio, button: 'left', buttons: 1 }); await new Promise(resolve => setTimeout(resolve, 35)); }
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: chooserDrop.end.x, y: chooserDrop.end.y, button: 'left', buttons: 0, clickCount: 1 });
+  await wait(`document.querySelector('.chooser-element-cell .nested-block-editor .block-type')?.textContent.includes('spacer')&&document.querySelector('.element-chooser-fields > label select')?.options.length===2`, 'palette drop into blank chooser option');
+  const synchronized = await evaluate(`(()=>{const chooser=document.querySelector('.element-chooser-fields > label select'),sunday=document.querySelector('.this-sunday-properties select');if(!chooser||!sunday)return false;const first=chooser.options[0].value;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(sunday,first);sunday.dispatchEvent(new Event('change',{bubbles:true}));return new Promise(resolve=>requestAnimationFrame(()=>resolve(document.querySelector('.element-chooser-fields > label select')?.value===first)))})()`);
+  if (!synchronized) throw new Error('This Sunday selection did not synchronize with the Element Chooser.');
+  await evaluate(`document.querySelector('.chooser-element-cell .danger-text')?.click()`);
+  await wait(`Boolean(document.querySelector('.chooser-empty-slot'))&&document.querySelector('.element-chooser-fields > label select')?.options.length===2`, 'removed chooser element without deleting option');
+  await evaluate(`document.querySelector('.chooser-empty-slot')?.click()`);
+  await wait(`document.querySelector('.element-picker-dialog h3')?.textContent==='Add element'`, 'empty chooser slot picker');
+  await evaluate(`Array.from(document.querySelectorAll('.element-picker-dialog button')).find(button=>button.querySelector('b')?.textContent.trim()==='Paragraph')?.click()`);
+  await wait(`Boolean(document.querySelector('.chooser-element-cell > .nested-block-editor.collapsible-editor'))&&!document.querySelector('.chooser-element-cell > .page-native-child')&&document.querySelector('.element-chooser-fields > label select')?.options.length===2`, 'refilled chooser option with Grid editor structure');
+  if (runtimeErrors.length) throw new Error(`Runtime errors: ${runtimeErrors.join('\n')}`);
+  pass('configures an Element Chooser, creates blank options, synchronizes weekly selection, and empties or refills its grid-style slot');
+  console.log(`\n${results.length} browser Element Chooser checks passed.`);
+  socket.close();
+  process.exit(0);
+}
 
 if (process.env.BULLETIN_EDITOR_LANDING_ONLY === '1') {
   await command('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });

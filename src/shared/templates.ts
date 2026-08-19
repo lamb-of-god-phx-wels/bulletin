@@ -77,7 +77,7 @@ export function instantiateTemplate(source: TemplateV1, id = randomId(), host?: 
   const bindings = new Map<string, CustomPropertyBinding>();
   const properties = source.customProperties?.map(property => {
     const requested = { kind: 'customProperty', propertyId: property.id, propertyName: property.name, valueType: property.valueType } satisfies CustomPropertyBinding;
-    const matched = propertyForBinding(requested, host);
+    const matched = property.managedByChooserId ? requested : propertyForBinding(requested, host);
     const hostProperty = hostProperties.find(candidate => candidate.id === matched.propertyId && candidate.valueType === matched.valueType);
     if (hostProperty) {
       const binding = { kind: 'customProperty', propertyId: hostProperty.id, propertyName: hostProperty.name, valueType: hostProperty.valueType } satisfies CustomPropertyBinding;
@@ -129,6 +129,7 @@ export function duplicateTemplate(source: TemplateV1, name: string, records: Tem
 function reusableBlock(source: BulletinBlock): BulletinBlock {
   const block = structuredClone(source);
   if (block.type === 'group') block.children = block.children.map(reusableBlock);
+  if (block.type === 'elementChooser') block.choices = block.choices.map(choice => choice.block ? ({ ...choice, block: reusableBlock(choice.block) }) : choice);
   if (block.type === 'paragraph') block.children = block.children.map(child => reusableBlock(child) as typeof child);
   if (block.type === 'templatePage') block.blocks = block.blocks.map(reusableBlock);
   if (block.type === 'templateInstance') block.blocks = block.blocks.map(reusableBlock);

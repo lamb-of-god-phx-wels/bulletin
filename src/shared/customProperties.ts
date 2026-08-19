@@ -14,14 +14,14 @@ import type {
 import { childBlocks } from './blocks.js';
 import { blockDisplayName } from './blockNames.js';
 
-const propertyTypeName = (valueType: CustomPropertyType) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : 'Number';
+const propertyTypeName = (valueType: CustomPropertyType) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : valueType === 'list' ? 'List' : 'Number';
 
 export function isCustomPropertyBinding(value: unknown): value is CustomPropertyBinding {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
     && (value as CustomPropertyBinding).kind === 'customProperty'
     && typeof (value as CustomPropertyBinding).propertyId === 'string'
     && typeof (value as CustomPropertyBinding).propertyName === 'string'
-    && ['string', 'number', 'boolean'].includes((value as CustomPropertyBinding).valueType);
+    && ['string', 'number', 'boolean', 'list'].includes((value as CustomPropertyBinding).valueType);
 }
 
 export function customPropertyBinding(property: CustomPropertyDefinition): CustomPropertyBinding {
@@ -61,9 +61,10 @@ export function effectiveCustomPropertyValue(
   return effectiveCustomPropertyDefinitions(template, document).find(property => property.id === propertyId)?.defaultValue;
 }
 
-export function customPropertyText(value: CustomPropertyValue | undefined): string {
+export function customPropertyText(value: CustomPropertyValue | undefined, property?: CustomPropertyDefinition): string {
   if (value === undefined) return '';
   if (typeof value === 'boolean') return value ? 'True' : 'False';
+  if (property?.valueType === 'list') return property.options?.find(option => option.id === value)?.label ?? '';
   return String(value);
 }
 
@@ -73,7 +74,10 @@ export function textBindingValue(
   template?: TemplateV1,
   dateFormat: 'long' | 'medium' | 'short' | 'iso' = 'long',
 ): string {
-  if (isCustomPropertyBinding(binding)) return customPropertyText(effectiveCustomPropertyValue(binding.propertyId, template, document));
+  if (isCustomPropertyBinding(binding)) {
+    const property = effectiveCustomPropertyDefinitions(template, document).find(item => item.id === binding.propertyId);
+    return customPropertyText(effectiveCustomPropertyValue(binding.propertyId, template, document), property);
+  }
   if (binding === 'church.name') return document.church.name;
   if (binding === 'info.title') return document.info.title;
   if (binding === 'info.series') return document.info.series ?? '';
@@ -98,6 +102,14 @@ export function resolveConditionalBlocks(
 ): BulletinBlock[] {
   return blocks.flatMap<BulletinBlock>(block => {
     if (!conditionVisible(block, template, document)) return [];
+    if (block.type === 'elementChooser') {
+      const requested = effectiveCustomPropertyValue(block.property.propertyId, template, document);
+      const property = effectiveCustomPropertyDefinitions(template, document).find(item => item.id === block.property.propertyId);
+      const selected = block.choices.find(choice => choice.id === requested)
+        ?? block.choices.find(choice => choice.id === property?.defaultValue)
+        ?? block.choices[0];
+      return selected?.block ? resolveConditionalBlocks([selected.block], template, document) : [];
+    }
     if (block.type === 'group') return [{ ...block, children: resolveConditionalBlocks(block.children, template, document) }];
     if (block.type === 'paragraph') return [{ ...block, children: resolveConditionalBlocks(block.children, template, document).filter(child => child.type === 'richText') }];
     if (block.type === 'templatePage' || block.type === 'templateInstance') return [{ ...block, blocks: resolveConditionalBlocks(block.blocks, template, document) }];
@@ -111,6 +123,7 @@ export function customPropertyUsages(blocks: BulletinBlock[], propertyId: string
     const used = (block.type === 'richText' && isCustomPropertyBinding(block.binding) && block.binding.propertyId === propertyId)
       || (block.type === 'custom' && block.bindings.some(binding => isCustomPropertyBinding(binding.source) && binding.source.propertyId === propertyId))
       || (block.condition?.property.propertyId === propertyId)
+      || (block.type === 'elementChooser' && block.property.propertyId === propertyId)
       || (block.type === 'canvas' && block.scene.elements.some(element => element.condition?.property.propertyId === propertyId || (element.type === 'block' && (() => {
         const native = element.block;
         return (native.type === 'richText' && isCustomPropertyBinding(native.binding) && native.binding.propertyId === propertyId)
@@ -123,6 +136,20 @@ export function customPropertyUsages(blocks: BulletinBlock[], propertyId: string
   return result;
 }
 
+export function pruneUnusedChooserProperties(
+  properties: CustomPropertyDefinition[],
+  blocks: BulletinBlock[],
+  overrides?: Record<string, CustomPropertyValue>,
+) {
+  const used = new Set(properties.filter(property => property.managedByChooserId && customPropertyUsages(blocks, property.id).length).map(property => property.id));
+  const removed = new Set(properties.filter(property => property.managedByChooserId && !used.has(property.id)).map(property => property.id));
+  const nextOverrides = Object.fromEntries(Object.entries(overrides ?? {}).filter(([id]) => !removed.has(id)));
+  return {
+    properties: properties.filter(property => !removed.has(property.id)),
+    overrides: Object.keys(nextOverrides).length ? nextOverrides : undefined,
+  };
+}
+
 export function synchronizeCustomPropertyBindings(blocks: BulletinBlock[], properties: CustomPropertyDefinition[]): BulletinBlock[] {
   const sync = (binding: CustomPropertyBinding) => {
     const property = properties.find(candidate => candidate.id === binding.propertyId);
@@ -133,6 +160,8 @@ export function synchronizeCustomPropertyBindings(blocks: BulletinBlock[], prope
     if (block.condition) block.condition.property = sync(block.condition.property);
     if (block.type === 'richText' && isCustomPropertyBinding(block.binding)) block.binding = sync(block.binding);
     if (block.type === 'custom') block.bindings = block.bindings.map(binding => isCustomPropertyBinding(binding.source) ? { ...binding, source: sync(binding.source) } : binding);
+    if (block.type === 'elementChooser') block.property = sync(block.property);
+    if (block.type === 'elementChooser') block.choices = block.choices.map(choice => choice.block ? ({ ...choice, block: synchronizeCustomPropertyBindings([choice.block], properties)[0] }) : choice);
     if (block.type === 'group') block.children = synchronizeCustomPropertyBindings(block.children, properties);
     if (block.type === 'paragraph') block.children = synchronizeCustomPropertyBindings(block.children, properties) as typeof block.children;
     if (block.type === 'scriptureReading' && block.elements) block.elements = Object.fromEntries(Object.entries(block.elements).map(([role, settings]) => [role, settings?.condition ? { ...settings, condition: { ...settings.condition, property: sync(settings.condition.property) } } : settings]));
@@ -158,15 +187,29 @@ export function customPropertyIssues(template: Pick<TemplateV1, 'customPropertie
     else if (ids.has(property.id)) issues.push({ path: `${path}/id`, message: `Duplicate custom property ID: ${property.id}` });
     if (!name) issues.push({ path: `${path}/name`, message: 'Custom properties require a name.' });
     else if (names.has(name)) issues.push({ path: `${path}/name`, message: `Custom property names must be unique: ${property.name}` });
-    if (!['string', 'number', 'boolean'].includes(property.valueType)) issues.push({ path: `${path}/valueType`, message: `Unsupported custom property type: ${String(property.valueType)}` });
-    const validType = typeof property.defaultValue === property.valueType && (property.valueType !== 'number' || Number.isFinite(property.defaultValue));
+    if (!['string', 'number', 'boolean', 'list'].includes(property.valueType)) issues.push({ path: `${path}/valueType`, message: `Unsupported custom property type: ${String(property.valueType)}` });
+    const validType = property.valueType === 'list' ? typeof property.defaultValue === 'string' : typeof property.defaultValue === property.valueType && (property.valueType !== 'number' || Number.isFinite(property.defaultValue));
     if (!validType) issues.push({ path: `${path}/defaultValue`, message: `Default value must be valid for a ${propertyTypeName(property.valueType)} property.` });
+    if (property.valueType === 'list') {
+      if (!Array.isArray(property.options)) issues.push({ path: `${path}/options`, message: 'List properties require choices.' });
+      const optionIds = new Set<string>(); const optionLabels = new Set<string>();
+      for (const [optionIndex, option] of (property.options ?? []).entries()) {
+        const optionPath = `${path}/options/${optionIndex}`;
+        const label = option.label.trim().toLocaleLowerCase();
+        if (!option.id.trim()) issues.push({ path: `${optionPath}/id`, message: 'List choices require a stable ID.' });
+        else if (optionIds.has(option.id)) issues.push({ path: `${optionPath}/id`, message: `Duplicate List choice ID: ${option.id}` });
+        if (!label) issues.push({ path: `${optionPath}/label`, message: 'List choices require a label.' });
+        else if (optionLabels.has(label)) issues.push({ path: `${optionPath}/label`, message: `List choice labels must be unique: ${option.label}` });
+        optionIds.add(option.id); optionLabels.add(label);
+      }
+      if (property.defaultValue !== '' && !optionIds.has(String(property.defaultValue))) issues.push({ path: `${path}/defaultValue`, message: 'List default must reference an existing choice.' });
+    }
     ids.add(property.id); names.add(name);
   }
   for (const [id, value] of Object.entries(document?.customPropertyOverrides ?? {})) {
     const definition = properties.find(property => property.id === id);
     if (!definition) issues.push({ path: `/customPropertyOverrides/${id}`, message: `Override references missing custom property “${id}”.` });
-    else if (typeof value !== definition.valueType || (typeof value === 'number' && !Number.isFinite(value))) issues.push({ path: `/customPropertyOverrides/${id}`, message: `Override for “${definition.name}” must be valid for a ${propertyTypeName(definition.valueType)} property.` });
+    else if ((definition.valueType === 'list' ? typeof value !== 'string' || (value !== '' && !definition.options?.some(option => option.id === value)) : typeof value !== definition.valueType || (typeof value === 'number' && !Number.isFinite(value)))) issues.push({ path: `/customPropertyOverrides/${id}`, message: `Override for “${definition.name}” must be valid for a ${propertyTypeName(definition.valueType)} property.` });
   }
   const inspect = (block: BulletinBlock, path: string) => {
     const bindings: CustomPropertyBinding[] = [];
@@ -180,6 +223,25 @@ export function customPropertyIssues(template: Pick<TemplateV1, 'customPropertie
     inspectCondition(block.condition, `${path}/condition`);
     if (block.type === 'richText' && isCustomPropertyBinding(block.binding)) bindings.push(block.binding);
     if (block.type === 'custom') bindings.push(...block.bindings.map(binding => binding.source).filter(isCustomPropertyBinding));
+    if (block.type === 'elementChooser') {
+      if (isCustomPropertyBinding(block.property)) bindings.push(block.property);
+      else issues.push({ path: `${path}/property`, message: 'Element Choosers require a List property binding.' });
+    }
+    if (block.type === 'elementChooser') {
+      const definition = properties.find(property => property.id === block.property.propertyId);
+      const choiceIds = new Set<string>(); const choiceNames = new Set<string>();
+      for (const [choiceIndex, choice] of block.choices.entries()) {
+        const choicePath = `${path}/choices/${choiceIndex}`;
+        const name = choice.name.trim().toLocaleLowerCase();
+        if (!choice.id.trim()) issues.push({ path: `${choicePath}/id`, message: 'Element Chooser options require a stable ID.' });
+        else if (choiceIds.has(choice.id)) issues.push({ path: `${choicePath}/id`, message: `Duplicate Element Chooser option ID: ${choice.id}` });
+        if (!name) issues.push({ path: `${choicePath}/name`, message: 'Element Chooser options require a name.' });
+        else if (choiceNames.has(name)) issues.push({ path: `${choicePath}/name`, message: `Element Chooser option names must be unique: ${choice.name}` });
+        choiceIds.add(choice.id); choiceNames.add(name);
+      }
+      if (definition?.valueType !== 'list') issues.push({ path: `${path}/property`, message: 'Element Choosers require a List property.' });
+      else if (JSON.stringify(definition.options ?? []) !== JSON.stringify(block.choices.map(choice => ({ id: choice.id, label: choice.name })))) issues.push({ path: `${path}/choices`, message: 'Element Chooser options must match its List property.' });
+    }
     for (const binding of bindings) {
       const definition = properties.find(property => property.id === binding.propertyId);
       if (!definition) issues.push({ path, message: `Binding references missing custom property “${binding.propertyName}”.` });

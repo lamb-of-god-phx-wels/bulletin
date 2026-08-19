@@ -5,7 +5,7 @@ import { randomId } from '../shared/id';
 import { ToggleSwitch } from './ToggleSwitch';
 
 const encodedBinding = (binding: CanvasTextBinding | undefined) => !binding ? '' : isCustomPropertyBinding(binding) ? `custom:${binding.propertyId}` : `builtin:${binding}`;
-const propertyTypeLabel = (valueType: CustomPropertyDefinition['valueType']) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : 'Number';
+const propertyTypeLabel = (valueType: CustomPropertyDefinition['valueType']) => valueType === 'boolean' ? 'Toggle' : valueType === 'string' ? 'Text' : valueType === 'list' ? 'List' : 'Number';
 
 export function CustomPropertyBindingSelect({ value, template, booleanOnly = false, onChange }: {
   value?: CanvasTextBinding;
@@ -31,7 +31,15 @@ function PropertyInput({ property, value, onChange }: { property: CustomProperty
     return <ToggleSwitch label={`${property.name} value`} checked={checked} onChange={onChange} />;
   }
   if (property.valueType === 'number') return <input type="number" aria-label={`${property.name} value`} value={typeof value === 'number' ? value : 0} onChange={event => Number.isFinite(event.currentTarget.valueAsNumber) && onChange(event.currentTarget.valueAsNumber)} />;
+  if (property.valueType === 'list') return <select aria-label={`${property.name} value`} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value)}><option value="">Choose…</option>{property.options?.map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select>;
   return <input aria-label={`${property.name} value`} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value)} />;
+}
+
+function ListOptions({ property, onChange }: { property: CustomPropertyDefinition; onChange(changes: Partial<CustomPropertyDefinition>): void }) {
+  if (property.valueType !== 'list') return null;
+  if (property.managedByChooserId) return <p className="helper">Choices are managed in the Element Chooser. Rename, add, or remove them there.</p>;
+  const options = property.options ?? [];
+  return <div className="property-list-options"><span>Choices</span>{options.map((option, index) => <div className="custom-property-definition-line" key={option.id}><input aria-label={`Choice ${index + 1}`} value={option.label} onChange={event => onChange({ options: options.map(item => item.id === option.id ? { ...item, label: event.target.value } : item) })} /><button className="text-button" aria-label={`Move ${option.label} up`} disabled={!index} onClick={() => { const next = [...options]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onChange({ options: next }); }}>↑</button><button className="text-button" aria-label={`Move ${option.label} down`} disabled={index === options.length - 1} onClick={() => { const next = [...options]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; onChange({ options: next }); }}>↓</button><button className="property-delete-button" aria-label={`Delete ${option.label}`} onClick={() => { const next = options.filter(item => item.id !== option.id); onChange({ options: next, defaultValue: property.defaultValue === option.id ? (next[index]?.id ?? next[index - 1]?.id ?? '') : property.defaultValue }); }}><TrashIcon /></button></div>)}<button className="secondary" onClick={() => { const option = { id: `option-${randomId()}`, label: `Option ${options.length + 1}` }; onChange({ options: [...options, option], defaultValue: property.defaultValue || option.id }); }}>＋ Choice</button></div>;
 }
 
 function AddPropertyControls({ onAdd }: { onAdd(valueType: CustomPropertyDefinition['valueType']): void }) {
@@ -48,7 +56,7 @@ function AddPropertyControls({ onAdd }: { onAdd(valueType: CustomPropertyDefinit
   const add = (valueType: CustomPropertyDefinition['valueType']) => { onAdd(valueType); setOpen(false); };
   return <div className="property-add-controls" ref={root}>
     <button className="secondary property-add-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(current => !current)}>＋ Property</button>
-    {open && <div className="property-add-menu" role="menu" aria-label="Property type"><button role="menuitem" onClick={() => add('boolean')}>Toggle</button><button role="menuitem" onClick={() => add('string')}>Text</button><button role="menuitem" onClick={() => add('number')}>Number</button></div>}
+    {open && <div className="property-add-menu" role="menu" aria-label="Property type"><button role="menuitem" onClick={() => add('boolean')}>Toggle</button><button role="menuitem" onClick={() => add('string')}>Text</button><button role="menuitem" onClick={() => add('number')}>Number</button><button role="menuitem" onClick={() => add('list')}>List</button></div>}
   </div>;
 }
 
@@ -72,10 +80,11 @@ export function TemplatePropertiesPanel({ template, onChange }: { template: Temp
         return <div className="custom-property-row" key={property.id}>
           <div className="custom-property-definition-line"><label><span>Name</span><input autoFocus={property.id === focusPropertyId} value={property.name} onFocus={event => { if (property.id === focusPropertyId) { event.currentTarget.select(); setFocusPropertyId(undefined); } }} onChange={event => update(property.id, { name: event.target.value })} /></label>{property.valueType === 'boolean' && <PropertyInput property={property} value={property.defaultValue} onChange={defaultValue => update(property.id, { defaultValue })} />}<button className="property-delete-button" aria-label={`Delete ${property.name}`} disabled={usages.length > 0} title={usages.length ? `Used by ${usages.map(item => item.label).join(', ')}` : 'Delete property'} onClick={() => onChange({ ...template, status: 'draft', customProperties: properties.filter(item => item.id !== property.id) })}><TrashIcon /></button></div>
           {property.valueType !== 'boolean' && <div className="custom-property-value-line"><span>Default</span><PropertyInput property={property} value={property.defaultValue} onChange={defaultValue => update(property.id, { defaultValue })} /></div>}
+          <ListOptions property={property} onChange={changes => update(property.id, changes)} />
           <ThisSundayToggle property={property} onChange={includeInThisSunday => update(property.id, { includeInThisSunday })} />
         </div>;
       })}
-      <AddPropertyControls onAdd={valueType => { const id = `property-${randomId()}`; setFocusPropertyId(id); onChange({ ...template, status: 'draft', customProperties: [...properties, { id, name: `Property ${properties.length + 1}`, valueType, defaultValue: defaultValueForCustomProperty(valueType) }] }); }} />
+      <AddPropertyControls onAdd={valueType => { const id = `property-${randomId()}`; const option = { id: `option-${randomId()}`, label: 'Option 1' }; setFocusPropertyId(id); onChange({ ...template, status: 'draft', customProperties: [...properties, { id, name: `Property ${properties.length + 1}`, valueType, defaultValue: valueType === 'list' ? option.id : defaultValueForCustomProperty(valueType), ...(valueType === 'list' ? { options: [option] } : {}) }] }); }} />
     </div>
   </details>;
 }
@@ -92,10 +101,11 @@ export function PageTemplatePropertiesPanel({ pageTemplate, onChange }: { pageTe
         return <div className="custom-property-row" key={property.id}>
           <div className="custom-property-definition-line"><label><span>Name</span><input autoFocus={property.id === focusPropertyId} value={property.name} onFocus={event => { if (property.id === focusPropertyId) { event.currentTarget.select(); setFocusPropertyId(undefined); } }} onChange={event => update(property.id, { name: event.target.value })} /></label>{property.valueType === 'boolean' && <PropertyInput property={property} value={property.defaultValue} onChange={defaultValue => update(property.id, { defaultValue })} />}<button className="property-delete-button" aria-label={`Delete ${property.name}`} disabled={usages.length > 0} title={usages.length ? `Used by ${usages.map(item => item.label).join(', ')}` : 'Delete property'} onClick={() => onChange({ ...pageTemplate, status: 'draft', customProperties: properties.filter(item => item.id !== property.id) })}><TrashIcon /></button></div>
           {property.valueType !== 'boolean' && <div className="custom-property-value-line"><span>Default</span><PropertyInput property={property} value={property.defaultValue} onChange={defaultValue => update(property.id, { defaultValue })} /></div>}
+          <ListOptions property={property} onChange={changes => update(property.id, changes)} />
           <ThisSundayToggle property={property} onChange={includeInThisSunday => update(property.id, { includeInThisSunday })} />
         </div>;
       })}
-      <AddPropertyControls onAdd={valueType => { const id = `property-${randomId()}`; setFocusPropertyId(id); onChange({ ...pageTemplate, status: 'draft', customProperties: [...properties, { id, name: `Property ${properties.length + 1}`, valueType, defaultValue: defaultValueForCustomProperty(valueType) }] }); }} />
+      <AddPropertyControls onAdd={valueType => { const id = `property-${randomId()}`; const option = { id: `option-${randomId()}`, label: 'Option 1' }; setFocusPropertyId(id); onChange({ ...pageTemplate, status: 'draft', customProperties: [...properties, { id, name: `Property ${properties.length + 1}`, valueType, defaultValue: valueType === 'list' ? option.id : defaultValueForCustomProperty(valueType), ...(valueType === 'list' ? { options: [option] } : {}) }] }); }} />
     </div>
   </details>;
 }
@@ -131,10 +141,11 @@ export function WeeklyPropertiesPanel({ document, template, onChange }: { docume
           writeProperties(properties.filter(item => item.id !== property.id), Object.keys(overrides).length ? overrides : undefined);
         }}><TrashIcon /></button></div>
         {property.valueType !== 'boolean' && <div className={`custom-property-value-line ${overridden ? 'has-reset' : ''}`}><span>Value</span><PropertyInput property={property} value={effectiveCustomPropertyValue(property.id, template, document) ?? property.defaultValue} onChange={value => setValue(property, value)} />{overridden && <button className="property-reset-button" onClick={() => reset(property.id)}>Reset</button>}</div>}
+        <ListOptions property={property} onChange={changes => updateDefinition(property.id, changes)} />
         <ThisSundayToggle property={property} onChange={includeInThisSunday => updateDefinition(property.id, { includeInThisSunday })} />
       </div>;
     })}
-      <AddPropertyControls onAdd={valueType => { const id = `property-${randomId()}`; setFocusPropertyId(id); writeProperties([...properties, { id, name: `Property ${properties.length + 1}`, valueType, defaultValue: defaultValueForCustomProperty(valueType) }]); }} />
+      <AddPropertyControls onAdd={valueType => { const id = `property-${randomId()}`; const option = { id: `option-${randomId()}`, label: 'Option 1' }; setFocusPropertyId(id); writeProperties([...properties, { id, name: `Property ${properties.length + 1}`, valueType, defaultValue: valueType === 'list' ? option.id : defaultValueForCustomProperty(valueType), ...(valueType === 'list' ? { options: [option] } : {}) }]); }} />
     </div>
   </details>;
 }

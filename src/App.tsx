@@ -1972,6 +1972,7 @@ function DesktopApp() {
             createRequest={pageTemplateCreateRequest}
             onCreateRequestHandled={() => setPageTemplateCreateRequest(0)}
             template={template}
+            templates={workspace.templates.map(record => record.template)}
             document={document}
             library={workspace.library}
             root={workspace.root}

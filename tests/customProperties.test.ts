@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { PageTemplatePropertiesPanel, TemplatePropertiesPanel, ThisSundayProperties, WeeklyPropertiesPanel } from '../src/components/CustomProperties';
 import { createBulletin, defaultTemplate } from '../src/shared/defaults';
 import { boundRichTextParagraphs } from '../src/shared/canvas';
-import { customPropertyBinding, customPropertyIssues, effectiveCustomPropertyValue, resolveConditionalBlocks, synchronizeCustomPropertyBindings, textBindingValue } from '../src/shared/customProperties';
+import { customPropertyBinding, customPropertyIssues, effectiveCustomPropertyValue, pruneUnusedChooserProperties, resolveConditionalBlocks, synchronizeCustomPropertyBindings, textBindingValue } from '../src/shared/customProperties';
+import { createElementChooser } from '../src/shared/blocks';
 import { instantiatePageTemplate } from '../src/shared/pageTemplates';
 import { paginate } from '../src/shared/pagination';
 import { templateFromBulletin } from '../src/shared/templates';
@@ -69,6 +70,62 @@ describe('custom properties and conditional blocks', () => {
     expect(effectiveCustomPropertyValue(enabled.id, host, document)).toBe(true);
     expect(textBindingValue(customPropertyBinding(enabled), document, host)).toBe('True');
     expect(textBindingValue(customPropertyBinding(attendance), document, host)).toBe('147');
+  });
+
+  it('renders List values as option labels and exposes the same dropdown in This Sunday', () => {
+    const property: CustomPropertyDefinition = { id: 'service', name: 'Service', valueType: 'list', defaultValue: 'early', includeInThisSunday: true, options: [{ id: 'early', label: 'Early service' }, { id: 'late', label: 'Late service' }] };
+    const host = { ...template(), customProperties: [property] };
+    const document = createBulletin(host);
+    expect(textBindingValue(customPropertyBinding(property), document, host)).toBe('Early service');
+    document.customPropertyOverrides = { service: 'late' };
+    expect(textBindingValue(customPropertyBinding(property), document, host)).toBe('Late service');
+    const markup = renderToStaticMarkup(createElement(ThisSundayProperties, { document, template: host, onChange: () => undefined }));
+    expect(markup).toContain('<select');
+    expect(markup).toContain('Late service');
+  });
+
+  it('creates an empty chooser property and resolves only the selected alternative', () => {
+    const created = createElementChooser([]);
+    expect(created.property).toMatchObject({ name: 'Element choice', valueType: 'list', defaultValue: '', options: [], includeInThisSunday: true });
+    const first = { id: 'first', name: 'First', block: { id: 'first-block', type: 'heading' as const, text: 'First heading' } };
+    const second = { id: 'second', name: 'Renamed second', block: { id: 'second-block', type: 'heading' as const, text: 'Second heading' } };
+    const property = { ...created.property, defaultValue: first.id, options: [{ id: first.id, label: first.name }, { id: second.id, label: second.name }] };
+    const chooser = { ...created.block, choices: [first, second] };
+    const host = { ...template(), customProperties: [property], starterBlocks: [chooser] };
+    const document = createBulletin(host);
+    expect(resolveConditionalBlocks(document.blocks, host, document).map(block => block.id)).toEqual(['first-block']);
+    document.customPropertyOverrides = { [property.id]: second.id };
+    expect(paginate(document.blocks, host, undefined, document).flatMap(page => page.blocks).filter(block => block.type === 'heading').map(block => block.id)).toEqual(['second-block']);
+    document.customPropertyOverrides = { [property.id]: 'historical-missing-id' };
+    expect(resolveConditionalBlocks(document.blocks, host, document).map(block => block.id)).toEqual(['first-block']);
+  });
+
+  it('renders no block when the selected chooser option has had its element removed', () => {
+    const created = createElementChooser([]);
+    const property = { ...created.property, defaultValue: 'empty', options: [{ id: 'empty', label: 'Empty' }, { id: 'filled', label: 'Filled' }] };
+    const chooser: BulletinBlock = { ...created.block, choices: [
+      { id: 'empty', name: 'Empty' },
+      { id: 'filled', name: 'Filled', block: { id: 'filled-block', type: 'heading', text: 'Filled' } },
+    ] };
+    const host = { ...template(), customProperties: [property], starterBlocks: [chooser] };
+    const document = createBulletin(host);
+    expect(resolveConditionalBlocks(document.blocks, host, document)).toEqual([]);
+    document.customPropertyOverrides = { [property.id]: 'filled' };
+    expect(resolveConditionalBlocks(document.blocks, host, document).map(block => block.id)).toEqual(['filled-block']);
+  });
+
+  it('prunes a chooser-managed property and override only after its last usage is removed', () => {
+    const created = createElementChooser([]);
+    const retained = pruneUnusedChooserProperties([created.property], [created.block], { [created.property.id]: '' });
+    expect(retained.properties).toHaveLength(1);
+    const removed = pruneUnusedChooserProperties([created.property], [], { [created.property.id]: 'old' });
+    expect(removed).toEqual({ properties: [], overrides: undefined });
+  });
+
+  it('validates List choices and selection references', () => {
+    const broken: CustomPropertyDefinition = { id: 'list', name: 'List', valueType: 'list', defaultValue: 'missing', options: [{ id: 'same', label: 'Choice' }, { id: 'same', label: 'Choice' }] };
+    const messages = customPropertyIssues({ ...template(), customProperties: [broken] }).map(issue => issue.message);
+    expect(messages).toEqual(expect.arrayContaining(['Duplicate List choice ID: same', 'List choice labels must be unique: Choice', 'List default must reference an existing choice.']));
   });
 
   it('lets a bulletin own and edit its property definitions', () => {
